@@ -1,0 +1,73 @@
+<aside class="navbar navbar-vertical navbar-expand-lg" aria-label="侧边导航">
+  <div class="container-fluid">
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false" aria-label="展开侧边导航">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="navbar-brand navbar-brand-autodark justify-content-center">
+      <a href="<%= admins_root_path %>" class="d-flex align-items-center text-reset text-decoration-none">
+        <%= render "layouts/admins/brand_mark" %>
+        <span class="nav-link-title"><span class="ms-2">Booking</span></span>
+      </a>
+    </div>
+    <%# Balance the mobile sidebar toggle so the brand stays centered. %>
+    <span class="navbar-toggler invisible d-lg-none" aria-hidden="true"></span>
+    <div class="navbar-footer d-none d-lg-block">
+      <ul class="navbar-nav">
+        <li class="nav-item">
+          <a href="<%= edit_admins_account_path %>" class="nav-link">
+            <span class="avatar avatar-sm bg-primary-lt"><%= current_admin.display_name.first %></span>
+            <div class="nav-link-title"><%= current_admin.display_name %><div class="small text-secondary"><%= current_admin.role_name %></div></div>
+          </a>
+        </li>
+      </ul>
+    </div>
+    <nav class="collapse navbar-collapse" id="sidebar-menu" aria-label="后台菜单">
+      <ul class="navbar-nav pt-lg-3">
+        <li class="nav-section-title">工作台</li>
+        <li class="nav-item<%= " active" if controller_path == "admins/dashboard" %>">
+          <a class="nav-link" href="<%= admins_root_path %>" aria-current="<%= controller_path == "admins/dashboard" ? "page" : "false" %>">
+            <span class="nav-link-icon"><%= render "layouts/admins/icon", name: :home %></span>
+            <span class="nav-link-title">首页概览</span>
+          </a>
+        </li>
+        <% [
+          ["预约管理", :calendar, [["预约列表", admins_reservations_path], ["今日排期", admins_root_path(anchor: "schedule")]]],
+          ["客户管理", :users, [["客户列表", admins_customers_path], ["服务团队", admins_root_path(anchor: "staff")]]],
+          ["服务管理", :package, [["服务项目", admins_root_path(anchor: "services")], ["预约规则", admins_root_path(anchor: "settings")]]],
+          ["财务管理", :wallet, [["收款记录", admins_root_path(anchor: "payments")], ["经营概况", admins_root_path(anchor: "reports")]]]
+        ].each do |label, icon, children| %>
+          <% group_active = (label == "预约管理" && controller_path == "admins/reservations") || (label == "客户管理" && controller_path == "admins/customers") %>
+          <li class="nav-item dropdown<%= " active" if group_active %>">
+            <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-haspopup="true" aria-expanded="<%= group_active %>">
+              <span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span>
+              <span class="nav-link-title"><%= label %></span>
+            </a>
+            <div class="dropdown-menu<%= " show" if group_active %>">
+              <% children.each do |title, path| %>
+                <% active = (path == admins_reservations_path && controller_path == "admins/reservations") || (path == admins_customers_path && controller_path == "admins/customers") %>
+                <a class="dropdown-item<%= " active" if active %>" href="<%= path %>" aria-current="<%= active ? "page" : "false" %>"><%= title %></a>
+              <% end %>
+            </div>
+          </li>
+        <% end %>
+        <li class="nav-section-title">管理</li>
+        <li class="nav-item">
+          <a class="nav-link" href="<%= admins_root_path(anchor: "reports") %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: :chart %></span><span class="nav-link-title">数据概况</span></a>
+        </li>
+        <% if current_admin.super_admin? %>
+          <% [["管理员", admins_administrators_path, :users, "admins/administrators"], ["系统设置", edit_admins_system_settings_path, :settings, "admins/system_settings"], ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]].each do |label, path, icon, controller| %>
+            <li class="nav-item<%= ' active' if controller_path == controller %>"><a class="nav-link" href="<%= path %>" aria-current="<%= controller_path == controller ? 'page' : 'false' %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span><span class="nav-link-title"><%= label %></span></a></li>
+          <% end %>
+        <% end %>
+        <li class="nav-item<%= " active" if controller_path == "admins/components" %>">
+          <a class="nav-link" href="<%= admins_components_path %>" aria-current="<%= controller_path == "admins/components" ? "page" : "false" %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: :package %></span><span class="nav-link-title">组件规范</span></a>
+        </li>
+        <li class="nav-item mt-auto">
+          <button type="button" class="nav-link" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings">
+            <span class="nav-link-icon"><%= render "layouts/admins/icon", name: :brush %></span><span class="nav-link-title">外观设置</span>
+          </button>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</aside>

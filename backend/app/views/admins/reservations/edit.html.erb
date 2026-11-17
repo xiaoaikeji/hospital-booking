@@ -1,0 +1,103 @@
+<% reservation = @reservation %>
+<% detail_path = admins_reservation_path(reservation[:id], @list_context) %>
+<% content_for :title, "#{reservation[:number]} · 编辑预约 · Booking 管理后台" %>
+
+<div class="page-header mt-0 mb-3">
+  <div class="row g-2 align-items-center">
+    <div class="col-auto"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :edit, icon_class: "w-5 h-5" %></span>编辑预约</h1></div>
+    <div class="col-auto ms-auto"><%= link_to "返回详情", detail_path, class: "btn text-nowrap" %></div>
+  </div>
+</div>
+
+<%# Native grouped fields and footer from Desktop/tabler-1.7.1/dashboard/settings.html and form-layout.html. %>
+<section class="card" aria-label="编辑预约表单">
+  <div class="card-header">
+    <div><h2 class="card-title"><%= reservation[:customer] %> · <%= reservation[:service] %></h2><div class="text-secondary text-break mt-1"><%= reservation[:number] %></div></div>
+    <span class="badge bg-<%= reservation[:status_color] %>-lt ms-auto"><%= reservation[:status_label] %></span>
+  </div>
+
+  <div class="card-body">
+    <h2 class="card-title mb-3">客户信息</h2>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-customer">客户姓名</label>
+        <input class="form-control" id="reservation-customer" type="text" value="<%= reservation[:customer] %>" placeholder="请输入客户姓名" autocomplete="name" aria-required="true">
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-mobile">联系电话</label>
+        <input class="form-control" id="reservation-mobile" type="tel" value="<%= reservation[:mobile] %>" placeholder="请输入联系电话" autocomplete="tel" aria-required="true">
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label" for="reservation-source">预约来源</label>
+        <%= select_tag nil, options_for_select(@source_options, reservation[:source]), id: "reservation-source", class: "form-select" %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body border-top">
+    <h2 class="card-title mb-3">预约安排</h2>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-service">服务项目</label>
+        <%= select_tag nil, options_for_select(@service_options, reservation[:service]), id: "reservation-service", class: "form-select", aria: { required: true } %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-staff">服务人员</label>
+        <%= select_tag nil, options_for_select(@staff_options, reservation[:staff]), id: "reservation-staff", class: "form-select", aria: { required: true } %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-duration">服务时长</label>
+        <div class="input-group"><input class="form-control" id="reservation-duration" type="number" min="15" step="15" value="<%= reservation[:duration] %>" aria-required="true"><span class="input-group-text">分钟</span></div>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-date">预约日期</label>
+        <%= render "admins/shared/date_field", id: "reservation-date", value: reservation[:starts_at].to_date.iso8601, required: true, label: "预约日期" %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-start-time">开始时间</label>
+        <input class="form-control" id="reservation-start-time" type="text" inputmode="numeric" maxlength="5" placeholder="例如 09:00" value="<%= reservation[:starts_at].strftime("%H:%M") %>" aria-required="true">
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-end-time">结束时间</label>
+        <input class="form-control" id="reservation-end-time" type="text" inputmode="numeric" maxlength="5" placeholder="例如 09:30" value="<%= reservation[:ends_at].strftime("%H:%M") %>" aria-required="true">
+      </div>
+    </div>
+  </div>
+
+  <div class="card-body border-top">
+    <h2 class="card-title mb-3">费用与备注</h2>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <label class="form-label required" for="reservation-amount">应付金额</label>
+        <div class="input-group"><span class="input-group-text">¥</span><input class="form-control" id="reservation-amount" type="number" min="0" step="0.01" value="<%= reservation[:amount] %>" aria-required="true"></div>
+      </div>
+      <div class="col-12">
+        <label class="form-label" for="reservation-note">预约备注</label>
+        <textarea class="form-control" id="reservation-note" rows="4" placeholder="填写客户需求或预约注意事项"><%= reservation[:note] %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-footer bg-transparent">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <span class="text-secondary small">当前为静态预览，修改不会保存。</span>
+      <div class="btn-list ms-auto">
+        <%= link_to "取消", detail_path, class: "btn" %>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reservation-save-preview"><%= render "layouts/admins/icon", name: :save %>保存修改</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="modal modal-blur fade" id="reservation-save-preview" tabindex="-1" aria-labelledby="reservation-save-preview-title" aria-describedby="reservation-save-preview-description" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title" id="reservation-save-preview-title">编辑页面预览</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭预览提示"></button></div>
+      <div class="modal-body"><p class="mb-0" id="reservation-save-preview-description">当前为静态表单，填写的内容不会保存。你可以继续编辑，或返回预约详情。</p></div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-bs-dismiss="modal">继续编辑</button>
+        <%= link_to "返回详情", detail_path, class: "btn btn-primary" %>
+      </div>
+    </div>
+  </div>
+</div>

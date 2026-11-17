@@ -1,0 +1,28 @@
+<div class="row row-cards">
+  <div class="col-12"><section class="card" aria-labelledby="container-tabs-title">
+    <div class="card-header"><h2 class="card-title" id="container-tabs-title">局部页签</h2></div>
+    <div class="card-body"><ul class="nav nav-tabs mb-3" role="tablist"><li class="nav-item" role="presentation"><button type="button" class="nav-link active" id="sample-basic-tab" data-bs-toggle="tab" data-bs-target="#sample-basic-panel" role="tab" aria-controls="sample-basic-panel" aria-selected="true">基础信息</button></li><li class="nav-item" role="presentation"><button type="button" class="nav-link" id="sample-notification-tab" data-bs-toggle="tab" data-bs-target="#sample-notification-panel" role="tab" aria-controls="sample-notification-panel" aria-selected="false">通知设置</button></li></ul>
+      <div class="tab-content"><div class="tab-pane active show" id="sample-basic-panel" role="tabpanel" aria-labelledby="sample-basic-tab" tabindex="0"><div class="datagrid"><div class="datagrid-item"><div class="datagrid-title">门店名称</div><div class="datagrid-content">Booking 旗舰店</div></div><div class="datagrid-item"><div class="datagrid-title">联系电话</div><div class="datagrid-content">13800006218</div></div></div></div><div class="tab-pane" id="sample-notification-panel" role="tabpanel" aria-labelledby="sample-notification-tab" tabindex="0"><label class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" checked><span class="form-check-label">接收新预约通知</span></label></div></div>
+    </div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="container-accordion-title">
+    <div class="card-header"><h2 class="card-title" id="container-accordion-title">分组折叠</h2></div>
+    <div class="card-body"><div class="accordion" id="component-accordion">
+      <% [ ["营业时间", "周一至周日 09:00 — 18:00"], ["预约须知", "请提前 10 分钟到店。"], ["取消规则", "预约开始前可联系门店取消。"] ].each_with_index do |(title, content), index| %><div class="accordion-item"><h3 class="accordion-header"><button class="accordion-button<%= " collapsed" unless index.zero? %>" type="button" id="component-accordion-button-<%= index %>" data-bs-toggle="collapse" data-bs-target="#component-accordion-panel-<%= index %>" aria-expanded="<%= index.zero? %>" aria-controls="component-accordion-panel-<%= index %>"><%= title %><span class="accordion-button-toggle"><svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6l6 -6" /></svg></span></button></h3><div class="accordion-collapse collapse<%= " show" if index.zero? %>" id="component-accordion-panel-<%= index %>" data-bs-parent="#component-accordion" role="region" aria-labelledby="component-accordion-button-<%= index %>"><div class="accordion-body"><%= content %></div></div></div><% end %>
+    </div></div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="container-drawer-title">
+    <div class="card-header"><h2 class="card-title" id="container-drawer-title">抽屉与更多设置</h2></div>
+    <div class="card-body"><div class="btn-list mb-3"><button type="button" class="btn btn-info" data-bs-toggle="offcanvas" data-bs-target="#component-drawer" aria-controls="component-drawer">打开详情抽屉</button><button type="button" class="btn" data-bs-toggle="collapse" data-bs-target="#component-advanced" aria-controls="component-advanced" aria-expanded="false"><span data-collapse-label="collapsed">更多设置</span><span data-collapse-label="expanded">收起设置</span></button></div>
+      <div class="collapse" id="component-advanced"><div class="border rounded p-3"><label class="form-label" for="sample-reminder">提前提醒（分钟）</label><input class="form-control" id="sample-reminder" type="number" min="0" placeholder="默认：0"></div></div>
+    </div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="container-steps-title">
+    <div class="card-header"><h2 class="card-title" id="container-steps-title">处理进度</h2></div>
+    <div class="card-body"><ol class="steps steps-counter my-0" aria-label="预约进度示例"><li class="step-item">已创建</li><li class="step-item active" aria-current="step">已确认</li><li class="step-item">服务中</li><li class="step-item">已完成</li></ol></div>
+  </section></div>
+</div>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="component-drawer" aria-labelledby="component-drawer-title">
+  <div class="offcanvas-header"><h2 class="offcanvas-title" id="component-drawer-title">预约信息</h2><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭详情抽屉"></button></div>
+  <div class="offcanvas-body"><div class="datagrid mb-4"><div class="datagrid-item"><div class="datagrid-title">预约编号</div><div class="datagrid-content text-break">BK202611160001</div></div><div class="datagrid-item"><div class="datagrid-title">客户</div><div class="datagrid-content">陈女士</div></div><div class="datagrid-item"><div class="datagrid-title">联系电话</div><div class="datagrid-content">13800006218</div></div><div class="datagrid-item"><div class="datagrid-title">服务项目</div><div class="datagrid-content">初次咨询</div></div></div><div class="btn-list"><%= link_to "完整详情", admins_reservation_path(1), class: "btn btn-info" %><button type="button" class="btn" data-bs-dismiss="offcanvas">关闭</button></div></div>
+</div>

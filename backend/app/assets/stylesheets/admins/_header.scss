@@ -1,0 +1,8 @@
+.app-admins .admin-header__nav {
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

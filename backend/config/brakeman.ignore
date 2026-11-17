@@ -1,0 +1,12 @@
+{
+  "ignored_warnings": [
+    {
+      "warning_type": "Dynamic Render Path",
+      "message": "Render path contains parameter value",
+      "file": "app/views/admins/components/index.html.erb",
+      "line": 16,
+      "fingerprint": "c3b6e6113e0bd6376e464c338e08b77b12ca9b7ab745976903b02144fd99d737",
+      "note": "组件分类参数经 ComponentsController::GROUPS.keys 固定白名单筛选，无效值回退 media，仅渲染内置片段；已核实为动态渲染误报。"
+    }
+  ]
+}

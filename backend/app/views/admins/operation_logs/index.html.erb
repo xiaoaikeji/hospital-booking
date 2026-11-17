@@ -1,0 +1,21 @@
+<% content_for :title, "操作日志 · Booking 管理后台" %>
+<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :chart, icon_class: "w-5 h-5" %></span>操作日志</h1></div>
+<section class="card">
+  <div class="card-header"><%= form_with url: admins_operation_logs_path, method: :get, class: "row g-2 align-items-center w-100" do |form| %>
+    <div class="col-sm-6 col-md-4"><%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", aria: { label: "操作类型" } %></div>
+    <div class="col-auto"><%= form.submit "筛选", class: "btn" %></div>
+  <% end %></div>
+  <% if @logs.any? %>
+    <div class="table-responsive"><table class="table table-vcenter card-table">
+      <thead><tr><th>ID</th><th>操作</th><th>操作人</th><th>对象</th><th>结果</th><th>时间</th><th class="w-1">操作</th></tr></thead>
+      <tbody><% @logs.each do |log| %><tr>
+        <td>#<%= log.id %></td><td><%= log_action_name(log.action) %></td>
+        <td><%= @actors[log.actor_id]&.display_name || (log.actor_id ? "#{log.actor_type} ##{log.actor_id}" : "—") %></td>
+        <td><%= log.target_type ? "#{log.target_type} ##{log.target_id}" : "—" %></td>
+        <td><span class="badge bg-<%= log.status == 'success' ? 'success' : 'danger' %>-lt"><%= log.status == "success" ? "成功" : "失败" %></span></td>
+        <td class="text-nowrap"><%= l(log.created_at, format: :short) %></td><td><%= link_to "详情", admins_operation_log_path(log), class: "btn btn-sm btn-info" %></td>
+      </tr><% end %></tbody>
+    </table></div>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_operation_logs_path(operation: @action.presence, page: page) } %>
+  <% else %><div class="empty"><h2 class="empty-title">暂无匹配的操作日志</h2><p class="empty-subtitle text-secondary">后续操作记录会显示在这里。</p></div><% end %>
+</section>

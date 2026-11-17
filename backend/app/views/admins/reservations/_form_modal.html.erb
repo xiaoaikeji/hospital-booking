@@ -1,0 +1,25 @@
+<% record = reservation || {} %>
+<div class="modal modal-blur fade" id="<%= modal_id %>" tabindex="-1" aria-labelledby="<%= modal_id %>-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title" id="<%= modal_id %>-title"><%= title %></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭预约表单"></button></div>
+      <div class="modal-body">
+        <% if record[:number] %><div class="text-secondary mb-3"><%= record[:number] %></div><% end %>
+        <div class="row g-3">
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-customer">客户姓名</label><input class="form-control" id="<%= modal_id %>-customer" type="text" value="<%= record[:customer] %>" placeholder="请输入客户姓名"></div>
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-mobile">联系电话</label><input class="form-control" id="<%= modal_id %>-mobile" type="tel" value="<%= record[:mobile] %>" placeholder="请输入联系电话"></div>
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-service">服务项目</label><%= select_tag nil, options_for_select(@service_options, record[:service]), id: "#{modal_id}-service", class: "form-select" %></div>
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-staff">服务人员</label><%= select_tag nil, options_for_select(["林顾问", "王老师", "赵老师"], record[:staff]), id: "#{modal_id}-staff", class: "form-select" %></div>
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-date">预约日期</label><%= render "admins/shared/date_field", id: "#{modal_id}-date", value: (record[:starts_at]&.to_date || @preview_date).iso8601, inline: true, label: "预约日期" %></div>
+          <div class="col-sm-6"><label class="form-label" for="<%= modal_id %>-time">预约时间</label><input class="form-control" id="<%= modal_id %>-time" type="text" inputmode="numeric" maxlength="5" placeholder="例如 09:00" value="<%= record[:starts_at]&.strftime("%H:%M") || "09:00" %>"></div>
+          <div class="col-12"><label class="form-label" for="<%= modal_id %>-note">预约备注</label><textarea class="form-control" id="<%= modal_id %>-note" rows="3" placeholder="填写预约备注"><%= record[:note] %></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span class="text-secondary small me-auto">仅展示表单，不保存更改。</span>
+        <button type="button" class="btn" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :save %><%= submit_label %></button>
+      </div>
+    </div>
+  </div>
+</div>

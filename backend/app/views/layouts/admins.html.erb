@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-bs-navbar-position="combined" data-bs-layout="fluid">
+  <head>
+    <title><%= content_for(:title) || "Booking · 管理后台" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <link rel="icon" href="/icon.svg?v=2" type="image/svg+xml">
+    <link rel="icon" href="/icon.png?v=2" type="image/png">
+    <link rel="apple-touch-icon" href="/icon.png?v=2">
+    <%= stylesheet_link_tag "tabler/css/tabler.min", "tabler/css/tabler-vendors.min", "tabler/css/tabler-themes.min", "application", "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "tabler/libs/vanilla-calendar-pro/index", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "tabler/js/tabler.min", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "admins/datepicker", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "admins/forms", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "admins/password_toggle", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "admins/storage_settings", defer: true, "data-turbo-track": "reload" %>
+    <%= javascript_include_tag "admins/theme_settings", defer: true, "data-turbo-track": "reload" %>
+  </head>
+  <body class="app-admins">
+    <%= javascript_include_tag "tabler/js/tabler-theme.min" %>
+    <a href="#content" class="visually-hidden-focusable skip-link">跳转到主要内容</a>
+    <div class="page">
+      <%= render "layouts/admins/sidebar" %>
+      <%= render "layouts/admins/header" %>
+      <div class="page-wrapper">
+        <main id="content" class="page-body">
+          <div class="<%= class_names("container-xl", "d-flex flex-column flex-fill" => content_for?(:fill_content)) %>"><%= render "admins/shared/flash" %><%= yield %></div>
+        </main>
+      </div>
+    </div>
+    <%= render "layouts/admins/theme_settings" %>
+  </body>
+</html>

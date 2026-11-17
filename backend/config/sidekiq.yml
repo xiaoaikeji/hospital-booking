@@ -1,0 +1,4 @@
+# Web 与任务进程分开启动：bin/dev / bin/jobs。
+concurrency: <%= ENV.fetch("SIDEKIQ_CONCURRENCY", 3) %>
+queues:
+  - default

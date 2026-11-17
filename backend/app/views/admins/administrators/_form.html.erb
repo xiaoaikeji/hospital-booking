@@ -1,0 +1,25 @@
+<% form_id = dom_id(administrator, :form); confirmation_id = "disable-administrator" if administrator.persisted? && administrator.enabled_in_database %>
+<%= form_with model: administrator, scope: :administrator, id: form_id, url: (administrator.persisted? ? admins_administrator_path(administrator) : admins_administrators_path), method: (administrator.persisted? ? :patch : :post), class: "card", data: { admin_form: true, disable_confirmation: confirmation_id } do |form| %>
+  <div class="card-body">
+    <%= render "admins/shared/form_errors", record: administrator %>
+    <div class="row g-3">
+      <% [[:username, "用户名"], [:name, "姓名"]].each do |field, label| %>
+        <div class="col-md-6"><%= form.label field, label, class: class_names("form-label", "required" => field == :username) %>
+          <%= form.text_field field, class: admin_field_class(administrator, field), required: field == :username, autocomplete: "off", aria: { describedby: "#{field}-error" } %>
+          <%= admin_field_errors(administrator, field) %>
+        </div>
+      <% end %>
+      <div class="col-md-6"><%= form.label :role, "角色", class: "form-label required" %><%= form.select :role, Admin::ROLES.map { |value, label| [label, value] }, {}, class: admin_field_class(administrator, :role, "form-select") %><%= admin_field_errors(administrator, :role) %></div>
+      <div class="col-md-6"><%= form.label :enabled, "账号状态", class: "form-label required" %><%= form.select :enabled, [["启用", true], ["停用", false]], {}, class: admin_field_class(administrator, :enabled, "form-select") %><%= admin_field_errors(administrator, :enabled) %></div>
+      <div class="col-md-6"><%= form.label :password, administrator.persisted? ? "重置密码" : "初始密码", class: "form-label" %>
+        <%= form.password_field :password, value: nil, class: admin_field_class(administrator, :password), autocomplete: "new-password", placeholder: (administrator.persisted? ? "留空保留原密码" : "留空使用默认密码 123456"), aria: { describedby: "password-error" } %>
+        <%= admin_field_errors(administrator, :password) %>
+      </div>
+      <div class="col-md-6"><%= form.label :password_confirmation, "确认新密码", class: "form-label" %><%= form.password_field :password_confirmation, value: nil, class: admin_field_class(administrator, :password_confirmation), autocomplete: "new-password", aria: { describedby: "password_confirmation-error" } %><%= admin_field_errors(administrator, :password_confirmation) %></div>
+    </div>
+  </div>
+  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><%= link_to "取消", admins_administrators_path, class: "btn" %><%= render "admins/shared/submit_button", label: "保存" %></div></div>
+<% end %>
+<% if confirmation_id %>
+  <%= render "admins/shared/confirmation_modal", modal_id: confirmation_id, title: "确认停用管理员", context: administrator.display_name, description: "停用后，该账号将无法登录，现有登录也会失效。", confirm_label: "确认停用并保存", color: "warning", form_id: form_id %>
+<% end %>

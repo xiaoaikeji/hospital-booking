@@ -1,0 +1,17 @@
+<% content_for :title, "账号与密码 · Booking 管理后台" %>
+<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>账号与密码</h1></div>
+<%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "card", data: { admin_form: true } do |form| %>
+  <div class="card-body">
+    <%= render "admins/shared/form_errors", record: @administrator %>
+    <div class="datagrid mb-4"><div class="datagrid-item"><div class="datagrid-title">用户名</div><div class="datagrid-content"><%= @administrator.username %></div></div><div class="datagrid-item"><div class="datagrid-title">角色</div><div class="datagrid-content"><%= @administrator.role_name %></div></div></div>
+    <div class="row g-3">
+      <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
+        <div class="col-md-4"><%= form.label field, label, class: "form-label" %>
+          <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: "#{field}-error" } %>
+          <%= admin_field_errors(@administrator, field) %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "修改密码" %></div></div>
+<% end %>

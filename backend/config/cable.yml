@@ -1,0 +1,9 @@
+# 当前没有实时推送业务；async 仅占位。启用生产推送前须改用跨进程广播适配器。
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+production:
+  adapter: async

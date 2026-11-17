@@ -1,0 +1,11 @@
+test:
+  service: Disk
+  root: <%= Rails.root.join("tmp/storage") %>
+
+local:
+  service: Disk
+  root: <%= Rails.root.join("storage") %>
+
+# 首次使用时读取配置；仓库不包含真实密钥、桶名或地域。
+tencent_cos:
+  service: TencentCos

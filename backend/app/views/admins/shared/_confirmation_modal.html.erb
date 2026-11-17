@@ -1,0 +1,24 @@
+<%# Tabler modals.html, Danger modal. Without form_id this remains a read-only demonstration. %>
+<div class="modal modal-blur fade" id="<%= modal_id %>" tabindex="-1" aria-labelledby="<%= modal_id %>-title" aria-describedby="<%= modal_id %>-description" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭确认弹窗"></button>
+      <div class="modal-status bg-<%= color %>"></div>
+      <div class="modal-body d-flex flex-column align-items-center text-center py-5 px-3 px-sm-5">
+        <%= render "layouts/admins/icon", name: :alert, icon_class: "icon-lg d-block mx-auto mb-3 text-#{color}" %>
+        <h2 class="h2 fs-1 mb-3 w-100" id="<%= modal_id %>-title"><%= title.delete_suffix("？").delete_suffix("?") %></h2>
+        <div class="fw-medium fs-3 text-wrap mb-3 w-100"><%= context %></div>
+        <p class="text-secondary fs-3 mb-0 w-100" id="<%= modal_id %>-description"><%= safe_join(description.scan(/[^，。！？；]+[，。！？；]?/).map { |clause| tag.span(clause, class: "d-inline-block") }) %></p>
+      </div>
+      <div class="modal-footer p-3 p-sm-4">
+        <div class="w-100">
+          <div class="row g-3">
+            <div class="col"><button type="button" class="btn btn-lg px-3 text-nowrap w-100" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: cancel_icon if local_assigns[:cancel_icon] %>取消</button></div>
+            <div class="col"><button type="button" class="btn btn-lg btn-<%= color %> px-3 text-nowrap w-100" data-bs-dismiss="modal" <%= tag.attributes(data: { admin_confirm_form: local_assigns[:form_id] }) %>><%= render "layouts/admins/icon", name: confirm_icon if local_assigns[:confirm_icon] %><%= confirm_label %></button></div>
+          </div>
+          <% if !local_assigns[:form_id] && local_assigns.fetch(:preview_note, true) %><p class="text-secondary small text-center mt-3 mb-0">仅展示确认样式，不会变更数据。</p><% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

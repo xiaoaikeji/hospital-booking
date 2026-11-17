@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <title>管理员登录 · Booking</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %><%= csp_meta_tag %>
+    <link rel="icon" href="/icon.svg?v=2" type="image/svg+xml">
+    <%= stylesheet_link_tag "tabler/css/tabler.min", "tabler/css/tabler-themes.min", "application" %>
+    <%= javascript_include_tag "tabler/js/tabler.min", defer: true %>
+    <%= javascript_include_tag "admins/password_toggle", defer: true %>
+    <%= javascript_include_tag "admins/forms", defer: true %>
+    <%= javascript_include_tag "admins/theme_settings", defer: true %>
+  </head>
+  <body>
+    <%= javascript_include_tag "tabler/js/tabler-theme.min" %>
+    <main class="page page-center" id="content">
+      <div class="container container-tight py-4">
+        <div class="text-center mb-4"><%= link_to admins_root_path, class: "navbar-brand navbar-brand-autodark gap-2 fs-2", aria: { label: "Booking" } do %><%= render "layouts/admins/brand_mark" %>Booking<% end %></div>
+        <%= yield %>
+      </div>
+    </main>
+    <%= render "layouts/admins/theme_settings" %>
+  </body>
+</html>

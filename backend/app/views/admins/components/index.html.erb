@@ -1,0 +1,17 @@
+<% content_for :title, "组件规范 · Booking 管理后台" %>
+<div class="page-header mt-0 mb-3">
+  <div class="row g-2 align-items-center">
+    <div class="col-auto"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :package, icon_class: "w-5 h-5" %></span>组件规范</h1></div>
+    <div class="col-auto ms-auto"><%= link_to "返回预约列表", admins_reservations_path, class: "btn text-nowrap" %></div>
+  </div>
+</div>
+<nav class="card mb-3" aria-label="组件分类">
+  <div class="card-header">
+    <ul class="nav nav-tabs card-header-tabs flex-wrap">
+      <% @groups.each do |key, label| %><li class="nav-item"><%= link_to label, admins_components_path(tab: key), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %></li><% end %>
+    </ul>
+  </div>
+</nav>
+<p class="text-secondary small mb-3">样式预览，操作不会保存或上传文件。</p>
+<%= render "admins/components/#{@tab}" %>
+<%= render "notice_modal" %>

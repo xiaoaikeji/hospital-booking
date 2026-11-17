@@ -1,0 +1,35 @@
+<div class="row row-cards">
+  <div class="col-12"><section class="card" aria-labelledby="feedback-alert-title">
+    <div class="card-header"><h2 class="card-title" id="feedback-alert-title">操作反馈与页面提示</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <% [["success", :check, "操作成功", "预约信息已更新。"], ["info", :info, "信息提示", "预约规则将在下一次提交时生效。"], ["warning", :alert, "需要确认", "停用后，客户将无法继续预约该服务。"], ["danger", :alert, "操作失败", "提交失败，请检查后重试。"]].each do |color, icon, title, message| %>
+        <div class="col-lg-6"><div class="alert alert-<%= color %> alert-dismissible mb-0" role="<%= color == "danger" ? "alert" : "status" %>"><div class="d-flex gap-2"><span><%= render "layouts/admins/icon", name: icon %></span><div><h3 class="alert-heading h4 mb-1"><%= title %></h3><div><%= message %></div></div></div><button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="关闭<%= title %>"></button></div></div>
+      <% end %>
+    </div></div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="feedback-error-title">
+    <div class="card-header"><h2 class="card-title" id="feedback-error-title">表单错误汇总</h2></div>
+    <div class="card-body"><div class="alert alert-danger mb-0" role="alert"><h3 class="alert-heading h4">请修正以下 2 处问题</h3><ul class="mb-0"><li>服务名称不能为空。</li><li>服务价格不能小于 0。</li></ul></div></div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="feedback-toast-title">
+    <div class="card-header"><h2 class="card-title" id="feedback-toast-title">轻量消息</h2></div>
+    <div class="card-body"><div class="toast show w-100" id="component-toast" role="status" aria-live="polite" aria-atomic="true" data-bs-autohide="false"><div class="toast-header"><span class="text-success me-2"><%= render "layouts/admins/icon", name: :check %></span><strong class="me-auto">操作提示</strong><small>刚刚</small><button type="button" class="btn-close ms-2" data-bs-dismiss="toast" aria-label="关闭轻量消息"></button></div><div class="toast-body">这是一条消息样式示例。</div></div></div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="feedback-loading-title">
+    <div class="card-header"><h2 class="card-title" id="feedback-loading-title">提交与任务进度</h2></div>
+    <div class="card-body">
+      <div class="btn-list mb-4"><button type="button" class="btn btn-primary" disabled aria-busy="true"><span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>保存中</button><button type="button" class="btn btn-outline-secondary" disabled>暂不可用</button></div>
+      <div class="d-flex justify-content-between mb-2"><span>导入进度</span><span class="text-secondary">50%</span></div><div class="progress mb-4"><div class="progress-bar bg-primary w-50" role="progressbar" aria-label="导入进度" aria-valuenow="50" aria-valuemin="0" aria-valuemax="100"></div></div>
+      <div class="d-flex align-items-center gap-2 text-secondary" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span><span>正在加载数据</span></div>
+    </div>
+  </section></div>
+  <div class="col-lg-6"><section class="card h-100" aria-labelledby="feedback-skeleton-title">
+    <div class="card-header"><h2 class="card-title" id="feedback-skeleton-title">骨架占位</h2></div>
+    <div class="card-body placeholder-glow" aria-label="内容加载占位"><div class="d-flex gap-3 mb-4" aria-hidden="true"><span class="avatar placeholder"></span><div class="flex-fill"><div class="placeholder col-8 mb-2"></div><div class="placeholder placeholder-xs col-6"></div></div></div><div aria-hidden="true"><div class="placeholder placeholder-xs col-12 mb-2"></div><div class="placeholder placeholder-xs col-10 mb-2"></div><div class="placeholder placeholder-xs col-7"></div></div></div>
+  </section></div>
+</div>
+<section class="card mt-3" aria-label="共享操作反馈"><div class="card-header"><h2 class="card-title">共享操作反馈</h2></div><div class="card-body">
+  <%= render "admins/shared/flash", messages: { notice: "设置已保存。" } %>
+  <%= render "admins/shared/form_errors", record: @error_example %>
+  <%= render "admins/shared/submit_button", label: "保存（样式示例）" %>
+</div></section>

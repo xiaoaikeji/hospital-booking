@@ -1,0 +1,706 @@
+<%# Controls and illustrations from Desktop/tabler-1.7.1/dashboard/index.html, theme settings. %>
+<button type="button" class="btn btn-floating btn-icon btn-primary d-print-none" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings" aria-label="自定义主题">
+  <%= render "layouts/admins/icon", name: :brush %>
+</button>
+<form class="offcanvas offcanvas-end" tabindex="-1" id="theme-settings" aria-labelledby="theme-settings-title">
+  <div class="offcanvas-header border-bottom">
+    <h2 class="offcanvas-title" id="theme-settings-title">外观设置</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
+  </div>
+  <div class="offcanvas-body p-0">
+    <section class="p-4 border-bottom">
+      <h3 class="subheader mb-3">外观</h3>
+
+      <div class="space-y-4">
+        <div role="group" aria-labelledby="theme-setting-scheme" data-theme-setting="scheme">
+          <div class="form-label mb-1" id="theme-setting-scheme">配色方案</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="scheme" value="auto" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <path d="M6.5 0.5h41.5v63h-41.5a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-50)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-41.5z" fill="var(--tblr-gray-900)" />
+                    <path d="M6.5 0.5h41.5v19.5h-47.5v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-white)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v13.5h-47.5z" fill="var(--tblr-gray-800)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">跟随系统</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="scheme" value="light" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <path d="M6.5 0.5h41.5v63h-41.5a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-50)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-41.5z" fill="var(--tblr-gray-50)" />
+                    <path d="M6.5 0.5h41.5v19.5h-47.5v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-white)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v13.5h-47.5z" fill="var(--tblr-white)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">明亮</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="scheme" value="dark" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <path d="M6.5 0.5h41.5v63h-41.5a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-900)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-41.5z" fill="var(--tblr-gray-900)" />
+                    <path d="M6.5 0.5h41.5v19.5h-47.5v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-800)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v13.5h-47.5z" fill="var(--tblr-gray-800)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-gray-700)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-gray-700)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-gray-700)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">深色</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="scheme" value="dark-nav" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <path d="M6.5 0.5h41.5v63h-41.5a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-50)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-41.5z" fill="var(--tblr-gray-50)" />
+                    <path d="M6.5 0.5h41.5v19.5h-47.5v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-800)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v13.5h-47.5z" fill="var(--tblr-gray-800)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">深色导航</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="scheme" value="colored" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <path d="M6.5 0.5h41.5v63h-41.5a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-gray-50)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-41.5z" fill="var(--tblr-gray-50)" />
+                    <path d="M6.5 0.5h41.5v19.5h-47.5v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <path d="M48 0.5h41.5a6 6 0 0 1 6 6v13.5h-47.5z" fill="var(--tblr-primary)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-gray-300)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">主题色导航</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-theme-primary" data-theme-setting="theme-primary">
+          <div class="form-label mb-1" id="theme-setting-theme-primary">主题色</div>
+
+          <div class="row g-2">
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="blue" class="form-colorinput-input" checked aria-label="蓝色" />
+                <span class="form-colorinput-color bg-blue"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="azure" class="form-colorinput-input" aria-label="天蓝" />
+                <span class="form-colorinput-color bg-azure"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="indigo" class="form-colorinput-input" aria-label="靛蓝" />
+                <span class="form-colorinput-color bg-indigo"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="purple" class="form-colorinput-input" aria-label="紫色" />
+                <span class="form-colorinput-color bg-purple"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="pink" class="form-colorinput-input" aria-label="粉色" />
+                <span class="form-colorinput-color bg-pink"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="red" class="form-colorinput-input" aria-label="红色" />
+                <span class="form-colorinput-color bg-red"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="orange" class="form-colorinput-input" aria-label="橙色" />
+                <span class="form-colorinput-color bg-orange"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="yellow" class="form-colorinput-input" aria-label="黄色" />
+                <span class="form-colorinput-color bg-yellow"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="lime" class="form-colorinput-input" aria-label="青柠" />
+                <span class="form-colorinput-color bg-lime"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="green" class="form-colorinput-input" aria-label="绿色" />
+                <span class="form-colorinput-color bg-green"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="teal" class="form-colorinput-input" aria-label="蓝绿" />
+                <span class="form-colorinput-color bg-teal"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="cyan" class="form-colorinput-input" aria-label="青色" />
+                <span class="form-colorinput-color bg-cyan"></span>
+              </label>
+            </div>
+            <div class="col-auto">
+              <label class="form-colorinput">
+                <input type="radio" name="theme-primary" value="inverted" class="form-colorinput-input" aria-label="黑白反色" />
+                <span class="form-colorinput-color bg-inverted"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-theme-font" data-theme-setting="theme-font">
+          <div class="form-label mb-1" id="theme-setting-theme-font">字体</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck d-block">
+                <input type="radio" name="theme-font" value="sans-serif" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <span class="form-imagecheck-image text-center py-2 display-5 fw-medium lh-1 font-sans-serif" aria-hidden="true"> Aa </span>
+                  <span class="form-imagecheck-caption">无衬线</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck d-block">
+                <input type="radio" name="theme-font" value="serif" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <span class="form-imagecheck-image text-center py-2 display-5 fw-medium lh-1 font-serif" aria-hidden="true"> Aa </span>
+                  <span class="form-imagecheck-caption">衬线</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck d-block">
+                <input type="radio" name="theme-font" value="monospace" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <span class="form-imagecheck-image text-center py-2 display-5 fw-medium lh-1 font-monospace" aria-hidden="true"> Aa </span>
+                  <span class="form-imagecheck-caption">等宽</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck d-block">
+                <input type="radio" name="theme-font" value="comic" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <span class="form-imagecheck-image text-center py-2 display-5 fw-medium lh-1 font-comic" aria-hidden="true"> Aa </span>
+                  <span class="form-imagecheck-caption">手写</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-theme-base" data-theme-setting="theme-base">
+          <div class="form-label mb-1" id="theme-setting-theme-base">基础灰阶</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="slate" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="slate">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">蓝灰</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="gray" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="gray">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">冷灰</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="zinc" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="zinc">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">锌灰</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="neutral" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="neutral">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">中性灰</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="stone" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="stone">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">暖灰</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-base" value="mist" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" data-bs-theme-base="mist">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-100)" />
+                    <rect x="26" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-300)" />
+                    <rect x="42" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-500)" />
+                    <rect x="58" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-700)" />
+                    <rect x="74" y="24" width="12" height="16" rx="3" fill="var(--tblr-gray-900)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">雾灰</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-theme-radius" data-theme-setting="theme-radius">
+          <div class="form-label mb-1" id="theme-setting-theme-radius">圆角</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-radius" value="0" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="12" width="40" height="40" rx="0" fill="var(--tblr-primary)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">0</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-radius" value="0.5" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="12" width="40" height="40" rx="5" fill="var(--tblr-primary)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">0.5</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-radius" value="1" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="12" width="40" height="40" rx="10" fill="var(--tblr-primary)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">1</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-radius" value="1.5" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="12" width="40" height="40" rx="15" fill="var(--tblr-primary)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">1.5</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="theme-radius" value="2" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="12" width="40" height="40" rx="20" fill="var(--tblr-primary)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">2</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="p-4">
+      <h3 class="subheader mb-3">布局</h3>
+
+      <div class="space-y-4">
+        <div role="group" aria-labelledby="theme-setting-navbar-position" data-theme-setting="navbar-position">
+          <div class="form-label mb-3" id="theme-setting-navbar-position">导航位置</div>
+          <div class="form-selectgroup">
+            <% [["仅顶栏", "horizontal"], ["仅侧栏", "vertical"], ["侧栏 + 顶栏", "combined"]].each do |label, value| %>
+              <label class="form-selectgroup-item">
+                <input type="radio" name="navbar-position" value="<%= value %>" class="form-selectgroup-input">
+                <span class="form-selectgroup-label"><%= label %></span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-navbar-theme" data-theme-setting="navbar-theme">
+          <div class="form-label mb-3" id="theme-setting-navbar-theme">导航颜色</div>
+          <div class="form-selectgroup">
+            <% [["跟随页面", "default"], ["深色", "dark"], ["主题色", "primary"]].each do |label, value| %>
+              <label class="form-selectgroup-item">
+                <input type="radio" name="navbar-theme" value="<%= value %>" class="form-selectgroup-input">
+                <span class="form-selectgroup-label"><%= label %></span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-layout" data-theme-setting="layout">
+          <div class="form-label mb-1" id="theme-setting-layout">页面宽度</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="layout" value="default" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="22" y="8" width="52" height="48" rx="3" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="28" y="15" width="31" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="28" y="24" width="42" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="28" y="33" width="21" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">标准</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="layout" value="fluid" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="4" y="8" width="88" height="48" rx="3" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="15" width="53" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="24" width="70" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="33" width="35" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">全宽</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="layout" value="boxed" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-inverted)" />
+                    <rect x="12" y="8" width="72" height="48" rx="4" fill="var(--tblr-bg-surface-secondary)" />
+                    <rect x="18" y="16" width="60" height="32" rx="3" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="24" y="23" width="36" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="24" y="32" width="48" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="24" y="41" width="24" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">盒式</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-navbar" data-theme-setting="navbar">
+          <div class="form-label mb-1" id="theme-setting-navbar">顶栏滚动</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="navbar" value="default" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <path d="M6.5 0.5h83a6 6 0 0 1 6 6v13.5h-95v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="0.5" y="19.5" width="95" height="0.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="90" y="24" width="3" height="14" rx="1.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">随页滚动</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="navbar" value="sticky" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="12" y="4" width="46" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="15" width="72" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="26" width="30" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="37" width="60" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="90" y="44" width="3" height="14" rx="1.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="19.5" width="95" height="5" fill="var(--tblr-gray-900)" opacity="0.18" />
+                    <path d="M6.5 0.5h83a6 6 0 0 1 6 6v13.5h-95v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="0.5" y="19.5" width="95" height="0.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">吸顶</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-navbar-style" data-theme-setting="navbar-style">
+          <div class="form-label mb-1" id="theme-setting-navbar-style">导航外观</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="navbar-style" value="default" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <path d="M6.5 0.5h83a6 6 0 0 1 6 6v13.5h-95v-13.5a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="0.5" y="19.5" width="95" height="0.5" fill="var(--tblr-border-color)" />
+                    <rect x="8" y="8" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="26" y="8" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="44" y="8" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">贴边</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="navbar-style" value="floating" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="5" y="5" width="86" height="14" rx="4" fill="var(--tblr-primary)" />
+                    <rect x="11" y="10" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="29" y="10" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="47" y="10" width="14" height="4" rx="2" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="12" y="30" width="46" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="41" width="72" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="12" y="52" width="30" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">悬浮</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-offcanvas-style" data-theme-setting="offcanvas-style">
+          <div class="form-label mb-1" id="theme-setting-offcanvas-style">抽屉外观</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="offcanvas-style" value="default" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="12" width="40" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="23" width="48" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="34" width="28" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-gray-900)" opacity="0.18" />
+                    <path d="M58 0.5h31.5a6 6 0 0 1 6 6v51a6 6 0 0 1 -6 6h-31.5z" fill="var(--tblr-bg-surface)" />
+                    <rect x="57.5" y="0.5" width="0.5" height="63" fill="var(--tblr-border-color)" />
+                    <rect x="64" y="12" width="20" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="64" y="23" width="26" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="64" y="34" width="14" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">贴边</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="offcanvas-style" value="floating" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <rect x="10" y="12" width="40" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="23" width="48" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="10" y="34" width="28" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-gray-900)" opacity="0.18" />
+                    <rect x="53" y="5" width="38" height="54" rx="4" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="59" y="12" width="20" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="59" y="23" width="26" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="59" y="34" width="14" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">悬浮</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div role="group" aria-labelledby="theme-setting-sidebar" data-theme-setting="sidebar">
+          <div class="form-label mb-1" id="theme-setting-sidebar">侧栏</div>
+
+          <div class="row g-3">
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="sidebar" value="default" class="form-imagecheck-input" checked />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <path d="M6.5 0.5h24v63h-24a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="30" y="0.5" width="0.5" height="63" fill="var(--tblr-border-color)" />
+                    <rect x="7" y="10" width="16" height="5" rx="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="7" y="20" width="16" height="5" rx="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="7" y="30" width="16" height="5" rx="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="7" y="40" width="16" height="5" rx="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="40" y="12" width="40" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="40" y="23" width="48" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="40" y="34" width="28" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">展开</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="sidebar" value="folded" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <path d="M6.5 0.5h10v63h-10a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="16" y="0.5" width="0.5" height="63" fill="var(--tblr-border-color)" />
+                    <circle cx="8" cy="12" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="23" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="34" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="45" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="26" y="12" width="50" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="26" y="23" width="60" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="26" y="34" width="34" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">折叠</span>
+                </span>
+              </label>
+            </div>
+            <div class="col-4">
+              <label class="form-imagecheck">
+                <input type="radio" name="sidebar" value="folded-hover" class="form-imagecheck-input" />
+                <span class="form-imagecheck-figure p-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false">
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="var(--tblr-bg-surface-secondary)" stroke="var(--tblr-border-color)" />
+                    <path d="M6.5 0.5h10v63h-10a6 6 0 0 1 -6 -6v-51a6 6 0 0 1 6 -6z" fill="var(--tblr-primary)" />
+                    <rect x="16" y="0.5" width="0.5" height="63" fill="var(--tblr-border-color)" />
+                    <circle cx="8" cy="12" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="23" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="34" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <circle cx="8" cy="45" r="2.5" fill="rgba(255, 255, 255, 0.7)" />
+                    <rect x="26" y="12" width="50" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="26" y="23" width="60" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="26" y="34" width="34" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="16" y="0.5" width="4" height="63" fill="var(--tblr-gray-900)" opacity="0.12" />
+                    <rect x="16.5" y="0.5" width="28" height="63" fill="var(--tblr-bg-surface)" stroke="var(--tblr-border-color)" />
+                    <rect x="21" y="9.5" width="18" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="21" y="20.5" width="18" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="21" y="31.5" width="18" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="21" y="42.5" width="18" height="5" rx="2.5" fill="var(--tblr-border-color)" />
+                    <rect x="0.5" y="0.5" width="95" height="63" rx="6" fill="none" stroke="var(--tblr-border-color)" />
+                  </svg>
+                  <span class="form-imagecheck-caption">悬停展开</span>
+                </span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div class="offcanvas-footer border-top space-y-2">
+    <button type="button" class="btn w-100" id="reset-theme-settings">恢复默认外观</button>
+    <button type="button" class="btn btn-primary w-100" data-bs-dismiss="offcanvas">完成</button>
+  </div>
+</form>

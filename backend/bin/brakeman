@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+require "rubygems"
+require "bundler/setup"
+
+# 使用 Gemfile.lock 中的扫描器版本，避免每次扫描依赖在线版本检查。
+load Gem.bin_path("brakeman", "brakeman")

@@ -1,0 +1,32 @@
+  <section class="card" aria-labelledby="operation-styles-title">
+    <div class="card-header"><h2 class="card-title" id="operation-styles-title">常用操作样式</h2></div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">新增、保存 · Primary</h3>
+          <div class="btn-list"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="<%= new_target %>"><%= render "layouts/admins/icon", name: :plus %>新增</button><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="<%= save_target %>"><%= render "layouts/admins/icon", name: :save %>保存</button></div>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">编辑、修改 · Primary 描边</h3>
+          <div class="btn-list"><% ["编辑", "修改"].each do |label| %><%= link_to edit_path, class: "btn btn-outline-primary" do %><%= render "layouts/admins/icon", name: :edit %><%= label %><% end %><% end %></div>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">导入、导出 · Secondary 描边</h3>
+          <div class="btn-list"><button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="<%= import_target %>"><%= render "layouts/admins/icon", name: :import %>导入</button><button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="<%= export_target %>"><%= render "layouts/admins/icon", name: :export %>导出</button></div>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">查看 · Info</h3>
+          <div class="btn-list"><% if view_path %><%= link_to view_path, class: "btn btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %><% else %><button type="button" class="btn btn-info" disabled>查看</button><% end %></div>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">删除 · Danger</h3>
+          <div class="btn-list"><button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="<%= delete_target %>"><%= render "layouts/admins/icon", name: :trash %>删除</button><button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="<%= delete_target %>">删除（列表）</button></div>
+        </div>
+        <div class="col-lg-6">
+          <h3 class="subheader mb-2">停用等风险操作 · Warning</h3>
+          <div class="btn-list"><button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="<%= disable_target %>"><%= render "layouts/admins/icon", name: :alert %>停用服务</button></div>
+        </div>
+      </div>
+      <p class="text-secondary small mb-0 mt-4">编辑与修改使用同一套样式；弹窗中的取消、关闭使用中性按钮。以上仅演示操作界面，不会变更数据。</p>
+    </div>
+  </section>

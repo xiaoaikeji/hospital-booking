@@ -1,0 +1,16 @@
+<%# Render as a layout inside a card form/section. The preview uses a non-submitting button. %>
+<div class="card-header"><h2 class="card-title"><%= title %></h2></div>
+<div class="card-body">
+  <%= render "admins/shared/form_errors", record: record if local_assigns[:record] %>
+  <%= yield %>
+</div>
+<div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+  <% if local_assigns[:clear_target] %>
+    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="<%= clear_target %>" <%= tag.attributes(disabled: local_assigns.fetch(:clear_disabled, false)) %>>清除系统配置</button>
+  <% end %>
+  <% if local_assigns.fetch(:preview, false) %>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice">保存设置</button>
+  <% else %>
+    <%= render "admins/shared/submit_button", label: "保存设置" %>
+  <% end %>
+</div></div>

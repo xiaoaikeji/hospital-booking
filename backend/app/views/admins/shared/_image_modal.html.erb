@@ -1,0 +1,9 @@
+<div class="modal modal-blur fade" id="<%= modal_id %>" tabindex="-1" aria-labelledby="<%= modal_id %>-title" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title" id="<%= modal_id %>-title"><%= image[:title] %></h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭图片预览"></button></div>
+      <div class="modal-body"><%= image_tag image[:asset], class: "img-fluid d-block mx-auto rounded", alt: image[:title] %></div>
+      <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal">关闭</button><%= link_to "查看原图", image_path(image[:asset]), class: "btn btn-outline-secondary", target: "_blank", rel: "noopener" %></div>
+    </div>
+  </div>
+</div>

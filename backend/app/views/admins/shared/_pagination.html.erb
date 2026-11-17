@@ -1,0 +1,16 @@
+<% if pagy.last > 1 %>
+  <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <nav aria-label="列表分页"><ul class="pagination m-0">
+      <li class="page-item<%= ' disabled' if pagy.page <= 1 %>">
+        <% if pagy.page > 1 %><%= link_to "上一页", url.call(pagy.page - 1), class: "page-link" %><% else %><span class="page-link" aria-disabled="true">上一页</span><% end %>
+      </li>
+      <% ([1, pagy.last] + ((pagy.page - 2)..(pagy.page + 2)).to_a).uniq.sort.select { |page| page.between?(1, pagy.last) }.each do |page| %>
+        <li class="page-item<%= ' active' if page == pagy.page %>"><%= link_to page, url.call(page), class: "page-link", aria: { current: ("page" if page == pagy.page) } %></li>
+      <% end %>
+      <li class="page-item<%= ' disabled' if pagy.page >= pagy.last %>">
+        <% if pagy.page < pagy.last %><%= link_to "下一页", url.call(pagy.page + 1), class: "page-link" %><% else %><span class="page-link" aria-disabled="true">下一页</span><% end %>
+      </li>
+    </ul></nav>
+    <span class="text-secondary">第 <%= pagy.from %>–<%= pagy.to %> 条，共 <%= pagy.count %> 条</span>
+  </div>
+<% end %>

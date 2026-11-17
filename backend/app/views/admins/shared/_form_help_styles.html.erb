@@ -1,0 +1,19 @@
+  <section class="card mt-3" aria-labelledby="form-help-styles-title">
+    <div class="card-header"><h2 class="card-title" id="form-help-styles-title">表单提示样式</h2></div>
+    <div class="card-body">
+      <div class="row g-4">
+        <div class="col-lg-6">
+          <label class="form-label" for="config-demo-lead-time">预约提前时间（分钟）</label>
+          <input class="form-control" id="config-demo-lead-time" type="number" min="0" step="1" placeholder="默认：0">
+        </div>
+        <div class="col-lg-6">
+          <div class="d-flex align-items-center gap-1 mb-2">
+            <label class="form-label mb-0" for="config-demo-qrcode">二维码图片</label>
+            <%# Tabler initializes data-bs-toggle="tooltip" in its official script; no project JS. %>
+            <%= render "admins/shared/field_help", text: "支持 JPG、PNG、WEBP，最大 2MB。", label: "查看二维码图片要求" %>
+          </div>
+          <input class="form-control" id="config-demo-qrcode" type="file" accept="image/jpeg,image/png,image/webp">
+        </div>
+      </div>
+    </div>
+  </section>

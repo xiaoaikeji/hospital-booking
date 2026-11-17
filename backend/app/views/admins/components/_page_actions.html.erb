@@ -1,0 +1,128 @@
+<% scenes = { "list" => "列表与搜索", "header" => "页头", "edit" => "编辑页", "settings" => "配置页", "detail" => "详情页", "error" => "错误页", "confirmation" => "风险确认" } %>
+<nav class="card mb-3" aria-label="页面操作场景">
+  <div class="card-body">
+    <div class="nav nav-pills gap-2" role="tablist">
+      <% scenes.each_with_index do |(key, label), index| %>
+        <button type="button" class="nav-link<%= ' active' if index.zero? %>" id="page-actions-tab-<%= key %>" data-bs-toggle="tab" data-bs-target="#page-actions-<%= key %>" role="tab" aria-controls="page-actions-<%= key %>" aria-selected="<%= index.zero? %>"><%= label %></button>
+      <% end %>
+    </div>
+  </div>
+</nav>
+
+<div class="tab-content">
+  <section class="tab-pane active show" id="page-actions-list" role="tabpanel" aria-labelledby="page-actions-tab-list" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">列表与搜索区</h2></div>
+      <div class="card-body border-bottom">
+        <div class="row g-2 align-items-end">
+          <div class="col-sm-6 col-lg-4"><label class="form-label" for="page-actions-query">关键词</label><input type="search" class="form-control" id="page-actions-query" placeholder="编号 / 姓名 / 手机号"></div>
+          <div class="col-sm-6 col-lg-2"><label class="form-label" for="page-actions-status">状态</label><select class="form-select" id="page-actions-status"><option>全部状态</option><option>待确认</option><option>已完成</option></select></div>
+          <div class="col-auto"><div class="btn-list">
+            <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :search %>搜索</button>
+            <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :rotate %>重置筛选</button>
+          </div></div>
+          <div class="col-12 col-xl-auto ms-xl-auto"><div class="btn-list">
+            <% [[:plus, "新增", "btn-primary"], [:import, "导入", "btn-outline-secondary"], [:export, "导出", "btn-outline-secondary"]].each do |icon, label, style| %><button type="button" class="btn <%= style %>" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: icon %><%= label %></button><% end %>
+          </div></div>
+        </div>
+      </div>
+      <div class="table-responsive"><table class="table table-vcenter card-table mb-0">
+        <thead><tr><th>ID</th><th>客户</th><th>服务</th><th>状态</th><th class="w-1">操作</th></tr></thead>
+        <tbody><% @records.each do |record| %><tr>
+          <td class="text-secondary">#<%= record[:id] %></td><td><%= record[:name] %></td><td><%= record[:service] %></td><td><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
+          <td><div class="btn-list flex-nowrap">
+            <% [[:eye, "查看", "btn-info", "#component-notice"], [:edit, "编辑", "btn-outline-primary", "#component-notice"], [:trash, "删除", "btn-outline-danger", "#page-actions-delete"]].each do |icon, label, style, target| %><button type="button" class="btn btn-sm <%= style %>" data-bs-toggle="modal" data-bs-target="<%= target %>"><%= render "layouts/admins/icon", name: icon %><%= label %></button><% end %>
+          </div></td>
+        </tr><% end %></tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-header" role="tabpanel" aria-labelledby="page-actions-tab-header" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">页头操作</h2></div>
+      <div class="card-body">
+        <div class="page-header mt-0 mb-0"><div class="row g-3 align-items-center">
+          <div class="col"><h3 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>管理员</h3></div>
+          <div class="col-12 col-sm-auto"><div class="btn-list">
+            <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :arrow_left %>返回列表</button>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :plus %>新增管理员</button>
+          </div></div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-edit" role="tabpanel" aria-labelledby="page-actions-tab-edit" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">编辑表单</h2></div>
+      <div class="card-body"><div class="row g-3">
+        <div class="col-md-6"><label class="form-label required" for="page-actions-name">姓名</label><input class="form-control" id="page-actions-name" value="陈女士" placeholder="请输入姓名"></div>
+        <div class="col-md-6"><label class="form-label" for="page-actions-phone">联系电话</label><input class="form-control" id="page-actions-phone" type="tel" value="13800006218" placeholder="请输入联系电话"></div>
+      </div></div>
+      <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+        <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :close %>取消</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存</button>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-settings" role="tabpanel" aria-labelledby="page-actions-tab-settings" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">配置表单</h2></div>
+      <div class="card-body">
+        <%= fields_for :page_action_settings do |form| %><div class="row g-3">
+          <div class="col-md-6"><%= render "admins/shared/configuration_field", form: form, field: "secret_id", label: "SecretId", source: "环境变量", secret: true %></div>
+          <div class="col-md-6"><div class="d-flex align-items-center gap-2 mb-2"><label class="form-label mb-0" for="page-action-endpoint">API 地址</label><%= render "admins/shared/field_help", text: "填写服务商提供的 HTTPS API 地址，留空使用默认地址。", label: "查看 API 地址填写说明" %></div><input class="form-control" id="page-action-endpoint" type="url" placeholder="留空使用默认地址"></div>
+        </div><% end %>
+      </div>
+      <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+        <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#page-actions-clear"><%= render "layouts/admins/icon", name: :trash %>清除系统配置</button>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存设置</button>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-detail" role="tabpanel" aria-labelledby="page-actions-tab-detail" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">详情页操作</h2></div>
+      <div class="card-body"><div class="row g-3 align-items-center">
+        <div class="col"><h3 class="h2 mb-2">预约详情</h3><span class="badge bg-primary-lt">已确认</span></div>
+        <div class="col-12 col-lg-auto"><div class="btn-list">
+          <% [[:arrow_left, "返回列表", "btn", "#component-notice"], [:edit, "编辑", "btn btn-outline-primary", "#component-notice"], [:trash, "删除", "btn btn-outline-danger", "#page-actions-delete"]].each do |icon, label, style, target| %><button type="button" class="<%= style %>" data-bs-toggle="modal" data-bs-target="<%= target %>"><%= render "layouts/admins/icon", name: icon %><%= label %></button><% end %>
+        </div></div>
+      </div></div>
+      <div class="card-body border-top"><div class="datagrid">
+        <% {"客户" => "陈女士", "联系电话" => "13800006218", "服务项目" => "初次咨询", "服务人员" => "林顾问"}.each do |label, value| %><div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content"><%= value %></div></div><% end %>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-error" role="tabpanel" aria-labelledby="page-actions-tab-error" tabindex="0">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">错误页操作</h2><%= link_to "查看完整错误页", "/error-pages.html", class: "link-secondary ms-auto", target: "_blank", rel: "noopener" %></div>
+      <div class="card-body py-4"><div class="row g-4 align-items-center">
+        <div class="col-lg-5 text-center text-lg-start">
+          <span class="badge bg-primary-lt mb-3">404</span><h3 class="h1 mb-3">页面未找到</h3><p class="text-secondary mb-4">这个页面可能已移走，也可以回到首页继续操作。</p>
+          <div class="btn-list justify-content-center justify-content-lg-start">
+            <button type="button" class="btn btn-lg btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :home %>返回首页</button>
+            <button type="button" class="btn btn-lg" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :arrow_left %>返回上一页</button>
+          </div>
+        </div>
+        <div class="col-lg-7 order-first order-lg-last text-center"><%= render "admins/shared/booking_calendar_illustration" %></div>
+      </div></div>
+    </div>
+  </section>
+
+  <section class="tab-pane" id="page-actions-confirmation" role="tabpanel" aria-labelledby="page-actions-tab-confirmation" tabindex="0">
+    <div class="row row-cards">
+      <% [["删除记录", "danger", :trash, "删除", "#page-actions-delete"], ["停用服务", "warning", :alert, "停用", "#page-actions-disable"], ["清除系统配置", "warning", :trash, "清除系统配置", "#page-actions-clear"]].each do |title, color, icon, label, target| %>
+        <div class="col-lg-4"><section class="card h-100"><div class="card-header"><h2 class="card-title"><%= title %></h2></div><div class="card-body"><button type="button" class="btn btn-outline-<%= color %>" data-bs-toggle="modal" data-bs-target="<%= target %>"><%= render "layouts/admins/icon", name: icon %><%= label %></button></div></section></div>
+      <% end %>
+    </div>
+  </section>
+</div>
+
+<% [["delete", "确认删除记录", "示例预约 #1", "删除后无法恢复，请确认后再操作。", "确认删除", "danger", :trash], ["disable", "确认停用服务", "初次咨询", "停用后将无法继续预约该服务，请确认后再操作。", "确认停用", "warning", :alert], ["clear", "确认清除系统配置", "文件存储", "清除本页系统配置后，将按 ENV、credentials 读取。", "确认清除", "warning", :trash]].each do |key, title, context, description, label, color, icon| %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "page-actions-#{key}", title: title, context: context, description: description, confirm_label: label, color: color, confirm_icon: icon, cancel_icon: :close, preview_note: false %>
+<% end %>

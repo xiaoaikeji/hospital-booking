@@ -1,0 +1,4 @@
+<% tile = local_assigns[:variant] == :tile %>
+<button type="button" class="<%= class_names("p-0 border-0 bg-transparent rounded", tile ? "ratio ratio-4x3 d-block w-100" : "d-inline-flex") %>" data-bs-toggle="modal" data-bs-target="#<%= modal_id %>" aria-label="放大查看<%= image[:title] %>">
+  <%= image_tag image[:asset], class: (tile ? "w-100 h-100 object-cover rounded border" : class_names("avatar object-cover rounded", local_assigns.fetch(:size, "avatar-md"))), alt: image[:title], loading: "lazy" %>
+</button>

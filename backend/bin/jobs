@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+require "bundler/setup"
+require "sidekiq/cli"
+
+Dir.chdir(File.expand_path("..", __dir__)) do
+  Sidekiq::CLI.instance.tap do |cli|
+    cli.parse([ "-C", "config/sidekiq.yml", *ARGV ])
+    cli.run
+  end
+end

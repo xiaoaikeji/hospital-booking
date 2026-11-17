@@ -1,0 +1,32 @@
+<div class="row row-deck row-cards">
+  <div class="col-lg-6"><section class="card" aria-labelledby="selection-select-title">
+    <div class="card-header"><h2 class="card-title" id="selection-select-title">下拉与分组选择</h2></div>
+    <div class="card-body"><div class="mb-3"><label class="form-label" for="sample-select">服务项目</label><%= select_tag nil, options_for_select(@service_options), id: "sample-select", class: "form-select" %></div>
+      <div class="mb-3"><label class="form-label" for="sample-grouped-select">服务人员</label><select class="form-select" id="sample-grouped-select"><optgroup label="咨询团队"><option>林顾问</option><option>陈顾问</option></optgroup><optgroup label="护理团队"><option>王老师</option><option>赵老师</option></optgroup></select></div>
+      <div><label class="form-label" for="sample-default-select">客户通知</label><select class="form-select" id="sample-default-select"><option value="">默认（开启）</option><option value="on">开启</option><option value="off">关闭</option></select></div>
+    </div>
+  </section></div>
+  <div class="col-lg-6"><section class="card" aria-labelledby="selection-check-title">
+    <div class="card-header"><h2 class="card-title" id="selection-check-title">复选、单选与开关</h2></div>
+    <div class="card-body">
+      <fieldset class="mb-4"><legend class="form-label">通知方式</legend><div class="d-flex flex-wrap gap-3"><% ["短信", "站内通知", "邮件"].each_with_index do |label, index| %><label class="form-check mb-0"><input class="form-check-input" type="checkbox" name="sample-notification[]" value="<%= index %>" <%= "checked" if index.zero? %>><span class="form-check-label"><%= label %></span></label><% end %></div></fieldset>
+      <fieldset class="mb-4"><legend class="form-label">确认方式</legend><div class="d-flex flex-wrap gap-3"><label class="form-check mb-0"><input class="form-check-input" type="radio" name="sample-confirmation" value="manual" checked><span class="form-check-label">人工确认</span></label><label class="form-check mb-0"><input class="form-check-input" type="radio" name="sample-confirmation" value="auto"><span class="form-check-label">自动确认</span></label></div></fieldset>
+      <label class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" checked><span class="form-check-label">开启在线预约</span></label>
+      <label class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch"><span class="form-check-label">允许候补</span></label>
+    </div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="selection-group-title">
+    <div class="card-header"><h2 class="card-title" id="selection-group-title">选项按钮与多选标签</h2></div>
+    <div class="card-body"><fieldset class="mb-4"><legend class="form-label">可预约日期</legend><div class="form-selectgroup">
+      <% %w[周一 周二 周三 周四 周五 周六 周日].each_with_index do |day, index| %><label class="form-selectgroup-item"><input type="checkbox" class="form-selectgroup-input" name="sample-weekdays[]" value="<%= index %>" <%= "checked" if index < 5 %>><span class="form-selectgroup-label"><%= day %></span></label><% end %>
+    </div></fieldset><fieldset><legend class="form-label">预约渠道</legend><div class="form-selectgroup">
+      <% ["小程序", "电话登记", "门店登记"].each_with_index do |label, index| %><label class="form-selectgroup-item"><input type="radio" class="form-selectgroup-input" name="sample-channel" value="<%= index %>" <%= "checked" if index.zero? %>><span class="form-selectgroup-label"><%= label %></span></label><% end %>
+    </div></fieldset></div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="selection-permissions-title">
+    <div class="card-header"><h2 class="card-title" id="selection-permissions-title">权限勾选</h2></div>
+    <div class="table-responsive"><table class="table card-table table-vcenter text-nowrap mb-0"><thead><tr><th scope="col">功能</th><% %w[查看 新增 编辑 删除].each do |action| %><th scope="col"><%= action %></th><% end %></tr></thead><tbody>
+      <% %w[预约管理 客户管理 服务管理].each_with_index do |feature, index| %><tr><th scope="row" class="fw-medium"><%= feature %></th><% %w[查看 新增 编辑 删除].each_with_index do |action, action_index| %><td><input class="form-check-input" type="checkbox" aria-label="<%= feature %>：<%= action %>" <%= "checked" if action_index < 3 %>></td><% end %></tr><% end %>
+    </tbody></table></div>
+  </section></div>
+</div>

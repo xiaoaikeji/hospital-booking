@@ -1,0 +1,6 @@
+.app-admins {
+  [aria-expanded="false"] > [data-collapse-label="expanded"],
+  [aria-expanded="true"] > [data-collapse-label="collapsed"] {
+    display: none;
+  }
+}

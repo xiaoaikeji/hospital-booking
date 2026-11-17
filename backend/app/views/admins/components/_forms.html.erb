@@ -1,0 +1,72 @@
+<div class="row row-cards">
+  <div class="col-12"><section class="card" aria-labelledby="form-basic-title">
+    <div class="card-header"><h2 class="card-title" id="form-basic-title">基础输入与字段状态</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-6 col-xl-4"><label class="form-label required" for="sample-service-name">服务名称</label><input class="form-control" id="sample-service-name" type="text" aria-required="true" placeholder="例如 初次咨询"></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-phone">联系电话</label><input class="form-control" id="sample-phone" type="tel" value="13800006218" autocomplete="tel"></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-email">通知邮箱</label><input class="form-control" id="sample-email" type="email" placeholder="例如 booking@example.com" autocomplete="email"></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-readonly">预约编号（只读）</label><input class="form-control" id="sample-readonly" value="BK202611160001" readonly></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-disabled">所属门店（禁用）</label><input class="form-control" id="sample-disabled" value="Booking 旗舰店" disabled></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-url">预约链接</label><input class="form-control" id="sample-url" type="url" placeholder="https://example.com/booking"></div>
+      <div class="col-md-6 col-xl-4"><label class="form-label" for="sample-password">密码显示切换</label><div class="input-group input-group-flat"><input class="form-control" id="sample-password" type="password" autocomplete="new-password" placeholder="仅演示，不会保存"><span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: "sample-password" %></span></div></div>
+      <div class="col-12"><label class="form-label" for="sample-description">服务说明</label><textarea class="form-control" id="sample-description" rows="3" data-bs-toggle="autosize" placeholder="填写服务内容"></textarea></div>
+    </div></div>
+    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice">取消</button><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存</button></div></div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="form-units-title">
+    <div class="card-header"><h2 class="card-title" id="form-units-title">金额、单位与数量</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="sample-price">服务价格</label><div class="input-group"><span class="input-group-text">¥</span><input class="form-control" id="sample-price" type="number" min="0" step="0.01" placeholder="默认：0"></div></div>
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="sample-duration">服务时长</label><div class="input-group"><input class="form-control" id="sample-duration" type="number" min="0" step="15" value="30"><span class="input-group-text">分钟</span></div></div>
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="sample-percentage">定金比例</label><div class="input-group"><input class="form-control" id="sample-percentage" type="number" min="0" max="100" step="1" placeholder="默认：0"><span class="input-group-text">%</span></div></div>
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="sample-quantity">可预约人数</label><input class="form-control" id="sample-quantity" type="number" data-bs-toggle="number-input" data-bs-increment-label="增加人数" data-bs-decrement-label="减少人数" min="1" max="99" value="1"></div>
+      <div class="col-md-6"><div class="d-flex align-items-center gap-1 mb-2"><label class="form-label mb-0" for="sample-copy">预约编号与复制</label><% unless @clipboard_available %><%= render "admins/shared/field_help", text: "复制功能需在 HTTPS 或本机地址下使用。", label: "查看复制功能使用条件" %><% end %></div><div class="input-group"><input class="form-control" id="sample-copy" value="BK202611160001" readonly><button type="button" class="btn" data-bs-toggle="clipboard" data-bs-target="#sample-copy" <%= "disabled" unless @clipboard_available %>><span class="clipboard-label">复制</span><span class="clipboard-feedback">已复制</span></button></div></div>
+      <div class="col-md-6"><label class="form-label" for="sample-sort">排序</label><input class="form-control" id="sample-sort" type="number" step="1" placeholder="默认：0"></div>
+    </div></div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="form-date-title">
+    <div class="card-header"><h2 class="card-title" id="form-date-title">Tabler 日期选择与时间输入</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-4"><label class="form-label" for="sample-date">预约日期</label><%= render "admins/shared/date_field", id: "sample-date", value: @preview_date.iso8601, label: "预约日期" %></div>
+      <div class="col-md-4"><label class="form-label" for="sample-range">有效期范围</label><%= render "admins/shared/date_field", id: "sample-range", selection_mode: "multiple-ranged", placeholder: "选择开始与结束日期", label: "有效期范围" %></div>
+      <div class="col-md-4"><label class="form-label" for="sample-multiple-dates">休息日期</label><%= render "admins/shared/date_field", id: "sample-multiple-dates", selection_mode: "multiple", placeholder: "选择多个日期", label: "休息日期" %></div>
+      <div class="col-md-4"><label class="form-label" for="sample-time">营业开始时间</label><input class="form-control" id="sample-time" type="text" inputmode="numeric" maxlength="5" placeholder="例如 09:00" value="09:00"></div>
+      <div class="col-md-4"><label class="form-label" for="sample-time-end">营业结束时间</label><input class="form-control" id="sample-time-end" type="text" inputmode="numeric" maxlength="5" placeholder="例如 18:00" value="18:00"></div>
+      <div class="col-md-4"><label class="form-label" for="sample-task-date">任务执行日期</label><%= render "admins/shared/date_field", id: "sample-task-date", value: @preview_date.iso8601 %></div>
+    </div></div>
+  </section></div>
+  <div class="col-12"><section class="card" aria-labelledby="form-validation-title">
+    <div class="card-header"><h2 class="card-title" id="form-validation-title">字段校验</h2></div>
+    <div class="card-body"><div class="row g-3">
+      <div class="col-md-6"><label class="form-label required" for="sample-invalid">服务名称</label><input class="form-control is-invalid" id="sample-invalid" aria-invalid="true" aria-describedby="sample-invalid-error" aria-required="true"><div class="invalid-feedback" id="sample-invalid-error">请填写服务名称。</div></div>
+      <div class="col-md-6"><label class="form-label" for="sample-valid">联系电话</label><input class="form-control is-valid" id="sample-valid" type="tel" value="13800006218"></div>
+      <div class="col-md-6"><label class="form-label" for="sample-invalid-price">服务价格</label><div class="input-group"><span class="input-group-text">¥</span><input class="form-control is-invalid" id="sample-invalid-price" type="number" value="-1" min="0" aria-invalid="true" aria-describedby="sample-invalid-price-error"></div><div class="invalid-feedback d-block" id="sample-invalid-price-error">价格不能小于 0。</div></div>
+    </div></div>
+  </section></div>
+</div>
+<section class="card mt-3" aria-label="通用配置表单">
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "配置字段与来源", preview: true, clear_target: "#configuration-preview-clear" } do %>
+    <%= fields_for :configuration_preview do |form| %>
+      <div class="row g-3">
+        <% [["missing_key", "密钥", "未配置"], ["env_key", "密钥", "环境变量"], ["credentials_key", "密钥", "Rails credentials"], ["database_key", "密钥", "系统配置"], ["damaged_key", "密钥", "系统配置（解密失败）"]].each do |field, label, source| %>
+          <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: source, secret: true, placeholder: "请输入密钥" %></div>
+        <% end %>
+        <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: "storage", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %></div>
+      </div>
+    <% end %>
+  <% end %>
+</section>
+<%= render "admins/shared/confirmation_modal", modal_id: "configuration-preview-clear", title: "确认清除系统配置", context: "配置示例", description: "清除当前页面的系统配置后，将按 ENV、credentials 读取。", confirm_label: "确认清除", color: "warning" %>
+<section class="card mt-3" data-storage-settings aria-label="存储方式联动">
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "存储方式联动", preview: true } do %>
+    <%= fields_for :storage_mode_preview do |form| %>
+      <div class="row g-3">
+        <div class="col-md-6 col-xl-4" data-storage-service><%= render "admins/shared/configuration_field", form: form, field: "service", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %></div>
+        <% [["secret_id", "SecretId"], ["secret_key", "SecretKey"]].each do |field, label| %>
+          <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields hidden disabled><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: "未配置", secret: true, placeholder: "仅演示，不会保存" %></fieldset>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+</section>
+<%= render "admins/shared/form_help_styles" %>

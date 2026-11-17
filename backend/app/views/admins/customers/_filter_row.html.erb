@@ -1,0 +1,10 @@
+<div class="<%= class_names("list-group-item py-2", local_assigns[:row_class]) %>">
+  <div class="row g-2 align-items-center">
+    <div class="col-12 col-md-2 col-xl-1 text-secondary"><%= label %></div>
+    <div class="col"><nav class="nav nav-pills" aria-label="<%= label %>">
+      <% { nil => "全部" }.merge(options).each do |value, title| %>
+        <%= link_to title, filter_url.call(key => value), class: class_names("nav-link", active: @filters[key] == value), aria: { current: ("page" if @filters[key] == value) } %>
+      <% end %>
+    </nav></div>
+  </div>
+</div>

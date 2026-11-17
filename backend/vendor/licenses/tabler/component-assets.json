@@ -1,0 +1,51 @@
+{
+  "source_package": "Desktop/tabler-1.7.1",
+  "runtime_tabler_version": "1.7.5",
+  "assets": [
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/photos/blue-sofa-with-pillows-in-a-designer-living-room-interior.jpg",
+      "destination": "app/assets/images/admins/components/room.jpg",
+      "sha256": "3eb61435cf0ebdcf46eff37ea5d35efc6fa94e7096d96645bea67f3a9fd85325"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/photos/home-office-desk-with-macbook-iphone-calendar-watch-and-organizer.jpg",
+      "destination": "app/assets/images/admins/components/workspace.jpg",
+      "sha256": "49fa6027bf7df17717c893327a001f57283b6e38cf367ec563524161a6885e92"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/photos/group-of-people-brainstorming-and-taking-notes-2.jpg",
+      "destination": "app/assets/images/admins/components/team.jpg",
+      "sha256": "9c6178fc7dff94d91e63ef2ed2348cac56dc4674f8175ee74bc13da1be228c1a"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/avatars/000m.jpg",
+      "destination": "app/assets/images/admins/components/staff-1.jpg",
+      "sha256": "0c7671313d553713675c65e3a0af9c9891a30abc9d7cae738256818df7fd3f5d"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/avatars/000f.jpg",
+      "destination": "app/assets/images/admins/components/staff-2.jpg",
+      "sha256": "bcc7b6b1f21c6af464e13ff3947574f072a25b5842417dfa5e58c1f5389721c2"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/static/avatars/001m.jpg",
+      "destination": "app/assets/images/admins/components/staff-3.jpg",
+      "sha256": "202884f28e25b49d92c24855184d102aa521246d75dce8e231b342fa82b1b438"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/vanilla-calendar-pro/index.js",
+      "destination": "vendor/assets/tabler/libs/vanilla-calendar-pro/index.js",
+      "sha256": "3104901e40d02e560d7228262814dc1ceb52ffcab35ac6439ebdc56d444c554d"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/css/tabler-vendors.min.css",
+      "destination": "vendor/assets/tabler/css/tabler-vendors.min.css",
+      "sha256": "9c757eb14ad17e1344d191fb2857ed16f99b0a4807c77ccf8fb189ea5d2c7cbd"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/vanilla-calendar-pro/LICENSE",
+      "destination": "vendor/licenses/tabler/vanilla-calendar-pro-LICENSE",
+      "sha256": "b95f659670e7f7af29dedc3e69c1deaeee1267757729ad391318aba94108774d"
+    }
+  ]
+}

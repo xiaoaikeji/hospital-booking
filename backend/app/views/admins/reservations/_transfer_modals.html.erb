@@ -1,0 +1,27 @@
+<div class="modal modal-blur fade" id="reservation-import" tabindex="-1" aria-labelledby="reservation-import-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title" id="reservation-import-title">导入预约</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭导入窗口"></button></div>
+      <div class="modal-body">
+        <div class="d-flex align-items-center gap-1 mb-2"><label class="form-label mb-0" for="reservation-import-file">选择文件</label><%= render "admins/shared/field_help", text: "支持 CSV、Excel（.xlsx）。", label: "查看导入文件格式" %></div>
+        <input type="file" class="form-control" id="reservation-import-file" accept=".csv,.xlsx">
+        <div class="mt-3"><div class="form-label">字段示例</div><p class="text-secondary mb-0">客户姓名、联系电话、服务项目、服务人员、预约日期、预约时间。</p></div>
+      </div>
+      <div class="modal-footer"><span class="text-secondary small me-auto">仅展示导入界面，不会上传文件。</span><button type="button" class="btn" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :import %>开始导入</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal modal-blur fade" id="reservation-export" tabindex="-1" aria-labelledby="reservation-export-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h2 class="modal-title" id="reservation-export-title">导出预约</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭导出窗口"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><div class="form-label">导出范围</div><div class="text-secondary">当前筛选结果，共 <strong class="text-body"><%= local_assigns.fetch(:total_count, @total_count) %></strong> 条预约。</div></div>
+        <div class="mb-3"><label class="form-label" for="reservation-export-format">文件格式</label><select class="form-select" id="reservation-export-format"><option>Excel（.xlsx）</option><option>CSV（.csv）</option></select></div>
+        <fieldset><legend class="form-label">导出字段</legend><div class="row g-2"><% ["预约编号", "客户信息", "服务项目", "预约时间", "预约状态", "支付信息"].each do |label| %><div class="col-6"><label class="form-check mb-0"><input class="form-check-input" type="checkbox" checked><span class="form-check-label"><%= label %></span></label></div><% end %></div></fieldset>
+      </div>
+      <div class="modal-footer"><span class="text-secondary small me-auto">仅展示导出选项，不会生成文件。</span><button type="button" class="btn" data-bs-dismiss="modal">取消</button><button type="button" class="btn btn-primary" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :export %>导出文件</button></div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,139 @@
+<h1 id="overview" class="visually-hidden">首页概览</h1>
+
+<div id="reports" class="row row-deck row-cards mb-4">
+  <% [
+    ["今日预约", "24", "较昨日增加 4 笔", :calendar, "blue"],
+    ["待确认预约", "6", "等待工作人员确认", :clock, "orange"],
+    ["客户总数", "1,280", "本月新增 86 位客户", :users, "green"],
+    ["今日收款", "¥2,680.00", "已收款 18 笔", :wallet, "purple"]
+  ].each do |label, value, detail, icon, color| %>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card">
+        <div class="card-body">
+          <div class="row align-items-center">
+            <div class="col-auto"><span class="avatar bg-<%= color %>-lt"><%= render "layouts/admins/icon", name: icon %></span></div>
+            <div class="col"><div class="subheader"><%= label %></div><div class="h1 mb-0 mt-1"><%= value %></div></div>
+          </div>
+          <div class="text-secondary mt-3"><%= detail %></div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
+
+<% reservations = [
+  [1, "BK20261116001", "陈女士", "13800006218", "初次咨询", "10:00 — 10:30", "林顾问", "已完成", "green", "¥180.00"],
+  [2, "BK20261116002", "李先生", "13800006291", "专业护理", "11:00 — 12:00", "王老师", "已确认", "blue", "¥380.00"],
+  [3, "BK20261116003", "张女士", "13800006364", "专业护理", "14:00 — 15:00", "王老师", "已确认", "blue", "¥380.00"],
+  [4, "BK20261116004", "周先生", "13800006437", "初次咨询", "14:30 — 15:00", "林顾问", "待确认", "orange", "¥180.00"],
+  [5, "BK20261116005", "刘女士", "13800006510", "深度体验", "16:00 — 17:30", "赵老师", "待确认", "orange", "¥580.00"]
+] %>
+<div class="row row-deck row-cards mb-4">
+  <section id="reservations" class="col-xl-8" aria-labelledby="reservations-title">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title" id="reservations-title">最新预约</h2>
+        <div class="card-actions"><span class="badge bg-secondary-lt">11 月 16 日 · 周一</span></div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table table-nowrap">
+          <thead><tr><th scope="col" class="w-1">ID</th><th>预约编号</th><th>客户</th><th>服务项目</th><th>预约时段</th><th>状态</th></tr></thead>
+          <tbody>
+            <% reservations.each do |id, number, name, phone, service, time, staff, status, color, amount| %>
+              <tr>
+                <td class="text-secondary">#<%= id %></td>
+                <td class="text-secondary"><%= number %></td>
+                <td><div class="fw-medium"><%= name %></div><div class="text-secondary small"><%= phone %></div></td>
+                <td><%= service %><div class="text-secondary small"><%= staff %></div></td>
+                <td><%= time %></td>
+                <td><span class="badge bg-<%= color %>-lt"><%= status %></span></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer text-secondary">展示 5 条示例预约</div>
+    </div>
+  </section>
+  <section id="schedule" class="col-xl-4" aria-labelledby="schedule-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="schedule-title">今日排期</h2><span class="badge bg-blue-lt ms-auto">接下来</span></div>
+      <div class="card-body">
+        <ul class="steps steps-vertical">
+          <% reservations.drop(2).each_with_index do |(_id, _number, name, _phone, service, time, staff, _status, _color, _amount), index| %>
+            <li class="step-item<%= " active" if index.zero? %>">
+              <div class="h4 mb-1"><%= time %></div>
+              <div><%= name %> · <%= service %></div>
+              <div class="text-secondary small mt-1"><%= staff %></div>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+      <div class="card-footer"><a href="#staff" class="text-reset">查看服务团队 <%= render "layouts/admins/icon", name: :arrow %></a></div>
+    </div>
+  </section>
+</div>
+
+<div class="row row-deck row-cards mb-4">
+  <section id="services" class="col-md-6 col-xl-4" aria-labelledby="services-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="services-title">服务项目</h2><span class="badge bg-green-lt ms-auto">3 项开放预约</span></div>
+      <div class="list-group list-group-flush">
+        <% [["初次咨询", "30 分钟", "¥180"], ["专业护理", "60 分钟", "¥380"], ["深度体验", "90 分钟", "¥580"]].each do |name, duration, price| %>
+          <div class="list-group-item"><div class="row align-items-center"><div class="col"><div class="fw-medium"><%= name %></div><div class="text-secondary small"><%= duration %></div></div><div class="col-auto fw-medium"><%= price %></div></div></div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+  <section id="members" class="col-md-6 col-xl-4" aria-labelledby="members-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="members-title">最近加入的客户</h2></div>
+      <div class="list-group list-group-flush">
+        <% [["陈", "陈女士", "首次到店", "blue"], ["李", "李先生", "老客户推荐", "green"], ["刘", "刘女士", "线上预约", "purple"]].each do |initial, name, source, color| %>
+          <div class="list-group-item"><div class="row align-items-center"><div class="col-auto"><span class="avatar avatar-sm bg-<%= color %>-lt"><%= initial %></span></div><div class="col"><div class="fw-medium"><%= name %></div><div class="text-secondary small"><%= source %></div></div><div class="col-auto text-secondary small">今日</div></div></div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+  <section id="staff" class="col-md-12 col-xl-4" aria-labelledby="staff-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="staff-title">服务团队</h2></div>
+      <div class="list-group list-group-flush">
+        <% [["林", "林顾问", "咨询服务", "8 笔预约"], ["王", "王老师", "专业护理", "10 笔预约"], ["赵", "赵老师", "深度体验", "6 笔预约"]].each do |initial, name, role, count| %>
+          <div class="list-group-item"><div class="row align-items-center"><div class="col-auto"><span class="avatar avatar-sm bg-secondary-lt"><%= initial %></span></div><div class="col"><div class="fw-medium"><%= name %></div><div class="text-secondary small"><%= role %></div></div><div class="col-auto"><span class="badge bg-green-lt"><%= count %></span></div></div></div>
+        <% end %>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="row row-deck row-cards">
+  <section id="payments" class="col-lg-7" aria-labelledby="payments-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="payments-title">最近收款</h2><span class="badge bg-secondary-lt ms-auto">示例记录</span></div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
+          <thead><tr><th scope="col" class="w-1">ID</th><th>客户</th><th>服务项目</th><th>金额</th><th>支付方式</th><th>状态</th></tr></thead>
+          <tbody>
+            <% reservations.first(3).each do |id, _number, name, _phone, service, _time, _staff, _status, _color, amount| %>
+              <tr><td class="text-secondary">#<%= id %></td><td><%= name %></td><td><%= service %></td><td class="fw-medium"><%= amount %></td><td class="text-secondary">微信支付</td><td><span class="status status-green"><span class="status-dot"></span>已支付</span></td></tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <section id="settings" class="col-lg-5" aria-labelledby="settings-title">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title" id="settings-title">预约规则</h2><span class="badge bg-secondary-lt ms-auto">预览</span></div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5 fw-normal text-secondary">营业时间</dt><dd class="col-7">09:00 — 18:00</dd>
+          <dt class="col-5 fw-normal text-secondary">预约间隔</dt><dd class="col-7">30 分钟</dd>
+          <dt class="col-5 fw-normal text-secondary">提前预约</dt><dd class="col-7">最多提前 7 天</dd>
+          <dt class="col-5 fw-normal text-secondary">取消规则</dt><dd class="col-7 mb-0">至少提前 2 小时</dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+</div>
