@@ -18,8 +18,8 @@
 
 在 `/admins/components?tab=list_examples&example=toolbars` 查看完整列表示例，拖动窗口可看实际宽度下的变化。[示例代码](../../app/views/admins/components/_list_toolbars.html.erb)
 
-- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧放页面操作。长标题用省略号，页头保持一行。
+- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧依次放新增、导入、导出等页面操作。长标题用省略号，窄到放不下时按钮区横向滚动，页头保持一行。
 - 状态等少量选项沿用独立的横向筛选区。「更多筛选」用于该区域的额外条件。
-- 搜索工具栏保持一行，顺序为关键词、最多两组起止日期、搜索、重置筛选，再放导入、导出等批量操作。两组日期并排等宽，用「预约」「创建」等前缀区分。只展示页面实际支持的控件，按钮保持图标和文案。有条件时显示重置筛选。窄到放不下时，工具栏本身横向滚动。
+- 搜索工具栏保持一行，顺序为关键词、最多两组起止日期、搜索、重置筛选。两组日期并排等宽，用「预约」「创建」等前缀区分。只展示页面实际支持的控件，按钮保持图标和文案。有条件时显示重置筛选。窄到放不下时，工具栏本身横向滚动。
 - 搜索 placeholder 只写实际能搜的字段，用 ` / ` 分隔，例如「用户名 / 姓名」。
 - 使用桌面 Tabler 的 `tables.html` 页头和工具栏结构，日期范围复用 [date_field](../../app/views/admins/shared/_date_field.html.erb)。

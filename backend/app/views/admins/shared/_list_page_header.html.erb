@@ -3,5 +3,5 @@
     <span class="text-primary d-inline-flex flex-shrink-0"><%= render "layouts/admins/icon", name: icon, icon_class: "w-5 h-5" %></span>
     <span class="text-truncate" title="<%= title %>"><%= title %></span>
   <% end %>
-  <div class="d-flex flex-nowrap align-items-center flex-shrink-0 gap-2"><%= yield %></div>
+  <div class="d-flex flex-nowrap align-items-center gap-2 overflow-x-auto"><%= yield %></div>
 </div>

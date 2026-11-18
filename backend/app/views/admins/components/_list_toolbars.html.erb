@@ -5,9 +5,12 @@
 <% content_for :fill_content, "true" if empty %>
 
 <%= render layout: "admins/shared/list_page_header", locals: { title: "预约列表", icon: :calendar, heading: :h2 } do %>
-  <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice">
+  <button type="button" class="btn btn-primary flex-shrink-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice">
     <%= render "layouts/admins/icon", name: :plus %>新增预约
   </button>
+  <% [[:import, "导入"], [:export, "导出"]].each do |icon, label| %>
+    <button type="button" class="btn btn-outline-secondary flex-shrink-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: icon %><%= label %></button>
+  <% end %>
 <% end %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
@@ -24,7 +27,7 @@
         <%= form.search_field :q, value: @toolbar_query, class: "form-control text-truncate", placeholder: "客户 / 手机号", aria: { label: "客户或手机号" } %>
       </div>
       <% { date_range: "预约", created_date_range: "创建" }.each do |field, prefix| %>
-        <div class="col-5 col-sm-4 col-md-3 col-xl-2 flex-shrink-0">
+        <div class="col-5 col-sm-4 col-md-3 flex-shrink-0">
           <%= render "admins/shared/date_field", id: "toolbar-#{field.to_s.dasherize}", name: field, value: @toolbar_ranges[field], prefix: prefix, selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
         </div>
       <% end %>
@@ -32,11 +35,6 @@
       <% if active_filters.any? %>
         <%= link_to admins_components_path(preview_params), class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
       <% end %>
-      <div class="d-flex flex-nowrap gap-1 gap-sm-2 ms-auto flex-shrink-0">
-        <% [[:import, "导入"], [:export, "导出"]].each do |icon, label| %>
-          <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: icon %><%= label %></button>
-        <% end %>
-      </div>
     <% end %>
   </div>
 
