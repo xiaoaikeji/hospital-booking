@@ -13,6 +13,7 @@ document.addEventListener("submit", (event) => {
   form.setAttribute("aria-busy", "true");
   form.querySelectorAll("[data-admin-submit]").forEach((button) => {
     button.disabled = true;
+    button.querySelector("[data-admin-submit-icon]")?.classList.add("d-none");
     button.querySelector(".spinner-border").classList.remove("d-none");
   });
 });
@@ -32,6 +33,7 @@ window.addEventListener("pageshow", () => {
     delete form.dataset.confirmed;
     form.querySelectorAll("[data-admin-submit]").forEach((button) => {
       button.disabled = false;
+      button.querySelector("[data-admin-submit-icon]")?.classList.remove("d-none");
       button.querySelector(".spinner-border").classList.add("d-none");
     });
   });

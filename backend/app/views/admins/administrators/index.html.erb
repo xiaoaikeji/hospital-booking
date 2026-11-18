@@ -1,28 +1,36 @@
 <% content_for :title, "管理员 · Booking 管理后台" %>
 <div class="page-header mt-0 mb-3"><div class="row g-2 align-items-center">
   <div class="col"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>管理员</h1></div>
-  <div class="col-auto"><%= link_to "新增管理员", new_admins_administrator_path, class: "btn btn-primary" %></div>
+  <div class="col-auto"><%= link_to new_admins_administrator_path, class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>新增管理员<% end %></div>
 </div></div>
 <section class="card">
   <div class="card-header">
     <%= form_with url: admins_administrators_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search" } do |form| %>
       <div class="col-sm-6 col-md-4"><%= form.search_field :q, value: @query, class: "form-control", placeholder: "用户名 / 姓名", aria: { label: "搜索管理员" } %></div>
-      <div class="col-auto"><%= form.submit "搜索", class: "btn" %></div>
+      <div class="col-auto"><div class="btn-list">
+        <%= form.button type: "submit", class: "btn" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+        <% if @query.present? %>
+          <%= link_to admins_administrators_path, class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+      </div></div>
     <% end %>
   </div>
   <% if @administrators.any? %>
     <div class="table-responsive"><table class="table table-vcenter card-table">
       <thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>角色</th><th>状态</th><th>最近登录</th><th>创建时间</th><th class="w-1">操作</th></tr></thead>
       <tbody><% @administrators.each do |administrator| %><tr>
-        <td>#<%= administrator.id %></td><td><%= administrator.username %></td><td><%= administrator.name.presence || "—" %></td>
+        <td class="text-secondary">#<%= administrator.id %></td><td><%= administrator.username %></td><td><%= administrator.name.presence || "—" %></td>
         <td><%= administrator.role_name %></td><td><span class="badge bg-<%= administrator.enabled? ? 'success' : 'secondary' %>-lt"><%= administrator.enabled? ? "启用" : "停用" %></span></td>
         <td class="text-nowrap"><%= administrator.current_sign_in_at ? l(administrator.current_sign_in_at, format: :short) : "尚未登录" %></td>
         <td class="text-nowrap"><%= l(administrator.created_at, format: :short) %></td>
-        <td><%= link_to "编辑", edit_admins_administrator_path(administrator), class: "btn btn-sm btn-outline-primary" %></td>
+        <td><%= link_to edit_admins_administrator_path(administrator), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %></td>
       </tr><% end %></tbody>
     </table></div>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_administrators_path(q: @query.presence, page: page) } %>
   <% else %>
-    <div class="empty"><h2 class="empty-title">没有找到管理员</h2><p class="empty-subtitle text-secondary">试试其他用户名或姓名。</p></div>
+    <div class="empty">
+      <h2 class="empty-title"><%= @query.present? ? "没有找到匹配的管理员" : "暂无管理员" %></h2>
+      <% if @query.present? %><p class="empty-subtitle text-secondary">试试其他用户名或姓名。</p><% end %>
+    </div>
   <% end %>
 </section>

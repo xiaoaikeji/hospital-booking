@@ -7,11 +7,14 @@
     <div class="row g-3">
       <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
         <div class="col-md-4"><%= form.label field, label, class: "form-label" %>
-          <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: "#{field}-error" } %>
+          <div class="input-group input-group-flat">
+            <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: ("#{field}-error" if @administrator.errors[field].any?) } %>
+            <span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: form.field_id(field) %></span>
+          </div>
           <%= admin_field_errors(@administrator, field) %>
         </div>
       <% end %>
     </div>
   </div>
-  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "修改密码" %></div></div>
+  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "修改密码", icon: :save %></div></div>
 <% end %>
