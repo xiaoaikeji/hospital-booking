@@ -5,11 +5,20 @@
     <div class="col-auto ms-auto"><%= link_to "返回预约列表", admins_reservations_path, class: "btn text-nowrap" %></div>
   </div>
 </div>
-<nav class="card mb-3" aria-label="组件分类">
-  <div class="card-header">
-    <ul class="nav nav-tabs card-header-tabs flex-wrap">
-      <% @groups.each do |key, label| %><li class="nav-item"><%= link_to label, admins_components_path(tab: key), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %></li><% end %>
-    </ul>
+<nav class="card mb-3" aria-label="样式规范分类">
+  <div class="list-group list-group-flush">
+    <% @groups.each do |group, tabs| %>
+      <div class="list-group-item py-2" role="group" aria-label="<%= group %>">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-2 col-xl-1 text-secondary"><%= group %></div>
+          <div class="col"><ul class="nav nav-pills">
+            <% tabs.each do |key, label| %>
+              <li class="nav-item"><%= link_to label, admins_components_path(tab: key), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %></li>
+            <% end %>
+          </ul></div>
+        </div>
+      </div>
+    <% end %>
   </div>
 </nav>
 <p class="text-secondary small mb-3">样式预览，操作不会保存或上传文件。</p>

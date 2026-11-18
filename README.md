@@ -54,7 +54,7 @@ bin/dev
 
 后台使用 Tabler 原生的纵向侧栏、单行顶栏、Dropdown、Collapse、Offcanvas、卡片和表格；首页、预约、客户及组件页仍为静态示例，不连接预约业务。
 
-统一组件预览位于 `/admins/components`，从侧栏「组件规范」或预约列表「操作样式」进入。后续页面先查 `app/views/admins/shared/` 和公共布局，有现成的就复用；没有时再按 [样式规范目录](docs/admin-ui.md) 定位，只读需要的分组。项目根目录 `AGENTS.md` 只保留查找顺序和基本开发约定。
+从侧栏「组件规范」进入 `/admins/components`。单个控件看「组件样式」，按钮组合看「页面操作」，完整列表看「列表规范」。开发时按 [样式规范目录](backend/docs/admin-ui.md) 定位对应规范和公共组件。
 
 组件结构和素材以桌面 Tabler 1.7.1 为依据，运行资源沿用官方 1.7.5。按用户要求，`shared/_typography.scss` 使用大雁同款字体栈，提示图标使用大雁同款 SVG；组件布局与主题继续使用 Tabler。Datepicker 配套文件直接取自桌面示例，页面使用浮层、Modal 使用内嵌，并由共享绑定提供清空。文件控件与保存、删除保持演示。素材路径及校验记录见 `vendor/licenses/tabler/component-assets.json`，按需查阅 [材料索引](docs/admin-ui/sources.md)。
 
@@ -66,15 +66,7 @@ bin/dev
 
 预约列表预览位于 `/admins/reservations`，可从顶栏「预约」或侧栏「预约管理 → 预约列表」进入。使用 24 条内存示例数据，支持按预约状态、服务项目、预约日期筛选，以及关键词搜索、Pagy 每页 20 条分页和独立预约详情、编辑页面。新增、编辑、导入、导出和删除均为界面演示，不执行数据库写入、文件上传或文件导出。切换主题保留当前页面与筛选条件。该页面复用共享组件，未单独编写 CSS/JS 或 Rails 测试。
 
-后台电话号码在首页、列表、详情、编辑及弹窗中始终完整显示，不做星号遮挡或脱敏。当前完整号码均为界面示例数据。
-
-后台记录列表以 ID 为第一列，使用 `#1`、`#2` 格式及原生 `text-secondary` 样式；预约编号保留在后面。ID 使用示例记录自身的标识，筛选与翻页时不重新编号。客户空列表继续不显示表头或分页。
-
-首页介绍行、列表面包屑及静态预览标签已移除。预约列表标题使用原生 `fs-1`（24px），图标使用 `w-5 h-5`（32px）。标题旁「操作样式」可展开按钮示例。按钮语义：新增/保存为 `btn-primary`，编辑/修改为 `btn-outline-primary`，查看为 `btn-info`，导入/导出为 `btn-outline-secondary`，删除为 `btn-danger` 或列表中的 `btn-outline-danger`，停用为 `btn-warning`，取消/关闭为中性 `btn`。
-
-「操作样式」下方另有「表单提示样式」：数值输入用 `placeholder="默认：0"` 展示短提示；文件字段旁的信息图标使用原生 `data-bs-toggle="tooltip"`，悬停或键盘聚焦显示图片要求，由已有官方 Tabler 脚本自动初始化，没有自定义 CSS/JS。选择文件仅为本地控件演示，不上传。
-
-配置提示规则：label 与 placeholder 已能表达清楚时不再加提示。只有缺少说明就难以理解如何配置时才增加必要提示；短说明优先放 placeholder，无法容纳或控件不支持 placeholder 时才使用信息图标。不是给每个字段都加提示再压缩文案。
+当前预览手机号均为示例数据。列表布局、列顺序和手机号展示见[列表规范](backend/docs/admin-ui/records.md)，按钮语义见[操作与确认](backend/docs/admin-ui/actions.md)，字段提示见[输入与校验](backend/docs/admin-ui/forms.md)。
 
 提示样式材料：桌面 `dashboard/form-elements.html` 的原生表单及 Tooltip 属性、`dashboard/alerts.html` 的 info-circle 图标、`dashboard/dist/js/tabler.js` 的 Tooltip 自动初始化；参考 `/Users/bithunter/Projects/aitool.web/app/views/backend/shared/_group_qrcode_form.html.erb` 的字段旁提示位置，未复制其自定义样式。
 
@@ -99,7 +91,7 @@ bin/dev
 
 ### 编辑预约
 
-`/admins/reservations/:id/edit` 为独立编辑页面，例如 `/admins/reservations/1/edit`。列表、详情及操作样式中的编辑入口均可进入；列表的搜索、筛选和页码在编辑、返回详情、返回列表之间保留。
+`/admins/reservations/:id/edit` 为独立编辑页面，例如 `/admins/reservations/1/edit`。列表和详情中的编辑入口均可进入；列表的搜索、筛选和页码在编辑、返回详情、返回列表之间保留。
 
 表单铺满内容区，按客户信息、预约安排、费用与备注分组；原生栅格随屏幕宽度切换为三列、两列或一列。保存按钮使用 `btn-primary`，取消为中性按钮。点击保存仅打开静态预览说明，不提交表单、不修改记录；关闭说明会保留本页已填内容。日期复用带清空的官方 Datepicker 片段，未为该页面单独编写 CSS/JS 或 Rails 测试。
 

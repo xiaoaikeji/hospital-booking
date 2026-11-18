@@ -1,20 +1,21 @@
 module Admins
   class ComponentsController < BaseController
     GROUPS = {
-      "media" => "图片与附件",
-      "forms" => "输入与校验",
-      "selection" => "选择与开关",
-      "records" => "列表与状态",
-      "feedback" => "反馈与加载",
-      "containers" => "导航与容器",
-      "actions" => "操作与确认",
-      "page_actions" => "页面操作",
-      "list_examples" => "列表规范"
+      "组件样式" => {
+        "media" => "图片与附件",
+        "forms" => "输入与校验",
+        "selection" => "选择与开关",
+        "records" => "状态与分页",
+        "feedback" => "反馈与加载",
+        "containers" => "导航与容器",
+        "actions" => "操作与确认"
+      },
+      "页面示例" => { "page_actions" => "页面操作", "list_examples" => "列表规范" }
     }.freeze
 
     def index
       @groups = GROUPS
-      @tab = params[:tab].presence_in(GROUPS.keys) || "media"
+      @tab = params[:tab].presence_in(GROUPS.values.flat_map(&:keys)) || "media"
       @preview_date = Time.current.in_time_zone("Asia/Shanghai").to_date
       @service_options = ReservationsController::SERVICES
       @clipboard_available = request.ssl? || %w[localhost 127.0.0.1 ::1].include?(request.host)
@@ -39,8 +40,8 @@ module Admins
     private
 
     def prepare_list_example
-      @list_examples = { "empty" => "空列表", "single" => "单条记录", "logs" => "操作日志筛选", "toolbars" => "页头与工具栏" }
-      @list_example = params[:example].presence_in(@list_examples.keys) || "empty"
+      @list_examples = { "toolbars" => "完整列表", "empty" => "空列表", "single" => "单条记录", "logs" => "操作日志筛选" }
+      @list_example = params[:example].presence_in(@list_examples.keys) || "toolbars"
       return prepare_toolbar_example if @list_example == "toolbars"
 
       @list_options = @list_example == "logs" ? { operation: AdminsHelper::LOG_ACTIONS } : CustomersController::FILTER_OPTIONS

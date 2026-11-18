@@ -1,10 +1,10 @@
 # 导航与布局
 
-用于页面框架、内容分组和展开交互。预览：`/admins/components?tab=containers`；[示例代码](../../app/views/admins/components/_containers.html.erb)。
+用于页面框架、摘要卡片、内容分组和展开交互。预览：`/admins/components?tab=containers`；[示例代码](../../app/views/admins/components/_containers.html.erb)。
 
 - 页面框架复用 [admins 布局](../../app/views/layouts/admins.html.erb)；侧栏、顶栏、图标和主题入口在 [layouts/admins](../../app/views/layouts/admins/)。
 - 登录页复用 [admin_auth 布局](../../app/views/layouts/admin_auth.html.erb)，沿用原版 `sign-in.html` 的居中卡片和间距，并复用同一外观面板及切换绑定。
-- 内容用 `container-xl`，公共布局默认 `data-bs-layout="fluid"` 铺满宽度，也支持外观设置切换标准/盒式；页头用 `page-header mt-0 mb-3`，标题 `fs-1`，图标 `w-5 h-5`，间距 `gap-3`。
+- 内容用 `container-xl`，公共布局默认 `data-bs-layout="fluid"` 铺满宽度，也支持外观设置切换标准/盒式；通用页头用 `page-header mt-0 mb-3`，标题 `fs-1`，图标 `w-5 h-5`，间距 `gap-3`。列表页头见[列表规范](records.md#页头与搜索栏)。
 - 分组用 Card、`row g-3`；等高用 `row-deck`/`h-100`，填余高用 `flex-fill`，小屏自然换行。
 - 配置页复用 [configuration_card](../../app/views/admins/shared/_configuration_card.html.erb)，作为 `card` 表单内的布局片段，统一标题、错误及保存区；字段使用 [configuration_field](../../app/views/admins/shared/_configuration_field.html.erb)，常规栅格为 `col-md-6 col-xl-4`，按字段宽度调整。桌面能容纳时尽量一屏展示，小屏或内容较多时正常滚动，不用固定高度或隐藏溢出来掩盖内容；示例见输入规范预览。
 - “清除系统配置”放在保存按钮旁，复用现有风险确认框；只清除本页的数据库配置并按来源回退，不逐字段放清除勾选，无系统值时禁用。清除继续使用事务和配置版本校验。

@@ -1,36 +1,20 @@
-<section class="card mb-3" aria-labelledby="records-table-title">
-  <div class="card-header"><h2 class="card-title" id="records-table-title">记录列表与批量操作</h2><div class="btn-list ms-auto"><button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#component-notice">导出所选</button><button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#component-record-delete">删除所选</button></div></div>
-  <div class="table-responsive"><table class="table card-table table-vcenter table-hover text-nowrap mb-0">
-    <thead><tr><th scope="col" class="w-1">ID</th><th scope="col" class="w-1">选择</th><th scope="col">客户</th><th scope="col">服务项目</th><th scope="col">金额</th><th scope="col">预约状态</th><th scope="col">操作</th></tr></thead>
-    <tbody><% @records.each do |record| %><tr>
-      <td class="text-secondary">#<%= record[:id] %></td><td><input type="checkbox" class="form-check-input" aria-label="选择预约 #<%= record[:id] %>"></td>
-      <td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm bg-primary-lt"><%= record[:name].first %></span><div><div class="fw-medium"><%= record[:name] %></div><div class="text-secondary small"><%= record[:mobile] %></div></div></div></td>
-      <td><%= record[:service] %></td><td>¥<%= record[:amount] %></td><td><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
-      <td><div class="btn-list flex-nowrap"><%= link_to admins_reservation_path(record[:id]), class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %><%= link_to edit_admins_reservation_path(record[:id]), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %><button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#component-record-delete">删除</button></div></td>
-    </tr><% end %></tbody>
-  </table></div>
-</section>
-<div class="row row-deck row-cards">
-  <div class="col-lg-6"><section class="card" aria-labelledby="records-status-title">
-    <div class="card-header"><h2 class="card-title" id="records-status-title">状态与分类标签</h2></div>
-    <div class="card-body">
-      <div class="d-flex flex-wrap gap-2 mb-4"><% [["待确认", "orange"], ["已确认", "primary"], ["服务中", "info"], ["已完成", "success"], ["已取消", "secondary"], ["异常", "danger"]].each do |label, color| %><span class="badge bg-<%= color %>-lt"><%= label %></span><% end %></div>
-      <div class="d-flex flex-wrap gap-3 mb-4"><span class="status status-success"><span class="status-dot status-dot-animated"></span>营业中</span><span class="status status-secondary"><span class="status-dot"></span>已停用</span></div>
-      <div class="d-flex flex-wrap gap-2"><span class="badge bg-primary-lt">VIP 客户</span><span class="badge bg-secondary-lt">回头客</span><span class="badge bg-secondary-lt">电话登记</span><span class="badge bg-secondary-lt">首次到店</span></div>
+<section class="card mb-3" aria-labelledby="records-status-title">
+  <div class="card-header"><h2 class="card-title" id="records-status-title">状态与分类标签</h2></div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap gap-2 mb-4">
+      <% [["待确认", "orange"], ["已确认", "primary"], ["服务中", "info"], ["已完成", "success"], ["已取消", "secondary"], ["异常", "danger"]].each do |label, color| %>
+        <span class="badge bg-<%= color %>-lt"><%= label %></span>
+      <% end %>
     </div>
-  </section></div>
-  <div class="col-lg-6"><section class="card" aria-labelledby="records-summary-title">
-    <div class="card-header"><h2 class="card-title" id="records-summary-title">数据摘要</h2></div>
-    <div class="card-body"><div class="row g-3"><div class="col-6"><div class="subheader">今日预约</div><div class="h1 mb-0 mt-2">24</div><div class="text-success small mt-2">较昨日增加 4 笔</div></div><div class="col-6"><div class="subheader">今日收款</div><div class="h1 mb-0 mt-2">¥2,680</div><div class="text-secondary small mt-2">18 笔已支付</div></div></div></div>
-  </section></div>
-  <div class="col-lg-6"><section class="card" aria-labelledby="records-empty-title">
-    <div class="card-header"><h2 class="card-title" id="records-empty-title">首次使用的空列表</h2></div>
-    <div class="empty py-5"><div class="empty-icon"><%= render "layouts/admins/icon", name: :users %></div><h3 class="empty-title">暂无客户</h3><p class="empty-subtitle text-secondary">客户信息添加后，会显示在这里。</p><div class="empty-action"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :plus %>添加客户</button></div></div>
-  </section></div>
-  <div class="col-lg-6"><section class="card" aria-labelledby="records-filter-empty-title">
-    <div class="card-header"><h2 class="card-title" id="records-filter-empty-title">筛选无结果</h2></div>
-    <div class="empty py-5"><div class="empty-icon"><%= render "layouts/admins/icon", name: :calendar %></div><h3 class="empty-title">没有找到匹配的预约</h3><p class="empty-subtitle text-secondary">试试其他关键词，或清除筛选条件。</p><div class="empty-action"><%= link_to "清除筛选", admins_reservations_path, class: "btn" %></div></div>
-  </section></div>
-</div>
-<section class="card mt-3" aria-label="共享列表分页"><div class="card-header"><h2 class="card-title">共享列表分页</h2></div><div class="card-body text-secondary">管理员和操作日志列表使用同一分页片段。</div><%= render "admins/shared/pagination", pagy: @pagination_example, url: ->(_page) { "#records-table-title" } %></section>
-<%= render "admins/shared/confirmation_modal", modal_id: "component-record-delete", title: "确认删除记录", context: "所选记录", description: "请确认是否删除所选记录，删除后无法恢复。", confirm_label: "确认删除", color: "danger" %>
+    <div class="d-flex flex-wrap gap-3 mb-4"><span class="status status-success"><span class="status-dot status-dot-animated"></span>营业中</span><span class="status status-secondary"><span class="status-dot"></span>已停用</span></div>
+    <div class="d-flex flex-wrap gap-2"><span class="badge bg-primary-lt">VIP 客户</span><span class="badge bg-secondary-lt">回头客</span><span class="badge bg-secondary-lt">电话登记</span><span class="badge bg-secondary-lt">首次到店</span></div>
+  </div>
+</section>
+
+<section class="card" aria-labelledby="records-pagination-title">
+  <div class="card-header">
+    <h2 class="card-title" id="records-pagination-title">分页</h2>
+    <%= link_to "查看完整列表", admins_components_path(tab: "list_examples"), class: "ms-auto" %>
+  </div>
+  <%= render "admins/shared/pagination", pagy: @pagination_example, url: ->(_page) { "#records-pagination-title" } %>
+</section>

@@ -1,6 +1,6 @@
-# 列表与状态
+# 列表规范
 
-查阅用途包括页头、搜索、筛选、表格、空态与分页。完整列表见「组件规范 → 列表规范」，入口为 `/admins/components?tab=list_examples`。在「页头与工具栏」可用模拟数据检查宽屏、窄屏、长文本和日期筛选。[完整示例](../../app/views/admins/components/_list_toolbars.html.erb)
+列表的完整布局统一以「组件规范 → 页面示例 → 列表规范」为准，入口为 `/admins/components?tab=list_examples`。在「完整列表」可用模拟数据检查宽屏、窄屏、长文本和日期筛选。[完整示例](../../app/views/admins/components/_list_toolbars.html.erb)
 
 ## 页头与搜索栏
 
@@ -20,9 +20,15 @@
 - 第一列固定为 `ID`，按记录的实际 ID 显示 `#1`、`#2`，筛选或翻页不重新编号。日期时间列统一靠后，通常精确到分钟，放在最后的「操作」列之前。只有日期含义的字段按实际精度显示。
 - 沿用 [标准行高与间距示例](../../app/views/admins/components/_toolbar_records.html.erb)。字段默认单行，信息确实较多时可上下叠放相关内容。头像用圆形，其他缩略图默认正方形并用 `cover` 裁切，可按内容调整。预留统一的缩略图尺寸，图片不能撑高行高。
 - 列宽按字段和常见内容分配。手机号、编号优先预留完整显示的宽度，和昵称一样保持单行；放不下时省略，悬停或键盘聚焦显示完整值。备注、说明可在行高允许的范围内换行，仍放不下也省略并显示全文提示。复用 [list_text](../../app/views/admins/shared/_list_text.html.erb) 的 Tabler Tooltip。
-- 状态用规范中已有的 Badge 样式，颜色按状态语义选。行按钮按 [操作与确认](actions.md) 选择。表格禁止横向滚动；空间不足时优先把次要字段移到详情，列取舍拿不准先问用户。
+- 状态按语义选用[状态 Badge](#状态与分页组件)。行按钮按 [操作与确认](actions.md) 选择。表格禁止横向滚动；空间不足时优先把次要字段移到详情，列取舍拿不准先问用户。
 
 ## 空态与分页
 
 - 零条记录时保留筛选和搜索，列表卡片填满剩余高度，图标、标题和提示整体居中。图标可按业务选择，尺寸沿用 [客户空列表](../../app/views/admins/customers/index.html.erb)；隐藏表头和分页。首次空列表与筛选无结果使用对应提示。
-- 有记录时卡片随内容收高，超过一页才显示分页。真实列表复用 [pagination](../../app/views/admins/shared/_pagination.html.erb)，传入 Pagy 对象和分页 URL 方法。
+- 有记录时卡片随内容收高，超过一页才显示分页。
+
+## 状态与分页组件
+
+- 原生 Badge 使用 `badge bg-*-lt`，按状态语义选色；营业中等运行状态可用状态点。
+- 分页复用 [pagination](../../app/views/admins/shared/_pagination.html.erb)，传入 Pagy 对象和分页 URL 方法。
+- 单独查看组件样式用 `/admins/components?tab=records`。[组件示例](../../app/views/admins/components/_records.html.erb)
