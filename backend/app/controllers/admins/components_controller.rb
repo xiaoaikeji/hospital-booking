@@ -66,16 +66,19 @@ module Admins
       @toolbar_status_options = ReservationsController::STATUSES.transform_values(&:first)
       @toolbar_status = params[:status].presence_in(@toolbar_status_options.keys)
       @toolbar_query = params[:q].to_s.strip
-      @toolbar_range = params[:date_range].to_s.strip
-      first_date, last_date = @toolbar_range.scan(/\d{4}-\d{2}-\d{2}/).minmax
+      @toolbar_ranges = %i[date_range created_date_range].index_with { |field| params[field].to_s.strip }.compact_blank
+      date_limits = @toolbar_ranges.transform_values { |range| range.scan(/\d{4}-\d{2}-\d{2}/).minmax }
 
       @toolbar_records = @records.each_with_index.filter_map do |record, index|
         date = (@preview_date + index).iso8601
+        created_date = (@preview_date - index - 1).iso8601
         next if @toolbar_status && @toolbar_status != record[:status_key]
-        next if first_date && !date.between?(first_date, last_date)
         next unless record.values_at(:name, :mobile).any? { |value| value.include?(@toolbar_query) }
 
-        record.merge(date: date)
+        dates = { date_range: date, created_date_range: created_date }
+        next unless date_limits.all? { |field, (first, last)| !first || dates.fetch(field).between?(first, last) }
+
+        record.merge(date: date, created_date: created_date)
       end
     end
   end

@@ -3,6 +3,7 @@
 <% picker_id = inline ? "#{id}-calendar" : id %>
 <% picker_data = { bs_toggle: "datepicker", bs_locale: "zh-CN", bs_date_format: "iso", bs_selection_mode: local_assigns.fetch(:selection_mode, "single"), bs_vcp_options: { displayDatesOutside: false } } %>
 <div class="input-group">
+  <% if local_assigns[:prefix] %><%= label_tag id, prefix, class: "input-group-text text-nowrap px-2" %><% end %>
   <%= tag.input type: "text", class: "form-control", id: id, name: local_assigns[:name], value: local_assigns[:value], placeholder: local_assigns.fetch(:placeholder, "选择日期"), autocomplete: "off", required: local_assigns[:required], readonly: inline, aria: { required: local_assigns[:required] }, data: (picker_data unless inline) %>
   <% if local_assigns.fetch(:clearable, true) %><button type="button" class="btn btn-outline-secondary" data-admin-date-clear="<%= id %>" data-admin-date-picker="<%= picker_id %>" aria-label="清空<%= local_assigns.fetch(:label, "日期") %>">清空</button><% end %>
 </div>

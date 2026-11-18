@@ -1,5 +1,5 @@
 <% preview_params = { tab: "list_examples", example: "toolbars" } %>
-<% active_filters = { status: @toolbar_status, q: @toolbar_query.presence, date_range: @toolbar_range.presence }.compact %>
+<% active_filters = { status: @toolbar_status, q: @toolbar_query.presence }.compact.merge(@toolbar_ranges) %>
 <% filter_url = ->(changes) { admins_components_path(preview_params.merge(active_filters).merge(changes).compact) } %>
 <% empty = @toolbar_records.empty? %>
 <% content_for :fill_content, "true" if empty %>
@@ -20,13 +20,14 @@
   <div class="card-header flex-shrink-0 overflow-x-auto">
     <%= form_with url: admins_components_path, method: :get, class: "d-flex flex-nowrap align-items-center gap-1 gap-sm-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
       <% preview_params.merge(status: @toolbar_status).compact.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
-      <div class="col-4 col-lg-3 flex-shrink-0">
+      <div class="col-4 col-md-3 flex-shrink-0">
         <%= form.search_field :q, value: @toolbar_query, class: "form-control text-truncate", placeholder: "客户 / 手机号", aria: { label: "客户或手机号" } %>
       </div>
-      <div class="col-4 col-lg-3 flex-shrink-0">
-        <label class="visually-hidden" for="toolbar-date-range">预约起止日期</label>
-        <%= render "admins/shared/date_field", id: "toolbar-date-range", name: "date_range", value: @toolbar_range, selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
-      </div>
+      <% { date_range: "预约", created_date_range: "创建" }.each do |field, prefix| %>
+        <div class="col-5 col-sm-4 col-md-3 col-xl-2 flex-shrink-0">
+          <%= render "admins/shared/date_field", id: "toolbar-#{field.to_s.dasherize}", name: field, value: @toolbar_ranges[field], prefix: prefix, selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+        </div>
+      <% end %>
       <button type="submit" class="btn flex-shrink-0 text-nowrap"><%= render "layouts/admins/icon", name: :search %>搜索</button>
       <% if active_filters.any? %>
         <%= link_to admins_components_path(preview_params), class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
@@ -50,7 +51,7 @@
       <table class="table card-table table-vcenter table-hover text-nowrap mb-0">
         <thead><tr>
           <th scope="col">ID</th><th scope="col">客户</th><th scope="col">服务项目</th>
-          <th scope="col">预约日期</th><th scope="col">状态</th>
+          <th scope="col">预约日期</th><th scope="col">创建日期</th><th scope="col">状态</th>
         </tr></thead>
         <tbody>
           <% @toolbar_records.each do |record| %>
@@ -59,6 +60,7 @@
               <td><div><%= record[:name] %></div><div class="text-secondary small"><%= record[:mobile] %></div></td>
               <td><%= record[:service] %></td>
               <td><%= record[:date] %></td>
+              <td><%= record[:created_date] %></td>
               <td><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
             </tr>
           <% end %>
