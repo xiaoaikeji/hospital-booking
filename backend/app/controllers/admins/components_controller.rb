@@ -29,9 +29,9 @@ module Admins
         { id: 3, key: "team", asset: "admins/components/team.jpg", title: "团队介绍" }
       ]
       @records = [
-        { id: 1, name: "陈女士", mobile: "13800006218", service: "初次咨询", amount: "180.00", status: "待确认", color: "orange" },
-        { id: 2, name: "李先生", mobile: "13800006291", service: "专业护理", amount: "380.00", status: "已确认", color: "primary" },
-        { id: 3, name: "张女士", mobile: "13800006364", service: "深度体验", amount: "580.00", status: "已完成", color: "success" }
+        { id: 1, name: "陈女士", mobile: "13800006218", service: "初次咨询", amount: "180.00", status: "待确认", status_key: "pending", color: "orange" },
+        { id: 2, name: "李先生", mobile: "13800006291", service: "专业护理", amount: "380.00", status: "已确认", status_key: "confirmed", color: "primary" },
+        { id: 3, name: "张女士", mobile: "13800006364", service: "深度体验", amount: "580.00", status: "已完成", status_key: "completed", color: "success" }
       ]
       prepare_list_example if @tab == "list_examples"
     end
@@ -41,7 +41,7 @@ module Admins
     def prepare_list_example
       @list_examples = { "empty" => "空列表", "single" => "单条记录", "logs" => "操作日志筛选", "toolbars" => "页头与工具栏" }
       @list_example = params[:example].presence_in(@list_examples.keys) || "empty"
-      return if @list_example == "toolbars"
+      return prepare_toolbar_example if @list_example == "toolbars"
 
       @list_options = @list_example == "logs" ? { operation: AdminsHelper::LOG_ACTIONS } : CustomersController::FILTER_OPTIONS
       @list_filters = @list_options.to_h { |key, options| [ key, params[key].presence_in(options.keys) ] }.compact
@@ -59,6 +59,23 @@ module Admins
       @list_records = records.select do |record|
         @list_filters.all? { |key, value| record[key] == value } &&
           record.values_at(:id, :name, :mobile).any? { |value| value.to_s.downcase.include?(query) }
+      end
+    end
+
+    def prepare_toolbar_example
+      @toolbar_status_options = ReservationsController::STATUSES.transform_values(&:first)
+      @toolbar_status = params[:status].presence_in(@toolbar_status_options.keys)
+      @toolbar_query = params[:q].to_s.strip
+      @toolbar_range = params[:date_range].to_s.strip
+      first_date, last_date = @toolbar_range.scan(/\d{4}-\d{2}-\d{2}/).minmax
+
+      @toolbar_records = @records.each_with_index.filter_map do |record, index|
+        date = (@preview_date + index).iso8601
+        next if @toolbar_status && @toolbar_status != record[:status_key]
+        next if first_date && !date.between?(first_date, last_date)
+        next unless record.values_at(:name, :mobile).any? { |value| value.include?(@toolbar_query) }
+
+        record.merge(date: date)
       end
     end
   end

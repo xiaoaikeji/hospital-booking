@@ -1,65 +1,69 @@
-<% variants = { normal: "常规列表", busy: "操作与筛选较多", compact: "窄屏" } %>
-<div class="row g-4">
-  <% variants.each do |variant, label| %>
-    <% compact = variant == :compact; busy = variant != :normal %>
-    <% title = busy ? "门店预约与服务排期管理" : "管理员" %>
-    <% action = busy ? "新增预约" : "新增管理员" %>
-    <% button_label_class = compact ? "visually-hidden" : "d-none d-md-inline ms-2" %>
-    <% filter_id = "toolbar-filters-#{variant}" %>
-    <section class="<%= class_names("col-12", "col-sm-8 col-lg-6 col-xl-4" => compact) %>" aria-labelledby="toolbar-<%= variant %>">
-      <h2 class="h4 text-secondary mb-3" id="toolbar-<%= variant %>"><%= label %></h2>
-      <%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: (busy ? :calendar : :users), heading: :h3 } do %>
-        <button type="button" class="btn btn-primary text-nowrap" title="<%= action %>" data-bs-toggle="modal" data-bs-target="#component-notice">
-          <%= render "layouts/admins/icon", name: :plus, icon_class: "m-0" %><span class="ms-2"><%= action %></span>
-        </button>
-        <% if busy %>
-          <div class="dropdown">
-            <button type="button" class="btn text-nowrap" title="更多操作" aria-expanded="false" data-bs-toggle="dropdown">
-              <%= render "layouts/admins/icon", name: :dots, icon_class: "m-0" %><span class="<%= button_label_class %>">更多操作</span>
-            </button>
-            <div class="dropdown-menu dropdown-menu-end">
-              <% [[:import, "导入"], [:export, "导出"]].each do |icon, text| %>
-                <button type="button" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: icon, icon_class: "dropdown-item-icon" %><%= text %></button>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
-      <% end %>
+<% preview_params = { tab: "list_examples", example: "toolbars" } %>
+<% active_filters = { status: @toolbar_status, q: @toolbar_query.presence, date_range: @toolbar_range.presence }.compact %>
+<% filter_url = ->(changes) { admins_components_path(preview_params.merge(active_filters).merge(changes).compact) } %>
+<% empty = @toolbar_records.empty? %>
+<% content_for :fill_content, "true" if empty %>
 
-      <div class="card">
-        <div class="card-header border-bottom-0">
-          <div class="d-flex flex-nowrap gap-2 align-items-center w-100" role="search" aria-label="<%= label %>搜索">
-            <div class="<%= class_names("col flex-shrink-1 overflow-hidden", "col-sm-6 col-lg-4 col-xl-3" => !compact) %>">
-              <input type="search" class="form-control text-truncate" placeholder="<%= busy ? '预约号 / 客户 / 手机号' : '用户名 / 姓名' %>" aria-label="<%= busy ? '预约号、客户或手机号' : '用户名或姓名' %>">
-            </div>
-            <% if busy && !compact %>
-              <div class="d-none d-xl-block col-xl-2 flex-shrink-0"><%= render "list_toolbar_status" %></div>
-            <% end %>
-            <button type="button" class="btn flex-shrink-0 text-nowrap" title="搜索" data-bs-toggle="modal" data-bs-target="#component-notice">
-              <%= render "layouts/admins/icon", name: :search, icon_class: "m-0" %><span class="<%= button_label_class %>">搜索</span>
-            </button>
-            <% if busy %>
-              <button type="button" class="btn flex-shrink-0 text-nowrap" title="重置筛选" data-bs-toggle="modal" data-bs-target="#component-notice">
-                <%= render "layouts/admins/icon", name: :rotate, icon_class: "m-0" %><span class="<%= button_label_class %>">重置筛选</span>
-              </button>
-              <button type="button" class="btn flex-shrink-0 text-nowrap" title="更多筛选" data-bs-toggle="collapse" data-bs-target="#<%= filter_id %>" aria-controls="<%= filter_id %>" aria-expanded="false">
-                <%= render "layouts/admins/icon", name: :filter, icon_class: "m-0" %>
-                <span data-collapse-label="collapsed"><span class="<%= button_label_class %>">更多筛选</span></span>
-                <span data-collapse-label="expanded"><span class="<%= button_label_class %>">收起筛选</span></span>
-              </button>
-            <% end %>
-          </div>
-        </div>
-        <% if busy %>
-          <div class="collapse" id="<%= filter_id %>">
-            <div class="card-body border-top"><div class="row g-3">
-              <div class="<%= class_names("col-12 col-sm-4", "d-xl-none" => !compact) %>"><%= render "list_toolbar_status" %></div>
-              <div class="col-12 col-sm-4"><label class="form-label" for="toolbar-service-<%= variant %>">服务项目</label><select class="form-select" id="toolbar-service-<%= variant %>"><option>全部服务</option><option>初次咨询</option><option>专业护理</option></select></div>
-              <div class="col-12 col-sm-4"><label class="form-label" for="toolbar-date-<%= variant %>">预约日期</label><select class="form-select" id="toolbar-date-<%= variant %>"><option>全部日期</option><option>今天</option><option>最近 7 天</option></select></div>
-            </div></div>
-          </div>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "预约列表", icon: :calendar, heading: :h2 } do %>
+  <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice">
+    <%= render "layouts/admins/icon", name: :plus %>新增预约
+  </button>
+<% end %>
+
+<section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
+  <div class="list-group list-group-flush">
+    <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: @toolbar_status_options, selected: @toolbar_status, filter_url: filter_url %>
+  </div>
+</section>
+
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="预约列表示例">
+  <div class="card-header flex-shrink-0 overflow-x-auto">
+    <%= form_with url: admins_components_path, method: :get, class: "d-flex flex-nowrap align-items-center gap-1 gap-sm-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
+      <% preview_params.merge(status: @toolbar_status).compact.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <div class="col-4 col-lg-3 flex-shrink-0">
+        <%= form.search_field :q, value: @toolbar_query, class: "form-control text-truncate", placeholder: "客户 / 手机号", aria: { label: "客户或手机号" } %>
+      </div>
+      <div class="col-4 col-lg-3 flex-shrink-0">
+        <label class="visually-hidden" for="toolbar-date-range">预约起止日期</label>
+        <%= render "admins/shared/date_field", id: "toolbar-date-range", name: "date_range", value: @toolbar_range, selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+      </div>
+      <button type="submit" class="btn flex-shrink-0 text-nowrap"><%= render "layouts/admins/icon", name: :search %>搜索</button>
+      <% if active_filters.any? %>
+        <%= link_to admins_components_path(preview_params), class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% end %>
+      <div class="d-flex flex-nowrap gap-1 gap-sm-2 ms-auto flex-shrink-0">
+        <% [[:import, "导入"], [:export, "导出"]].each do |icon, label| %>
+          <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: icon %><%= label %></button>
         <% end %>
       </div>
-    </section>
+    <% end %>
+  </div>
+
+  <% if empty %>
+    <div class="empty flex-fill h-auto p-4" role="status"><div>
+      <div class="empty-icon mx-auto"><%= render "layouts/admins/icon", name: :calendar, icon_class: "w-100 h-100" %></div>
+      <h3 class="empty-title">没有找到匹配的预约</h3>
+      <p class="empty-subtitle text-secondary">试试其他关键词，或重置筛选。</p>
+    </div></div>
+  <% else %>
+    <div class="table-responsive">
+      <table class="table card-table table-vcenter table-hover text-nowrap mb-0">
+        <thead><tr>
+          <th scope="col">ID</th><th scope="col">客户</th><th scope="col">服务项目</th>
+          <th scope="col">预约日期</th><th scope="col">状态</th>
+        </tr></thead>
+        <tbody>
+          <% @toolbar_records.each do |record| %>
+            <tr>
+              <td class="text-secondary">#<%= record[:id] %></td>
+              <td><div><%= record[:name] %></div><div class="text-secondary small"><%= record[:mobile] %></div></td>
+              <td><%= record[:service] %></td>
+              <td><%= record[:date] %></td>
+              <td><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
   <% end %>
-</div>
+</section>

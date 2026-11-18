@@ -1,4 +1,4 @@
-<div class="page-header mt-0 mb-3 d-flex flex-nowrap align-items-center justify-content-between gap-2">
+<div class="page-header mt-0 mb-3 d-flex flex-row flex-nowrap align-items-center justify-content-between gap-2">
   <%= content_tag local_assigns.fetch(:heading, :h1), class: "page-title fs-1 gap-2 gap-sm-3 overflow-hidden" do %>
     <span class="text-primary d-inline-flex flex-shrink-0"><%= render "layouts/admins/icon", name: icon, icon_class: "w-5 h-5" %></span>
     <span class="text-truncate" title="<%= title %>"><%= title %></span>

@@ -16,9 +16,10 @@
 
 ## 页头与工具栏预览
 
-在 `/admins/components?tab=list_examples&example=toolbars` 对照常规、控件较多和窄屏三个示例。[示例代码](../../app/views/admins/components/_list_toolbars.html.erb)
+在 `/admins/components?tab=list_examples&example=toolbars` 查看完整列表示例，拖动窗口可看实际宽度下的变化。[示例代码](../../app/views/admins/components/_list_toolbars.html.erb)
 
-- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧保留主操作。次要操作合并到「更多操作」，长标题用省略号，页头保持一行。
-- 搜索工具栏保持一行。桌面可从关键词框 240–320 px、常用下拉 120–180 px 起步，按内容和可用宽度调整。次要筛选进「更多筛选」，展开在独立区域；窄屏按钮可用带名称的图标。
+- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧放页面操作。长标题用省略号，页头保持一行。
+- 状态等少量选项沿用独立的横向筛选区。「更多筛选」用于该区域的额外条件。
+- 搜索工具栏保持一行，顺序为关键词、可选的起止日期、搜索、重置筛选，再放导入、导出等批量操作。只展示页面实际支持的控件，按钮保持图标和文案。有条件时显示重置筛选。窄到放不下时，工具栏本身横向滚动。
 - 搜索 placeholder 只写实际能搜的字段，用 ` / ` 分隔，例如「用户名 / 姓名」。
-- 原生材料使用桌面 Tabler 的 `tables.html`（页头、工具栏与更多按钮）、`dropdowns.html`（菜单）、`accordion.html`（展开）、`dashboard-crm.html`（筛选图标）。
+- 使用桌面 Tabler 的 `tables.html` 页头和工具栏结构，日期范围复用 [date_field](../../app/views/admins/shared/_date_field.html.erb)。
