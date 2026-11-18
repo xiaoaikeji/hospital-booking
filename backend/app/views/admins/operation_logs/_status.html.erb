@@ -1,2 +1,2 @@
-<% success = status == "success" %>
-<span class="badge bg-<%= success ? 'success' : 'danger' %>-lt"><%= success ? "成功" : "失败" %></span>
+<% label, color = Admins::OperationLogsController::STATUSES.fetch(status) { [ status, "secondary" ] } %>
+<span class="badge bg-<%= color %>-lt"><%= label %></span>

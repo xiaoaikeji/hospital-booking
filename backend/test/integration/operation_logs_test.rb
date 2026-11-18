@@ -63,6 +63,29 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "each execution status has the same label in the filter, list and detail" do
+    admin = Admin.create!(username: "op", role: "operator")
+    login(admin)
+    labels = { "started" => "已开始", "success" => "成功", "failed" => "失败", "skipped" => "已跳过" }
+    records = labels.keys.index_with do |status|
+      Log.record!(category: "security", action: "admin.password", actor: admin, status: status)
+    end
+    labels.each do |status, label|
+      filters = { operation: "admin.password", status: status }
+      path = admins_operation_logs_path(filters)
+      get path
+      assert_response :success
+      assert_select "nav[aria-label=结果] a[aria-current=page][href=?]", path, text: label
+      assert_select "tbody tr", count: 1
+      assert_select "tbody .badge", text: label
+      detail_path = admins_operation_log_path(records.fetch(status), filters)
+      assert_select "tbody a[href=?]", detail_path
+      get detail_path
+      assert_response :success
+      assert_select ".datagrid .badge", text: label
+    end
+  end
+
   test "date and result filters and pagination preserve the authorized list" do
     admin = Admin.create!(username: "op", role: "operator")
     other = Admin.create!(username: "cs", role: "customer_service")

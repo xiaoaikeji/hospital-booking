@@ -1,8 +1,14 @@
 module Admins
   class OperationLogsController < BaseController
-    STATUSES = { "success" => "成功", "failed" => "失败" }.freeze
+    STATUSES = {
+      "started" => [ "已开始", "info" ],
+      "success" => [ "成功", "success" ],
+      "failed" => [ "失败", "danger" ],
+      "skipped" => [ "已跳过", "secondary" ]
+    }.freeze
 
     def index
+      @status_options = STATUSES.transform_values(&:first)
       scope = Log.operations_visible_to(current_admin)
       @filters = filter_params
       if current_admin.super_admin?

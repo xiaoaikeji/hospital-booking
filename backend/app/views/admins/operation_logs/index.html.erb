@@ -7,7 +7,7 @@
 
 <section class="card mb-3 flex-shrink-0" aria-label="日志结果筛选">
   <div class="list-group list-group-flush">
-    <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::OperationLogsController::STATUSES, selected: @filters[:status], filter_url: ->(changes) { admins_operation_logs_path(@filters.merge(changes).compact) } %>
+    <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: @status_options, selected: @filters[:status], filter_url: ->(changes) { admins_operation_logs_path(@filters.merge(changes).compact) } %>
   </div>
 </section>
 
