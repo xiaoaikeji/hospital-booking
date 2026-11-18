@@ -23,6 +23,8 @@ class StorageSettingsTest < ActiveSupport::TestCase
     assert StorageSettings.new.save(@input, actor: @admin)
     raw = Setting.find_by!(key: "tencent_cos").settings.to_json
     assert_not_includes raw, "test-only-secret"
+    assert StorageSettings.new.save(@input.merge("region" => "ap-beijing"), actor: @admin)
+    assert_equal [ "region" ], Log.last.details.fetch("fields")
     assert_equal "test-only-secret", IntegrationSettings.read(:tencent_cos, :secret_key,
       env_key: "TENCENT_COS_SECRET_KEY", env: { "TENCENT_COS_SECRET_KEY" => "fallback" }, credentials: {})
     assert_not_includes Log.last.attributes.to_json, "test-only-secret"

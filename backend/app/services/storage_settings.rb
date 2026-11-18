@@ -86,7 +86,7 @@ class StorageSettings
           validate_value!(field, value)
           current = record.settings[key]
           value = stored_value(field, value, current: current)
-          next if value == current
+          next if unchanged_value?(section, key, current, value)
 
           record.write_value(key, value)
           changed << field
@@ -120,6 +120,13 @@ class StorageSettings
 
   def env_key(field)
     field == "service" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
+  end
+
+  def unchanged_value?(section, key, current, value)
+    Setting.decode_value(section, key, current) == value
+  rescue IntegrationSettings::ConfigurationError
+    # 显式输入的新密钥仍可替换已损坏的密文。
+    false
   end
 
   def stored_value(field, value, current:)

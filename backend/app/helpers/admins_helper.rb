@@ -1,7 +1,5 @@
 module AdminsHelper
-  LOG_ACTIONS = { "admin.sign_in" => "管理员登录", "admin.sign_out" => "管理员退出", "admin.create" => "新增管理员",
-    "admin.update" => "修改管理员", "admin.password" => "修改本人密码", "storage_settings.update" => "修改存储配置",
-    "storage_settings.refresh" => "刷新存储客户端", "appearance.update" => "修改默认外观", "personal_appearance.update" => "修改个人外观" }.freeze
+  LOG_ACTIONS = Log::OPERATION_EVENTS.to_h { |(_category, action), label| [ action, label ] }.freeze
 
   def system_settings_pages
     return [] unless current_admin&.super_admin?

@@ -18,20 +18,32 @@ class Admin < ApplicationRecord
 
   # 锁住启用超管后再刷新目标账号，防止并发停用或降级导致没有可用超管。
   def self.update_managed(record, attributes, actor:, request: nil)
-    transaction do
+    record.with_operation_log("admin.update", actor: actor, request: request) do
       where(role: "super_admin", enabled: true).order(:id).lock.load
-      record.reload
-      record.assign_attributes(attributes)
-      if record.save
-        fields = record.saved_changes.keys - %w[updated_at encrypted_password]
-        fields << "password" if record.saved_change_to_encrypted_password?
-        Log.record!(action: "admin.update", category: "security", actor: actor, target: record,
-          details: { "fields" => fields }, request: request)
-        true
-      else
-        false
-      end
+      record.reload.update(attributes)
     end
+  end
+
+  def with_operation_log(action, actor:, request:)
+    audit = { action: action, category: "security", actor: actor, target: self, request: request }
+    reason = "账号校验失败"
+    begin
+      saved = self.class.transaction(requires_new: true) do
+        raise ActiveRecord::Rollback unless yield
+
+        fields = saved_changes.keys & %w[username name role enabled]
+        fields << "password" if saved_change_to_encrypted_password?
+        Log.record!(**audit, details: { fields: fields })
+        true
+      end
+    rescue ActiveRecord::ActiveRecordError
+      reason = "数据库写入失败"
+      errors.add(:base, "未保存，#{reason}")
+    end
+    return true if saved
+
+    Log.record!(**audit, status: "failed", details: { reason: reason })
+    false
   end
 
   private

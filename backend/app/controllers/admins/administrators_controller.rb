@@ -21,12 +21,8 @@ module Admins
 
     def create
       @administrator = Admin.new(administrator_params)
-      saved = Admin.transaction do
-        if @administrator.save
-          Log.record!(action: "admin.create", category: "security", actor: current_admin, target: @administrator,
-            details: { "fields" => %w[username name role enabled password] }, request: request)
-          true
-        end
+      saved = @administrator.with_operation_log("admin.create", actor: current_admin, request: request) do
+        @administrator.save
       end
       if saved
         redirect_to admins_administrators_path, notice: "管理员已创建", status: :see_other

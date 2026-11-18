@@ -5,21 +5,40 @@
 
 <%= render layout: "admins/shared/list_page_header", locals: { title: "操作日志", icon: :chart } do %><% end %>
 
+<section class="card mb-3 flex-shrink-0" aria-label="日志结果筛选">
+  <div class="list-group list-group-flush">
+    <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::OperationLogsController::STATUSES, selected: @filters[:status], filter_url: ->(changes) { admins_operation_logs_path(@filters.merge(changes).compact) } %>
+  </div>
+</section>
+
 <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="操作日志列表">
   <div class="card-header flex-shrink-0">
-    <%= form_with url: admins_operation_logs_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "筛选操作日志" } } do |form| %>
-      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
-        <%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "操作类型" } %>
+    <%= form_with url: admins_operation_logs_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "筛选操作日志" } } do |form| %>
+      <%= form.hidden_field :status, value: @filters[:status] if @filters[:status] %>
+      <div class="col-12 col-sm-6 col-xl-2">
+        <%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @filters[:operation]), {}, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "操作类型" } %>
       </div>
-      <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
-      <% if @action.present? %>
-        <%= link_to admins_operation_logs_path, class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% if current_admin.super_admin? %>
+        <div class="col-12 col-sm-6 col-xl-2">
+          <%= form.collection_select :actor_id, @actor_options, :id, :display_name, { include_blank: "全部操作人", selected: @filters[:actor_id] }, class: "form-select", data: { enhanced_select: "search" }, aria: { label: "操作人" } %>
+        </div>
       <% end %>
+      <% { from: "从", to: "至" }.each do |field, prefix| %>
+        <div class="col-12 col-sm-6 col-xl-2">
+          <%= render "admins/shared/date_field", id: "log-#{field}", name: field, value: @filters[field], prefix: prefix, placeholder: "操作日期", clearable: false %>
+        </div>
+      <% end %>
+      <div class="col-auto btn-list">
+        <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
+        <% if @filters.any? %>
+          <%= link_to admins_operation_logs_path, class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+      </div>
     <% end %>
   </div>
 
   <% if empty %>
-    <%= render "admins/shared/list_empty", icon: :chart, title: (@action.present? ? "没有符合条件的日志" : "暂无操作日志"), description: (@action.present? ? "试试其他操作类型，或重置筛选。" : "后续操作记录会显示在这里。") %>
+    <%= render "admins/shared/list_empty", icon: :chart, title: (@filters.any? ? "没有符合条件的日志" : "暂无操作日志"), description: (@filters.any? ? "试试其他条件，或重置筛选。" : "后续操作记录会显示在这里。") %>
   <% else %>
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead><tr>
@@ -46,6 +65,6 @@
         <% end %>
       </tbody>
     </table>
-    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_operation_logs_path(operation: @action.presence, page: page) } %>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_operation_logs_path(@filters.merge(page: page)) } %>
   <% end %>
 </section>

@@ -19,6 +19,19 @@ class AdminTest < ActiveSupport::TestCase
     assert_not admin.reload.active_for_authentication?
   end
 
+  test "failed success audit rolls back the account edit and records a safe failure" do
+    admin = Admin.create!(username: "root", role: "super_admin")
+    Log.connection.add_check_constraint(:logs, "action <> 'admin.update' OR status <> 'success'",
+      name: "test_reject_account_success_audit")
+    assert_difference "Log.count", 1 do
+      assert_not Admin.update_managed(admin, { password: "changed-pass" }, actor: admin)
+    end
+    assert admin.reload.valid_password?(Admin::DEFAULT_PASSWORD)
+    failure = Log.find_by!(target_id: admin.id, action: "admin.update", status: "failed")
+    assert_equal({ "reason" => "数据库写入失败" }, failure.details)
+    assert_not_includes failure.attributes.to_json, "changed-pass"
+  end
+
   test "password changes are audited without the password and logs are append only" do
     admin = Admin.create!(username: "root", role: "super_admin")
     assert Admin.update_managed(admin, { password: "changed-pass", password_confirmation: "changed-pass" }, actor: admin)

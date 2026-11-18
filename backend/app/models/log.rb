@@ -1,4 +1,23 @@
 class Log < ApplicationRecord
+  OPERATION_EVENTS = {
+    [ "security", "admin.sign_in" ] => "管理员登录",
+    [ "security", "admin.sign_out" ] => "管理员退出",
+    [ "security", "admin.create" ] => "新增管理员",
+    [ "security", "admin.update" ] => "修改管理员",
+    [ "security", "admin.password" ] => "修改本人密码",
+    [ "security", "storage_settings.update" ] => "修改存储配置",
+    [ "security", "storage_settings.refresh" ] => "刷新存储客户端",
+    [ "settings", "appearance.update" ] => "修改默认外观",
+    [ "settings", "personal_appearance.update" ] => "修改个人外观"
+  }.freeze
+
+  def self.operations_visible_to(admin)
+    operations = where(source: "admin", [ :category, :action ] => OPERATION_EVENTS.keys)
+    return operations if admin.super_admin?
+
+    operations.where(actor_type: admin.class.name, actor_id: admin.id)
+  end
+
   validates :source, :category, :action, :status, presence: true
   def readonly? = persisted?
 

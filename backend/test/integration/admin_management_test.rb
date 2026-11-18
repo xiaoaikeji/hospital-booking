@@ -28,7 +28,7 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
       get admins_root_path
       assert_response :success
       assert_select "a[href=?]", admins_administrators_path, count: 0
-      [ admins_administrators_path, edit_admins_system_settings_storage_path, admins_operation_logs_path ].each do |path|
+      [ admins_administrators_path, edit_admins_system_settings_storage_path ].each do |path|
         get path
         assert_response :forbidden
       end
@@ -90,6 +90,10 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     patch admins_account_path, params: { account: { current_password: "wrong-password", password: "new-password", password_confirmation: "new-password" } }
     assert_response :unprocessable_content
     assert admin.reload.valid_password?("123456")
+    failure = Log.find_by!(action: "admin.password", status: "failed", actor_id: admin.id)
+    assert_equal({ "reason" => "账号校验失败" }, failure.details)
+    assert_not_includes failure.attributes.to_json, "new-password"
+    assert_not_includes failure.attributes.to_json, "wrong-password"
     patch admins_account_path, params: { account: { current_password: "123456", password: "new-password", password_confirmation: "new-password", role: "super_admin" } }
     assert_redirected_to edit_admins_account_path
     assert admin.reload.valid_password?("new-password")

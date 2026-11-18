@@ -10,12 +10,8 @@ module Admins
       if values[:password].blank?
         return redirect_to edit_admins_account_path, notice: "未填写新密码，原密码保持不变", status: :see_other
       end
-      saved = Admin.transaction do
-        if @administrator.update_with_password(values)
-          Log.record!(action: "admin.password", category: "security", actor: @administrator, target: @administrator,
-            details: { "fields" => [ "password" ] }, request: request)
-          true
-        end
+      saved = @administrator.with_operation_log("admin.password", actor: current_admin, request: request) do
+        @administrator.update_with_password(values)
       end
       if saved
         bypass_sign_in(@administrator)
