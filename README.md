@@ -56,7 +56,7 @@ bin/dev
 - `/admins/account/edit`：凭当前密码修改本人密码。
 - `/admins/system_settings/storage/edit`：存储设置，显示本地或腾讯云 COS 配置来源，支持保留、替换及清除系统值。
 - `/admins/system_settings/appearance/edit`：外观设置，由超级管理员维护全后台默认样式。
-- `/admins/operation_logs`：管理操作日志，只读查询；日志表结构沿用数据库设计，正式业务日志规则后续确定。
+- `/admins/operation_logs` 提供操作日志的只读查询。各模块的写入约定、查看范围及后续开发见[日志模块开发说明](docs/日志模块开发说明.md)。
 
 ## 后台静态预览
 
