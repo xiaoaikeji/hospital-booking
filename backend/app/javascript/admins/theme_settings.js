@@ -1,117 +1,138 @@
-// Adapted from Desktop/tabler-1.7.1/dashboard/index.html, theme-settings page script.
+// The server resolves Booking defaults and account overrides before first paint.
 ;(function () {
-  const themeDefaults = {
-    theme: 'auto',
-    'theme-base': 'neutral',
-    'theme-font': 'sans-serif',
-    'theme-primary': 'blue',
-    'theme-radius': '1',
-    layout: 'default',
-    navbar: 'default',
-    'navbar-position': 'horizontal',
-    'navbar-style': 'default',
-    'navbar-theme': 'default',
-    'offcanvas-style': 'default',
-    sidebar: 'default',
+  const script = document.currentScript
+  const nativeDefaults = JSON.parse(script.dataset.nativeDefaults)
+  let values = JSON.parse(script.dataset.values)
+  const colorScheme = window.matchMedia('(prefers-color-scheme: dark)')
+  const schemes = {
+    auto: { theme: 'auto', navbar_theme: 'default' },
+    light: { theme: 'light', navbar_theme: 'default' },
+    dark: { theme: 'dark', navbar_theme: 'default' },
+    'dark-nav': { theme: 'light', navbar_theme: 'dark' },
+    colored: { theme: 'light', navbar_theme: 'primary' },
   }
-  // Reset to Booking's existing full-width, combined navigation layout.
-  const pageDefaults = { ...themeDefaults, layout: 'fluid', 'navbar-position': 'combined' }
-  const themePresets = {
-    scheme: {
-      auto: { theme: 'auto', 'navbar-theme': 'default' },
-      light: { theme: 'light', 'navbar-theme': 'default' },
-      dark: { theme: 'dark', 'navbar-theme': 'default' },
-      'dark-nav': { theme: 'light', 'navbar-theme': 'dark' },
-      colored: { theme: 'light', 'navbar-theme': 'primary' },
-    },
+
+  function updateFavicon() {
+    const brand = document.querySelector('[data-booking-brand-mark]')
+    if (!brand) return // The first theme application runs before the body is parsed.
+
+    const favicon = document.querySelector('[data-theme-favicon]')
+    const icon = brand.cloneNode(true)
+    const colors = getComputedStyle(document.documentElement)
+    for (const property of ['--tblr-primary', '--tblr-primary-fg']) {
+      icon.style.setProperty(property, colors.getPropertyValue(property))
+    }
+    const svg = new XMLSerializer().serializeToString(icon)
+    const href = 'data:image/svg+xml,' + encodeURIComponent(svg)
+    if (favicon.getAttribute('href') !== href) favicon.setAttribute('href', href)
   }
+
+  function applyTheme() {
+    for (const [key, value] of Object.entries(values)) {
+      const applied = key === 'theme' && value === 'auto' ? (colorScheme.matches ? 'dark' : 'light') : value
+      if (applied === nativeDefaults[key]) {
+        document.documentElement.removeAttribute('data-bs-' + key.replaceAll('_', '-'))
+      } else {
+        document.documentElement.setAttribute('data-bs-' + key.replaceAll('_', '-'), applied)
+      }
+    }
+    updateFavicon()
+  }
+
+  applyTheme()
+  colorScheme.addEventListener('change', applyTheme)
+  // Old Tabler keys have no account owner. Leave unrelated browser data alone.
+  try {
+    for (const key of Object.keys(nativeDefaults)) window.localStorage.removeItem('tabler-' + key.replaceAll('_', '-'))
+  } catch { /* Storage may be unavailable in private browsing. */ }
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) window.location.reload()
+  })
 
   document.addEventListener('DOMContentLoaded', function () {
-    const url = new URL(window.location)
     const form = document.getElementById('theme-settings')
-    const resetButton = document.getElementById('reset-theme-settings')
-    if (!form || !resetButton) return
-    form.addEventListener('submit', function (event) { event.preventDefault() })
+    const controls = form.querySelector('fieldset')
+    const reset = form.querySelector('#reset-theme-settings')
+    const status = form.querySelector('[data-theme-status]')
+    const defaults = JSON.parse(form.dataset.defaults)
+    let overrides = JSON.parse(form.dataset.overrides)
+    let revision = form.dataset.revision
+    const inheritButtons = new Map()
 
-    // Tabler's native defaults are represented by the absence of an attribute.
-    const applyValue = function (key, value) {
-      let applied = value
-      if (key === 'theme' && value === 'auto') {
-        applied = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-      }
-      if (applied !== themeDefaults[key]) {
-        document.documentElement.setAttribute('data-bs-' + key, applied)
-      } else {
-        document.documentElement.removeAttribute('data-bs-' + key)
+    function fieldsFor(name) {
+      return name === 'scheme' ? ['theme', 'navbar_theme'] : [name.replaceAll('-', '_')]
+    }
+
+    if (form.dataset.url) {
+      for (const group of form.querySelectorAll('[data-theme-setting]')) {
+        const keys = fieldsFor(group.dataset.themeSetting)
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.className = 'btn btn-link btn-sm ms-2'
+        button.textContent = '跟随默认'
+        button.addEventListener('click', () => save(Object.fromEntries(keys.map(key => [key, null]))))
+        group.querySelector('.form-label').append(button)
+        inheritButtons.set(button, keys)
       }
     }
 
-    const currentValue = function (key) {
-      const stored = window.localStorage.getItem('tabler-' + key)
-      const rendered = key === 'theme' ? null : document.documentElement.getAttribute('data-bs-' + key)
-      return stored || rendered || themeDefaults[key]
-    }
-
-    const toggleNavigationSettings = function () {
-      const position = currentValue('navbar-position')
+    function render() {
+      applyTheme()
+      for (const radio of form.querySelectorAll('input[type="radio"]')) {
+        radio.checked = radio.name === 'scheme'
+          ? Object.entries(schemes[radio.value]).every(([key, value]) => values[key] === value)
+          : values[radio.name.replaceAll('-', '_')] === radio.value
+      }
+      for (const [button, keys] of inheritButtons) button.hidden = !keys.some(key => key in overrides)
+      const position = values.navbar_position
       form.querySelector('[data-theme-setting="sidebar"]').hidden = position === 'horizontal'
       form.querySelector('[data-theme-setting="navbar"]').hidden = position === 'vertical'
       document.querySelector('[data-admin-horizontal-brand]')?.classList.toggle('d-none', position !== 'horizontal')
+      window.dispatchEvent(new Event('resize'))
     }
 
-    const setValue = function (key, value) {
-      applyValue(key, value)
-      window.localStorage.setItem('tabler-' + key, value)
-      url.searchParams.set(key, value)
-    }
+    async function save(changes, clearAll = false) {
+      const previous = values
+      values = clearAll ? { ...defaults } : { ...values }
+      for (const [key, value] of Object.entries(changes)) values[key] = value ?? defaults[key]
+      render()
+      if (!form.dataset.url) return
 
-    const checkItems = function () {
-      for (const key in themeDefaults) {
-        const value = currentValue(key)
-        form.querySelectorAll('[name="' + key + '"]').forEach(function (radio) {
-          radio.checked = radio.value === value
+      controls.disabled = reset.disabled = true
+      status.textContent = '正在保存…'
+      try {
+        const response = await fetch(form.dataset.url, {
+          method: clearAll ? 'DELETE' : 'PATCH',
+          headers: {
+            'Content-Type': 'application/json', 'Accept': 'application/json',
+            'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || '',
+          },
+          body: JSON.stringify({ appearance: changes, revision }),
         })
+        if (!response.headers.get('Content-Type')?.includes('application/json')) throw new Error()
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error)
+        values = result.values
+        overrides = result.overrides
+        revision = result.revision
+        status.textContent = clearAll ? '已恢复全后台默认外观' : '个人外观已保存'
+      } catch (error) {
+        values = previous
+        status.textContent = error.message && !(error instanceof TypeError) ? error.message : '保存失败，请刷新页面后重试'
+      } finally {
+        controls.disabled = reset.disabled = false
+        render()
       }
-      for (const name in themePresets) {
-        form.querySelectorAll('[name="' + name + '"]').forEach(function (radio) {
-          const values = themePresets[name][radio.value]
-          radio.checked = Object.keys(values).every(function (key) {
-            return currentValue(key) === values[key]
-          })
-        })
-      }
-      toggleNavigationSettings()
     }
 
-    form.addEventListener('change', function (event) {
+    form.addEventListener('submit', (event) => event.preventDefault())
+    form.addEventListener('change', (event) => {
       const { name, value } = event.target
-      if (name in themePresets) {
-        const values = themePresets[name][value]
-        for (const key in values) setValue(key, values[key])
-      } else if (name in themeDefaults) {
-        setValue(name, value)
-      }
-      checkItems()
-      window.dispatchEvent(new Event('resize'))
-      window.history.replaceState({}, '', url)
+      const selection = name === 'scheme' ? schemes[value] : { [name.replaceAll('-', '_')]: value }
+      const changes = Object.fromEntries(Object.entries(selection).filter(([key, choice]) => values[key] !== choice))
+      if (Object.keys(changes).length) save(changes)
     })
-
-    resetButton.addEventListener('click', function () {
-      for (const key in themeDefaults) {
-        applyValue(key, pageDefaults[key])
-        window.localStorage.removeItem('tabler-' + key)
-        url.searchParams.delete(key)
-      }
-      checkItems()
-      window.dispatchEvent(new Event('resize'))
-      window.history.replaceState({}, '', url)
-    })
-
-    // The early vendor script only accepts integer URL values; keep its native
-    // half-step radius options working when a settings URL is opened directly.
-    const radius = url.searchParams.get('theme-radius')
-    if (radius === '0.5' || radius === '1.5') setValue('theme-radius', radius)
-
-    checkItems()
+    reset.addEventListener('click', () => save({}, true))
+    render()
   })
 })()

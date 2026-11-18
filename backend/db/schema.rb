@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_17_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_18_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -43,6 +43,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_080000) do
   end
 
   create_table "admins", force: :cascade do |t|
+    t.jsonb "appearance_overrides", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "current_sign_in_at"
     t.inet "current_sign_in_ip"
@@ -57,6 +58,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_17_080000) do
     t.datetime "updated_at", null: false
     t.string "username", limit: 100, null: false
     t.index ["username"], name: "index_admins_on_username", unique: true
+    t.check_constraint "jsonb_typeof(appearance_overrides) = 'object'::text", name: "admin_appearance_object_required"
     t.check_constraint "role::text = ANY (ARRAY['super_admin'::character varying, 'operator'::character varying, 'customer_service'::character varying]::text[])", name: "admins_role_allowed"
   end
 

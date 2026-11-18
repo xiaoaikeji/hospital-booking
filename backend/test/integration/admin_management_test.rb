@@ -28,14 +28,14 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
       get admins_root_path
       assert_response :success
       assert_select "a[href=?]", admins_administrators_path, count: 0
-      [ admins_administrators_path, edit_admins_system_settings_path, admins_operation_logs_path ].each do |path|
+      [ admins_administrators_path, edit_admins_system_settings_storage_path, admins_operation_logs_path ].each do |path|
         get path
         assert_response :forbidden
       end
       assert_no_difference [ "Admin.count", "Setting.count" ] do
         post admins_administrators_path, params: { administrator: { username: "escalated", role: "super_admin" } }
         assert_response :forbidden
-        patch admins_system_settings_path, params: { storage_settings: { service: "local" } }
+        patch admins_system_settings_storage_path, params: { storage_settings: { service: "local" } }
         assert_response :forbidden
       end
       delete destroy_admin_session_path
@@ -109,20 +109,79 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
   test "settings and log pages do not render submitted secrets even after validation failures" do
     login(@root)
     patch admins_system_settings_path, params: { storage_settings: { revision: StorageSettings.new.revision, service: "local", secret_id: "fake-secret-id", secret_key: "fake-secret-key", region: "ap-shanghai", bucket: "test-bucket-123" } }
-    assert_redirected_to edit_admins_system_settings_path
-    get edit_admins_system_settings_path
+    assert_redirected_to edit_admins_system_settings_storage_path
+    get edit_admins_system_settings_storage_path
     assert_response :success
     assert_select "input[name='storage_settings[secret_key]'][value]", count: 0
     assert_not_includes response.body, "fake-secret-key"
-    patch admins_system_settings_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "another-test-secret", endpoint: "http://unsafe.invalid" } }
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "another-test-secret", endpoint: "http://unsafe.invalid" } }
     assert_response :unprocessable_content
+    assert_select "#sidebar-menu a[aria-current=page][href=?]", edit_admins_system_settings_storage_path
     assert_not_includes response.body, "another-test-secret"
     assert_equal "fake-secret-key", Setting.read_integration_value(:tencent_cos, :secret_key)
+    failure = Log.find_by!(action: "storage_settings.update", status: "failed", actor_id: @root.id)
+    assert_equal({ "fields" => %w[secret_key endpoint], "reason" => "配置校验失败" }, failure.details)
     get admins_operation_logs_path
     assert_response :success
-    get admins_operation_log_path(Log.where(action: "storage_settings.update").last)
+    get admins_operation_log_path(failure)
     assert_response :success
     assert_not_includes response.body, "fake-secret-key"
+    assert_not_includes response.body, "another-test-secret"
+  end
+
+  test "malformed storage submissions retain their bad request status and a redacted audit" do
+    login(@root)
+    patch admins_system_settings_storage_path, params: { storage_settings: "bad-test-secret" }
+    assert_response :bad_request
+    failure = Log.find_by!(action: "storage_settings.update", actor_id: @root.id, status: "failed")
+    assert_equal({ "fields" => [], "reason" => "配置校验失败" }, failure.details)
+  end
+
+  test "invalid configured services block storage use but can be repaired from the settings page" do
+    login(@root)
+    record = Setting.create!(key: "active_storage")
+    [ false, 0, "unknown-test-service" ].each do |invalid|
+      record.update!(settings: { "service" => invalid })
+      get admins_root_path
+      assert_response :service_unavailable
+      get edit_admins_system_settings_storage_path
+      assert_response :success
+      assert_select "[data-storage-service] option[selected][disabled][value='']", text: /存储方式无效/
+      assert_select "[data-storage-service] option[value=local][selected]", count: 0
+      assert_not_includes response.body, "unknown-test-service"
+    end
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, service: "local" } }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    get admins_root_path
+    assert_response :success
+  end
+
+  test "client refresh failure reports a committed save and retries on the next request" do
+    login(@root)
+    config = Rails.application.config.active_storage
+    original = config.service_configurations
+    old_registry = ActiveStorage::Blob.services
+    config.service_configurations = { "test-only-private-detail" => {} }
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "saved-test-secret" } }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    follow_redirect!
+    assert_response :success
+    assert_includes response.body, "配置已保存，存储客户端刷新失败"
+    assert_not_includes response.body, "test-only-private-detail"
+    assert_not_includes response.body, "saved-test-secret"
+    assert_equal "saved-test-secret", Setting.read_integration_value(:tencent_cos, :secret_key)
+    saved = Log.find_by!(action: "storage_settings.update", actor_id: @root.id)
+    failure = Log.find_by!(action: "storage_settings.refresh", status: "failed", request_id: saved.request_id)
+    assert_equal "success", saved.status
+    assert_equal({ "reason" => "配置已保存，存储客户端刷新失败" }, failure.details)
+    assert_same old_registry, ActiveStorage::Blob.services
+    config.service_configurations = original
+    get admins_root_path
+    assert_response :success
+    assert_not_same old_registry, ActiveStorage::Blob.services
+  ensure
+    config.service_configurations = original if config
+    StorageConfiguration.reset!
   end
 
   test "saving the storage form keeps inherited COS values out of the database" do
@@ -138,18 +197,18 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     ENV.update(external)
 
     login(@root)
-    get edit_admins_system_settings_path
+    get edit_admins_system_settings_storage_path
     assert_response :success
     bucket_input = css_select("input[name='storage_settings[bucket]']").first
     assert_nil bucket_input["value"]
     assert_includes bucket_input["placeholder"], "env-bucket-123（ENV）"
     assert_not_includes response.body, "test-only-env-key"
 
-    patch admins_system_settings_path, params: { storage_settings: {
+    patch admins_system_settings_storage_path, params: { storage_settings: {
       revision: StorageSettings.new.revision, service: "tencent_cos", bucket: bucket_input["value"].to_s,
       secret_key: "updated-test-only-key"
     } }
-    assert_redirected_to edit_admins_system_settings_path
+    assert_redirected_to edit_admins_system_settings_storage_path
     assert_nil Setting.read_integration_value(:active_storage, :service)
     assert_nil Setting.read_integration_value(:tencent_cos, :bucket)
     assert_equal "updated-test-only-key", Setting.read_integration_value(:tencent_cos, :secret_key)

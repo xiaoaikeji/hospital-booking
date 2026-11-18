@@ -2,7 +2,7 @@
 
 先查 [公共组件](../app/views/admins/shared/) 和 [公共布局](../app/views/layouts/admins.html.erb)。没有合适的，再按下面的用途选择，只读需要的分组。
 
-预览入口：[/admins/components](http://192.168.1.21:3000/admins/components)。示例代码位于 `app/views/admins/components/`。
+启动后端后访问 `/admins/components`。示例代码位于 [组件预览目录](../app/views/admins/components/)。
 
 ## 组件样式
 

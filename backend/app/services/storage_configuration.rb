@@ -2,16 +2,22 @@ require "digest"
 
 module StorageConfiguration
   MUTEX = Mutex.new
+  SERVICES = %w[local tencent_cos].freeze
   FIELDS = { "active_storage" => %w[service], "tencent_cos" => %w[secret_id secret_key region bucket endpoint] }.freeze
 
   def self.reset!
     MUTEX.synchronize { @fingerprint = nil }
   end
 
+  def self.service_name
+    value = IntegrationSettings.read(:active_storage, :service, env_key: "ACTIVE_STORAGE_SERVICE")
+    value.nil? ? "local" : value
+  end
+
   def self.validate!(values)
     IntegrationSettings.with_snapshot(values) do
-      selected = IntegrationSettings.read(:active_storage, :service, env_key: "ACTIVE_STORAGE_SERVICE") || "local"
-      unless %w[local tencent_cos].include?(selected)
+      selected = service_name
+      unless SERVICES.include?(selected)
         raise IntegrationSettings::ConfigurationError, "存储方式无效"
       end
       if selected == "tencent_cos"
@@ -28,7 +34,7 @@ module StorageConfiguration
       external = FIELDS.flat_map do |section, fields|
         fields.map do |field|
           env_key = section == "active_storage" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
-          [ ENV[env_key], Rails.application.credentials.dig(section, field) ]
+          [ ENV[env_key], Rails.application.credentials.dig(section.to_sym, field.to_sym) ]
         end
       end
       fingerprint = Digest::SHA256.hexdigest(JSON.generate([ raw, external ]))

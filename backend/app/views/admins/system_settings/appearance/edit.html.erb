@@ -1,0 +1,21 @@
+<% content_for :title, "外观设置 · Booking 管理后台" %>
+<%= render "admins/system_settings/navigation", title: "外观设置" %>
+<%= form_with url: admins_system_settings_appearance_path, scope: :appearance, method: :patch, class: "card appearance-editor", data: { admin_form: true } do %>
+  <%= hidden_field_tag :revision, @settings.revision %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "全后台默认外观", record: @settings } do %>
+    <% defaults = @settings.defaults %>
+    <div class="appearance-columns">
+      <% { "配色与页面" => %w[theme theme_primary theme_font theme_base theme_radius layout],
+           "导航与面板" => %w[navbar_position navbar_theme navbar navbar_style sidebar offcanvas_style] }.each do |heading, fields| %>
+        <section class="appearance-section">
+          <h3 class="subheader mb-3"><%= heading %></h3>
+          <div class="appearance-grid">
+            <% fields.each do |field| %>
+              <%= render "admins/shared/appearance_choices", field: field, name: "appearance[#{field}]", selected: defaults.fetch(field) %>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

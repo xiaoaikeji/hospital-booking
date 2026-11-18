@@ -1,10 +1,16 @@
 # 小艾预约挂号系统
 
-预约挂号系统的服务端与后台管理项目。
+预约挂号系统。Rails 服务端和管理后台与微信小程序前端放在同一个仓库。
+
+- [`backend/`](backend/) · Rails 服务端和管理后台。
+- [`miniapp/`](miniapp/) · 微信小程序前端目录，当前为占位。
+- [`docs/`](docs/) · 全项目共用资料。后端开发文档在 [`backend/docs/`](backend/docs/)。
 
 Ruby **3.4.12** / Rails **8.1.3.1** / PostgreSQL。
 
 已接入 Tabler **1.7.5**、Turbo、Stimulus。项目样式使用 Dart Sass，资产由 Propshaft 发布，不使用 Node 打包工具。
+
+Rails 后端位于 `backend/`。下文的 Rails 源码路径以该目录为基准，Rails 命令也在该目录执行。
 
 ## 资源入口
 
@@ -20,9 +26,10 @@ Ruby **3.4.12** / Rails **8.1.3.1** / PostgreSQL。
 
 ## 本地运行
 
-本机需要 PostgreSQL、Redis 和 ImageMagick。先启动 PostgreSQL、Redis，再执行：
+本机需要 PostgreSQL、Redis 和 ImageMagick。先启动 PostgreSQL、Redis，并按[基础设施说明](backend/docs/infrastructure.md#本地与测试)配置数据库，再执行以下命令。
 
 ```sh
+cd backend
 bundle install
 bin/rails db:prepare
 bin/rails settings:encryption_keys
@@ -33,13 +40,13 @@ bin/dev
 
 首次初始化后访问 `/admins/sign_in`，账号 `admin`、密码 `123456`。首个管理员只能通过命令创建；已有管理员时 `admin:create` 会停止，不会重置密码。后续账号由超级管理员在后台创建。
 
-另开终端运行 `bin/jobs` 执行后台任务；开发时可另开终端运行 `bin/rails dartsass:watch` 监听样式变化。本地无需配置 ENV：Sidekiq 默认连接本机 Redis，文件默认存本地。加密主密钥保存在本机 credentials 中，不提交仓库；首次生成后再启动 Web 和任务进程。
+另开终端，进入 `backend/` 后运行 `bin/jobs` 执行后台任务。开发时可运行 `bin/rails dartsass:watch` 监听样式变化。Sidekiq 默认连接本机 Redis，文件默认存本地。加密主密钥保存在本机 credentials 中，不提交仓库，首次生成后再启动 Web 和任务进程。
 
 ## 基础设施
 
 后台任务使用 Sidekiq + sidekiq-cron，生产缓存使用 Redis，不使用 Solid 三件套。Active Storage 标准表、MiniMagick 图片处理、中文与北京时间、后台公共基类及 Pagy 已接入。
 
-管理员、系统配置及日志三张通用表已接入；业务表暂未建立。第三方配置读取遵守「系统配置表 > ENV > Rails credentials」，COS 可在后台配置，敏感字段加密入库，页面不回显。具体配置、生产启动与验证命令见 [基础设施说明](docs/infrastructure.md)。
+管理员、系统配置及日志三张通用表已接入；业务表暂未建立。第三方配置读取遵守「系统配置表 > ENV > Rails credentials」，COS 可在后台配置，敏感字段加密入库，页面不回显。具体配置、生产启动与验证命令见 [基础设施说明](backend/docs/infrastructure.md)。
 
 ## 后台管理
 
@@ -47,7 +54,8 @@ bin/dev
 
 - `/admins/administrators`：管理员列表、新建、编辑、停用及密码重置。新建密码留空使用 `123456`，编辑留空保留原密码；不提供邮件找回。
 - `/admins/account/edit`：凭当前密码修改本人密码。
-- `/admins/system_settings/edit`：本地 / 腾讯云 COS 配置，显示来源，支持保留、替换及清除系统值。其他人修改后，旧表单须刷新再保存。
+- `/admins/system_settings/storage/edit`：存储设置，显示本地或腾讯云 COS 配置来源，支持保留、替换及清除系统值。
+- `/admins/system_settings/appearance/edit`：外观设置，由超级管理员维护全后台默认样式。
 - `/admins/operation_logs`：管理操作日志，只读查询；日志表结构沿用数据库设计，正式业务日志规则后续确定。
 
 ## 后台静态预览
@@ -56,9 +64,9 @@ bin/dev
 
 从侧栏「组件规范」进入 `/admins/components`。单个控件看「组件样式」，按钮组合看「页面操作」，完整列表看「列表规范」。开发时按 [样式规范目录](backend/docs/admin-ui.md) 定位对应规范和公共组件。
 
-组件结构和素材以桌面 Tabler 1.7.1 为依据，运行资源沿用官方 1.7.5。按用户要求，`shared/_typography.scss` 使用大雁同款字体栈，提示图标使用大雁同款 SVG；组件布局与主题继续使用 Tabler。Datepicker 配套文件直接取自桌面示例，页面使用浮层、Modal 使用内嵌，并由共享绑定提供清空。文件控件与保存、删除保持演示。素材路径及校验记录见 `vendor/licenses/tabler/component-assets.json`，按需查阅 [材料索引](docs/admin-ui/sources.md)。
+组件结构和素材以桌面 Tabler 1.7.1 为依据，运行资源沿用官方 1.7.5。按用户要求，`shared/_typography.scss` 使用大雁同款字体栈，提示图标使用大雁同款 SVG；组件布局与主题继续使用 Tabler。Datepicker 配套文件直接取自桌面示例，页面使用浮层、Modal 使用内嵌，并由共享绑定提供清空。文件控件与保存、删除保持演示。素材路径及校验记录见 `vendor/licenses/tabler/component-assets.json`，按需查阅 [材料索引](backend/docs/admin-ui/sources.md)。
 
-右下角画笔打开完整外观设置：配色、主题色、字体、灰阶、圆角，以及导航、页面宽度、吸顶、悬浮和侧栏折叠。控件及即时切换绑定来自桌面 Tabler 1.7.1 的 `index.html`，官方主题资源保持原样；偏好保存在当前浏览器，重置恢复默认的 `combined` 与 `fluid`。入口和用法见 `docs/admin-ui/containers.md`，资源记录见 `vendor/licenses/tabler/preview-assets.json`。
+右下角画笔打开完整外观设置：配色、主题色、字体、灰阶、圆角，以及导航、页面宽度、吸顶、悬浮和侧栏折叠。控件及即时切换绑定来自桌面 Tabler 1.7.1 的 `index.html`，官方主题资源保持原样；系统默认由超级管理员维护，画笔只保存本人改动的项，换设备登录后沿用，恢复默认后跟随当前系统设置。资源记录见 `vendor/licenses/tabler/preview-assets.json`，入口和用法见[导航与布局规范](backend/docs/admin-ui/containers.md)。
 
 后台模板位于 `app/views/layouts/admins.html.erb`、`app/views/layouts/admins/` 和 `app/views/admins/dashboard/index.html.erb`。顶栏快捷入口在窄屏保持显示并横向滚动，右侧工具区不参与滚动；侧栏单独折叠，底部管理员区域仅在桌面显示。
 

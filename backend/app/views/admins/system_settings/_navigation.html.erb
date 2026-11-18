@@ -1,0 +1,6 @@
+<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :settings, icon_class: "w-5 h-5" %></span><%= title %></h1></div>
+<nav class="nav nav-tabs mb-3" aria-label="系统设置">
+  <% system_settings_pages.each do |label, path| %>
+    <%= link_to label, path, class: class_names("nav-link", active: label == title), aria: { current: ("page" if label == title) } %>
+  <% end %>
+</nav>

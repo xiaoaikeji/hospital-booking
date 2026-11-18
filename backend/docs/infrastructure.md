@@ -1,10 +1,15 @@
 # 基础设施
 
+本文的 Rails 路径和命令以 `backend/` 为基准。
+
 ## 本地与测试
 
-需要 Ruby 3.4.12、PostgreSQL、Redis、ImageMagick。使用 RVM 时，进入项目后执行 `rvm use 3.4.12`；不修改全局默认 Ruby。本地无需 `.env`：数据库使用 `booking_web_development` / `booking_web_test`，Sidekiq 使用 `redis://localhost:6379/0`，开发缓存保留内存存储，附件默认存 `storage/`。
+需要 Ruby 3.4.12、PostgreSQL、Redis、ImageMagick。使用 RVM 时在 `backend/` 执行 `rvm use 3.4.12`。运行 `db:prepare` 前，在本机的 `backend/config/database.yml` 为 `development` 和 `test` 分别配置 PostgreSQL 连接，沿用原项目时数据库名为 `booking_web_development` 和 `booking_web_test`。也可以为当前 Rails 环境提供相应的 `DATABASE_URL`。
+
+Sidekiq 默认连接 `redis://localhost:6379/0`，开发缓存使用内存，附件默认存 `backend/storage/`。已有本地环境迁移目录时，继续使用原来配套的 `config/credentials.yml.enc` 与 `config/master.key`，并保留已有附件。
 
 ```sh
+cd backend
 bundle install
 bin/rails db:prepare
 bin/rails settings:encryption_keys
@@ -38,6 +43,8 @@ bin/bundler-audit
 | `REDIS_SIDEKIQ_URL` | `redis.sidekiq_url` | 任务 Redis，生产必填 |
 | `REDIS_CACHE_URL` | `redis.cache_url` | 缓存 Redis，生产必填 |
 
+通过 credentials 提供数据库连接时，需在本机或部署环境的 `config/database.yml` 中读取 `database.url`。
+
 仓库及镜像不包含本机的 credentials 密文和解密主密钥。各部署环境自行生成并保管 credentials，通过挂载提供密文，`RAILS_MASTER_KEY` 或本地 `config/master.key` 提供解密主密钥。`SECRET_KEY_BASE` 由 Rails 按标准机制读取，容器部署可在运行时通过 ENV 提供。
 
 配置敏感字段使用 Rails Active Record Encryption。主密钥依次读取以下 ENV 或 credentials，不能存回系统配置表：
@@ -52,13 +59,15 @@ bin/bundler-audit
 
 Web 和任务进程分别启动：`RAILS_ENV=production bin/rails server`、`RAILS_ENV=production bin/jobs`。Sidekiq 默认并发 3，可用 `SIDEKIQ_CONCURRENCY` 调整；数据库连接池默认 5，可用 `DB_POOL` 调整，任务进程启动时校验并发不超过连接池。部署还需核算各 Web / Sidekiq 进程的总连接数。
 
+从仓库根目录构建后端镜像，执行 `docker build -t booking_web backend`。
+
 缓存与任务使用独立 Redis 配置。不同逻辑 DB 只隔离键空间；生产优先使用独立实例，任务实例配置持久化与 `noeviction`，避免缓存淘汰策略影响队列。资产预编译时使用 `SECRET_KEY_BASE_DUMMY=1`，不要求 Redis 或 COS 连通。
 
 ## COS 与系统配置
 
 第三方配置统一由 `IntegrationSettings.read` 读取，优先级为：系统配置表 > ENV > credentials；仅未配置时回退，配置无效直接报错。无默认云密钥、桶名或地域。
 
-超级管理员在 `/admins/system_settings/edit` 维护存储配置。`settings` 使用唯一 `key` 和 JSONB `settings`，当前仅有 `active_storage`、`tencent_cos` 两组；SecretId / SecretKey 子字段加密保存。`config.x.integration_settings_reader` 已连接此表，启动及资产编译时不查询设置表。
+超级管理员在 `/admins/system_settings/storage/edit` 维护存储配置。`settings` 使用唯一 `key` 和 JSONB `settings`，存储配置使用 `active_storage`、`tencent_cos` 两组；SecretId / SecretKey 子字段加密保存。`config.x.integration_settings_reader` 已连接此表，启动及资产编译时不查询设置表。
 
 | 配置项 | ENV | credentials |
 | --- | --- | --- |
@@ -79,7 +88,7 @@ Active Storage 会缓存连接实例。保存通过事务提交后刷新当前�
 
 已有 COS 附件时，后台允许轮换密钥，阻止直接变更桶、地域或 API 地址；这些位置参数须先迁移文件，外部 ENV / credentials 的变更也需遵守这一点。切回本地只影响新文件，已有 COS 文件仍保留原服务读取能力。当前未使用真实 COS 凭据做联网验证，部署者配置后需验证自己的桶权限及上传、读取、删除。
 
-默认 Active Storage 公开路由继续关闭；已有管理员认证，文件归属及业务上传、下载接口随业务模型接入。实际上传功能接入时采用 `AGENTS.md` 的统一命名规则，本轮不添加业务上传入口。
+默认 Active Storage 公开路由继续关闭；已有管理员认证，文件归属及业务上传、下载接口随业务模型接入。实际上传功能接入时采用[开发约定](../../AGENTS.md)的统一命名规则，本轮不添加业务上传入口。
 
 ## 管理员与操作日志
 

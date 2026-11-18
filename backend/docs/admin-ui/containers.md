@@ -11,5 +11,5 @@
 - 独立详情分类用 GET 页签；同页局部切换用 Tab。
 - 分组互斥展开用 Accordion；额外设置用 Collapse，展开/收起文案跟随 `aria-expanded`；侧边详情用 Offcanvas。
 - 使用现有 Tabler 主题颜色、边框和圆角；官方资源与初始化已在公共布局中加载。
-- 外观面板复用 [theme_settings](../../app/views/layouts/admins/_theme_settings.html.erb)，包括配色、13 种主题色、4 类字体、6 组灰阶、5 档圆角，以及导航、宽度、吸顶、悬浮和侧栏折叠；[切换绑定](../../app/javascript/admins/theme_settings.js) 来自桌面原版示例，即时应用并记住选择，重置恢复本项目默认布局。
+- 外观面板复用 [theme_settings](../../app/views/layouts/admins/_theme_settings.html.erb)，包括配色、13 种主题色、4 类字体、6 组灰阶、5 档圆角，以及导航、宽度、吸顶、悬浮和侧栏折叠；[切换绑定](../../app/javascript/admins/theme_settings.js) 来自桌面原版示例，登录后即时保存到当前账号，重置跟随全后台默认外观。
 - 全项目字体由 [shared/typography](../../app/assets/stylesheets/shared/_typography.scss) 统一配置，沿用大雁字体栈，不逐个控件设置。

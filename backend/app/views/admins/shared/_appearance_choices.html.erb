@@ -1,0 +1,45 @@
+<%# Tabler Imagecheck, Colorinput and Selectgroup. The caller owns the form and persistence scope. %>
+<% choices = field == "scheme" ? AppearanceSettings::SCHEME_LABELS : AppearanceSettings::OPTIONS.fetch(field) %>
+<% choices = choices.sort_by { |value, _| value.to_f } if field == "theme_radius" %>
+<% heading_id = "#{sanitize_to_id(name)}-choices" %>
+<div class="appearance-choices" role="group" aria-labelledby="<%= heading_id %>" data-theme-setting="<%= field.dasherize %>">
+  <div class="form-label mb-2" id="<%= heading_id %>"><%= field == "scheme" ? "配色方案" : AppearanceSettings::LABELS.fetch(field) %></div>
+  <% if field == "theme_primary" %>
+    <div class="d-flex flex-wrap gap-2">
+      <% choices.each do |value, label| %>
+        <label class="form-colorinput" title="<%= label %>">
+          <%= radio_button_tag name, value, selected == value, id: nil, class: "form-colorinput-input", aria: { label: label } %>
+          <span class="form-colorinput-color bg-<%= value %>"></span>
+        </label>
+      <% end %>
+    </div>
+  <% elsif %w[navbar_position navbar_theme].include?(field) %>
+    <div class="form-selectgroup">
+      <% choices.each do |value, label| %>
+        <label class="form-selectgroup-item">
+          <%= radio_button_tag name, value, selected == value, id: nil, class: "form-selectgroup-input" %>
+          <span class="form-selectgroup-label"><%= label %></span>
+        </label>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="appearance-tiles">
+      <% choices.each do |value, label| %>
+        <label class="form-imagecheck">
+          <%= radio_button_tag name, value, selected == value, id: nil, class: "form-imagecheck-input" %>
+          <span class="form-imagecheck-figure p-1">
+            <% if field == "theme_font" %>
+              <span class="form-imagecheck-image text-center py-2 fs-1 fw-medium lh-1 font-<%= value %>" aria-hidden="true">Aa</span>
+            <% else %>
+              <% sample = field == "theme_base" ? "theme-base" : "#{field == "theme" ? "scheme" : field.dasherize}-#{value}" %>
+              <svg width="60" height="32" viewBox="0 0 96 64" class="form-imagecheck-image w-100" aria-hidden="true" focusable="false" <%= tag.attributes("data-bs-theme-base": value) if field == "theme_base" %>>
+                <use href="<%= image_path("admins/appearance-options.svg") %>#<%= sample %>"></use>
+              </svg>
+            <% end %>
+            <span class="form-imagecheck-caption"><%= label %></span>
+          </span>
+        </label>
+      <% end %>
+    </div>
+  <% end %>
+</div>

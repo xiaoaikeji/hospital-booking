@@ -74,7 +74,9 @@ certs
 /backend/app/assets/builds/*
 !/backend/app/assets/builds/.keep
 /backend/config/master.key
+/backend/config/credentials.yml.enc
 /backend/config/credentials/*.key
+/backend/config/credentials/*.yml.enc
 /backend/config/database.yml
 /backend/config/application.yml
 /backend/config/deploy/*.rb

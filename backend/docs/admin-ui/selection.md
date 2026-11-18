@@ -5,6 +5,7 @@
 - 后台下拉默认用主题下拉。普通单选、分组和默认项继续使用 `form-select` 的表单结构，分组使用 `optgroup`。
 - 互斥选择用 Radio，多项选择用 Checkbox；少量可视选项可用 Selectgroup。
 - 启停配置用 Switch；权限组合用复选矩阵。
+- 外观设置与画笔面板复用 [appearance_choices](../../app/views/admins/shared/_appearance_choices.html.erb)，色块、字体样张和布局缩略图共用原生单选控件；系统页点击保存提交，个人面板按项即时保存。
 - 图片选择用 Imagecheck，见 [图片与附件](media.md)。
 - 控件保留 label、选中态和原生焦点圈；不另写选中样式。
 

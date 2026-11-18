@@ -22,5 +22,4 @@ module IntegrationSettings
   def self.unset?(value)
     value.nil? || (value.is_a?(String) && value.strip.empty?)
   end
-  private_class_method :unset?
 end

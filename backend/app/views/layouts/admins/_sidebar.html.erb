@@ -30,21 +30,23 @@
             <span class="nav-link-title">首页概览</span>
           </a>
         </li>
-        <% [
-          ["预约管理", :calendar, [["预约列表", admins_reservations_path], ["今日排期", admins_root_path(anchor: "schedule")]]],
-          ["客户管理", :users, [["客户列表", admins_customers_path], ["服务团队", admins_root_path(anchor: "staff")]]],
+        <% groups = [
+          ["预约管理", :calendar, [["预约列表", admins_reservations_path, "admins/reservations"], ["今日排期", admins_root_path(anchor: "schedule")]]],
+          ["客户管理", :users, [["客户列表", admins_customers_path, "admins/customers"], ["服务团队", admins_root_path(anchor: "staff")]]],
           ["服务管理", :package, [["服务项目", admins_root_path(anchor: "services")], ["预约规则", admins_root_path(anchor: "settings")]]],
           ["财务管理", :wallet, [["收款记录", admins_root_path(anchor: "payments")], ["经营概况", admins_root_path(anchor: "reports")]]]
-        ].each do |label, icon, children| %>
-          <% group_active = (label == "预约管理" && controller_path == "admins/reservations") || (label == "客户管理" && controller_path == "admins/customers") %>
+        ]
+        groups << ["系统设置", :settings, system_settings_pages] if current_admin.super_admin? %>
+        <% groups.each do |label, icon, children| %>
+          <% group_active = children.any? { |_title, _path, controller| controller == controller_path } %>
           <li class="nav-item dropdown<%= " active" if group_active %>">
             <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-haspopup="true" aria-expanded="<%= group_active %>">
               <span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span>
               <span class="nav-link-title"><%= label %></span>
             </a>
             <div class="dropdown-menu<%= " show" if group_active %>">
-              <% children.each do |title, path| %>
-                <% active = (path == admins_reservations_path && controller_path == "admins/reservations") || (path == admins_customers_path && controller_path == "admins/customers") %>
+              <% children.each do |title, path, controller| %>
+                <% active = controller == controller_path %>
                 <a class="dropdown-item<%= " active" if active %>" href="<%= path %>" aria-current="<%= active ? "page" : "false" %>"><%= title %></a>
               <% end %>
             </div>
@@ -55,7 +57,7 @@
           <a class="nav-link" href="<%= admins_root_path(anchor: "reports") %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: :chart %></span><span class="nav-link-title">数据概况</span></a>
         </li>
         <% if current_admin.super_admin? %>
-          <% [["管理员", admins_administrators_path, :users, "admins/administrators"], ["系统设置", edit_admins_system_settings_path, :settings, "admins/system_settings"], ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]].each do |label, path, icon, controller| %>
+          <% [["管理员", admins_administrators_path, :users, "admins/administrators"], ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]].each do |label, path, icon, controller| %>
             <li class="nav-item<%= ' active' if controller_path == controller %>"><a class="nav-link" href="<%= path %>" aria-current="<%= controller_path == controller ? 'page' : 'false' %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span><span class="nav-link-title"><%= label %></span></a></li>
           <% end %>
         <% end %>
@@ -64,7 +66,7 @@
         </li>
         <li class="nav-item mt-auto">
           <button type="button" class="nav-link" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings">
-            <span class="nav-link-icon"><%= render "layouts/admins/icon", name: :brush %></span><span class="nav-link-title">外观设置</span>
+            <span class="nav-link-icon"><%= render "layouts/admins/icon", name: :brush %></span><span class="nav-link-title">个人外观</span>
           </button>
         </li>
       </ul>

@@ -1,15 +1,19 @@
-<% content_for :title, "系统设置 · Booking 管理后台" %>
+<% content_for :title, "存储设置 · Booking 管理后台" %>
 <%= render "admins/shared/enhanced_select_assets" %>
 <% sources = StorageSettings::FIELDS.keys.index_with { |field| @settings.source(field) } %>
 <% revision = @settings.revision; can_clear = sources.values.any? { |source| source.start_with?("系统配置") } %>
-<% service = @settings.form_value("service", source: sources.fetch("service")) || "local"; cos_enabled = service == "tencent_cos" %>
-<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :settings, icon_class: "w-5 h-5" %></span>系统设置</h1></div>
-<%= form_with url: admins_system_settings_path, scope: :storage_settings, method: :patch, class: "card", data: { admin_form: true, storage_settings: true } do |form| %>
+<% service = @settings.form_value("service", source: sources.fetch("service")); cos_enabled = service == "tencent_cos" %>
+<% choices = [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %>
+<% unless StorageConfiguration::SERVICES.include?(service) %>
+  <% service = ""; choices.unshift(["存储方式无效，请重新选择", "", { disabled: true }]) %>
+<% end %>
+<%= render "admins/system_settings/navigation", title: "存储设置" %>
+<%= form_with url: admins_system_settings_storage_path, scope: :storage_settings, method: :patch, class: "card", data: { admin_form: true, storage_settings: true } do |form| %>
   <%= form.hidden_field :revision, value: revision %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "文件存储", record: @settings, clear_target: "#clear-storage-settings-confirmation", clear_disabled: !can_clear } do %>
     <div class="row g-3">
       <div class="col-md-6 col-xl-4" data-storage-service>
-        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", source: sources.fetch("service"), value: service, choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %>
+        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", source: sources.fetch("service"), value: service, choices: choices, enhanced_select: "single" %>
       </div>
       <% StorageSettings::LABELS.except("service").each do |field, label| %>
         <% source = sources.fetch(field); secret = StorageSettings::SECRETS.include?(field) %>
@@ -22,7 +26,7 @@
     </div>
   <% end %>
 <% end %>
-<%= form_with url: admins_system_settings_path, scope: :storage_settings, method: :patch, id: "clear-storage-settings", class: "d-none", data: { admin_form: true } do |form| %>
+<%= form_with url: admins_system_settings_storage_path, scope: :storage_settings, method: :patch, id: "clear-storage-settings", class: "d-none", data: { admin_form: true } do |form| %>
   <%= form.hidden_field :revision, value: revision, id: "clear-storage-settings-revision" %>
   <% StorageSettings::FIELDS.each_key do |field| %><%= hidden_field_tag "storage_settings[clear_fields][]", field, id: nil %><% end %>
 <% end %>

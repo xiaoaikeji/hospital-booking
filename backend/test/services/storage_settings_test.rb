@@ -65,8 +65,43 @@ class StorageSettingsTest < ActiveSupport::TestCase
     assert_not form.save({ "bucket" => "changed-123", "endpoint" => "http://unsafe.example" }, actor: @admin)
     assert_equal before, Setting.raw_snapshot
     assert_not StorageSettings.new.save({ "unregistered" => "value" }, actor: @admin)
+    assert_equal [], Log.last.details.fetch("fields")
     assert_not StorageSettings.new.save({ "secret_key" => false }, actor: @admin)
     assert_not StorageSettings.new.save({ "secret_key" => "****masked" }, actor: @admin)
+  end
+
+  test "only missing services default to local and false credentials can be explicitly overridden" do
+    ENV.delete("ACTIVE_STORAGE_SERVICE")
+    credentials = Rails.application.credentials
+    previous = credentials[:active_storage]
+    had_section = credentials.keys.include?(:active_storage)
+    credentials[:active_storage] = { service: "  " }
+    assert_equal "local", StorageConfiguration.validate!({})
+    credentials[:active_storage] = { service: false }
+    assert_equal "Rails credentials", StorageSettings.new.source("service")
+    assert_raises(IntegrationSettings::ConfigurationError) { StorageConfiguration.validate!({}) }
+    assert StorageSettings.new.save({ "service" => "local" }, actor: @admin)
+    assert_equal "local", Setting.read_integration_value(:active_storage, :service)
+  ensure
+    if had_section
+      credentials[:active_storage] = previous
+    else
+      credentials.delete(:active_storage)
+    end
+  end
+
+  test "a database rejection rolls back settings and leaves only a redacted failure audit" do
+    Setting.connection.add_check_constraint(:settings, "settings->>'bucket' <> 'rejected-123'", name: "test_storage_bucket")
+    before = Setting.raw_snapshot
+    form = StorageSettings.new
+    assert_difference "Log.count", 1 do
+      assert_not form.save(@input.merge("bucket" => "rejected-123"), actor: @admin)
+    end
+    assert_equal before, Setting.raw_snapshot
+    assert_equal "failed", Log.last.status
+    assert_equal "数据库写入失败", Log.last.details.fetch("reason")
+    assert_equal @input.keys.sort, Log.last.details.fetch("fields").sort
+    assert_not_includes form.errors.full_messages.join, "rejected-123"
   end
 
   test "damaged ciphertext raises instead of silently using a fallback" do
@@ -89,6 +124,8 @@ class StorageSettingsTest < ActiveSupport::TestCase
     assert_not stale.save({ "bucket" => "stale-bucket-123" }, actor: @admin, expected_revision: first_revision)
     assert_equal "newer-bucket-123", Setting.read_integration_value(:tencent_cos, :bucket)
     assert_includes stale.errors[:base].join, "刷新页面"
+    assert_equal "failed", Log.last.status
+    assert_equal({ "fields" => [ "bucket" ], "reason" => "配置版本冲突" }, Log.last.details)
   end
 
   test "the next refresh observes changes made outside the current client instance" do

@@ -1,6 +1,24 @@
 module AdminsHelper
   LOG_ACTIONS = { "admin.sign_in" => "管理员登录", "admin.sign_out" => "管理员退出", "admin.create" => "新增管理员",
-    "admin.update" => "修改管理员", "admin.password" => "修改本人密码", "storage_settings.update" => "修改存储配置" }.freeze
+    "admin.update" => "修改管理员", "admin.password" => "修改本人密码", "storage_settings.update" => "修改存储配置",
+    "storage_settings.refresh" => "刷新存储客户端", "appearance.update" => "修改默认外观", "personal_appearance.update" => "修改个人外观" }.freeze
+
+  def system_settings_pages
+    [
+      [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
+      [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ]
+    ]
+  end
+
+  def admin_appearance
+    @admin_appearance ||= AppearanceSettings.new(admin: current_admin)
+  end
+
+  def admin_theme_attributes
+    admin_appearance.values.filter_map do |key, value|
+      [ "data-bs-#{key.dasherize}", value ] unless value == AppearanceSettings::TABLER_DEFAULTS.fetch(key)
+    end.to_h
+  end
 
   def admin_field_class(record, field, base = "form-control")
     class_names(base, "is-invalid" => record.errors[field].any?)

@@ -6,7 +6,7 @@
     </a>
     <div class="navbar-nav flex-row flex-shrink-0 order-last">
       <div class="nav-item d-none d-md-flex">
-        <button type="button" class="nav-link px-3" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings" aria-label="外观设置"><%= render "layouts/admins/icon", name: :brush %></button>
+        <button type="button" class="nav-link px-3" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings" aria-label="个人外观"><%= render "layouts/admins/icon", name: :brush %></button>
       </div>
       <div class="nav-item dropdown position-static">
         <a href="#" class="nav-link px-3" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="查看通知">
@@ -30,7 +30,7 @@
         <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
           <span class="dropdown-header"><%= current_admin.role_name %></span>
           <%= link_to "账号与密码", edit_admins_account_path, class: "dropdown-item" %>
-          <% if current_admin.super_admin? %><%= link_to "系统设置", edit_admins_system_settings_path, class: "dropdown-item" %><%= link_to "管理员", admins_administrators_path, class: "dropdown-item" %><% end %>
+          <% if current_admin.super_admin? %><%= link_to "系统设置", edit_admins_system_settings_storage_path, class: "dropdown-item" %><%= link_to "管理员", admins_administrators_path, class: "dropdown-item" %><% end %>
           <div class="dropdown-divider"></div>
           <%= button_to "退出登录", destroy_admin_session_path, method: :delete, class: "dropdown-item", form: { class: "m-0" } %>
         </div>
@@ -45,9 +45,9 @@
           ["服务", admins_root_path(anchor: "services"), :package, false],
           ["收款", admins_root_path(anchor: "payments"), :wallet, false],
           ["报表", admins_root_path(anchor: "reports"), :chart, false],
-          ["设置", edit_admins_system_settings_path, :settings, controller_path == "admins/system_settings"],
+          ["系统设置", edit_admins_system_settings_storage_path, :settings, controller_path.start_with?("admins/system_settings/")],
           ["组件", admins_components_path, :package, controller_path == "admins/components"]
-        ].reject { |label, *_| label == "设置" && !current_admin.super_admin? }.each do |label, path, icon, active| %>
+        ].reject { |label, *_| label == "系统设置" && !current_admin.super_admin? }.each do |label, path, icon, active| %>
           <li class="nav-item flex-shrink-0<%= " active" if active %>">
             <a class="nav-link" href="<%= path %>" aria-current="<%= active ? "page" : "false" %>">
               <span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span>

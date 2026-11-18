@@ -16,7 +16,7 @@
 | 页签、折叠、抽屉 | `tabs.html`、`accordion.html`、`offcanvas.html` |
 | 信息网格与处理步骤 | `datagrid.html`、`steps.html` |
 | 反馈、加载、进度 | `alerts.html`、`toasts.html`、`progress.html`、`placeholder.html` |
-| 独立错误页布局、徽章、按钮、图标 | `error-404.html`、`sign-in-cover.html`、`badges.html`、`buttons.html`、`icons.html`；SVG 来自已选 AI 图的矢量描摹及细节修整，见 `docs/admin-ui/error-illustrations.md`，静态资源记录见 `vendor/licenses/tabler/error-assets.json` |
+| 独立错误页布局、徽章、按钮、图标 | `error-404.html`、`sign-in-cover.html`、`badges.html`、`buttons.html`、`icons.html`；SVG 来自已选 AI 图的矢量描摹及细节修整，见[错误页插画](error-illustrations.md)，静态资源记录见 [素材清单](../../vendor/licenses/tabler/error-assets.json) |
 | 原生复制 | `clipboard.html` |
 | 官方 API | `dist/js/tabler.js` |
 | 完整外观设置、主题切换与重置 | `index.html` 的 `BEGIN THEME SETTINGS` 和页尾 `themeDefaults` 脚本；`dist/js/tabler-theme.js`、`dist/css/tabler-themes.css` |
