@@ -1,4 +1,4 @@
-<%# Existing form and badge components. Required: form, field, label, source. Optional: record, value, choices, secret, placeholder. %>
+<%# Existing form and badge components. Required: form, field, label, source. Optional: record, value, choices, secret, placeholder, fallback_value. %>
 <% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices]; error_id = "#{field}-error" %>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <%= form.label field, label, class: "form-label mb-0" %>
@@ -8,8 +8,9 @@
 <% if choices %>
   <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, aria: { describedby: error_id } %>
 <% else %>
-  <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写")) %>
-  <% if local_assigns.fetch(:secret, false) %>
+  <% secret = local_assigns.fetch(:secret, false) %>
+  <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写"), fallback_value: (local_assigns[:fallback_value] unless secret)) %>
+  <% if secret %>
     <%= form.password_field field, value: nil, class: input_class, autocomplete: "new-password", placeholder: placeholder, aria: { describedby: error_id } %>
   <% else %>
     <%= form.text_field field, value: local_assigns[:value], class: input_class, autocomplete: "off", placeholder: placeholder, aria: { describedby: error_id } %>

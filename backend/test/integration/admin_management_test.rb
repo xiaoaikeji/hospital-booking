@@ -110,6 +110,39 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "fake-secret-key"
   end
 
+  test "saving the storage form keeps inherited COS values out of the database" do
+    external = {
+      "ACTIVE_STORAGE_SERVICE" => "tencent_cos",
+      "TENCENT_COS_SECRET_ID" => "test-only-env-id",
+      "TENCENT_COS_SECRET_KEY" => "test-only-env-key",
+      "TENCENT_COS_REGION" => "ap-shanghai",
+      "TENCENT_COS_BUCKET" => "env-bucket-123",
+      "TENCENT_COS_ENDPOINT" => "https://cos.ap-shanghai.myqcloud.com"
+    }
+    previous = external.keys.to_h { |key| [ key, ENV[key] ] }
+    ENV.update(external)
+
+    login(@root)
+    get edit_admins_system_settings_path
+    assert_response :success
+    bucket_input = css_select("input[name='storage_settings[bucket]']").first
+    assert_nil bucket_input["value"]
+    assert_includes bucket_input["placeholder"], "env-bucket-123（ENV）"
+    assert_not_includes response.body, "test-only-env-key"
+
+    patch admins_system_settings_path, params: { storage_settings: {
+      revision: StorageSettings.new.revision, service: "tencent_cos", bucket: bucket_input["value"].to_s,
+      secret_key: "updated-test-only-key"
+    } }
+    assert_redirected_to edit_admins_system_settings_path
+    assert_nil Setting.read_integration_value(:active_storage, :service)
+    assert_nil Setting.read_integration_value(:tencent_cos, :bucket)
+    assert_equal "updated-test-only-key", Setting.read_integration_value(:tencent_cos, :secret_key)
+  ensure
+    ENV.update(previous)
+    StorageConfiguration.reset!
+  end
+
   private
 
   def login(admin)

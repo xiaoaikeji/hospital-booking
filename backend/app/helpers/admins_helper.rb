@@ -24,8 +24,9 @@ module AdminsHelper
     end
   end
 
-  def configuration_placeholder(source, example:)
+  def configuration_placeholder(source, example:, fallback_value: nil)
     label, color = configuration_source(source)
+    return "#{fallback_value}（#{label}），留空保留" if fallback_value.present?
     return "已配置（#{label}），留空保留" if color == "success"
     return "解密失败，请重新填写或清除" if label == "解密失败"
     example

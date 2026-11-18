@@ -8,8 +8,9 @@ class StorageSettings
   SECRETS = %w[secret_id secret_key].freeze
   LABELS = { "service" => "存储方式", "secret_id" => "SecretId", "secret_key" => "SecretKey", "region" => "地域", "bucket" => "桶名", "endpoint" => "API 地址" }.freeze
 
-  def display_value(field)
-    @display_values&.key?(field) ? @display_values[field] : read(field)
+  def form_value(field, source:)
+    return @display_values[field] if @display_values&.key?(field)
+    read(field) if field == "service" || source == "系统配置"
   end
 
   def revision = self.class.revision_for(Setting.raw_snapshot)
@@ -55,15 +56,20 @@ class StorageSettings
       end
       changed = []
       FIELDS.each do |field, (section, key)|
+        record = records.fetch(section)
         if clear.include?(field)
-          records.fetch(section).write_value(key, nil)
+          record.write_value(key, nil)
           @display_values[field] = nil unless SECRETS.include?(field)
           changed << field
         elsif input.key?(field) && input[field].strip.present?
           value = input[field].strip
-          validate_value!(field, value)
           @display_values[field] = value unless SECRETS.include?(field)
-          records.fetch(section).write_value(key, stored_value(field, value))
+          validate_value!(field, value)
+          current = record.settings[key]
+          value = stored_value(field, value, current: current)
+          next if value == current
+
+          record.write_value(key, value)
           changed << field
         end
       end
@@ -87,10 +93,12 @@ class StorageSettings
     field == "service" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
   end
 
-  def stored_value(field, value)
-    return value unless field == "service" && value == "local"
+  def stored_value(field, value, current:)
+    return value unless field == "service"
+    return value if value == current && value != "local"
+
     fallback = IntegrationSettings.with_snapshot({}) { read("service") } || "local"
-    fallback == "local" ? nil : value
+    value == fallback ? nil : value
   end
 
   def validate_value!(field, value)
