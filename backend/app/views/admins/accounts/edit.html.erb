@@ -1,23 +1,43 @@
 <% content_for :title, "账号与密码 · Booking 管理后台" %>
-<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>账号与密码</h1></div>
-<%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "card", data: { admin_form: true } do |form| %>
-  <div class="card-body">
-    <%= render "admins/shared/form_errors", record: @administrator %>
-    <ul class="list-inline list-inline-dots mb-4">
-      <li class="list-inline-item"><span class="text-secondary me-2">用户名</span><strong><%= @administrator.username %></strong></li>
-      <li class="list-inline-item"><span class="text-secondary me-2">角色</span><strong><%= @administrator.role_name %></strong></li>
-    </ul>
-    <div class="row g-3">
-      <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
-        <div class="col-md-4"><%= form.label field, label, class: "form-label" %>
-          <div class="input-group input-group-flat">
-            <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: ("#{field}-error" if @administrator.errors[field].any?) } %>
-            <span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: form.field_id(field) %></span>
-          </div>
-          <%= admin_field_errors(@administrator, field) %>
+<div class="page-header mt-0 mb-3">
+  <h1 class="page-title fs-1 gap-3">
+    <span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>
+    账号与密码
+  </h1>
+</div>
+
+<div class="row">
+  <div class="col-lg-8 col-xl-7 col-xxl-6">
+    <%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "card", data: { admin_form: true } do |form| %>
+      <div class="card-header gap-3">
+        <span class="avatar bg-primary-lt rounded-circle flex-shrink-0" aria-hidden="true"><%= @administrator.display_name.first %></span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="card-title text-break"><span class="visually-hidden">用户名 </span><%= @administrator.username %></span>
+          <span class="badge bg-secondary-lt"><span class="visually-hidden">角色 </span><%= @administrator.role_name %></span>
         </div>
-      <% end %>
-    </div>
+      </div>
+      <div class="card-body">
+        <%= render "admins/shared/form_errors", record: @administrator %>
+        <div class="vstack gap-3">
+          <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
+            <div class="row g-2">
+              <%= form.label field, label, class: "col-sm-4 col-form-label fw-medium py-0 py-sm-2" %>
+              <div class="col-sm-8">
+                <div class="input-group input-group-flat">
+                  <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: ("#{field}-error" if @administrator.errors[field].any?) } %>
+                  <span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: form.field_id(field) %></span>
+                </div>
+                <%= admin_field_errors(@administrator, field) %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      <div class="card-footer bg-transparent">
+        <div class="btn-list justify-content-end">
+          <%= render "admins/shared/submit_button", label: "修改密码", icon: :save %>
+        </div>
+      </div>
+    <% end %>
   </div>
-  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "修改密码", icon: :save %></div></div>
-<% end %>
+</div>
