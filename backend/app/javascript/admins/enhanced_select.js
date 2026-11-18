@@ -10,6 +10,9 @@ document.addEventListener("DOMContentLoaded", () => {
       options.allowEmptyOption = true;
     }
 
-    new window.TomSelect(select, options);
+    const control = new window.TomSelect(select, options).focus_node;
+    ["aria-label", "aria-describedby", "aria-invalid", "aria-required"].forEach((name) => {
+      if (select.hasAttribute(name)) control.setAttribute(name, select.getAttribute(name));
+    });
   });
 });

@@ -1,3 +1,4 @@
+<%= render "admins/shared/enhanced_select_assets" %>
 <div class="row row-cards">
   <div class="col-12"><section class="card" aria-labelledby="form-basic-title">
     <div class="card-header"><h2 class="card-title" id="form-basic-title">基础输入与字段状态</h2></div>
@@ -51,7 +52,7 @@
         <% [["missing_key", "密钥", "未配置"], ["env_key", "密钥", "环境变量"], ["credentials_key", "密钥", "Rails credentials"], ["database_key", "密钥", "系统配置"], ["damaged_key", "密钥", "系统配置（解密失败）"]].each do |field, label, source| %>
           <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: source, secret: true, placeholder: "请输入密钥" %></div>
         <% end %>
-        <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: "storage", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %></div>
+        <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: "storage", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %></div>
       </div>
     <% end %>
   <% end %>
@@ -61,7 +62,7 @@
   <%= render layout: "admins/shared/configuration_card", locals: { title: "存储方式联动", preview: true } do %>
     <%= fields_for :storage_mode_preview do |form| %>
       <div class="row g-3">
-        <div class="col-md-6 col-xl-4" data-storage-service><%= render "admins/shared/configuration_field", form: form, field: "service", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %></div>
+        <div class="col-md-6 col-xl-4" data-storage-service><%= render "admins/shared/configuration_field", form: form, field: "service", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %></div>
         <% [["secret_id", "SecretId"], ["secret_key", "SecretKey"]].each do |field, label| %>
           <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields hidden disabled><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: "未配置", secret: true, placeholder: "仅演示，不会保存" %></fieldset>
         <% end %>

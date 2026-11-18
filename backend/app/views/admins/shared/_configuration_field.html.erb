@@ -1,12 +1,13 @@
-<%# Existing form and badge components. Required: form, field, label, source. Optional: record, value, choices, secret, placeholder, fallback_value. %>
-<% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices]; error_id = "#{field}-error" %>
+<%# Existing form and badge components. Required: form, field, label, source. Optional: record, value, choices, enhanced_select, secret, placeholder, fallback_value. %>
+<% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices] %>
+<% error_id = ("#{field}-error" if record && record.errors[field].any?) %>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <%= form.label field, label, class: "form-label mb-0" %>
   <span class="badge bg-<%= source_color %>-lt"><%= source_label %></span>
 </div>
 <% input_class = choices ? "form-select" : "form-control"; input_class = admin_field_class(record, field, input_class) if record %>
 <% if choices %>
-  <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, aria: { describedby: error_id } %>
+  <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, data: { enhanced_select: local_assigns[:enhanced_select] }, aria: { describedby: error_id } %>
 <% else %>
   <% secret = local_assigns.fetch(:secret, false) %>
   <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写"), fallback_value: (local_assigns[:fallback_value] unless secret)) %>

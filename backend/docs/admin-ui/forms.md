@@ -2,7 +2,7 @@
 
 用于新建、编辑、配置表单。预览：`/admins/components?tab=forms`；[示例代码](../../app/views/admins/components/_forms.html.erb)。
 
-- 普通输入用 `form-control`，下拉用 `form-select`，多行文本用 `textarea.form-control`；字段用原生栅格分组。
+- 普通输入用 `form-control`，多行文本用 `textarea.form-control`，字段用原生栅格分组。下拉见[主题下拉](selection.md#下拉预览)。
 - 金额/单位用 Input Group；只读用 `readonly`，不可操作用 `disabled`；必填字段配套 label 与 required。
 - label 和 placeholder 能说明白就不加提示。只有不说明就难以配置时才补充：短说明放 placeholder（如 `默认：0`），放不下或控件不支持时用 [field_help](../../app/views/admins/shared/_field_help.html.erb)。
 - 日期复用 [date_field](../../app/views/admins/shared/_date_field.html.erb)：含清空，仅显示当月日期；页面用浮层，Modal 内传 `inline: true`。时刻使用 `HH:mm` 文本输入。

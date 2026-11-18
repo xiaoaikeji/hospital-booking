@@ -1,4 +1,5 @@
 <% content_for :title, "操作日志 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
 <% empty = @logs.empty? %>
 <% content_for :fill_content, "true" if empty %>
 
@@ -8,7 +9,7 @@
   <div class="card-header flex-shrink-0">
     <%= form_with url: admins_operation_logs_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "筛选操作日志" } } do |form| %>
       <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
-        <%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", aria: { label: "操作类型" } %>
+        <%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "操作类型" } %>
       </div>
       <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
       <% if @action.present? %>

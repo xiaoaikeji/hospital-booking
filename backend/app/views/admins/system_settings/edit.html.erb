@@ -1,4 +1,5 @@
 <% content_for :title, "系统设置 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
 <% sources = StorageSettings::FIELDS.keys.index_with { |field| @settings.source(field) } %>
 <% revision = @settings.revision; can_clear = sources.values.any? { |source| source.start_with?("系统配置") } %>
 <% service = @settings.form_value("service", source: sources.fetch("service")) || "local"; cos_enabled = service == "tencent_cos" %>
@@ -8,7 +9,7 @@
   <%= render layout: "admins/shared/configuration_card", locals: { title: "文件存储", record: @settings, clear_target: "#clear-storage-settings-confirmation", clear_disabled: !can_clear } do %>
     <div class="row g-3">
       <div class="col-md-6 col-xl-4" data-storage-service>
-        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", source: sources.fetch("service"), value: service, choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %>
+        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", source: sources.fetch("service"), value: service, choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %>
       </div>
       <% StorageSettings::LABELS.except("service").each do |field, label| %>
         <% source = sources.fetch(field); secret = StorageSettings::SECRETS.include?(field) %>

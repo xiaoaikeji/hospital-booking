@@ -1,4 +1,5 @@
 <% form_id = dom_id(administrator, :form); confirmation_id = "disable-administrator" if administrator.persisted? && administrator.enabled_in_database %>
+<%= render "admins/shared/enhanced_select_assets" %>
 <%= form_with model: administrator, scope: :administrator, id: form_id, url: (administrator.persisted? ? admins_administrator_path(administrator) : admins_administrators_path), method: (administrator.persisted? ? :patch : :post), class: "card", data: { admin_form: true, disable_confirmation: confirmation_id } do |form| %>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: administrator %>
@@ -15,8 +16,16 @@
           <%= admin_field_errors(administrator, field) %>
         </div>
       <% end %>
-      <div class="col-md-6"><%= form.label :role, "角色", class: "form-label required" %><%= form.select :role, Admin::ROLES.map { |value, label| [label, value] }, {}, class: admin_field_class(administrator, :role, "form-select") %><%= admin_field_errors(administrator, :role) %></div>
-      <div class="col-md-6"><%= form.label :enabled, "账号状态", class: "form-label required" %><%= form.select :enabled, [["启用", true], ["停用", false]], {}, class: admin_field_class(administrator, :enabled, "form-select") %><%= admin_field_errors(administrator, :enabled) %></div>
+      <div class="col-md-6">
+        <%= form.label :role, "角色", class: "form-label required" %>
+        <%= form.select :role, Admin::ROLES.map { |value, label| [label, value] }, {}, class: admin_field_class(administrator, :role, "form-select"), data: { enhanced_select: "single" }, aria: { required: true, describedby: ("role-error" if administrator.errors[:role].any?) } %>
+        <%= admin_field_errors(administrator, :role) %>
+      </div>
+      <div class="col-md-6">
+        <%= form.label :enabled, "账号状态", class: "form-label required" %>
+        <%= form.select :enabled, [["启用", true], ["停用", false]], {}, class: admin_field_class(administrator, :enabled, "form-select"), data: { enhanced_select: "single" }, aria: { required: true, describedby: ("enabled-error" if administrator.errors[:enabled].any?) } %>
+        <%= admin_field_errors(administrator, :enabled) %>
+      </div>
       <% password_hint = administrator.persisted? ? "留空保留原密码" : "留空使用默认密码 123456" %>
       <% [[:password, administrator.persisted? ? "重置密码" : "初始密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
         <div class="col-md-6">
