@@ -4,6 +4,8 @@ module AdminsHelper
     "storage_settings.refresh" => "刷新存储客户端", "appearance.update" => "修改默认外观", "personal_appearance.update" => "修改个人外观" }.freeze
 
   def system_settings_pages
+    return [] unless current_admin&.super_admin?
+
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
       [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ]

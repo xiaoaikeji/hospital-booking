@@ -1,6 +1,7 @@
 module Admins
   class SystemSettings::AppearanceController < BaseController
-    before_action :require_super_admin!
+    # 先完成登录和角色校验，存储配置异常时无权访问者仍收到 403。
+    before_action :require_super_admin!, :refresh_storage_configuration
 
     def edit
       @settings = AppearanceSettings.new
