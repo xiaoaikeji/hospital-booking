@@ -1,0 +1,18 @@
+.admin-list-table > tbody > tr {
+  height: 3.875rem;
+}
+
+.admin-list-table .list-column-id { width: 3.25rem; }
+.admin-list-table .list-column-phone { width: 7.5rem; }
+.admin-list-table .list-column-number { width: 10.5rem; }
+.admin-list-table .list-column-status { width: 4.75rem; }
+.admin-list-table .list-column-time { width: 8.75rem; }
+.admin-list-table .list-column-action { width: 5.625rem; }
+
+.admin-list-text-lines {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}

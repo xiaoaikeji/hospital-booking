@@ -49,9 +49,9 @@ module Admins
 
       records = case @list_example
       when "single"
-        [ @records.first.merge(status: "active", source: "mini_program", period: "today", tag: "new") ]
+        [ @records.first.merge(status: "active", source: "mini_program", period: "today", tag: "new", date: "#{@preview_date} 09:15") ]
       when "logs"
-        [ { id: 1, name: "示例管理员", operation: "admin.sign_in" } ]
+        [ { id: 1, name: "示例管理员", operation: "admin.sign_in", date: "#{@preview_date} 09:15" } ]
       else
         []
       end
@@ -68,17 +68,25 @@ module Admins
       @toolbar_query = params[:q].to_s.strip
       @toolbar_ranges = %i[date_range created_date_range].index_with { |field| params[field].to_s.strip }.compact_blank
       date_limits = @toolbar_ranges.transform_values { |range| range.scan(/\d{4}-\d{2}-\d{2}/).minmax }
+      notes = [
+        "客户希望先电话确认到店路线和停车位置，预计提前十分钟抵达。如果当天排期有调整，请在出发前联系客户确认新的服务时间，并提醒随行家属带齐预约所需资料。",
+        "预约前需要电话确认。",
+        "已确认服务内容。"
+      ]
 
       @toolbar_records = @records.each_with_index.filter_map do |record, index|
-        date = (@preview_date + index).iso8601
-        created_date = (@preview_date - index - 1).iso8601
+        appointment = (@preview_date + index).in_time_zone.change(hour: 14, min: 30)
+        created = (@preview_date - index - 1).in_time_zone.change(hour: 9, min: 15)
+        name = index == 1 ? "李先生的周末门店体验预约账号" : record[:name]
         next if @toolbar_status && @toolbar_status != record[:status_key]
-        next unless record.values_at(:name, :mobile).any? { |value| value.include?(@toolbar_query) }
+        next unless [ name, record[:mobile] ].any? { |value| value.include?(@toolbar_query) }
 
-        dates = { date_range: date, created_date_range: created_date }
+        dates = { date_range: appointment.to_date.iso8601, created_date_range: created.to_date.iso8601 }
         next unless date_limits.all? { |field, (first, last)| !first || dates.fetch(field).between?(first, last) }
 
-        record.merge(date: date, created_date: created_date)
+        record.merge(name: name, date: appointment.strftime("%Y-%m-%d %H:%M"), created_date: created.strftime("%Y-%m-%d %H:%M"),
+          number: "#{created.strftime('%Y%m%d%H%M%S')}#{format('%06d', record[:id])}", note: notes.fetch(index),
+          avatar: "admins/components/staff-#{record[:id]}.jpg", cover: @images.fetch(index).fetch(:asset))
       end
     end
   end

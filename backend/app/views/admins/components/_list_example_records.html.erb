@@ -50,22 +50,30 @@
       <p class="empty-subtitle text-secondary"><%= filtered ? "试试其他关键词，或清除筛选条件。" : "客户信息添加后，会显示在这里。" %></p>
     </div></div>
   <% else %>
-    <div class="table-responsive"><table class="table card-table table-vcenter table-hover text-nowrap mb-0">
+    <table class="table table-fixed card-table table-vcenter table-hover admin-list-table mb-0">
       <thead><tr>
-        <th scope="col">ID</th><th scope="col"><%= logs ? "操作人" : "姓名" %></th>
-        <% if logs %><th scope="col">操作类型</th><% else %><th scope="col">手机号</th><th scope="col">客户来源</th><% end %>
-        <th scope="col"><%= logs ? "结果" : "状态" %></th><th scope="col" class="w-1">操作</th>
+        <th scope="col" class="list-column-id px-2">ID</th><th scope="col" class="px-2"><%= logs ? "操作人" : "姓名" %></th>
+        <% if logs %><th scope="col" class="d-none d-sm-table-cell">操作类型</th><% else %><th scope="col" class="list-column-phone d-none d-sm-table-cell">手机号</th><th scope="col" class="d-none d-md-table-cell">客户来源</th><% end %>
+        <th scope="col" class="list-column-status px-2"><%= logs ? "结果" : "状态" %></th>
+        <th scope="col" class="list-column-time d-none d-md-table-cell"><%= logs ? "操作时间" : "创建时间" %></th>
+        <th scope="col" class="list-column-action px-2">操作</th>
       </tr></thead>
       <tbody><% @list_records.each do |record| %><tr>
-        <td class="text-secondary">#<%= record[:id] %></td><td><%= record[:name] %></td>
+        <td class="text-secondary text-nowrap px-2">#<%= record[:id] %></td><td class="px-2"><%= render "admins/shared/list_text", text: record[:name] %></td>
         <% if logs %>
-          <td><%= log_action_name(record[:operation]) %></td>
+          <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: log_action_name(record[:operation]) %></td>
         <% else %>
-          <td><%= record[:mobile] %></td><td><%= @list_options.fetch(:source).fetch(record[:source]) %></td>
+          <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: record[:mobile] %></td>
+          <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: @list_options.fetch(:source).fetch(record[:source]) %></td>
         <% end %>
-        <td><span class="badge bg-success-lt"><%= logs ? "成功" : @list_options.fetch(:status).fetch(record[:status]) %></span></td>
-        <td><button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :eye %>查看</button></td>
+        <td class="px-2"><span class="badge bg-success-lt"><%= logs ? "成功" : @list_options.fetch(:status).fetch(record[:status]) %></span></td>
+        <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: record[:date] %></td>
+        <td class="px-2"><button type="button" class="btn btn-sm btn-info text-nowrap" data-bs-toggle="modal" data-bs-target="#list-example-record-<%= record[:id] %>"><%= render "layouts/admins/icon", name: :eye %>查看</button></td>
       </tr><% end %></tbody>
-    </table></div>
+    </table>
+    <% @list_records.each do |record| %>
+      <% fields = logs ? { "操作人" => record[:name], "操作类型" => log_action_name(record[:operation]), "操作时间" => record[:date] } : { "姓名" => record[:name], "手机号" => record[:mobile], "客户来源" => @list_options.fetch(:source).fetch(record[:source]), "创建时间" => record[:date] } %>
+      <%= render "admins/components/list_record_detail", id: "list-example-record-#{record[:id]}", title: "#{logs ? '日志' : '客户'} ##{record[:id]}", fields: fields %>
+    <% end %>
   <% end %>
 </section>

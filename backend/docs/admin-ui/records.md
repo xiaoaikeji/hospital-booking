@@ -1,25 +1,28 @@
 # 列表与状态
 
-用于记录表格、筛选结果和空列表。完整布局见 `/admins/components?tab=list_examples` 的「列表规范」页签，[示例代码](../../app/views/admins/components/_list_examples.html.erb)。状态、表格及分页组件见 `/admins/components?tab=records`。
+查阅用途包括页头、搜索、筛选、表格、空态与分页。完整列表见「组件规范 → 列表规范」，入口为 `/admins/components?tab=list_examples`。在「页头与工具栏」可用模拟数据检查宽屏、窄屏、长文本和日期筛选。[完整示例](../../app/views/admins/components/_list_toolbars.html.erb)
 
-- 零条记录时保留筛选和搜索，列表卡片填满屏幕剩余高度。用原生 flex 将图标、标题和说明整体居中，图标按业务选择，尺寸沿用 [客户空列表](../../app/views/admins/customers/index.html.erb)。首次空列表和筛选无结果使用对应提示。
-- 有记录时，列表卡片随表格内容自然收高。零条记录不显示表头和分页，只有一页也不显示分页。
-- 选项少的筛选条件用 [list_filter_row](../../app/views/admins/shared/_list_filter_row.html.erb) 横排，每项点击即筛选，当前项高亮。同页额外条件用原生 Collapse 展开，由「更多筛选／收起筛选」切换。操作日志等选项多的页面用下拉等表单控件组合筛选。
+## 页头与搜索栏
 
-- 第一列为记录 ID，显示 `#1`；翻页和筛选不重新编号。费用明细、权限矩阵不属于记录列表。
-- 后台手机号在所有页面完整显示。
-- 长表格用 `table-responsive`；短字段和行操作保持一行，避免一字一行或撑宽页面。
-- 状态用 `badge bg-*-lt`，运行状态可用 Status Dot；行按钮按 [操作与确认](actions.md) 选择。
-- 真实列表分页复用 [pagination](../../app/views/admins/shared/_pagination.html.erb)，传入 Pagy 对象与分页 URL 方法；只计算必要页码，不由前端分页。
+- 宽屏时页头和搜索栏各自保持一行，窄屏按可用空间自然换行。按钮保留图标和文案，有明确需求时才收进菜单。
+- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标和标题，右侧按实际功能依次放「新增＋对象」「导入」「导出」。
+- 搜索栏依次放关键词、可选的日期范围、「搜索」「重置筛选」。只有筛选生效时显示「重置筛选」。关键词框和日期框宽度按可用空间调整；详情、编辑页的输入框宽度按字段内容调整。
+- 搜索 placeholder 只列实际可搜字段，用 ` / ` 分隔，例如「用户名 / 姓名」。
 
-完整列表结构参考 [预约列表](../../app/views/admins/reservations/index.html.erb)。
+## 筛选
 
-## 页头与工具栏预览
+- 少量状态、类型放在独立筛选区，使用 [list_filter_row](../../app/views/admins/shared/_list_filter_row.html.erb) 横排，点选即筛选，选中项高亮。额外条件用原生 Collapse，由「更多筛选／收起筛选」切换。操作日志等条件或选项较多的列表可以用下拉等表单控件。
+- 固定状态始终保留。标签等动态选项按筛选前用户可见的数据生成，无可选项时可隐藏整栏。筛选结果为空时，保留筛选栏和选中项。
+- 按列表需要决定是否加日期筛选，拿不准先问用户。表中有多个日期字段时，先让用户确认使用哪几个；工具栏最多两组起止日期。两组等宽，用「预约」「创建」等短标签区分，复用 [date_field](../../app/views/admins/shared/_date_field.html.erb)。
 
-在 `/admins/components?tab=list_examples&example=toolbars` 查看完整列表示例，拖动窗口可看实际宽度下的变化。[示例代码](../../app/views/admins/components/_list_toolbars.html.erb)
+## 表格内容
 
-- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧依次放新增、导入、导出等页面操作。长标题用省略号，窄到放不下时按钮区横向滚动，页头保持一行。
-- 状态等少量选项沿用独立的横向筛选区。「更多筛选」用于该区域的额外条件。
-- 搜索工具栏保持一行，顺序为关键词、最多两组起止日期、搜索、重置筛选。两组日期并排等宽，用「预约」「创建」等前缀区分。只展示页面实际支持的控件，按钮保持图标和文案。有条件时显示重置筛选。窄到放不下时，工具栏本身横向滚动。
-- 搜索 placeholder 只写实际能搜的字段，用 ` / ` 分隔，例如「用户名 / 姓名」。
-- 使用桌面 Tabler 的 `tables.html` 页头和工具栏结构，日期范围复用 [date_field](../../app/views/admins/shared/_date_field.html.erb)。
+- 第一列固定为 `ID`，按记录的实际 ID 显示 `#1`、`#2`，筛选或翻页不重新编号。日期时间列统一靠后，通常精确到分钟，放在最后的「操作」列之前。只有日期含义的字段按实际精度显示。
+- 沿用 [标准行高与间距示例](../../app/views/admins/components/_toolbar_records.html.erb)。字段默认单行，信息确实较多时可上下叠放相关内容。头像用圆形，其他缩略图默认正方形并用 `cover` 裁切，可按内容调整。预留统一的缩略图尺寸，图片不能撑高行高。
+- 列宽按字段和常见内容分配。手机号、编号优先预留完整显示的宽度，和昵称一样保持单行；放不下时省略，悬停或键盘聚焦显示完整值。备注、说明可在行高允许的范围内换行，仍放不下也省略并显示全文提示。复用 [list_text](../../app/views/admins/shared/_list_text.html.erb) 的 Tabler Tooltip。
+- 状态用规范中已有的 Badge 样式，颜色按状态语义选。行按钮按 [操作与确认](actions.md) 选择。表格禁止横向滚动；空间不足时优先把次要字段移到详情，列取舍拿不准先问用户。
+
+## 空态与分页
+
+- 零条记录时保留筛选和搜索，列表卡片填满剩余高度，图标、标题和提示整体居中。图标可按业务选择，尺寸沿用 [客户空列表](../../app/views/admins/customers/index.html.erb)；隐藏表头和分页。首次空列表与筛选无结果使用对应提示。
+- 有记录时卡片随内容收高，超过一页才显示分页。真实列表复用 [pagination](../../app/views/admins/shared/_pagination.html.erb)，传入 Pagy 对象和分页 URL 方法。

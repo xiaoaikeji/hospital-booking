@@ -20,14 +20,14 @@
 </section>
 
 <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="预约列表示例">
-  <div class="card-header flex-shrink-0 overflow-x-auto">
-    <%= form_with url: admins_components_path, method: :get, class: "d-flex flex-nowrap align-items-center gap-1 gap-sm-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_components_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
       <% preview_params.merge(status: @toolbar_status).compact.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
-      <div class="col-4 col-md-3 flex-shrink-0">
+      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
         <%= form.search_field :q, value: @toolbar_query, class: "form-control text-truncate", placeholder: "客户 / 手机号", aria: { label: "客户或手机号" } %>
       </div>
       <% { date_range: "预约", created_date_range: "创建" }.each do |field, prefix| %>
-        <div class="col-5 col-sm-4 col-md-3 flex-shrink-0">
+        <div class="col-12 col-sm-5 col-lg-2 col-xl-3 flex-shrink-1 overflow-hidden">
           <%= render "admins/shared/date_field", id: "toolbar-#{field.to_s.dasherize}", name: field, value: @toolbar_ranges[field], prefix: prefix, selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
         </div>
       <% end %>
@@ -45,25 +45,6 @@
       <p class="empty-subtitle text-secondary">试试其他关键词，或重置筛选。</p>
     </div></div>
   <% else %>
-    <div class="table-responsive">
-      <table class="table card-table table-vcenter table-hover text-nowrap mb-0">
-        <thead><tr>
-          <th scope="col">ID</th><th scope="col">客户</th><th scope="col">服务项目</th>
-          <th scope="col">预约日期</th><th scope="col">创建日期</th><th scope="col">状态</th>
-        </tr></thead>
-        <tbody>
-          <% @toolbar_records.each do |record| %>
-            <tr>
-              <td class="text-secondary">#<%= record[:id] %></td>
-              <td><div><%= record[:name] %></div><div class="text-secondary small"><%= record[:mobile] %></div></td>
-              <td><%= record[:service] %></td>
-              <td><%= record[:date] %></td>
-              <td><%= record[:created_date] %></td>
-              <td><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+    <%= render "toolbar_records", records: @toolbar_records %>
   <% end %>
 </section>

@@ -1,0 +1,41 @@
+<table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+  <thead><tr>
+    <th scope="col" class="list-column-id px-2">ID</th>
+    <th scope="col" class="px-2">客户昵称</th>
+    <th scope="col" class="list-column-phone d-none d-sm-table-cell">手机号</th>
+    <th scope="col" class="list-column-number d-none d-xxl-table-cell">预约编号</th>
+    <th scope="col" class="d-none d-md-table-cell">服务项目</th>
+    <th scope="col" class="list-column-status px-2">状态</th>
+    <th scope="col" class="d-none d-xl-table-cell">备注</th>
+    <th scope="col" class="list-column-time d-none d-lg-table-cell">预约时间</th>
+    <th scope="col" class="list-column-time d-none d-xl-table-cell">创建时间</th>
+    <th scope="col" class="list-column-action px-2">操作</th>
+  </tr></thead>
+  <tbody>
+    <% records.each do |record| %>
+      <tr>
+        <td class="text-secondary text-nowrap px-2">#<%= record[:id] %></td>
+        <td class="px-2"><div class="d-flex align-items-center gap-2">
+          <%= image_tag record[:avatar], alt: "", class: "avatar avatar-sm rounded-circle object-cover flex-shrink-0" %>
+          <div class="overflow-hidden"><%= render "admins/shared/list_text", text: record[:name] %></div>
+        </div></td>
+        <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: record[:mobile] %></td>
+        <td class="d-none d-xxl-table-cell"><%= render "admins/shared/list_text", text: record[:number] %></td>
+        <td class="d-none d-md-table-cell"><div class="d-flex align-items-center gap-2">
+          <%= image_tag record[:cover], alt: "", class: "avatar avatar-xs rounded object-cover flex-shrink-0" %>
+          <div class="overflow-hidden"><%= render "admins/shared/list_text", text: record[:service] %></div>
+        </div></td>
+        <td class="px-2"><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
+        <td class="d-none d-xl-table-cell"><%= render "admins/shared/list_text", text: record[:note], multiline: true %></td>
+        <td class="d-none d-lg-table-cell"><%= render "admins/shared/list_text", text: record[:date] %></td>
+        <td class="d-none d-xl-table-cell"><%= render "admins/shared/list_text", text: record[:created_date] %></td>
+        <td class="px-2"><button type="button" class="btn btn-sm btn-info text-nowrap" data-bs-toggle="modal" data-bs-target="#list-example-reservation-<%= record[:id] %>"><%= render "layouts/admins/icon", name: :eye %>查看</button></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<% records.each do |record| %>
+  <% fields = { "客户昵称" => :name, "手机号" => :mobile, "预约编号" => :number, "服务项目" => :service, "状态" => :status, "备注" => :note, "预约时间" => :date, "创建时间" => :created_date }.transform_values { |key| record.fetch(key) } %>
+  <%= render "admins/components/list_record_detail", id: "list-example-reservation-#{record[:id]}", title: "预约 ##{record[:id]}", fields: fields %>
+<% end %>

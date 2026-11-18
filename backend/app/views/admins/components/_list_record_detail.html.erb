@@ -1,0 +1,10 @@
+<div class="modal modal-blur fade" id="<%= id %>" tabindex="-1" aria-labelledby="<%= id %>-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h3 class="modal-title" id="<%= id %>-title"><%= title %></h3><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+    <div class="modal-body"><div class="datagrid">
+      <% fields.each do |label, value| %>
+        <div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content text-break"><%= value %></div></div>
+      <% end %>
+    </div></div>
+  </div></div>
+</div>
