@@ -8,7 +8,7 @@ module Admins
       scope = scope.where(action: @action) if @action.present?
       @pagy, @logs = pagy(scope)
       @list_context = { operation: @action.presence, page: (@pagy.page if @pagy.page > 1) }.compact
-      @actors = Admin.where(id: @logs.select(&:actor_id).map(&:actor_id)).index_by(&:id)
+      @actors = Admin.where(id: @logs.filter_map { |log| log.actor_id if log.actor_type == "Admin" }).index_by(&:id)
     end
 
     def show

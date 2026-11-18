@@ -1,10 +1,14 @@
 module Admins
   class AdministratorsController < BaseController
+    STATUSES = { "enabled" => "启用", "disabled" => "停用" }.freeze
+
     before_action :require_super_admin!
 
     def index
       scope = Admin.order(:id)
       @query = params[:q].to_s.strip
+      @status = params[:status].presence_in(STATUSES.keys)
+      scope = scope.where(enabled: @status == "enabled") if @status
       if @query.present?
         scope = scope.where("username ILIKE :term OR name ILIKE :term", term: "%#{Admin.sanitize_sql_like(@query)}%")
       end

@@ -13,6 +13,14 @@ module AdminsHelper
 
   def log_action_name(action) = LOG_ACTIONS.fetch(action, action)
 
+  def admin_list_time(time, fallback: "—")
+    time ? l(time, format: "%Y-%m-%d %H:%M") : fallback
+  end
+
+  def log_subject_label(type, id)
+    [ type.presence, ("##{id}" if id) ].compact.join(" ").presence || "—"
+  end
+
   def configuration_source(source)
     case source
     when "系统配置" then [ "系统配置", "success" ]

@@ -2,6 +2,12 @@
 <%= form_with model: administrator, scope: :administrator, id: form_id, url: (administrator.persisted? ? admins_administrator_path(administrator) : admins_administrators_path), method: (administrator.persisted? ? :patch : :post), class: "card", data: { admin_form: true, disable_confirmation: confirmation_id } do |form| %>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: administrator %>
+    <% if administrator.persisted? %>
+      <div class="datagrid mb-4">
+        <div class="datagrid-item"><div class="datagrid-title">最近登录</div><div class="datagrid-content"><%= admin_list_time(administrator.current_sign_in_at, fallback: "尚未登录") %></div></div>
+        <div class="datagrid-item"><div class="datagrid-title">创建时间</div><div class="datagrid-content"><%= admin_list_time(administrator.created_at) %></div></div>
+      </div>
+    <% end %>
     <div class="row g-3">
       <% [[:username, "用户名"], [:name, "姓名"]].each do |field, label| %>
         <div class="col-md-6"><%= form.label field, label, class: class_names("form-label", "required" => field == :username) %>
@@ -11,11 +17,17 @@
       <% end %>
       <div class="col-md-6"><%= form.label :role, "角色", class: "form-label required" %><%= form.select :role, Admin::ROLES.map { |value, label| [label, value] }, {}, class: admin_field_class(administrator, :role, "form-select") %><%= admin_field_errors(administrator, :role) %></div>
       <div class="col-md-6"><%= form.label :enabled, "账号状态", class: "form-label required" %><%= form.select :enabled, [["启用", true], ["停用", false]], {}, class: admin_field_class(administrator, :enabled, "form-select") %><%= admin_field_errors(administrator, :enabled) %></div>
-      <div class="col-md-6"><%= form.label :password, administrator.persisted? ? "重置密码" : "初始密码", class: "form-label" %>
-        <%= form.password_field :password, value: nil, class: admin_field_class(administrator, :password), autocomplete: "new-password", placeholder: (administrator.persisted? ? "留空保留原密码" : "留空使用默认密码 123456"), aria: { describedby: "password-error" } %>
-        <%= admin_field_errors(administrator, :password) %>
-      </div>
-      <div class="col-md-6"><%= form.label :password_confirmation, "确认新密码", class: "form-label" %><%= form.password_field :password_confirmation, value: nil, class: admin_field_class(administrator, :password_confirmation), autocomplete: "new-password", aria: { describedby: "password_confirmation-error" } %><%= admin_field_errors(administrator, :password_confirmation) %></div>
+      <% password_hint = administrator.persisted? ? "留空保留原密码" : "留空使用默认密码 123456" %>
+      <% [[:password, administrator.persisted? ? "重置密码" : "初始密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
+        <div class="col-md-6">
+          <%= form.label field, label, class: "form-label" %>
+          <div class="input-group input-group-flat">
+            <%= form.password_field field, value: nil, class: admin_field_class(administrator, field), autocomplete: "new-password", placeholder: (password_hint if field == :password), aria: { describedby: ("#{field}-error" if administrator.errors[field].any?) } %>
+            <span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: form.field_id(field) %></span>
+          </div>
+          <%= admin_field_errors(administrator, field) %>
+        </div>
+      <% end %>
     </div>
   </div>
   <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">

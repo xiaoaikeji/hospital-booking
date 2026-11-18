@@ -1,32 +1,50 @@
 <% content_for :title, "操作日志 · Booking 管理后台" %>
-<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :chart, icon_class: "w-5 h-5" %></span>操作日志</h1></div>
-<section class="card">
-  <div class="card-header"><%= form_with url: admins_operation_logs_path, method: :get, class: "row g-2 align-items-center w-100" do |form| %>
-    <div class="col-sm-6 col-md-4"><%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", aria: { label: "操作类型" } %></div>
-    <div class="col-auto"><div class="btn-list">
-      <%= form.button type: "submit", class: "btn" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
+<% empty = @logs.empty? %>
+<% content_for :fill_content, "true" if empty %>
+
+<%= render layout: "admins/shared/list_page_header", locals: { title: "操作日志", icon: :chart } do %><% end %>
+
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="操作日志列表">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_operation_logs_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "筛选操作日志" } } do |form| %>
+      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
+        <%= form.select :operation, options_for_select([["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] }, @action), {}, class: "form-select", aria: { label: "操作类型" } %>
+      </div>
+      <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
       <% if @action.present? %>
-        <%= link_to admins_operation_logs_path, class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <%= link_to admins_operation_logs_path, class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
       <% end %>
-    </div></div>
-  <% end %></div>
-  <% if @logs.any? %>
-    <div class="table-responsive"><table class="table table-vcenter card-table">
-      <thead><tr><th>ID</th><th>操作</th><th>操作人</th><th>对象</th><th>结果</th><th>时间</th><th class="w-1">操作</th></tr></thead>
-      <tbody><% @logs.each do |log| %><tr>
-        <td class="text-secondary">#<%= log.id %></td><td><%= log_action_name(log.action) %></td>
-        <td><%= @actors[log.actor_id]&.display_name || (log.actor_id ? "#{log.actor_type} ##{log.actor_id}" : "—") %></td>
-        <td><%= log.target_type ? "#{log.target_type} ##{log.target_id}" : "—" %></td>
-        <td><%= render "status", status: log.status %></td>
-        <td class="text-nowrap"><%= l(log.created_at, format: :short) %></td>
-        <td><%= link_to admins_operation_log_path(log, @list_context), class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
-      </tr><% end %></tbody>
-    </table></div>
-    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_operation_logs_path(operation: @action.presence, page: page) } %>
+    <% end %>
+  </div>
+
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :chart, title: (@action.present? ? "没有符合条件的日志" : "暂无操作日志"), description: (@action.present? ? "试试其他操作类型，或重置筛选。" : "后续操作记录会显示在这里。") %>
   <% else %>
-    <div class="empty">
-      <h2 class="empty-title"><%= @action.present? ? "没有符合条件的日志" : "暂无操作日志" %></h2>
-      <% unless @action.present? %><p class="empty-subtitle text-secondary">后续操作记录会显示在这里。</p><% end %>
-    </div>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr>
+        <th scope="col" class="list-column-id px-2">ID</th>
+        <th scope="col" class="px-2">操作类型</th>
+        <th scope="col" class="d-none d-sm-table-cell">操作人</th>
+        <th scope="col" class="d-none d-md-table-cell">对象</th>
+        <th scope="col" class="list-column-status px-2">结果</th>
+        <th scope="col" class="list-column-time d-none d-lg-table-cell">操作时间</th>
+        <th scope="col" class="list-column-action px-2">操作</th>
+      </tr></thead>
+      <tbody>
+        <% @logs.each do |log| %>
+          <% actor = (@actors[log.actor_id] if log.actor_type == "Admin") %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{log.id}" %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: log_action_name(log.action) %></td>
+            <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: actor&.display_name || log_subject_label(log.actor_type, log.actor_id) %></td>
+            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: log_subject_label(log.target_type, log.target_id) %></td>
+            <td class="px-2"><%= render "status", status: log.status %></td>
+            <td class="d-none d-lg-table-cell"><%= render "admins/shared/list_text", text: admin_list_time(log.created_at) %></td>
+            <td class="px-2"><%= link_to admins_operation_log_path(log, @list_context), class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_operation_logs_path(operation: @action.presence, page: page) } %>
   <% end %>
 </section>

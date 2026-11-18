@@ -58,6 +58,21 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert @root.reload.enabled?
   end
 
+  test "administrator status and keyword filters narrow the same list" do
+    matched = Admin.create!(username: "disabled_helper", role: "operator", enabled: false)
+    Admin.create!(username: "enabled_helper", role: "operator")
+    Admin.create!(username: "disabled_other", role: "operator", enabled: false)
+    login(@root)
+
+    get admins_administrators_path, params: { q: "helper", status: "disabled" }
+
+    assert_response :success
+    assert_select "table tbody tr", count: 1 do
+      assert_select "td", text: "##{matched.id}"
+    end
+    assert_select "form input[name=status][value=disabled]"
+  end
+
   test "disabling an account invalidates an already authenticated session" do
     admin = Admin.create!(username: "operator", role: "operator")
     login(admin)

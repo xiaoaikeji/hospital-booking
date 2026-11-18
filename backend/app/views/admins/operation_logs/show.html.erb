@@ -1,13 +1,14 @@
 <% content_for :title, "日志详情 · Booking 管理后台" %>
-<div class="page-header mt-0 mb-3"><div class="row g-2 align-items-center">
-  <div class="col"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :chart, icon_class: "w-5 h-5" %></span>日志 #<%= @log.id %></h1></div>
-  <div class="col-auto"><%= link_to admins_operation_logs_path(@list_context), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %></div>
-</div></div>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "日志 ##{@log.id}", icon: :chart } do %>
+  <%= link_to admins_operation_logs_path(@list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
 <section class="card"><div class="card-body">
-  <div class="datagrid mb-4">
-    <% {"操作" => log_action_name(@log.action), "操作人" => (@actor&.display_name || "—"), "结果" => render("status", status: @log.status), "来源" => @log.source, "时间" => l(@log.created_at, format: :short), "IP" => (@log.ip_address || "—"), "请求编号" => (@log.request_id || "—")}.each do |label, value| %>
+  <div class="datagrid">
+    <% {"操作类型" => log_action_name(@log.action), "操作人" => (@actor&.display_name || log_subject_label(@log.actor_type, @log.actor_id)), "对象" => log_subject_label(@log.target_type, @log.target_id), "结果" => render("status", status: @log.status), "来源" => @log.source, "IP" => (@log.ip_address || "—"), "请求编号" => (@log.request_id || "—"), "操作时间" => admin_list_time(@log.created_at)}.each do |label, value| %>
       <div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content text-break"><%= value %></div></div>
     <% end %>
   </div>
-  <h2 class="h3">变更记录</h2><pre class="mb-0 text-wrap"><%= JSON.pretty_generate(@log.details) %></pre>
+  <% if @log.details.present? %>
+    <h2 class="h3 mt-4">变更记录</h2><pre class="mb-0 text-wrap text-break"><%= JSON.pretty_generate(@log.details) %></pre>
+  <% end %>
 </div></section>
