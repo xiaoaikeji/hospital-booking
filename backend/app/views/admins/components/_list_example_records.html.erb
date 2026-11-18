@@ -1,4 +1,4 @@
-<% filtered = @list_filters.any? || @list_query.present? %>
+<% filtered = @list_filters.any? || @list_query.present? || @date_range.present? %>
 <% base_params = { tab: "list_examples", example: @list_example } %>
 <% filter_url = ->(changes = {}) { admins_components_path(base_params.merge(@list_filters).merge(q: @list_query.presence).merge(changes).compact) } %>
 <%= render "admins/shared/enhanced_select_assets" if logs %>
@@ -30,6 +30,9 @@
       <% if logs %>
         <div class="col-12 col-sm-6 col-md-4 col-xl-3">
           <%= form.select :operation, options_for_select([["全部操作", ""]] + @list_options.fetch(:operation).map { |value, label| [label, value] }, @list_filters[:operation]), {}, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "操作类型" } %>
+        </div>
+        <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+          <%= render "admins/shared/date_field", id: "sample-log-date-range", name: :date_range, value: @date_range, prefix: "操作", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
         </div>
       <% else %>
         <% @list_filters.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>

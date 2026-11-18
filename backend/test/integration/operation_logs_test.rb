@@ -72,19 +72,20 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
       @first = record.call(admin, "failed")
       19.times { record.call(admin, "failed") }
     end
-    travel_to(day.in_time_zone.end_of_day) do
+    travel_to(day.tomorrow.in_time_zone.end_of_day) do
       @last = record.call(admin, "failed")
       record.call(admin, "success")
       record.call(other, "failed")
     end
-    travel_to(day.tomorrow.in_time_zone) { record.call(admin, "failed") }
+    travel_to((day + 2).in_time_zone) { record.call(admin, "failed") }
     travel_to(day.yesterday.in_time_zone.end_of_day) { record.call(admin, "failed") }
 
     login(admin)
-    filters = { from: day.iso8601, to: day.iso8601, status: "failed", operation: "admin.password" }
+    filters = { date_range: "#{day} – #{day.tomorrow}", status: "failed", operation: "admin.password" }
     assert_no_difference "Log.count" do
       get admins_operation_logs_path, params: filters
       assert_response :success
+      assert_select "input[name=date_range][data-bs-selection-mode=multiple-ranged][value=?]", filters[:date_range]
       assert_select "tbody tr", count: 20
       assert_select "tbody tr:first-child td", text: "##{@last.id}"
       get css_select("nav[aria-label=列表分页] a").find { |link| link.text == "下一页" }["href"]
@@ -93,6 +94,21 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
       get css_select("tbody a").first["href"]
       assert_select "a[href=?]", admins_operation_logs_path(filters.merge(page: 2)), text: /返回列表/
     end
+  end
+
+  test "component preview filters its sample log by the selected dates" do
+    login(Admin.create!(username: "preview", role: "operator"))
+    day = Date.current
+    preview = { tab: "list_examples", example: "logs" }
+    get admins_components_path, params: preview.merge(date_range: "#{day.yesterday} – #{day}")
+    assert_response :success
+    assert_select "input[name=date_range][data-bs-selection-mode=multiple-ranged]"
+    assert_select "tbody td", text: "示例管理员"
+
+    get admins_components_path, params: preview.merge(date_range: day.tomorrow.iso8601)
+    assert_response :success
+    assert_select "tbody tr", count: 0
+    assert_select "a[href=?]", admins_components_path(preview), text: "重置筛选"
   end
 
   private

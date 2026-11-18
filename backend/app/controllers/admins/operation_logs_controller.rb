@@ -11,8 +11,14 @@ module Admins
       end
       scope = scope.where(action: @filters[:operation]) if @filters[:operation]
       scope = scope.where(status: @filters[:status]) if @filters[:status]
-      scope = scope.where(created_at: day_start(@filters[:from])..) if @filters[:from]
-      scope = scope.where(created_at: ...day_start(@filters[:to]).tomorrow) if @filters[:to]
+      # 旧筛选链接可能只指定起始或截止日。
+      @date_range = @filters[:date_range]
+      if @date_range.nil? && (@filters[:from] || @filters[:to])
+        @date_range = [ @filters[:from], @filters[:to] ].join(" – ")
+      end
+      days = list_date_range(@date_range)
+      scope = scope.where(created_at: days.begin.in_time_zone..) if days.begin
+      scope = scope.where(created_at: ...days.end.tomorrow.in_time_zone) if days.end
 
       @pagy, @logs = pagy(scope.order(created_at: :desc, id: :desc))
       @list_context = @filters.merge(page: (@pagy.page if @pagy.page > 1)).compact
@@ -28,17 +34,9 @@ module Admins
     private
 
     def filter_params
-      keys = %i[operation status from to]
+      keys = %i[operation status date_range from to]
       keys << :actor_id if current_admin.super_admin?
       params.permit(*keys).to_h.compact_blank
-    end
-
-    def day_start(value)
-      raise ActionController::BadRequest, "日期格式无效" unless /\A\d{4}-\d{2}-\d{2}\z/.match?(value.to_s)
-
-      Date.iso8601(value).in_time_zone
-    rescue Date::Error
-      raise ActionController::BadRequest, "日期格式无效"
     end
   end
 end

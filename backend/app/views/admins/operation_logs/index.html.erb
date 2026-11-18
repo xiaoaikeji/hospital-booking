@@ -23,11 +23,9 @@
           <%= form.collection_select :actor_id, @actor_options, :id, :display_name, { include_blank: "全部操作人", selected: @filters[:actor_id] }, class: "form-select", data: { enhanced_select: "search" }, aria: { label: "操作人" } %>
         </div>
       <% end %>
-      <% { from: "从", to: "至" }.each do |field, prefix| %>
-        <div class="col-12 col-sm-6 col-xl-2">
-          <%= render "admins/shared/date_field", id: "log-#{field}", name: field, value: @filters[field], prefix: prefix, placeholder: "操作日期", clearable: false %>
-        </div>
-      <% end %>
+      <div class="col-12 col-sm-6 col-xl-3">
+        <%= render "admins/shared/date_field", id: "log-date-range", name: :date_range, value: @date_range, prefix: "操作", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+      </div>
       <div class="col-auto btn-list">
         <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>筛选<% end %>
         <% if @filters.any? %>

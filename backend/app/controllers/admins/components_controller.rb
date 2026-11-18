@@ -56,6 +56,10 @@ module Admins
       else
         []
       end
+      if @list_example == "logs"
+        @date_range = params.permit(:date_range)[:date_range].presence
+        records = [] unless list_date_range(@date_range).cover?(@preview_date)
+      end
       query = @list_query.downcase
       @list_records = records.select do |record|
         @list_filters.all? { |key, value| record[key] == value } &&
