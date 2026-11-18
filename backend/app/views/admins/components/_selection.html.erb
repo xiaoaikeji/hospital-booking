@@ -1,9 +1,40 @@
+<% content_for :head do %>
+  <%= stylesheet_link_tag "tabler/libs/tom-select/dist/css/tom-select.bootstrap5.min" %>
+  <%= javascript_include_tag "tabler/libs/tom-select/dist/js/tom-select.base.min", "admins/enhanced_select", defer: true %>
+<% end %>
+<% operations = [["全部操作", ""]] + AdminsHelper::LOG_ACTIONS.map { |value, label| [label, value] } %>
+<% staff = { "咨询团队" => ["林顾问", "陈顾问"], "护理团队" => ["王老师", "赵老师"] } %>
+
 <div class="row row-deck row-cards">
   <div class="col-lg-6"><section class="card" aria-labelledby="selection-select-title">
-    <div class="card-header"><h2 class="card-title" id="selection-select-title">下拉与分组选择</h2></div>
-    <div class="card-body"><div class="mb-3"><label class="form-label" for="sample-select">服务项目</label><%= select_tag nil, options_for_select(@service_options), id: "sample-select", class: "form-select" %></div>
-      <div class="mb-3"><label class="form-label" for="sample-grouped-select">服务人员</label><select class="form-select" id="sample-grouped-select"><optgroup label="咨询团队"><option>林顾问</option><option>陈顾问</option></optgroup><optgroup label="护理团队"><option>王老师</option><option>赵老师</option></optgroup></select></div>
-      <div><label class="form-label" for="sample-default-select">客户通知</label><select class="form-select" id="sample-default-select"><option value="">默认（开启）</option><option value="on">开启</option><option value="off">关闭</option></select></div>
+    <div class="card-header"><h2 class="card-title" id="selection-select-title">原生下拉</h2></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="sample-select">操作类型</label>
+        <%= select_tag :sample_operation, options_for_select(operations), id: "sample-select", class: "form-select" %>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="sample-grouped-select">服务人员（分组）</label>
+        <%= select_tag :sample_staff, grouped_options_for_select(staff), id: "sample-grouped-select", class: "form-select" %>
+      </div>
+      <div><label class="form-label" for="sample-default-select">客户通知（带默认项）</label><select class="form-select" id="sample-default-select"><option value="">默认（开启）</option><option value="on">开启</option><option value="off">关闭</option></select></div>
+    </div>
+  </section></div>
+  <div class="col-lg-6"><section class="card" aria-labelledby="selection-enhanced-title">
+    <div class="card-header"><h2 class="card-title" id="selection-enhanced-title">主题下拉</h2></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="sample-theme-select">操作类型（单选）</label>
+        <%= select_tag :sample_theme_operation, options_for_select(operations), id: "sample-theme-select", class: "form-select", data: { enhanced_select: "single" } %>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="sample-search-select">服务人员（可搜索单选）</label>
+        <%= select_tag :sample_search_staff, grouped_options_for_select(staff, nil, prompt: "搜索服务人员"), id: "sample-search-select", class: "form-select", data: { enhanced_select: "search" } %>
+      </div>
+      <div>
+        <label class="form-label" for="sample-multiple-select">客户标签（可搜索多选）</label>
+        <%= select_tag :sample_tags, options_for_select(["VIP 客户", "新客户", "回头客", "电话登记", "首次到店"], ["VIP 客户", "回头客"]), id: "sample-multiple-select", class: "form-select", multiple: true, data: { enhanced_select: "search", placeholder: "搜索客户标签" } %>
+      </div>
     </div>
   </section></div>
   <div class="col-lg-6"><section class="card" aria-labelledby="selection-check-title">

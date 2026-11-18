@@ -46,6 +46,21 @@
       "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/vanilla-calendar-pro/LICENSE",
       "destination": "vendor/licenses/tabler/vanilla-calendar-pro-LICENSE",
       "sha256": "b95f659670e7f7af29dedc3e69c1deaeee1267757729ad391318aba94108774d"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/tom-select/dist/js/tom-select.base.min.js",
+      "destination": "vendor/assets/tabler/libs/tom-select/dist/js/tom-select.base.min.js",
+      "sha256": "75fd733a8dcbeda6fc258e341b234561fd0be3ec850f65cf3f035277980d2cc7"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/tom-select/dist/css/tom-select.bootstrap5.min.css",
+      "destination": "vendor/assets/tabler/libs/tom-select/dist/css/tom-select.bootstrap5.min.css",
+      "sha256": "ce467598f8953044ddfc0ff9fd4b7e2f6cced549001737d6b712a14f8b9a6599"
+    },
+    {
+      "source": "/Users/bithunter/Desktop/tabler-1.7.1/dashboard/dist/libs/tom-select/LICENSE",
+      "destination": "vendor/licenses/tabler/tom-select-LICENSE",
+      "sha256": "f15dc64ea1f373c8af0ee7c020064360497addf335c9c2bcf27c3a6f56a6f0bd"
     }
   ]
 }
