@@ -39,8 +39,10 @@ module Admins
     private
 
     def prepare_list_example
-      @list_examples = { "empty" => "空列表", "single" => "单条记录", "logs" => "操作日志筛选" }
+      @list_examples = { "empty" => "空列表", "single" => "单条记录", "logs" => "操作日志筛选", "toolbars" => "页头与工具栏" }
       @list_example = params[:example].presence_in(@list_examples.keys) || "empty"
+      return if @list_example == "toolbars"
+
       @list_options = @list_example == "logs" ? { operation: AdminsHelper::LOG_ACTIONS } : CustomersController::FILTER_OPTIONS
       @list_filters = @list_options.to_h { |key, options| [ key, params[key].presence_in(options.keys) ] }.compact
       @list_query = params[:q].to_s.strip

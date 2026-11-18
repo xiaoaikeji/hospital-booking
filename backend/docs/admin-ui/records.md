@@ -13,3 +13,12 @@
 - 真实列表分页复用 [pagination](../../app/views/admins/shared/_pagination.html.erb)，传入 Pagy 对象与分页 URL 方法；只计算必要页码，不由前端分页。
 
 完整列表结构参考 [预约列表](../../app/views/admins/reservations/index.html.erb)。
+
+## 页头与工具栏预览
+
+在 `/admins/components?tab=list_examples&example=toolbars` 对照常规、控件较多和窄屏三个示例。[示例代码](../../app/views/admins/components/_list_toolbars.html.erb)
+
+- [列表页头](../../app/views/admins/shared/_list_page_header.html.erb)左侧放图标与标题，右侧保留主操作。次要操作合并到「更多操作」，长标题用省略号，页头保持一行。
+- 搜索工具栏保持一行。桌面可从关键词框 240–320 px、常用下拉 120–180 px 起步，按内容和可用宽度调整。次要筛选进「更多筛选」，展开在独立区域；窄屏按钮可用带名称的图标。
+- 搜索 placeholder 只写实际能搜的字段，用 ` / ` 分隔，例如「用户名 / 姓名」。
+- 原生材料使用桌面 Tabler 的 `tables.html`（页头、工具栏与更多按钮）、`dropdowns.html`（菜单）、`accordion.html`（展开）、`dashboard-crm.html`（筛选图标）。
