@@ -22,7 +22,7 @@
         <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: record[:mobile] %></td>
         <td class="d-none d-xxl-table-cell"><%= render "admins/shared/list_text", text: record[:number] %></td>
         <td class="d-none d-md-table-cell"><div class="d-flex align-items-center gap-2">
-          <%= image_tag record[:cover], alt: "", class: "avatar avatar-xs rounded object-cover flex-shrink-0" %>
+          <%= image_tag record[:cover], alt: "", class: "avatar avatar-sm rounded object-cover flex-shrink-0" %>
           <div class="overflow-hidden"><%= render "admins/shared/list_text", text: record[:service] %></div>
         </div></td>
         <td class="px-2"><span class="badge bg-<%= record[:color] %>-lt"><%= record[:status] %></span></td>
