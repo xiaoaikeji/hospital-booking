@@ -6,23 +6,25 @@
   </h1>
 </div>
 
-<div class="row">
-  <div class="col-lg-8 col-xl-7 col-xxl-6">
-    <%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "card", data: { admin_form: true } do |form| %>
-      <div class="card-header gap-3">
+<div class="card">
+  <div class="row g-0">
+    <div class="col-lg-4 border-end">
+      <div class="card-body d-flex align-items-center gap-3">
         <span class="avatar bg-primary-lt rounded-circle flex-shrink-0" aria-hidden="true"><%= @administrator.display_name.first %></span>
         <div class="d-flex flex-wrap align-items-center gap-2">
           <span class="card-title text-break"><span class="visually-hidden">用户名 </span><%= @administrator.username %></span>
           <span class="badge bg-secondary-lt"><span class="visually-hidden">角色 </span><%= @administrator.role_name %></span>
         </div>
       </div>
+    </div>
+    <%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "col-lg-8 d-flex flex-column", data: { admin_form: true } do |form| %>
       <div class="card-body">
         <%= render "admins/shared/form_errors", record: @administrator %>
         <div class="vstack gap-3">
           <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
             <div class="row g-2">
-              <%= form.label field, label, class: "col-sm-4 col-form-label fw-medium py-0 py-sm-2" %>
-              <div class="col-sm-8">
+              <%= form.label field, label, class: "col-sm-3 col-form-label fw-medium py-0 py-sm-2" %>
+              <div class="col-sm-9">
                 <div class="input-group input-group-flat">
                   <%= form.password_field field, value: nil, class: admin_field_class(@administrator, field), autocomplete: (field == :current_password ? "current-password" : "new-password"), placeholder: ("留空保留原密码" if field == :password), aria: { describedby: ("#{field}-error" if @administrator.errors[field].any?) } %>
                   <span class="input-group-text"><%= render "admins/shared/password_toggle", input_id: form.field_id(field) %></span>
