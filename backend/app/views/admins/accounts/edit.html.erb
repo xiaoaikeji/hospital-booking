@@ -3,7 +3,10 @@
 <%= form_with model: @administrator, scope: :account, url: admins_account_path, method: :patch, class: "card", data: { admin_form: true } do |form| %>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @administrator %>
-    <div class="datagrid mb-4"><div class="datagrid-item"><div class="datagrid-title">用户名</div><div class="datagrid-content"><%= @administrator.username %></div></div><div class="datagrid-item"><div class="datagrid-title">角色</div><div class="datagrid-content"><%= @administrator.role_name %></div></div></div>
+    <ul class="list-inline list-inline-dots mb-4">
+      <li class="list-inline-item"><span class="text-secondary me-2">用户名</span><strong><%= @administrator.username %></strong></li>
+      <li class="list-inline-item"><span class="text-secondary me-2">角色</span><strong><%= @administrator.role_name %></strong></li>
+    </ul>
     <div class="row g-3">
       <% [[:current_password, "当前密码"], [:password, "新密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
         <div class="col-md-4"><%= form.label field, label, class: "form-label" %>
