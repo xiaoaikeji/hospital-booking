@@ -1,0 +1,87 @@
+<% empty = @list_records.empty?; logs = @list_example == "logs"; filtered = @list_filters.any? || @list_query.present? %>
+<% content_for :fill_content, "true" if empty %>
+<% advanced = @list_filters.slice(:period, :tag).any? %>
+<% base_params = { tab: "list_examples", example: @list_example } %>
+<% filter_url = ->(changes = {}) { admins_components_path(base_params.merge(@list_filters).merge(q: @list_query.presence).merge(changes).compact) } %>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <nav class="nav nav-pills" aria-label="列表示例">
+    <% @list_examples.each do |key, label| %>
+      <%= link_to label, admins_components_path(tab: "list_examples", example: key), class: class_names("nav-link", active: @list_example == key), aria: { current: ("page" if @list_example == key) } %>
+    <% end %>
+  </nav>
+  <% unless logs %>
+    <button type="button" class="btn" data-bs-toggle="collapse" data-bs-target="#list-example-advanced" aria-controls="list-example-advanced" aria-expanded="<%= advanced %>">
+      <span data-collapse-label="collapsed">更多筛选</span>
+      <span data-collapse-label="expanded">收起筛选</span>
+    </button>
+  <% end %>
+</div>
+
+<% unless logs %>
+  <section class="card mb-3 flex-shrink-0" aria-label="客户筛选条件">
+    <div class="list-group list-group-flush border-bottom-0">
+      <% [["客户状态", :status], ["客户来源", :source]].each do |label, key| %>
+        <%= render "admins/shared/list_filter_row", label: label, key: key, options: @list_options.fetch(key), selected: @list_filters[key], filter_url: filter_url %>
+      <% end %>
+    </div>
+    <div class="collapse<%= ' show' if advanced %>" id="list-example-advanced">
+      <div class="list-group rounded-0">
+        <% [["注册时间", :period], ["客户标签", :tag]].each do |label, key| %>
+          <%= render "admins/shared/list_filter_row", label: label, key: key, options: @list_options.fetch(key), selected: @list_filters[key], filter_url: filter_url, row_class: class_names("border-x-0 rounded-0", "border-bottom-0" => key == :tag) %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+<% end %>
+
+<section class="<%= class_names('card', 'flex-fill' => empty) %>" aria-label="<%= logs ? '操作日志示例' : '客户列表示例' %>">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_components_path, method: :get, class: "row g-3 align-items-center flex-grow-1", html: { role: "search" } do |form| %>
+      <% base_params.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+        <%= form.search_field :q, value: @list_query, class: "form-control", placeholder: (logs ? "操作人" : "客户编号 / 姓名 / 手机号"), aria: { label: (logs ? "搜索操作人" : "搜索客户") } %>
+      </div>
+      <% if logs %>
+        <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+          <%= form.select :operation, options_for_select([["全部操作", ""]] + @list_options.fetch(:operation).map { |value, label| [label, value] }, @list_filters[:operation]), {}, class: "form-select", aria: { label: "操作类型" } %>
+        </div>
+      <% else %>
+        <% @list_filters.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <% end %>
+      <div class="col-12 col-sm-auto"><div class="btn-list align-items-center">
+        <button type="submit" class="btn"><%= render "layouts/admins/icon", name: :search %><%= logs ? "筛选" : "搜索" %></button>
+        <% if filtered %>
+          <%= link_to admins_components_path(base_params), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+        <span class="text-secondary"><strong class="text-body"><%= @list_records.size %></strong> <%= logs ? "条日志" : "位客户" %></span>
+      </div></div>
+    <% end %>
+  </div>
+
+  <% if empty %>
+    <div class="empty flex-fill h-auto p-4" role="status"><div>
+      <div class="empty-icon mx-auto"><%= render "layouts/admins/icon", name: (logs ? :chart : :users), icon_class: "w-100 h-100" %></div>
+      <h2 class="empty-title"><%= filtered ? "没有找到匹配的#{logs ? '日志' : '客户'}" : "暂无客户" %></h2>
+      <p class="empty-subtitle text-secondary"><%= filtered ? "试试其他关键词，或清除筛选条件。" : "客户信息添加后，会显示在这里。" %></p>
+    </div></div>
+  <% else %>
+    <div class="table-responsive"><table class="table card-table table-vcenter table-hover text-nowrap mb-0">
+      <thead><tr>
+        <th scope="col">ID</th><th scope="col"><%= logs ? "操作人" : "姓名" %></th>
+        <% if logs %><th scope="col">操作类型</th><% else %><th scope="col">手机号</th><th scope="col">客户来源</th><% end %>
+        <th scope="col"><%= logs ? "结果" : "状态" %></th><th scope="col" class="w-1">操作</th>
+      </tr></thead>
+      <tbody><% @list_records.each do |record| %><tr>
+        <td class="text-secondary">#<%= record[:id] %></td><td><%= record[:name] %></td>
+        <% if logs %>
+          <td><%= log_action_name(record[:operation]) %></td>
+        <% else %>
+          <td><%= record[:mobile] %></td><td><%= @list_options.fetch(:source).fetch(record[:source]) %></td>
+        <% end %>
+        <td><span class="badge bg-success-lt"><%= logs ? "成功" : @list_options.fetch(:status).fetch(record[:status]) %></span></td>
+        <td><button type="button" class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :eye %>查看</button></td>
+      </tr><% end %></tbody>
+    </table></div>
+  <% end %>
+</section>

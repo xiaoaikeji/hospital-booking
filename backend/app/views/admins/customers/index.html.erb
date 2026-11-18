@@ -18,14 +18,14 @@
 <section class="card mb-3 flex-shrink-0" aria-label="客户筛选条件">
   <div class="list-group list-group-flush border-bottom-0">
     <% [["客户状态", :status], ["客户来源", :source]].each do |label, key| %>
-      <%= render "filter_row", label: label, key: key, options: @filter_options.fetch(key), filter_url: filter_url %>
+      <%= render "admins/shared/list_filter_row", label: label, key: key, options: @filter_options.fetch(key), selected: @filters[key], filter_url: filter_url %>
     <% end %>
   </div>
   <div class="collapse<%= " show" if @advanced_filters %>" id="customer-advanced-filters">
     <div class="list-group rounded-0">
       <% advanced_rows = [["注册时间", :period], ["客户标签", :tag]] %>
       <% advanced_rows.each_with_index do |(label, key), index| %>
-        <%= render "filter_row", label: label, key: key, options: @filter_options.fetch(key), filter_url: filter_url,
+        <%= render "admins/shared/list_filter_row", label: label, key: key, options: @filter_options.fetch(key), selected: @filters[key], filter_url: filter_url,
                    row_class: class_names("border-x-0 rounded-0", "border-bottom-0" => index == advanced_rows.length - 1) %>
       <% end %>
     </div>
