@@ -50,6 +50,18 @@ class StorageSettingsTest < ActiveSupport::TestCase
     assert_equal encrypted, Setting.find_by!(key: "tencent_cos").settings.fetch("secret_key")
   end
 
+  test "clearing the storage form audits only keys actually removed from the database" do
+    form = StorageSettings.new
+    assert form.save({ "region" => "ap-shanghai" }, actor: @admin)
+    clear_all = { "clear_fields" => StorageSettings::FIELDS.keys }
+    assert form.save(clear_all, actor: @admin)
+    assert_nil Setting.read_integration_value(:tencent_cos, :region)
+    assert_equal [ "region" ], Log.last.details.fetch("fields")
+
+    assert form.save(clear_all, actor: @admin)
+    assert_empty Log.last.details.fetch("fields")
+  end
+
   test "an explicit local choice still overrides external COS configuration" do
     ENV["ACTIVE_STORAGE_SERVICE"] = "tencent_cos"
     assert StorageSettings.new.save(@input, actor: @admin)

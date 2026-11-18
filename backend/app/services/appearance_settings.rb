@@ -41,8 +41,23 @@ class AppearanceSettings
 
   def save(changes, expected_revision:, actor:, request:, reset: false)
     action = @admin ? "personal_appearance.update" : "appearance.update"
+    audit = { action: action, category: "settings", actor: actor, request: request }
+    attempted = reset ? overrides : changes
     errors.clear
-    saved = Setting.transaction do
+    return true if persist(changes, expected_revision: expected_revision, reset: reset, audit: audit)
+
+    # 回滚不会还原模型内存中的属性，表单及其版本须使用已保存的值。
+    @global = Setting.find_by(key: "appearance")
+    @admin&.reload
+    Log.record!(**audit, target: @admin || @global, status: "failed",
+      details: { fields: attempted.is_a?(Hash) ? attempted.keys & OPTIONS.keys : [], reason: errors[:base].first })
+    false
+  end
+
+  private
+
+  def persist(changes, expected_revision:, reset:, audit:)
+    Setting.transaction(requires_new: true) do
       # 同一把行锁保护默认值和基于它计算的个人差量，包括首次保存。
       @global = locked_global_settings
       @admin&.lock!
@@ -66,17 +81,13 @@ class AppearanceSettings
       else
         @global.update!(settings: updated)
       end
-      Log.record!(action: action, category: "settings", actor: actor, target: @admin || @global, request: request, details: { fields: fields })
+      Log.record!(**audit, target: @admin || @global, details: { fields: fields })
       true
     end
-    unless saved
-      Log.record!(action: action, category: "settings", actor: actor, target: @admin, request: request,
-        status: "failed", details: { fields: changes.is_a?(Hash) ? changes.keys & OPTIONS.keys : [] })
-    end
-    saved
+  rescue ActiveRecord::ActiveRecordError
+    errors.add(:base, "外观未保存，数据库写入失败，请重试")
+    false
   end
-
-  private
 
   def locked_global_settings
     row = Setting.lock.find_by(key: "appearance")

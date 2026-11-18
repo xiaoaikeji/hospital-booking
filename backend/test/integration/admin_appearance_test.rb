@@ -82,6 +82,43 @@ class AdminAppearanceTest < ActionDispatch::IntegrationTest
     assert_equal @a.id, log.actor_id
   end
 
+  test "a rejected personal reset returns an error and audits the rolled back change" do
+    @a.update!(appearance_overrides: { "theme_primary" => "red" })
+    Admin.connection.add_check_constraint(:admins, "id <> #{@a.id} OR appearance_overrides <> '{}'::jsonb",
+      name: "test_reject_personal_reset")
+    login(@a)
+    revision = panel_revision
+    logs = Log.where(action: "personal_appearance.update", actor_id: @a.id)
+    assert_difference -> { logs.count }, 1 do
+      delete admins_personal_appearance_path, params: { revision: revision }, as: :json
+    end
+    assert_response :unprocessable_content
+    assert_includes response.parsed_body.fetch("error"), "外观未保存"
+    assert_equal({ "theme_primary" => "red" }, @a.reload.appearance_overrides)
+    failure = logs.find_by!(status: "failed", target_type: "Admin", target_id: @a.id)
+    assert_equal [ "theme_primary" ], failure.details.fetch("fields")
+    assert_includes failure.details.fetch("reason"), "数据库写入失败"
+  end
+
+  test "a failed global audit rolls back the setting and renders its saved value and revision" do
+    setting = Setting.create!(key: "appearance", settings: { "theme_primary" => "red" })
+    Log.connection.add_check_constraint(:logs, "action <> 'appearance.update' OR status <> 'success'",
+      name: "test_reject_appearance_success_audit")
+    login(@b)
+    revision = AppearanceSettings.new.revision
+    logs = Log.where(action: "appearance.update", actor_id: @b.id)
+    assert_difference -> { logs.count }, 1 do
+      patch admins_system_settings_appearance_path, params: { revision: revision, appearance: { theme_primary: "purple" } }
+    end
+    assert_response :unprocessable_content
+    assert_select "[role=alert]", text: /外观未保存/
+    assert_select "input[name=revision][value=?]", revision
+    assert_select "input[name='appearance[theme_primary]'][value=red][checked]"
+    assert_equal({ "theme_primary" => "red" }, setting.reload.settings)
+    failure = logs.find_by!(status: "failed", target_type: "Setting", target_id: setting.id)
+    assert_equal [ "theme_primary" ], failure.details.fetch("fields")
+  end
+
   private
 
   def login(admin)

@@ -75,6 +75,8 @@ class StorageSettings
       FIELDS.each do |field, (section, key)|
         record = records.fetch(section)
         if clear.include?(field)
+          next unless record.settings.key?(key)
+
           record.write_value(key, nil)
           @display_values[field] = nil unless field == "service" || SECRETS.include?(field)
           changed << field
