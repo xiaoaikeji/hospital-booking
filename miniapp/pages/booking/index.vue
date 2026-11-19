@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { bookingMode as mode } from './booking-mode.js'
 import DoctorCard from './components/doctor_card.vue'
@@ -14,6 +14,12 @@ const modes = [
 const schedule = ref([])
 const selectedDay = ref(null)
 const scheduledDoctors = ref([])
+const doctorQuery = ref('')
+const visibleDoctors = computed(() => {
+  if (mode.value === 'date') return scheduledDoctors.value
+  const query = doctorQuery.value.trim()
+  return doctors.filter(doctor => doctor.name.includes(query))
+})
 
 function loadDay(day) {
   selectedDay.value = day
@@ -38,7 +44,14 @@ onShow(() => {
           <text>耳鼻喉科</text><view class="department-arrow" />
         </navigator>
         <view v-else-if="mode === 'doctor'" class="search-panel">
-          <view class="search-field"><view class="search-glass" /><text>请输入查询医生</text></view>
+          <view class="search-field">
+            <view class="search-glass" />
+            <input v-model="doctorQuery" class="search-input" placeholder="请输入查询医生"
+              placeholder-style="color: #bbb" aria-label="查询医生" />
+            <view v-if="doctorQuery" class="search-clear" aria-role="button" aria-label="清空搜索" @tap="doctorQuery = ''">
+              <icon type="clear" size="26rpx" color="#c5c5cc" />
+            </view>
+          </view>
         </view>
         <scroll-view v-show="mode === 'date'" scroll-x class="date-strip" :show-scrollbar="false">
           <view class="date-options">
@@ -49,14 +62,11 @@ onShow(() => {
           </view>
         </scroll-view>
       </view>
-      <view v-if="mode === 'date'" class="doctor-list">
-        <navigator v-for="doctor in scheduledDoctors" :key="selectedDay.date + '-' + doctor.id" url="/pages/ucenter/login"
+      <view v-if="mode === 'date' || mode === 'doctor'" class="doctor-list">
+        <navigator v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id" url="/pages/ucenter/login"
           hover-class="none" :aria-label="'预约' + doctor.name">
           <DoctorCard :doctor="doctor" />
         </navigator>
-      </view>
-      <view v-else-if="mode === 'doctor'" class="doctor-list">
-        <DoctorCard v-for="doctor in doctors" :key="doctor.id" :doctor="doctor" />
       </view>
     </view>
   </view>
@@ -77,6 +87,8 @@ onShow(() => {
 .search-field { display: flex; align-items: center; gap: 32rpx; padding: 0 18rpx; height: 62rpx; border-radius: 34rpx; color: #bbb; background: #f8f8f8; font-size: 25rpx; }
 .search-glass { position: relative; box-sizing: border-box; width: 19rpx; height: 19rpx; border: 2rpx solid #c7c7c7; border-radius: 50%; }
 .search-glass::after { content: ''; position: absolute; width: 10rpx; height: 3rpx; right: -7rpx; bottom: -3rpx; transform: rotate(45deg); background: #c7c7c7; }
+.search-input { flex: 1; min-width: 0; height: 100%; color: #101010; font-size: 25rpx; }
+.search-clear { display: flex; align-items: center; justify-content: flex-end; width: 48rpx; height: 100%; }
 .date-strip { width: 100%; white-space: nowrap; }
 .date-options { display: inline-flex; width: max-content; gap: 20rpx; padding: 22rpx 20rpx 25rpx; vertical-align: top; }
 .date-option { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4rpx; width: 98rpx; height: 100rpx; border-radius: 8rpx; background: #f5f4fa; font-size: 26rpx; line-height: 36rpx; }
