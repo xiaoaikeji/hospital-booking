@@ -1,0 +1,13 @@
+<%= form_with url: resolve_admins_app_audit_path(@app, audit), class: "mt-3" do |f| %>
+  <p>请在微信后台核实 AppID、版本和本轮操作时间，再登记结果。</p>
+  <% if audit.status == "submit_unknown" %>
+    <%= f.select :outcome, [["微信已受理", "accepted"], ["已核实未受理", "not_accepted"]], {}, class: "form-select", aria: { label: "核实结果" }, data: { enhanced_select: "single" } %>
+    <%= f.text_field :audit_id, placeholder: "已受理时填写真实审核单号", aria: { label: "微信审核单号" }, class: "form-control mt-2" %>
+  <% elsif audit.status == "withdraw_unknown" %>
+    <%= f.hidden_field :outcome, value: "not_withdrawn" %><p>登记本轮撤回未执行</p>
+  <% else %>
+    <%= f.select :outcome, [["已核实本轮发布成功", "published"], ["已核实本轮未发布", "not_published"]], {}, class: "form-select", aria: { label: "核实结果" }, data: { enhanced_select: "single" } %>
+  <% end %>
+  <label class="form-check my-2"><%= f.check_box :confirmed, required: true, class: "form-check-input" %>我已核实微信后台记录</label>
+  <%= f.submit "登记核实结果", class: "btn" %>
+<% end %>

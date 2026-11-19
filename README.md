@@ -46,12 +46,13 @@ bin/dev
 
 后台任务使用 Sidekiq + sidekiq-cron，生产缓存使用 Redis，不使用 Solid 三件套。Active Storage 标准表、MiniMagick 图片处理、中文与北京时间、后台公共基类及 Pagy 已接入。
 
-管理员、系统配置及日志三张通用表已接入；业务表暂未建立。第三方配置读取遵守「系统配置表 > ENV > Rails credentials」，COS 可在后台配置，敏感字段加密入库，页面不回显。具体配置、生产启动与验证命令见 [基础设施说明](backend/docs/infrastructure.md)。
+管理员、系统配置、日志、小程序应用和微信发布记录已接入。第三方配置按数据库、环境变量、Rails credentials 的顺序读取。敏感字段加密入库，超级管理员可以在相应配置页查看生效值和来源。具体配置、生产启动与验证命令见 [基础设施说明](backend/docs/infrastructure.md)。
 
 ## 后台管理
 
 登录后访问 `/admins`。所有角色均可修改本人密码和个人外观。超级管理员可管理账号、维护系统设置并查看全部操作记录。运营管理员和客服可查看本人执行的操作，列表和详情使用同一权限范围。
 
+- `/admins/apps` 提供小程序应用管理、微信授权、体验版、逐轮审核和发布。配置、回调路径和状态恢复方式见[小程序应用管理开发说明](docs/小程序应用管理开发说明.md)。
 - `/admins/administrators`：管理员列表、新建、编辑、停用及密码重置。新建密码留空使用 `123456`，编辑留空保留原密码；不提供邮件找回。
 - `/admins/account/edit`：凭当前密码修改本人密码。
 - `/admins/system_settings/storage/edit`：存储设置，显示本地或腾讯云 COS 配置来源，支持保留、替换及清除系统值。

@@ -1,5 +1,15 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "wechat", "wechat.authorize" ] => "发起微信授权",
+    [ "wechat", "wechat.authorized" ] => "完成微信授权",
+    [ "wechat", "wechat.upload" ] => "上传体验版",
+    [ "wechat", "wechat.submit" ] => "提交微信审核",
+    [ "wechat", "wechat.sync" ] => "核对微信结果",
+    [ "wechat", "wechat.withdraw" ] => "撤回微信审核",
+    [ "wechat", "wechat.publish" ] => "发布微信版本",
+    [ "wechat", "wechat.close" ] => "关闭发布记录",
+    [ "wechat", "wechat.delete" ] => "删除发布记录",
+    [ "wechat", "wechat.resolve" ] => "核实微信结果",
     [ "app", "app.create" ] => "新增应用",
     [ "app", "app.update" ] => "修改应用资料、密钥或状态",
     [ "app", "app.destroy" ] => "删除应用",

@@ -1,2 +1,4 @@
-# sidekiq-cron 随 bin/jobs 加载；业务任务确定后再添加。
-{}
+wechat_mini_program_audit_poll:
+  cron: "*/15 * * * *"
+  class: "WechatPlatform::AuditPollWorker"
+  queue: default

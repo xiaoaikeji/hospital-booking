@@ -1,0 +1,68 @@
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">微信授权</h2></div>
+  <div class="card-body">
+    <% if @platform.missing.any? %>
+      <p>请配置第三方平台的 <%= @platform.missing.join("、") %>。</p>
+    <% elsif Rails.cache.read(@platform.ticket_key).blank? %>
+      <p>等待平台票据。请将微信授权事件接收 URL 指向 /api/wechat/component/events。</p>
+    <% end %>
+    <p><%= @app.app_authorization&.authorized? ? "已授权，权限集 #{@app.app_authorization.scopes.join('、')}" : "未授权" %></p>
+    <%= button_to "发起微信授权", admins_app_authorization_path(@app), class: "btn", disabled: @platform.missing.any? %>
+  </div>
+</section>
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">体验版</h2>
+    <% if @app.app_authorization&.authorized? %><div class="card-actions"><%= link_to "上传体验版", new_admins_app_release_path(@app), class: "btn btn-primary" %></div><% end %>
+  </div>
+  <% if @releases.empty? %><div class="card-body text-secondary">暂无上传记录</div><% end %>
+  <% @releases.each do |release| %>
+    <div class="card-body border-top">
+      <h3><%= release.version %> · <%= MiniProgramRelease::LABELS[release.status] %></h3>
+      <p>模板 <%= release.template_id %> · <%= release.description %> · <%= release.operator.display_name %>
+        <% if release.error_code %> · 微信错误码 <%= release.error_code %><% end %></p>
+      <% if release.status == "upload_unknown" && release.id == @releases.first.id %>
+        <%= form_with url: verify_upload_admins_app_release_path(@app, release), method: :patch, class: "mb-2" do |f| %>
+          <label class="form-check"><%= f.check_box :confirmed, required: true, class: "form-check-input" %>我已在微信核实本次上传的模板、版本和说明</label>
+          <%= f.submit "核实当前体验版", class: "btn btn-sm" %>
+        <% end %>
+      <% end %>
+      <% if release.current_build? && release.status == "uploaded" %>
+        <%= link_to "查看体验码", trial_admins_app_release_path(@app, release), class: "btn btn-sm mb-2" %>
+        <%= form_with url: submit_admins_app_release_path(@app, release), class: "mb-3" do |f| %>
+          <%= f.label :description, "本轮提审说明", class: "form-label" %><%= f.text_area :description, value: release.description, class: "form-control" %>
+          <%= f.hidden_field :expected_round, value: @round_revision %>
+          <label class="form-check my-2"><%= f.check_box :auto_publish, class: "form-check-input" %>审核通过后自动发布</label>
+          <%= f.submit "提交审核", class: "btn btn-primary" %>
+        <% end %>
+      <% end %>
+      <% if release.status == "closed" %>
+        <%= button_to "删除本地记录", admins_app_release_path(@app, release), method: :delete, class: "btn btn-sm btn-outline-danger" %>
+      <% else %>
+        <%= button_to "关闭本地记录", close_admins_app_release_path(@app, release), method: :patch, class: "btn btn-sm" %>
+      <% end %>
+    </div>
+  <% end %>
+</section>
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">审核与发布记录</h2></div>
+  <% if @audits.empty? %><div class="card-body text-secondary">暂无提审记录</div><% end %>
+  <% @audits.each do |audit| %>
+    <div class="card-body border-top">
+      <h3><%= audit.version %> · <%= MiniProgramAudit::LABELS[audit.status] %> · <%= MiniProgramAudit::PUBLICATIONS[audit.publication] %></h3>
+      <p>审核单号 <%= audit.audit_id || "—" %> · <%= audit.operator.display_name %> · <%= l(audit.created_at, format: :short) %> · <%= audit.auto_publish? ? "自动发布" : "人工发布" %></p>
+      <p><%= audit.description %><% if audit.error_code %> · 微信错误码 <%= audit.error_code %><% end %></p>
+      <div class="btn-list">
+        <%= button_to "查询结果", sync_admins_app_audit_path(@app, audit), method: :patch, class: "btn btn-sm" %>
+        <% if audit.id == @latest_round && %w[pending delayed].include?(audit.status) %>
+          <%= button_to "撤回审核", withdraw_admins_app_audit_path(@app, audit), class: "btn btn-sm btn-outline-warning" %>
+        <% end %>
+        <% if audit.id == @latest_round && audit.status == "passed" && %w[unpublished failed].include?(audit.publication) && audit.mini_program_release && audit.mini_program_release.status != "closed" %>
+          <%= button_to "发布", publish_admins_app_audit_path(@app, audit), class: "btn btn-sm btn-primary" %>
+        <% end %>
+      </div>
+      <% if audit.status.in?(%w[submit_unknown withdraw_unknown]) || audit.publication == "publish_unknown" %>
+        <%= render "reconciliation", audit: audit %>
+      <% end %>
+    </div>
+  <% end %>
+</section>

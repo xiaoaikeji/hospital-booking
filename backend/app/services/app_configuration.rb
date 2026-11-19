@@ -22,20 +22,24 @@ class AppConfiguration
     OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, value.to_json)
   end
 
-  def revision
-    digest([ @app.id, @app.lock_version, *credential ])
+  def revision(snapshot = credential)
+    digest([ @app.id, @app.lock_version, *snapshot ])
   end
 
   def credential_status
     value = credential.first
     return "未配置" if value.blank?
     @app.verified_digest == digest(value) ? "已验证" : "已填写，待验证"
+  rescue Invalid => error
+    error.message
   end
 
   def verify!
     value = credential.first
     raise Invalid, "请先配置本应用的 AppSecret" if value.blank?
-    client = @app.provider == "wechat" ? Wechat::CredentialClient : Douyin::CredentialClient
+    client = { "wechat" => Wechat::CredentialClient, "douyin" => Douyin::CredentialClient }.fetch(@app.provider) do
+      raise Invalid, "应用平台无效"
+    end
     client.new.verify!(@app.appid, value)
     @app.verified_digest = digest(value)
   end

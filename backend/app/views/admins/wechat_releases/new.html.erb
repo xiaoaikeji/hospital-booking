@@ -1,0 +1,19 @@
+<% content_for :title, "上传体验版" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "上传体验版", icon: :package } do %>
+  <%= link_to "返回应用", admins_app_path(@app), class: "btn" %>
+<% end %>
+<%= form_with scope: :release, url: admins_app_releases_path(@app), class: "card" do |f| %>
+  <div class="card-body">
+    <p><%= @app.display_name %> · <%= @app.appid %></p>
+    <%= f.label :template_id, "微信代码模板", class: "form-label" %>
+    <% if @templates.any? %>
+      <%= f.select :template_id, @templates.map { |row| ["#{row["template_id"]} · #{row["user_version"]} #{row["user_desc"]}", row["template_id"]] }, {}, class: "form-select", data: { enhanced_select: "single" } %>
+    <% else %>
+      <%= f.text_field :template_id, required: true, pattern: "[0-9]+", placeholder: "填写微信代码模板 ID", class: "form-control" %>
+    <% end %>
+    <%= f.label :version, "版本号", class: "form-label mt-3" %><%= f.text_field :version, required: true, class: "form-control" %>
+    <%= f.label :description, "版本说明", class: "form-label mt-3" %><%= f.text_area :description, required: true, class: "form-control" %>
+  </div>
+  <div class="card-footer text-end"><%= render "admins/shared/submit_button", label: "上传体验版" %></div>
+<% end %>

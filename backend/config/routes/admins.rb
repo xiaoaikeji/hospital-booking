@@ -3,7 +3,25 @@ devise_for :admins, path: "admins", only: :sessions, controllers: { sessions: "a
 namespace :admins do
   root "dashboard#index"
   resource :account, only: %i[edit update]
-  resources :apps
+  resources :apps do
+    resource :authorization, only: :create, controller: "wechat_authorizations"
+    resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
+      member do
+        get :trial
+        patch :verify_upload
+        post :submit
+        patch :close
+      end
+    end
+    resources :audits, only: [], controller: "wechat_releases" do
+      member do
+        patch :sync
+        post :resolve
+        post :withdraw
+        post :publish
+      end
+    end
+  end
   resources :administrators, only: %i[index new create edit update]
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do

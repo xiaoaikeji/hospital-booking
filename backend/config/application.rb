@@ -20,6 +20,7 @@ module BookingWeb
     config.i18n.default_locale = :"zh-CN"
     config.i18n.available_locales = [ :"zh-CN", :en ]
     config.i18n.fallbacks = [ :en ]
+    config.filter_redirect = [ "mp.weixin.qq.com/cgi-bin/componentloginpage" ]
     config.time_zone = "Asia/Shanghai"
     config.active_record.default_timezone = :utc
     ActiveSupport.on_load(:active_record_postgresqladapter) { self.datetime_type = :timestamptz }

@@ -1,0 +1,56 @@
+module Api
+  class WechatEventsController < ActionController::API
+    rescue_from Wechat::MessageCrypto::Invalid, with: -> { head :forbidden }
+    rescue_from Nokogiri::XML::SyntaxError, with: -> { head :bad_request }
+    rescue_from WechatPlatform::Error, with: -> { head :service_unavailable }
+
+    def create
+      platform = WechatPlatform::ComponentToken.new
+      raise WechatPlatform::Error if platform.missing.any?
+      body = request.body.read(128.kilobytes + 1)
+      return head :payload_too_large if body.bytesize > 128.kilobytes
+      outer = parse_xml(body)
+      plain = Wechat::MessageCrypto.new(platform.config).decrypt(outer["Encrypt"],
+        timestamp: params[:timestamp], nonce: params[:nonce], signature: params[:msg_signature])
+      message = parse_xml(plain)
+      if params[:appid]
+        auth = App.find_by(provider: "wechat", appid: params[:appid])&.app_authorization
+        return head :forbidden unless auth&.authorized? && auth.original_id.present? && auth.original_id == message["ToUserName"]
+        if message["MsgType"] == "event" && %w[weapp_audit_success weapp_audit_fail weapp_audit_delay].include?(message["Event"])
+          WechatPlatform::AuditEventWorker.perform_async(auth.app_id)
+        end
+      else
+        return head :forbidden unless message["AppId"] == platform.config[:appid]
+        case message["InfoType"]
+        when "component_verify_ticket"
+          return head :bad_request if message["ComponentVerifyTicket"].blank?
+          Rails.cache.write(platform.ticket_key, message["ComponentVerifyTicket"], expires_in: 12.hours)
+        when "unauthorized", "updateauthorized"
+          auth = App.find_by(provider: "wechat", appid: message["AuthorizerAppid"])&.app_authorization
+          if auth
+            at = Time.zone.at(Integer(message["CreateTime"].to_s, exception: false) || 0)
+            auth.with_lock do
+              next if auth.event_at && at.to_i < auth.event_at.to_i
+              if message["InfoType"] == "unauthorized"
+                auth.update!(refresh_token: nil, scopes: [], event_at: at, state_digest: nil)
+              elsif auth.authorized? && (!auth.event_at || at.to_i > auth.event_at.to_i)
+                info = platform.with_token { |token| platform.client.authorization(token, platform.config[:appid], message["AuthorizationCode"]) }
+                attributes = WechatPlatform::AuthorizationFlow.authorization_attributes(info, auth.app)
+                auth.update!(attributes.merge(event_at: at))
+              end
+            end
+          end
+        end
+      end
+      render plain: "success"
+    end
+
+    private
+
+    def parse_xml(body)
+      doc = Nokogiri::XML(body) { |options| options.strict.nonet }
+      raise Wechat::MessageCrypto::Invalid if doc.internal_subset || doc.root&.name != "xml"
+      doc.root.element_children.to_h { |child| [ child.name, child.text ] }
+    end
+  end
+end

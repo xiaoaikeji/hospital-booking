@@ -2,9 +2,13 @@ module Wechat
   class BaseClient
     class Rejected < StandardError
       attr_reader :code
+      def invalid_token? = [ 40001, 40014, 42001 ].include?(code)
+
       def initialize(code)
         @code = code
-        super("微信返回错误码 #{code}")
+        hint = { 40001 => "请核对凭据并刷新令牌", 40013 => "请核对 AppID", 40125 => "请核对 AppSecret",
+          48001 => "请重新授权所需权限", 61023 => "刷新令牌失效，请重新授权", 61039 => "代码检测中，请稍后提交同一体验版" }[code]
+        super([ "微信返回错误码 #{code}", hint ].compact.join("，"))
       end
     end
 

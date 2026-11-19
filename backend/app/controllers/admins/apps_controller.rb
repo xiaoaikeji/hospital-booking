@@ -13,9 +13,18 @@ module Admins
     end
 
     def show
+      return unless @app.provider == "wechat"
+      @platform = WechatPlatform::ComponentToken.new
+      @releases = @app.mini_program_releases.includes(:operator).order(id: :desc)
+      @audits = @app.mini_program_audits.includes(:operator, :mini_program_release).order(id: :desc)
+      @round_revision = @app.mini_program_audits.maximum(:id).to_i
+      @latest_round = @app.mini_program_audits.accepted_or_uncertain.maximum(:id)
     end
 
     def edit
+      AppConfiguration.new(@app).credential
+    rescue AppConfiguration::Invalid => error
+      render plain: error.message, status: :unprocessable_content
     end
 
     def new
@@ -38,7 +47,15 @@ module Admins
       end
       redirect_to admins_apps_path, notice: "应用已删除", status: :see_other
     rescue ActiveRecord::ActiveRecordError => error
-      message = error.is_a?(ActiveRecord::InvalidForeignKey) || error.is_a?(ActiveRecord::RecordNotDestroyed) ? "已有授权、发布或业务记录，只能停用" : "删除失败"
+      message = if @app.app_authorization
+        "已有微信授权记录，只能停用"
+      elsif @app.mini_program_releases.exists? || @app.mini_program_audits.exists?
+        "已有发布或审核记录，只能停用"
+      elsif error.is_a?(ActiveRecord::InvalidForeignKey)
+        "已有业务记录，只能停用"
+      else
+        "删除失败"
+      end
       audit("destroy", status: "failed", details: { reason: message })
       redirect_to admins_app_path(@app), alert: message
     end
@@ -57,6 +74,7 @@ module Admins
         end
         @app.assign_attributes(input.slice(:nickname, :memo, :status))
         config.assign(input)
+        raise ActiveRecord::RecordInvalid, @app unless @app.valid?
         if @app.accessible? && (@app.status_changed? || config.credential_status != "已验证")
           config.verify!
         end
@@ -76,6 +94,11 @@ module Admins
       end
       audit(action, status: "failed", details: { reason: reason })
       @app.reload if @app.persisted?
+      begin
+        AppConfiguration.new(@app).credential
+      rescue AppConfiguration::Invalid => failure
+        return render plain: failure.message, status: :unprocessable_content
+      end
       @app.errors.add(:base, reason)
       render(action == "create" ? :new : :edit, status: :unprocessable_content)
     end

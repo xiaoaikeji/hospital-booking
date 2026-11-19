@@ -8,4 +8,11 @@
     <div class="datagrid-item"><dt class="datagrid-title"><%= label %></dt><dd class="datagrid-content"><%= value.presence || "—" %></dd></div>
   <% end %>
 </dl></section>
-<%= button_to "删除", admins_app_path(@app), method: :delete, class: "btn btn-outline-danger", form: { data: { turbo_confirm: "确认删除此空应用？" } } %>
+<% if @app.provider == "wechat" %>
+  <%= render "admins/shared/enhanced_select_assets" %>
+  <%= render "wechat" %>
+<% end %>
+<%= form_with url: admins_app_path(@app), method: :delete, id: "delete-app" do %>
+  <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirm-delete-app">删除</button>
+<% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "confirm-delete-app", form_id: "delete-app", title: "确认删除应用", context: @app.display_name, description: "仅可删除没有授权、发布及业务记录的空应用。", color: "danger", confirm_label: "删除" %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -62,6 +62,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
     t.check_constraint "role::text = ANY (ARRAY['super_admin'::character varying, 'operator'::character varying, 'customer_service'::character varying]::text[])", name: "admins_role_allowed"
   end
 
+  create_table "app_authorizations", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "event_at"
+    t.bigint "initiator_id"
+    t.string "original_id"
+    t.text "refresh_token"
+    t.jsonb "scopes", default: [], null: false
+    t.string "state_digest"
+    t.datetime "state_expires_at"
+    t.datetime "updated_at", null: false
+    t.index ["app_id"], name: "index_app_authorizations_on_app_id", unique: true
+    t.index ["initiator_id"], name: "index_app_authorizations_on_initiator_id"
+  end
+
   create_table "apps", force: :cascade do |t|
     t.string "appid", null: false
     t.text "appsecret"
@@ -108,6 +123,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
     t.index ["source"], name: "index_logs_on_source"
   end
 
+  create_table "mini_program_audits", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.string "audit_id"
+    t.boolean "auto_publish", default: false, null: false
+    t.datetime "created_at", null: false
+    t.text "description", null: false
+    t.integer "error_code"
+    t.bigint "mini_program_release_id"
+    t.bigint "operator_id", null: false
+    t.string "previous_audit_id"
+    t.string "previous_status", null: false
+    t.string "prior_online_marker"
+    t.string "publication", default: "unpublished", null: false
+    t.string "status", default: "submit_unknown", null: false
+    t.datetime "updated_at", null: false
+    t.string "version", null: false
+    t.index ["app_id", "audit_id"], name: "index_mini_program_audits_on_app_id_and_audit_id", unique: true
+    t.index ["app_id"], name: "index_mini_program_audits_on_app_id"
+    t.index ["mini_program_release_id"], name: "index_mini_program_audits_on_mini_program_release_id"
+    t.index ["operator_id"], name: "index_mini_program_audits_on_operator_id"
+  end
+
+  create_table "mini_program_releases", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.boolean "current_build", default: false, null: false
+    t.text "description", null: false
+    t.integer "error_code"
+    t.bigint "operator_id", null: false
+    t.string "status", default: "upload_unknown", null: false
+    t.string "template_id", null: false
+    t.datetime "updated_at", null: false
+    t.string "version", null: false
+    t.index ["app_id"], name: "index_mini_program_releases_on_app_id"
+    t.index ["app_id"], name: "one_current_build_per_app", unique: true, where: "current_build"
+    t.index ["operator_id"], name: "index_mini_program_releases_on_operator_id"
+  end
+
   create_table "settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", limit: 255
@@ -120,4 +173,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "app_authorizations", "admins", column: "initiator_id"
+  add_foreign_key "app_authorizations", "apps"
+  add_foreign_key "mini_program_audits", "admins", column: "operator_id"
+  add_foreign_key "mini_program_audits", "apps"
+  add_foreign_key "mini_program_audits", "mini_program_releases", on_delete: :nullify
+  add_foreign_key "mini_program_releases", "admins", column: "operator_id"
+  add_foreign_key "mini_program_releases", "apps"
 end
