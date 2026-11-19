@@ -21,7 +21,7 @@ Rails 后端及管理后台在 `backend/`，小程序前端在 `miniapp/`，共�
 1. 路由、参数名及 Ruby 文件、目录统一用 `snake_case`，见名知意，不使用 `do_xxx` 等含糊命名。
 2. 增删改查优先用 `resources`，单一对象用 `resource`，只开放需要的动作；GET 只读，写操作用 POST、PATCH、DELETE。
 3. 路由按后台、API 等端分文件；Controller、View 按端组织，保持命名对应。
-4. Model 放关联、校验和简单业务；复杂流程放 `backend/app/services`，第三方通信放 `backend/app/clients`，按业务或服务商分目录。
+4. Model 放关联、校验和简单业务，复杂流程放 `backend/app/services`。第三方调用放 `backend/app/clients/`，先按平台建目录，再在平台目录内按功能分文件。例如微信小程序提审放 `wechat/mini_program_code_client.rb`，微信支付与退款放 `wechat/payment_client.rb`。实际接入新平台时再建同级目录。各平台共用的 Faraday 连接放在 `backend/app/clients/http_connection.rb`。
 5. Sidekiq 任务放 `backend/app/workers`，以 `_worker.rb` 结尾；主要传记录 ID，复杂业务交给 Service。
 6. 只创建实际需要的目录和文件，简单功能不强行拆层，不预建通用基类。
 
