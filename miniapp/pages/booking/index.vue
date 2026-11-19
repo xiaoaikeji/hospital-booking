@@ -1,6 +1,9 @@
 <script setup>
+import { computed, ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
 import { bookingMode as mode } from './booking-mode.js'
 import DoctorCard from './components/doctor_card.vue'
+import { getBookingSchedule } from '@/mock/booking-schedule.js'
 import { doctors } from '@/mock/doctors.js'
 
 const modes = [
@@ -8,11 +11,14 @@ const modes = [
   { key: 'date', label: '按日期' },
   { key: 'doctor', label: '按医生' },
 ]
-const dates = [
-  { day: '周四', date: '11–19' }, { day: '周五', date: '11–20' },
-  { day: '周六', date: '11–21' }, { day: '周日', date: '11–22' },
-  { day: '周一', date: '11–23' }, { day: '周二', date: '11–24' },
-]
+const schedule = ref([])
+const selectedDay = ref(null)
+const scheduledDoctors = computed(() => doctors.filter(doctor => selectedDay.value?.doctorIds.includes(doctor.id)))
+
+onShow(() => {
+  schedule.value = getBookingSchedule()
+  selectedDay.value = schedule.value.find(day => day.date === selectedDay.value?.date) ?? schedule.value[0]
+})
 </script>
 
 <template>
@@ -23,19 +29,28 @@ const dates = [
         <view class="mode-tabs">
           <view v-for="item in modes" :key="item.key" class="mode-tab" :class="{ selected: mode === item.key }" @tap="mode = item.key">{{ item.label }}</view>
         </view>
-        <view v-if="mode === 'department'" class="department-row"><text>耳鼻喉科</text><view class="department-arrow" /></view>
+        <navigator v-if="mode === 'department'" class="department-row" url="/pages/ucenter/login" hover-class="none">
+          <text>耳鼻喉科</text><view class="department-arrow" />
+        </navigator>
         <view v-else-if="mode === 'doctor'" class="search-panel">
           <view class="search-field"><view class="search-glass" /><text>请输入查询医生</text></view>
         </view>
-        <scroll-view v-else scroll-x class="date-strip" :show-scrollbar="false">
+        <scroll-view v-show="mode === 'date'" scroll-x class="date-strip" :show-scrollbar="false">
           <view class="date-options">
-            <view v-for="(item, index) in dates" :key="item.date" class="date-option" :class="{ 'date-selected': index === 0 }">
-              <text>{{ item.day }}</text><text class="calendar-date">{{ item.date }}</text>
+            <view v-for="item in schedule" :key="item.date" class="date-option"
+              :class="{ 'date-selected': item.date === selectedDay?.date }" role="button" @tap="selectedDay = item">
+              <text>{{ item.weekday }}</text><text class="calendar-date">{{ item.label }}</text>
             </view>
           </view>
         </scroll-view>
       </view>
-      <view v-if="mode !== 'department'" class="doctor-list">
+      <view v-if="mode === 'date'" class="doctor-list">
+        <navigator v-for="doctor in scheduledDoctors" :key="doctor.id" url="/pages/ucenter/login"
+          hover-class="none" :aria-label="'预约' + doctor.name">
+          <DoctorCard :doctor="doctor" />
+        </navigator>
+      </view>
+      <view v-else-if="mode === 'doctor'" class="doctor-list">
         <DoctorCard v-for="doctor in doctors" :key="doctor.id" :doctor="doctor" />
       </view>
     </view>
@@ -58,8 +73,8 @@ const dates = [
 .search-glass { position: relative; box-sizing: border-box; width: 19rpx; height: 19rpx; border: 2rpx solid #c7c7c7; border-radius: 50%; }
 .search-glass::after { content: ''; position: absolute; width: 10rpx; height: 3rpx; right: -7rpx; bottom: -3rpx; transform: rotate(45deg); background: #c7c7c7; }
 .date-strip { width: 100%; white-space: nowrap; }
-.date-options { display: inline-flex; gap: 20rpx; padding: 22rpx 20rpx 25rpx; vertical-align: top; }
-.date-option { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4rpx; width: 98rpx; height: 100rpx; border-radius: 8rpx; background: #f5f4fa; font-size: 26rpx; line-height: 36rpx; }
+.date-options { display: inline-flex; width: max-content; gap: 20rpx; padding: 22rpx 20rpx 25rpx; vertical-align: top; }
+.date-option { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4rpx; width: 98rpx; height: 100rpx; border-radius: 8rpx; background: #f5f4fa; font-size: 26rpx; line-height: 36rpx; }
 .date-selected { background: #5da8e4; color: #fff; }
 .calendar-date { font-size: 22rpx; font-weight: 300; line-height: 30rpx; }
 .doctor-list { padding-top: 2rpx; }
