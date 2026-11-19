@@ -164,8 +164,8 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
   test "client refresh failure reports a committed save and retries on the next request" do
     login(@root)
     config = Rails.application.config.active_storage
-    original = config.service_configurations
     old_registry = ActiveStorage::Blob.services
+    original = config.service_configurations
     config.service_configurations = { "test-only-private-detail" => {} }
     patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "saved-test-secret" } }
     assert_redirected_to edit_admins_system_settings_storage_path
