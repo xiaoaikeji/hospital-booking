@@ -1,0 +1,51 @@
+<% apply_view = params[:view] == "apply"
+   tab = application_context_params.merge(tab: "location") %>
+<section class="card">
+  <div class="card-header flex-wrap gap-2">
+    <h2 class="card-title"><%= apply_view ? "申请地理位置接口" : "地理位置接口" %></h2>
+    <div class="card-actions btn-list">
+      <% if apply_view %>
+        <%= link_to admins_app_path(@app, tab), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>接口列表<% end %>
+      <% else %>
+        <%= link_to admins_app_path(@app, tab), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
+        <% if @location_entries.any? %><%= link_to admins_app_path(@app, tab.merge(view: "apply")), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>申请接口<% end %><% end %>
+      <% end %>
+    </div>
+  </div>
+  <% if @location_entries.empty? %>
+    <%= render "admins/shared/list_empty", title: "微信未列出需申请的接口", icon: :link %>
+  <% elsif apply_view %>
+    <%= render "admins/apps/location_form" %>
+  <% else %>
+    <table class="table table-vcenter card-table table-hover location-table mb-0">
+      <thead><tr><% %w[接口 状态 申请单号 申请时间 备注 文档].each do |heading| %><th scope="col"><%= heading %></th><% end %></tr></thead>
+      <tbody><% @location_entries.each do |entry| %>
+        <% row = entry.data; timestamp = Integer(row["apply_time"].to_s, exception: false); doc = wechat_interface_doc(row["api_link"])
+           note = row["fail_reason"].presence || (entry.blocked_reason if entry.application&.uncertain? || entry.application&.awaiting_list?(entry.review)) %>
+        <tr>
+          <td data-label="接口" class="text-break"><strong><%= entry.name %></strong><div class="small text-secondary"><%= entry.description %></div></td>
+          <td data-label="状态"><span class="badge bg-<%= {3 => "warning", 4 => "danger", 5 => "success"}.fetch(entry.status, "secondary") %>-lt"><%= entry.label %></span></td>
+          <td data-label="申请单号" class="<%= class_names("text-break", "d-none d-lg-table-cell" => row["audit_id"].blank?) %>"><%= row["audit_id"].presence || "—" %></td>
+          <td data-label="申请时间" class="<%= "d-none d-lg-table-cell" unless timestamp&.positive? %>"><%= timestamp&.positive? ? admin_list_time(Time.zone.at(timestamp)) : "—" %></td>
+          <td data-label="备注" class="<%= class_names("text-secondary text-break", "d-none d-lg-table-cell" => note.blank?) %>"><%= note || "—" %></td>
+          <td data-label="文档" class="<%= "d-none d-lg-table-cell" unless doc %>"><% if doc %><%= link_to "查看文档", doc, target: "_blank", rel: "noopener noreferrer" %><% else %>—<% end %></td>
+        </tr>
+      <% end %></tbody>
+    </table>
+    <% @location_entries.select { |entry| entry.application&.uncertain? }.each do |entry| %>
+      <% attempt = entry.application; form_id = "verify-location-#{attempt.id}"
+         outcome = entry.review == attempt.previous_review ? "已在微信公众平台确认上次申请未被受理" : "已核对微信公众平台的最新申请状态" %>
+      <div class="card-footer bg-transparent">
+        <%= form_with url: verify_admins_app_location_interface_application_path(@app, attempt, application_context_params), id: form_id do %>
+          <%= hidden_field_tag :observed_review, entry.review.to_json, id: nil %>
+          <label class="form-check"><%= check_box_tag :confirmed, "1", false, required: true, class: "form-check-input", id: nil %>
+            <span class="form-check-label"><%= entry.name %> · <%= outcome %></span></label>
+          <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :check %>登记核实结果</button>
+        <% end %>
+        <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm", title: "登记核实结果",
+            context: "#{@app.display_name} · #{entry.name}", description: "#{outcome}。确认后按微信最新状态开放相应操作。",
+            color: "warning", confirm_label: "确认登记", confirm_icon: :check, cancel_icon: :close %>
+      </div>
+    <% end %>
+  <% end %>
+</section>

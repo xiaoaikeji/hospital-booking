@@ -21,6 +21,9 @@ namespace :admins do
     end
     resources :plugins, only: %i[create update destroy], controller: "app_plugins"
     resource :profile, only: :update, controller: "app_profiles"
+    resources :location_interface_applications, only: :create, controller: "app_location_interface_applications" do
+      post :verify, on: :member
+    end
     resources :experiencers, only: :create, controller: "app_experiencers" do
       delete :destroy, on: :collection, path: ""
     end

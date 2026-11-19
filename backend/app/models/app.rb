@@ -15,6 +15,7 @@ class App < ApplicationRecord
   has_one :app_authorization, dependent: :restrict_with_error
   has_many :mini_program_releases, dependent: :restrict_with_error
   has_many :mini_program_audits, dependent: :restrict_with_error
+  has_many :location_interface_applications, dependent: :restrict_with_error
   encrypts :appsecret
   attr_readonly :provider, :app_type, :appid
   validates :provider, inclusion: { in: PROVIDERS.keys }

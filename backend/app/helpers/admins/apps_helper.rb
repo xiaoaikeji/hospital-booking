@@ -1,4 +1,12 @@
 module Admins::AppsHelper
+  def wechat_interface_doc(path)
+    return if path.blank?
+    url = URI.join("https://developers.weixin.qq.com/", path.to_s)
+    url.to_s.sub(/\.md\z/, ".html") if url.is_a?(URI::HTTPS) && url.host == "developers.weixin.qq.com" && !url.userinfo
+  rescue URI::Error
+    nil
+  end
+
   def wechat_profile_quota(info, period)
     used, total = info.values_at("modify_used_count", "modify_quota")
     return if used.nil? && total.nil?

@@ -15,6 +15,8 @@ class Log < ApplicationRecord
     [ "wechat", "wechat.plugin_unbind" ] => "解除插件",
     [ "wechat", "wechat.profile_signature" ] => "修改小程序简介",
     [ "wechat", "wechat.profile_head_image" ] => "修改小程序头像",
+    [ "wechat", "wechat.location_apply" ] => "申请地理位置接口",
+    [ "wechat", "wechat.location_verify" ] => "核实地理位置申请",
     [ "wechat", "wechat.tester_bind" ] => "绑定体验者",
     [ "wechat", "wechat.tester_unbind" ] => "解绑体验者",
     [ "wechat", "wechat.privacy_update" ] => "更新开发版隐私指引",

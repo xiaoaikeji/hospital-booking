@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_061000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -97,6 +97,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_061000) do
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
+  end
+
+  create_table "location_interface_applications", force: :cascade do |t|
+    t.string "api_name", limit: 100, null: false
+    t.bigint "app_id", null: false
+    t.string "audit_id"
+    t.text "content", null: false
+    t.datetime "created_at", null: false
+    t.integer "error_code"
+    t.bigint "operator_id", null: false
+    t.jsonb "previous_review", null: false
+    t.string "state", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "api_name", "id"], name: "idx_on_app_id_api_name_id_f9de7c6d4d"
+    t.index ["app_id"], name: "index_location_interface_applications_on_app_id"
+    t.index ["operator_id"], name: "index_location_interface_applications_on_operator_id"
   end
 
   create_table "logs", force: :cascade do |t|
@@ -235,6 +251,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_061000) do
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
   add_foreign_key "apps", "open_platform_accounts"
+  add_foreign_key "location_interface_applications", "admins", column: "operator_id"
+  add_foreign_key "location_interface_applications", "apps"
   add_foreign_key "mini_program_audits", "admins", column: "operator_id"
   add_foreign_key "mini_program_audits", "apps"
   add_foreign_key "mini_program_audits", "mini_program_releases", on_delete: :nullify
