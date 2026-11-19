@@ -1,115 +1,26 @@
-<% authorized = @app.app_authorization&.authorized? %>
+<% auth = @app.app_authorization; authorized = @app.platform_authorized? %>
 <section class="card mb-3" id="wechat-authorization">
-  <div class="card-header">
-    <h2 class="card-title">微信授权</h2>
-    <span class="badge ms-2 bg-<%= authorized ? 'success' : 'secondary' %>-lt"><%= authorized ? "已授权" : "未授权" %></span>
-  </div>
+  <div class="card-header"><h2 class="card-title">平台授权</h2></div>
   <div class="card-body">
-    <p class="text-secondary">使用本后台代此小程序上传、提审和发布时，需要微信授权。仅管理应用或使用自有 AppSecret 获取正式版码时可跳过。</p>
-    <% if @platform.missing.any? %>
-      <div class="alert alert-warning" role="status">请配置第三方平台的 <%= @platform.missing.join("、") %>。</div>
-    <% elsif Rails.cache.read(@platform.ticket_key).blank? %>
-      <div class="alert alert-warning" role="status">等待平台票据。请将微信授权事件接收 URL 指向 <code>/api/wechat/component/events</code>。</div>
-    <% end %>
-    <% if authorized %><div class="mb-3">权限集 <%= @app.app_authorization.scopes.join("、") %></div><% end %>
-    <%= button_to admins_app_authorization_path(@app), class: "btn btn-primary", disabled: @platform.missing.any? do %><%= render "layouts/admins/icon", name: :arrow %>发起微信授权<% end %>
+    <%= render "admins/shared/field_rows", fields: { "授权状态" => authorized ? "已授权" : (auth&.event_at ? "已取消授权" : "未授权"), "授权方 AppID" => (auth&.event_at || authorized ? @app.appid : nil), "权限集" => auth&.scopes&.join("、"), authorized ? "授权时间" : "取消时间" => auth&.event_at && admin_list_time(auth.event_at), "最近操作人" => auth&.initiator&.display_name } %>
+    <p class="text-secondary mt-3"><%= @app.code_capable? ? "代此小程序上传、提审和发布需要平台授权。恢复授权后可继续核实已有审核单或操作当前版本。" : "公众号通过平台授权委托管理账号。"%> 本应用的 AppSecret 在编辑页维护。</p>
+    <% if @platform.missing.any? %><div class="alert alert-warning" role="status">请配置第三方平台的 <%= @platform.missing.join("、") %>。</div>
+    <% elsif Rails.cache.read(@platform.ticket_key).blank? %><div class="alert alert-warning">等待微信推送平台票据，请核对授权事件接收地址。</div><% end %>
+    <% if @platform.missing.empty? %><%= button_to authorized ? "更新平台授权" : "发起平台授权", admins_app_authorization_path(@app), class: "btn btn-primary" %><% end %>
   </div>
 </section>
-<section class="card mb-3">
-  <div class="card-header">
-    <h2 class="card-title">体验版</h2>
-    <% if authorized %><div class="card-actions"><%= link_to new_admins_app_release_path(@app), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :import %>上传体验版<% end %></div><% end %>
-  </div>
-  <% if @releases.empty? %>
-    <%= render "admins/shared/list_empty", icon: :package, title: "暂无上传记录" %>
-  <% end %>
-  <div class="list-group list-group-flush">
-    <% @releases.each do |release| %>
-      <div class="list-group-item">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-          <h3 class="h3 mb-0 text-break"><%= release.version %></h3>
-          <% color = { "uploaded" => "success", "upload_failed" => "danger", "upload_unknown" => "warning" }.fetch(release.status, "secondary") %>
-          <span class="badge bg-<%= color %>-lt"><%= MiniProgramRelease::LABELS[release.status] %></span>
-        </div>
-        <div class="text-secondary small mb-2">模板 <%= release.template_id %> · <%= release.operator.display_name %> · <%= admin_list_time(release.created_at) %></div>
-        <p class="text-break"><%= release.description %></p>
-        <% if release.error_code %><p class="text-danger">微信错误码 <%= release.error_code %></p><% end %>
-        <% if release.status == "upload_unknown" && release.id == @releases.first.id %>
-          <%= form_with url: verify_upload_admins_app_release_path(@app, release), method: :patch, namespace: dom_id(release, :verify), class: "mb-3", data: { admin_form: true } do |f| %>
-            <label class="form-check"><%= f.check_box :confirmed, required: true, class: "form-check-input" %><span class="form-check-label">我已在微信核实本次上传的模板、版本和说明</span></label>
-            <%= render "admins/shared/submit_button", label: "核实当前体验版", icon: :check %>
-          <% end %>
-        <% end %>
-        <% if release.current_build? && release.status == "uploaded" %>
-          <%= form_with url: submit_admins_app_release_path(@app, release), namespace: dom_id(release, :submit), class: "mb-3", data: { admin_form: true } do |f| %>
-            <%= f.label :description, "本轮提审说明", class: "form-label" %>
-            <%= f.text_area :description, value: release.description, rows: 2, class: "form-control" %>
-            <%= f.hidden_field :expected_round, value: @round_revision %>
-            <label class="form-check my-2"><%= f.check_box :auto_publish, class: "form-check-input" %><span class="form-check-label">审核通过后自动发布</span></label>
-            <div class="btn-list">
-              <%= render "admins/shared/submit_button", label: "提交审核", icon: :check %>
-              <% if authorized %>
-                <%= link_to trial_admins_app_release_path(@app, release), class: "btn btn-info" do %><%= render "layouts/admins/icon", name: :qrcode %>查看体验码<% end %>
-              <% end %>
-            </div>
-          <% end %>
-        <% end %>
-        <% closed = release.status == "closed" %>
-        <% form_id = dom_id(release, :retire) %>
-        <%= form_with url: (closed ? admins_app_release_path(@app, release) : close_admins_app_release_path(@app, release)), method: (closed ? :delete : :patch), id: form_id do %>
-          <button type="button" class="btn btn-sm <%= 'btn-outline-danger' if closed %>" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirmation"><%= render "layouts/admins/icon", name: (closed ? :trash : :close) %><%= closed ? "删除" : "关闭" %></button>
-        <% end %>
-        <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: (closed ? "确认删除本地发布记录" : "确认关闭本地发布记录"), context: "#{@app.display_name} · #{release.version}", description: "已受理的微信审核将继续追踪。此记录后续的自动发布将停止。", color: (closed ? "danger" : "warning"), confirm_label: (closed ? "确认删除" : "确认关闭"), confirm_icon: (closed ? :trash : :close), cancel_icon: :close %>
-      </div>
-    <% end %>
-  </div>
-</section>
-<section class="card mb-3">
-  <div class="card-header"><h2 class="card-title">审核与发布记录</h2></div>
-  <% if @audits.empty? %><%= render "admins/shared/list_empty", icon: :clock, title: "暂无提审记录" %><% end %>
-  <div class="list-group list-group-flush">
-    <% @audits.each do |audit| %>
-      <div class="list-group-item">
-        <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-          <h3 class="h3 mb-0 text-break"><%= audit.version %></h3>
-          <% color = { "passed" => "success", "rejected" => "danger", "not_accepted" => "danger", "withdrawn" => "secondary" }.fetch(audit.status, "warning") %>
-          <span class="badge bg-<%= color %>-lt"><%= MiniProgramAudit::LABELS[audit.status] %></span>
-          <% color = { "published" => "success", "publish_unknown" => "warning", "failed" => "danger" }.fetch(audit.publication, "secondary") %>
-          <span class="badge bg-<%= color %>-lt"><%= MiniProgramAudit::PUBLICATIONS[audit.publication] %></span>
-        </div>
-        <div class="datagrid mb-3">
-          <% { "审核单号" => audit.audit_id.presence || "—", "提交人" => audit.operator.display_name, "提交时间" => admin_list_time(audit.created_at), "发布方式" => (audit.auto_publish? ? "自动发布" : "人工发布") }.each do |label, value| %>
-            <div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content text-break"><%= value %></div></div>
-          <% end %>
-        </div>
-        <p class="text-break"><%= audit.description %></p>
-        <% if audit.status == "rejected" %>
-          <dl class="mb-3">
-            <dt>拒审原因</dt>
-            <dd class="text-break"><%= audit.rejection_reason.presence || "暂无拒审说明，可点击「查询结果」补查。" %></dd>
-            <% if audit.rejection_screenshots.any? %>
-              <dt>微信截图标识</dt>
-              <% audit.rejection_screenshots.each do |media_id| %><dd class="text-break"><code><%= media_id %></code></dd><% end %>
-            <% end %>
-          </dl>
-        <% end %>
-        <% if audit.error_code %><p class="text-danger">微信错误码 <%= audit.error_code %></p><% end %>
-        <% withdraw = audit.id == @latest_round && %w[pending delayed].include?(audit.status) %>
-        <% publish = audit.id == @latest_round && audit.status == "passed" && %w[unpublished failed].include?(audit.publication) && audit.mini_program_release && audit.mini_program_release.status != "closed" %>
-        <% form_id = dom_id(audit, :action) %>
-        <div class="btn-list">
-          <%= button_to sync_admins_app_audit_path(@app, audit), method: :patch, class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :search %>查询结果<% end %>
-          <% if withdraw || publish %>
-            <%= form_with url: (withdraw ? withdraw_admins_app_audit_path(@app, audit) : publish_admins_app_audit_path(@app, audit)), method: :post, id: form_id do %>
-              <button type="button" class="btn btn-sm <%= withdraw ? 'btn-outline-warning' : 'btn-primary' %>" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirmation"><%= render "layouts/admins/icon", name: (withdraw ? :rotate : :check) %><%= withdraw ? "撤回审核" : "发布" %></button>
-            <% end %>
-          <% end %>
-        </div>
-        <% if withdraw || publish %>
-          <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: (withdraw ? "确认撤回审核" : "确认发布版本"), context: "#{@app.display_name} · #{audit.version} · 审核单号 #{audit.audit_id}", description: (withdraw ? "将向微信申请撤回本轮审核。" : "本轮审核通过的版本将发布到线上。"), color: "warning", confirm_label: (withdraw ? "确认撤回" : "确认发布"), confirm_icon: (withdraw ? :rotate : :check), cancel_icon: :close %>
-        <% end %>
-        <% if audit.status.in?(%w[submit_unknown withdraw_unknown]) || audit.publication == "publish_unknown" %><%= render "reconciliation", audit: audit %><% end %>
-      </div>
-    <% end %>
-  </div>
-</section>
+<% if @app.code_capable? %>
+  <section class="card mb-3"><div class="card-header flex-wrap gap-2"><h2 class="card-title">代码发布</h2>
+    <div class="card-actions btn-list"><%= link_to "全部代码记录", admins_mini_program_releases_path(app_id: @app.id), class: "btn" %>
+    <% if WechatPlatform::ReleaseActions.new(@app).upload? %><%= link_to "上传代码", admins_mini_program_releases_path(app_id: @app.id, upload: 1), class: "btn btn-primary" %><% end %></div></div>
+    <div class="card-body"><%= render "admins/shared/field_rows", fields: { "线上版本（已确认）" => @online_version, "当前体验版" => @trial_version, "最近发布进度" => @latest_progress && MiniProgramRelease::STATES[@latest_progress.progress], "近期上传" => safe_join(@recent_uploads.map { |r| link_to(r.version, admins_mini_program_release_path(r)) }, "、") } %></div>
+    <div class="list-group list-group-flush"><% @audits.each do |round| %><div class="list-group-item">
+      <div class="d-flex flex-wrap gap-2"><strong><%= round.version %></strong><span><%= MiniProgramAudit::LABELS[round.status] %></span><span class="text-secondary"><%= admin_list_time(round.created_at) %></span>
+      <% if round.mini_program_release %><%= link_to "查看代码记录", admins_mini_program_release_path(round.mini_program_release) %><% end %></div>
+      <% if round.rejection_reason %><div class="mt-2"><%= render "admins/shared/field_rows", fields: { "拒审原因" => round.rejection_reason }, full: ["拒审原因"] %>
+      <% round.rejection_screenshots.each do |id| %><code class="me-2"><%= id %></code><% end %></div><% end %>
+      <% unless round.mini_program_release %><div class="btn-list"><%= render "admins/mini_program_releases/round_actions", release: nil, round: round, actions: WechatPlatform::ReleaseActions.new(@app, round: round) %></div><% end %>
+    </div><% end %></div>
+    <%= render "admins/shared/pagination", pagy: @audit_history, url: ->(page) { admins_app_path(@app, page: page) } %>
+  </section>
+<% end %>

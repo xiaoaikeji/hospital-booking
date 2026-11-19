@@ -8,10 +8,8 @@
 
 <section class="card mb-3">
   <div class="card-header"><h2 class="card-title">应用资料</h2></div>
-  <div class="card-body datagrid">
-    <% { "平台" => App::PROVIDERS[@app.provider], "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "接入凭据" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at), "备注" => @app.memo }.each do |label, value| %>
-      <div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content text-break"><%= value.presence || "—" %></div></div>
-    <% end %>
+  <div class="card-body">
+    <%= render "admins/shared/field_rows", fields: { "应用平台" => @app.platform_label, "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "接入凭据" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at), "备注" => @app.memo }, full: ["备注"] %>
   </div>
 </section>
 <% if @app.provider == "wechat" %>

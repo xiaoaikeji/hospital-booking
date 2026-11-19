@@ -15,6 +15,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     auth = @a.create_app_authorization!(refresh_token: "demo-refresh", original_id: "gh_A")
     Rails.cache.write("apps/#{@a.id}/channel_token", { value: "demo-authorizer", revision: auth.updated_at.to_f })
     @service = WechatPlatform::MiniProgramReleaseService.new(@a, actor: @admin)
+    @stubs.get("/cgi-bin/wxopen/getcategory") { response_for(categories: []) }
     @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "demo-direct") }
   end
 
@@ -92,6 +93,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     release = upload
     prepare_submit
     first = accepted_round(release, 701)
+    release = upload
     second = accepted_round(release, 702)
     @stubs.post("/wxa/get_auditstatus") do |env|
       id = JSON.parse(env.body).fetch("auditid")
@@ -162,7 +164,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
       @service.resolve!(audit, outcome: "accepted", confirmed_id: "801")
       assert_equal "passed", audit.reload.status
       @latest_fields = { user_version: "2.0" }
-      assert_raises(WechatPlatform::Error) { @service.publish!(audit) }
+      assert_raises(WechatPlatform::Error) { @service.publish!(audit, automatic: true) }
       assert_raises(WechatPlatform::Error) { WechatPlatform::AutoPublishWorker.new.perform(audit.id) }
       assert_equal "unpublished", audit.reload.publication
       assert_equal 0, publishes
@@ -173,6 +175,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     release = upload
     prepare_submit
     first = accepted_round(release, 701)
+    release = upload
     @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
     assert_raises(WechatPlatform::Error) { submit(release) }
     second = @a.mini_program_audits.last
@@ -190,6 +193,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     release = upload
     prepare_submit
     first = accepted_round(release, 705)
+    release = upload
     @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
     assert_raises(WechatPlatform::Error) { submit(release) }
     @service.resolve!(@a.mini_program_audits.last, outcome: "not_accepted", confirmed_id: "")
@@ -242,7 +246,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     release = upload
     prepare_submit
     rejected = accepted_round(release, 881)
-    pending = accepted_round(release, 882)
+    pending = accepted_round(upload, 882)
     feedback = { reason: "请补充门诊预约的测试说明", ScreenShot: "media-one|media-two" }
     @stubs.post("/wxa/get_auditstatus") do |env|
       id = JSON.parse(env.body).fetch("auditid")
@@ -377,6 +381,20 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     @service.verify_upload!(latest)
     assert latest.reload.current_build?
     assert_equal "uploaded", latest.status
+  end
+
+  test "核实未上传需微信仍为旧体验版，缺少版本信息不能恢复上传按钮" do
+    first = upload
+    @stubs.post("/wxa/commit") { raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { @service.upload!(template_id: "11", version: "1.2", description: "更新") }
+    unknown = @a.mini_program_releases.last
+    @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0) }
+    assert_raises(WechatPlatform::Error) { @service.verify_upload!(unknown, not_uploaded: true) }
+    assert_equal "upload_unknown", unknown.reload.status
+    @stubs.post("/wxa/getversioninfo") { response_for(exp_info: { exp_version: first.version, exp_desc: first.description }) }
+    @service.verify_upload!(unknown, not_uploaded: true)
+    assert_equal "upload_failed", unknown.reload.status
+    assert first.reload.current_build?
   end
 
   test "上传只改变 A 的体验版，A、B 的运行状态不变" do

@@ -11,6 +11,10 @@
   </div>
 </section>
 
+<section class="card mb-3"><div class="card-header"><h2 class="card-title">详情字段</h2></div><div class="card-body">
+  <%= render "admins/shared/field_rows", fields: { "应用平台" => "微信小程序", "运行状态" => "正常", "备注" => "门诊预约" }, full: ["备注"] %>
+</div></section>
+
 <section class="card" aria-labelledby="records-pagination-title">
   <div class="card-header">
     <h2 class="card-title" id="records-pagination-title">分页</h2>

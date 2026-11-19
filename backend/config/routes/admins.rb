@@ -3,6 +3,11 @@ devise_for :admins, path: "admins", only: :sessions, controllers: { sessions: "a
 namespace :admins do
   root "dashboard#index"
   resource :account, only: %i[edit update]
+  resources :mini_program_releases, only: %i[index show] do
+    get :templates, on: :collection
+    get :confirmation, on: :member
+  end
+  resources :code_templates, only: %i[index create destroy]
   resources :apps do
     resource :qrcode, only: :show, controller: "wechat_qrcodes"
     resource :authorization, only: :create, controller: "wechat_authorizations"
@@ -16,6 +21,8 @@ namespace :admins do
     end
     resources :audits, only: [], controller: "wechat_releases" do
       member do
+        get "screenshots/:index", action: :screenshot, as: :screenshot, constraints: { index: /\d+/ }
+        patch :mode
         patch :sync
         post :resolve
         post :withdraw

@@ -3,7 +3,7 @@ module Admins
     before_action :require_super_admin!
 
     def show
-      app = App.where(provider: "wechat").find(params[:app_id])
+      app = App.wechat_mini_programs.find(params[:app_id])
       bytes = WechatPlatform::ReleaseQrcode.fetch(app)
       mime = bytes.start_with?("\x89PNG".b) ? "image/png" : "image/jpeg"
       send_data bytes, type: mime, disposition: "inline", filename: "#{app.appid}-release.#{mime == "image/png" ? "png" : "jpg"}"

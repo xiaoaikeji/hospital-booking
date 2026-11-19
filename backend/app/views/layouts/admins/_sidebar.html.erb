@@ -59,6 +59,8 @@
         </li>
         <% [
           (["应用管理", admins_apps_path, :package, "admins/apps"] if current_admin.super_admin?),
+          (["代码", admins_mini_program_releases_path, :import, "admins/mini_program_releases"] if current_admin.super_admin?),
+          (["模板", admins_code_templates_path, :package, "admins/code_templates"] if current_admin.super_admin?),
           (["管理员", admins_administrators_path, :users, "admins/administrators"] if current_admin.super_admin?),
           ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]
         ].compact.each do |label, path, icon, controller| %>

@@ -2,13 +2,23 @@ module WechatPlatform
   class MiniProgramReleaseService
     RESULTS = { "0" => "passed", "1" => "rejected", "2" => "pending", "3" => "withdrawn", "4" => "delayed" }.freeze
 
+    class SubmissionRejected < Error
+      attr_reader :round_id
+      def initialize(message, round_id)
+        @round_id = round_id
+        super(message)
+      end
+    end
+
     def initialize(app, actor: nil, request: nil)
       @app, @actor, @request = app, actor, request
     end
 
-    def upload!(attributes)
+    def upload!(attributes, templates = nil)
       operation("upload") do
+        raise Error, "请先完成平台授权或核实上次操作" unless ReleaseActions.new(@app).upload?
         api = client
+        attributes = templates.upload_attributes(attributes) if templates
         previous = @app.mini_program_releases.find_by(current_build: true)
         release = App.transaction do
           previous&.update!(current_build: false)
@@ -34,13 +44,30 @@ module WechatPlatform
       end
     end
 
-    def verify_upload!(release)
+    def verify_upload!(release, not_uploaded: false)
       operation("resolve", release) do
         unless release.reload.status == "upload_unknown" && @app.mini_program_releases.maximum(:id) == release.id
           raise Error, "只能核实最近一次结果待定的上传"
         end
-        experience = client.version_info["exp_info"]
-        unless experience && experience["exp_version"] == release.version && experience["exp_desc"] == release.description
+        info = client.version_info
+        experience = info["exp_info"]
+        matches = experience && experience["exp_version"] == release.version && experience["exp_desc"] == release.description
+        if not_uploaded
+          raise Error, "微信体验版与本次上传相符，请核实成功结果" if matches
+          prior = @app.mini_program_releases.where(status: "uploaded").order(id: :desc).first
+          previous_matches = prior && experience.present? && experience["exp_version"] == prior.version && experience["exp_desc"] == prior.description
+          known_empty = !prior && experience.blank? && (info.key?("exp_info") || info.key?("release_info"))
+          unless previous_matches || known_empty
+            raise Error, "微信体验版无法匹配上一次上传，请继续核实"
+          end
+          App.transaction do
+            release.update!(status: "upload_failed", current_build: false)
+            prior.update!(current_build: true) if experience.present?
+            log!(release_id: release.id, result: "人工核实未上传")
+          end
+          next
+        end
+        unless matches
           raise Error, "微信体验版与本记录不一致，请继续核实"
         end
         App.transaction do
@@ -51,7 +78,7 @@ module WechatPlatform
     end
 
     def trial(release)
-      raise Error, "请选择当前体验版" unless release.app_id == @app.id && release.current_build? && release.status == "uploaded"
+      raise Error, "请选择已授权应用的当前体验版" unless release.app_id == @app.id && ReleaseActions.new(@app, release: release).trial?
       client.trial_qrcode
     end
 
@@ -60,6 +87,9 @@ module WechatPlatform
         release.reload
         raise Error, "请选择当前体验版" unless release.current_build? && release.status == "uploaded"
         guard_unresolved!
+        unless ReleaseActions.new(@app, release: release).submit?
+          raise Error, "本记录当前无法重新提审，请刷新后查看本轮状态"
+        end
         if @app.mini_program_audits.maximum(:id).to_i != expected_round.to_i
           raise Error, "已有更新轮次，请刷新页面"
         end
@@ -68,6 +98,7 @@ module WechatPlatform
         if experience.present? && (experience["exp_version"] != release.version || experience["exp_desc"].to_s != release.description)
           raise Error, "微信体验版与本记录不符，请核实当前上传版本"
         end
+        items = AuditPreflight.new(@app).items
         previous_id = api.latest_id
         audit = @app.with_lock do
           config = AppConfiguration.new(@app)
@@ -77,15 +108,17 @@ module WechatPlatform
             previous_audit_pending: MiniProgramAudit::PENDING.include?(prior_status),
             version: release.version, description: description.presence || release.description,
             auto_publish: auto_publish, operator: @actor, previous_status: @app.status)
-          @app.update!(status: "auditing") if @app.status == "active"
+          @app.status = "auditing" if @app.status == "active"
+          @app.save! if @app.changed?
           row
         end
         begin
-          id = api.submit(audit.description)
+          id = api.submit(audit.description, items: items)
           @remote = "微信已受理，审核单号 #{id}"
         rescue Wechat::BaseClient::Rejected => error
           unless error.code == -1
             @app.with_lock { record_nonacceptance!(audit, error_code: error.code) }
+            raise SubmissionRejected.new(error.message, audit.id)
           end
           raise
         ensure
@@ -167,10 +200,24 @@ module WechatPlatform
       end
     end
 
+    def change_mode!(audit, auto_publish:, expected:)
+      operation("publication_mode", audit) do
+        audit.reload
+        unless actions(audit).change_mode? && audit.auto_publish? == expected
+          raise Error, "本轮审核或发布方式已变化，请刷新页面"
+        end
+        App.transaction do
+          before = audit.auto_publish?
+          audit.update!(auto_publish: auto_publish)
+          log!(round_id: audit.id, before: before, after: auto_publish)
+        end
+      end
+    end
+
     def withdraw!(audit)
       operation("withdraw", audit) do
         audit.reload
-        raise Error, "只能撤回当前在审轮次" unless latest_round?(audit) && %w[pending delayed].include?(audit.status)
+        raise Error, "只能撤回当前在审轮次" unless actions(audit).withdraw?
         api = client
         raise Error, "微信最新单号已变化，请先核实" unless api.latest_id == audit.audit_id
         before = remote_result(api, audit.audit_id).fetch(:status)
@@ -194,16 +241,20 @@ module WechatPlatform
         if audit.publication == "publish_unknown"
           next reconcile_publication!(client, audit)
         end
-        eligible = audit.status == "passed" && latest_round?(audit) && audit.mini_program_release &&
-          audit.mini_program_release.status != "closed"
-        next if automatic && !(eligible && audit.auto_publish? && audit.publication == "unpublished")
-        raise Error, "只能发布最新通过的有效轮次" unless eligible
+        policy = actions(audit)
+        next if automatic && !policy.auto_publish?
+        raise Error, "只能人工发布最新通过且选择手动发布的轮次，或重试明确失败的发布" unless automatic || policy.manual_publish?
         api = client
-        marker = online_marker(api.version_info)
+        info = api.version_info
+        marker = online_marker(info)
         raise Error, "该审核单尚未通过，请核实" unless remote_result(api, audit.audit_id).fetch(:status) == "passed"
         latest = api.latest_audit
         verify_submission!(audit, latest)
         raise Error, "微信最新通过单与本轮不符，请核实" unless latest.fetch("auditid") == audit.audit_id
+        if audit.publication == "failed" && audit.prior_online_marker.present? && audit.prior_online_marker != marker &&
+            info.dig("release_info", "release_version") == audit.version
+          next mark_published!(audit)
+        end
         audit.update!(publication: "publish_unknown", prior_online_marker: marker)
         begin
           api.publish
@@ -219,6 +270,8 @@ module WechatPlatform
 
     def retire!(release, delete:)
       operation(delete ? "delete" : "close", release) do
+        policy = ReleaseActions.new(@app, release: release.reload)
+        raise Error, "请刷新并核实本地记录状态" unless delete ? policy.delete? : policy.close?
         App.transaction do
           delete ? release.destroy! : release.update!(status: "closed", current_build: false)
           log!(release_id: release.id)
@@ -297,6 +350,8 @@ module WechatPlatform
       result
     end
 
+    def actions(audit) = ReleaseActions.new(@app, release: audit.mini_program_release, round: audit)
+
     def latest_round?(audit)
       @app.mini_program_audits.accepted_or_uncertain.maximum(:id) == audit.id
     end
@@ -306,6 +361,7 @@ module WechatPlatform
       @app.with_lock do
         # 未明确撤回失败前，查询仍在审不代表可以再次扣减撤回配额。
         unless audit.status == "withdraw_unknown" && %w[pending delayed].include?(status) && !confirmed
+          result = result.merge(approved_at: Time.current) if status == "passed" && !audit.approved_at
           audit.update!(result)
         end
         latest = latest_round?(audit)
@@ -343,12 +399,14 @@ module WechatPlatform
     # 应用锁跨越意图提交、微信请求、结果落库三个阶段。网络调用期间终端仍可读到已提交的状态。
     def operation(action, record = nil)
       @action, @remote, @api_token = action, nil, nil
+      raise Error, "需要超级管理员权限" if @actor && !@actor.super_admin?
       raise Error, "记录不属于当前应用" if record && record.app_id != @app.id
-      raise Error, "请选择微信应用" unless @app.provider == "wechat"
+      raise Error, "请选择微信应用" unless @app.code_capable?
       App.connection_pool.with_connection do |connection|
         key = "hashtextextended('booking.wechat.release:#{Integer(@app.id)}', 0)"
         connection.execute("SELECT pg_advisory_lock(#{key})")
         begin
+          @app.reload
           yield
         ensure
           connection.execute("SELECT pg_advisory_unlock(#{key})")
@@ -365,6 +423,7 @@ module WechatPlatform
       end
       WechatPlatform.log!(@app, action, actor: @actor, request: @request, status: "failed",
         details: { reason: reason, remote_result: @remote }.compact)
+      raise if error.is_a?(SubmissionRejected)
       raise Error, [ @remote, reason ].compact.join("；"), cause: nil
     end
   end

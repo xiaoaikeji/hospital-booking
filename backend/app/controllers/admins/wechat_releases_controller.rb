@@ -3,24 +3,24 @@ module Admins
     before_action :require_super_admin!
     before_action :load_app
     before_action :load_release, only: %i[trial verify_upload submit close destroy]
-    before_action :load_audit, only: %i[sync resolve withdraw publish]
+    before_action :load_audit, only: %i[sync resolve withdraw publish mode screenshot]
 
     def new
       @templates = []
-      platform = WechatPlatform::ComponentToken.new
-      @templates = platform.with_token { |token| platform.client.templates(token) }
+      @templates = WechatPlatform::CodeTemplates.new.refresh(:templates)
     rescue WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected => error
       flash.now[:alert] = error.message
     end
 
     def create
-      service.upload!(params.require(:release).permit(:template_id, :version, :description).to_h)
+      attributes = params.require(:release).permit(:template_id, :template_type, :version, :description)
+      service.upload!(attributes, WechatPlatform::CodeTemplates.new)
       back("体验版已上传")
     end
 
     def verify_upload
       raise ActionController::BadRequest unless params[:confirmed] == "1"
-      service.verify_upload!(@release)
+      service.verify_upload!(@release, not_uploaded: params[:outcome] == "not_uploaded")
       back("微信体验版已核实")
     end
 
@@ -36,6 +36,7 @@ module Admins
     end
 
     def sync
+      raise WechatPlatform::Error, "本轮已结束，请刷新查看结果" unless round_actions.sync?
       service.sync!(@audit)
       back("已核对本轮状态")
     end
@@ -46,12 +47,28 @@ module Admins
       back("核实结果已登记")
     end
 
+    def screenshot
+      no_store
+      image = WechatPlatform::AuditScreenshot.fetch(@app, @audit, Integer(params[:index], 10))
+      send_data image[:bytes], type: image[:type], disposition: "inline"
+    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+      render plain: error.message, status: :service_unavailable
+    end
+
+    def mode
+      values = [params.require(:expected_mode), params.require(:auto_publish)]
+      raise ActionController::BadRequest unless (values - %w[0 1]).empty?
+      service.change_mode!(@audit, auto_publish: values.last == "1", expected: values.first == "1")
+      back("已保存本轮发布方式")
+    end
+
     def withdraw
       service.withdraw!(@audit)
       back("审核已撤回")
     end
 
     def publish
+      raise WechatPlatform::Error, "本轮当前不能人工发布，请刷新查看进度" unless round_actions.manual_publish?
       service.publish!(@audit)
       back("版本已发布")
     end
@@ -67,15 +84,36 @@ module Admins
     end
 
     rescue_from WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable do |error|
-      redirect_to admins_app_path(@app), alert: error.message, status: :see_other
+      if request.format.json?
+        uncertain = @app && (@app.mini_program_releases.exists?(status: "upload_unknown") ||
+          @app.mini_program_audits.exists?(status: %w[submit_unknown withdraw_unknown]) || @app.mini_program_audits.exists?(publication: "publish_unknown"))
+        flash[:alert] = "#{error.message}。请先核实上次操作。" if uncertain
+        revision = error.round_id if error.is_a?(WechatPlatform::MiniProgramReleaseService::SubmissionRejected)
+        render json: { error: error.message, reconcile: uncertain, expected_round: revision }, status: :unprocessable_content
+      else
+        redirect_to return_path, alert: error.message, status: :see_other
+      end
     end
 
     private
 
-    def load_app = @app = App.where(provider: "wechat").find(params[:app_id])
+    def load_app = @app = App.wechat_mini_programs.find(params[:app_id])
     def load_release = @release = @app.mini_program_releases.find(params[:id])
     def load_audit = @audit = @app.mini_program_audits.find(params[:id])
-    def back(message) = redirect_to(admins_app_path(@app), notice: message, status: :see_other)
+    def back(message)
+      flash[:notice] = message
+      request.format.json? ? render(json: { ok: true }) : redirect_to(return_path, status: :see_other)
+    end
+
+    def return_path
+      if params[:detail].present?
+        record = @app.mini_program_releases.find_by(id: params[:detail])
+        return record ? admins_mini_program_release_path(record) : admins_mini_program_releases_path(app_id: @app.id)
+      end
+      return admins_app_path(@app) unless params[:list].is_a?(ActionController::Parameters)
+      admins_mini_program_releases_path(params[:list].permit(:app_id, :q, :status, :in_progress, :page))
+    end
+    def round_actions = WechatPlatform::ReleaseActions.new(@app, release: @audit.mini_program_release, round: @audit)
     def service = WechatPlatform::MiniProgramReleaseService.new(@app, actor: current_admin, request: request)
   end
 end

@@ -1,0 +1,25 @@
+<% content_for :title, "代码 · Booking 管理后台" %>
+<% content_for :fill_content, "true" if @releases.empty? %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% content_for :head do %><%= javascript_include_tag "admins/releases", defer: true %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "代码", icon: :package } do %>
+  <% if @upload_apps.any? %><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#release-upload"><%= render "layouts/admins/icon", name: :import %>上传代码</button><% end %>
+  <%= link_to admins_mini_program_releases_path(@filters.merge(page: @pagy.page, quota: 1)), class: "btn" do %><%= render "layouts/admins/icon", name: :search %>查询额度<% end %>
+<% end %>
+<% if @upload_apps.empty? %><div class="alert alert-info">可在<%= link_to "应用管理", admins_apps_path %>完成微信小程序的平台授权，或先核实已有操作，再上传代码。</div><% end %>
+<% if @quota %><div class="alert alert-info">提审剩余 <%= @quota["rest"] %> / <%= @quota["limit"] %>，加急剩余 <%= @quota["speedup_rest"] %> / <%= @quota["speedup_limit"] %></div><% elsif @quota_error %><div class="alert alert-warning"><%= @quota_error %></div><% end %>
+<section class="<%= class_names("card", "flex-fill" => @releases.empty?) %>">
+  <div class="card-header">
+    <%= form_with url: admins_mini_program_releases_path, method: :get, class: "release-filters d-flex flex-wrap align-items-center gap-2", html: { role: "search" } do |f| %>
+      <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID / 版本", aria: { label: "搜索代码" }, class: "form-control w-auto mw-100" %>
+      <%= f.select :app_id, options_from_collection_for_select(@apps, :id, :display_name, @filters["app_id"]), { include_blank: "全部应用" }, class: "form-select w-auto", data: { enhanced_select: "search" }, aria: { label: "应用" } %>
+      <%= f.select :status, MiniProgramRelease::STATES.invert, { include_blank: "全部状态", selected: @filters["status"] }, class: "form-select w-auto", data: { enhanced_select: "single" }, aria: { label: "状态" } %>
+      <label class="form-check my-auto"><%= check_box_tag :in_progress, "1", @filters["in_progress"] == "1", class: "form-check-input" %>进行中</label>
+      <%= f.button type: :submit, class: "btn" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+      <% if @filters.any? %><%= link_to admins_mini_program_releases_path, class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %><% end %>
+    <% end %>
+  </div>
+  <div class="d-flex flex-column flex-fill" id="release-list" data-source="<%= admins_mini_program_releases_path(@filters.merge(page: @pagy.page, fragment: 1)) %>"><%= render "list" %></div>
+</section>
+<%= render "dialog" %>
+<%= render "upload" if @upload_apps.any? %>

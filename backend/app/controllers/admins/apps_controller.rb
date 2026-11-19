@@ -16,10 +16,11 @@ module Admins
     def show
       return unless @app.provider == "wechat"
       @platform = WechatPlatform::ComponentToken.new
-      @releases = @app.mini_program_releases.includes(:operator).order(id: :desc)
-      @audits = @app.mini_program_audits.includes(:operator, :mini_program_release).order(id: :desc)
-      @round_revision = @app.mini_program_audits.maximum(:id).to_i
-      @latest_round = @app.mini_program_audits.accepted_or_uncertain.maximum(:id)
+      @trial_version = @app.mini_program_releases.find_by(current_build: true)&.version
+      @online_version = @app.mini_program_audits.where(publication: "published").order(id: :desc).pick(:version)
+      @audit_history, @audits = pagy(@app.mini_program_audits.includes(:mini_program_release).order(id: :desc), limit: 10)
+      @latest_progress = @app.mini_program_releases.with_progress.order(Arel.sql("activity_at DESC, mini_program_releases.id DESC")).first
+      @recent_uploads = @app.mini_program_releases.order(id: :desc).limit(3)
     end
 
     def edit
@@ -33,7 +34,7 @@ module Admins
     end
 
     def create
-      @app = App.new(input.slice(:provider, :appid))
+      @app = App.new(input.slice(:provider, :app_type, :appid))
       save_app("create")
     end
 
@@ -64,7 +65,7 @@ module Admins
     private
 
     def load_app = @app = App.find(params[:id])
-    def input = params.require(:app).permit(:provider, :appid, :nickname, :memo, :status, :appsecret, :clear_secret, :revision)
+    def input = params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret, :clear_secret, :revision)
 
     def save_app(action)
       App.transaction(requires_new: true) do

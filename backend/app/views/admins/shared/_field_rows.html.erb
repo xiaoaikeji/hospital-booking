@@ -1,0 +1,7 @@
+<dl class="row g-3 mb-0">
+  <% fields.each do |label, value| %>
+    <div class="<%= Array(local_assigns[:full]).include?(label) ? 'col-12' : 'col-12 col-lg-6' %>">
+      <div class="row g-2"><dt class="col-4 text-secondary fw-normal"><%= label %></dt><dd class="col-8 text-break mb-0"><%= value.presence || "—" %></dd></div>
+    </div>
+  <% end %>
+</dl>

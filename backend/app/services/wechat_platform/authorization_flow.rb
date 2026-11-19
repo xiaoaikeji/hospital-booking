@@ -5,7 +5,7 @@ module WechatPlatform
     end
 
     def start!(admin, request)
-      raise Error, "仅微信小程序支持授权" unless @app.provider == "wechat"
+      raise Error, "此平台尚未接入平台授权" unless @app.provider == "wechat"
       code = @platform.with_token { |token| @platform.client.pre_auth(token, @platform.config[:appid]) }
       state = SecureRandom.urlsafe_base64(32)
       request.session[:wechat_authorization_session] ||= request.session.id&.to_s || SecureRandom.hex(32)
@@ -15,7 +15,7 @@ module WechatPlatform
         WechatPlatform.log!(@app, "authorize", actor: admin, request: request)
       end
       callback = yield(state)
-      query = { component_appid: @platform.config[:appid], pre_auth_code: code, biz_appid: @app.appid, auth_type: 2, redirect_uri: callback }
+      query = { component_appid: @platform.config[:appid], pre_auth_code: code, biz_appid: @app.appid, auth_type: (@app.code_capable? ? 2 : 1), redirect_uri: callback }
       "https://mp.weixin.qq.com/cgi-bin/componentloginpage?#{query.to_query}"
     end
 
