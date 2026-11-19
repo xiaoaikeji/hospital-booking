@@ -47,10 +47,7 @@
           <% detail_url = admins_app_path(app) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
-            <td class="app-platform px-2">
-              <%= App::PROVIDERS.fetch(app.provider) %>小程序
-              <div class="small text-secondary"><%= render "admins/shared/list_text", text: "凭据#{AppConfiguration.new(app).credential_status}" %></div>
-            </td>
+            <td class="app-platform px-2"><%= App::PROVIDERS.fetch(app.provider) %>小程序</td>
             <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name, url: detail_url %></td>
             <td class="app-appid px-2"><%= render "admins/shared/list_text", text: app.appid, url: detail_url %></td>
             <td class="app-authorization px-2">
@@ -72,7 +69,7 @@
             <td class="app-action-cell px-2"><div class="d-flex flex-wrap gap-1">
               <%= link_to detail_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
               <% if app.provider == "wechat" %>
-                <button type="button" class="btn btn-sm text-nowrap" title="查看正式版小程序码" data-bs-toggle="modal" data-bs-target="#app-qrcode" data-qrcode-url="<%= admins_app_qrcode_path(app) %>" data-app-name="<%= app.display_name %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :eye %>二维码</button>
+                <button type="button" class="btn btn-sm text-nowrap" title="查看正式版小程序码" data-bs-toggle="modal" data-bs-target="#app-qrcode" data-qrcode-url="<%= admins_app_qrcode_path(app) %>" data-app-name="<%= app.display_name %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :qrcode %>二维码</button>
               <% end %>
               <%= link_to edit_admins_app_path(app), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
               <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
