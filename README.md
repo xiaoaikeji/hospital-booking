@@ -3,7 +3,7 @@
 预约挂号系统。Rails 服务端和管理后台与微信小程序前端放在同一个仓库。
 
 - [`backend/`](backend/) · Rails 服务端和管理后台。
-- [`miniapp/`](miniapp/) · 微信小程序前端目录，当前为占位。
+- [`miniapp/`](miniapp/) · HBuilderX 的 uni-app Vue 3 微信小程序工程。运行方法和开发约定见[小程序开发规范](miniapp/docs/小程序开发规范.md)。
 - [`docs/`](docs/) · 全项目共用资料。后端开发文档在 [`backend/docs/`](backend/docs/)。
 
 Ruby **3.4.12** / Rails **8.1.3.1** / PostgreSQL。
