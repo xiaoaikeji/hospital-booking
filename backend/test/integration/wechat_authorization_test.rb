@@ -59,6 +59,42 @@ class WechatAuthorizationTest < ActionDispatch::IntegrationTest
     assert_not_includes Log.pluck(:details).to_json, "demo-"
   end
 
+  test "同一超管的两个授权标签页各自回跳且只能消费一次" do
+    b = App.create!(provider: "wechat", appid: "wxB")
+    Rails.cache.write("wechat/component/wxPlatform/token", "demo-platform-token")
+    @stubs.post("/cgi-bin/component/api_create_preauthcode") { response_for(pre_auth_code: "demo-preauth") }
+    callbacks = [ @target, b ].map do |app|
+      post admins_app_authorization_path(app)
+      query = Rack::Utils.parse_query(URI(response.location).query)
+      query.fetch("redirect_uri") + "&auth_code=#{app.appid}"
+    end
+    exchanges = []
+    @stubs.post("/cgi-bin/component/api_query_auth") do |env|
+      appid = JSON.parse(env.body).fetch("authorization_code")
+      exchanges << appid
+      response_for(authorization_info: { authorizer_appid: appid, authorizer_refresh_token: "refresh-#{appid}" })
+    end
+    @stubs.post("/cgi-bin/component/api_get_authorizer_info") { response_for(authorizer_info: { user_name: "gh_demo" }) }
+
+    # 即使是同一超管，拿到链接的另一个浏览器也不能消费原会话的 state。
+    foreign_browser = open_session
+    sign_in @admin
+    foreign_browser.get callbacks.first
+    assert_equal admins_apps_url, foreign_browser.response.location
+    travel 11.minutes do
+      get callbacks.first
+      assert_redirected_to admins_apps_path
+    end
+    [ @target, b ].zip(callbacks) do |app, callback|
+      get callback
+      assert_redirected_to admins_app_path(app)
+      assert_equal "refresh-#{app.appid}", app.reload.app_authorization.refresh_token
+      get callback
+      assert_redirected_to admins_apps_path
+    end
+    assert_equal %w[wxA wxB], exchanges
+  end
+
   test "运营和客服直接请求授权回跳、上传和每个审核动作均返回 403" do
     %w[operator customer_service].each do |role|
       sign_in Admin.create!(username: role, role: role)

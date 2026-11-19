@@ -5,15 +5,15 @@ module Admins
     def create
       @app = App.find(params[:app_id])
       url = WechatPlatform::AuthorizationFlow.new(@app).start!(current_admin, request) do |state|
-        session[:wechat_app_id] = @app.id
         api_wechat_authorization_callback_url(state: state)
       end
       redirect_to url, allow_other_host: true, status: :see_other
     end
 
     def callback
-      @app = App.find(session.delete(:wechat_app_id))
-      WechatPlatform::AuthorizationFlow.new(@app).complete!(params[:state], params[:auth_code], current_admin, request)
+      auth = WechatPlatform::AuthorizationFlow.pending!(params[:state], current_admin, request)
+      @app = auth.app
+      WechatPlatform::AuthorizationFlow.new(@app).complete!(auth, params[:auth_code], current_admin, request)
       redirect_to admins_app_path(@app), notice: "微信授权已完成"
     end
 

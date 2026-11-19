@@ -8,14 +8,30 @@ module WechatPlatform
       raise Error, "仅微信小程序支持授权" unless @app.provider == "wechat"
       code = @platform.with_token { |token| @platform.client.pre_auth(token, @platform.config[:appid]) }
       state = SecureRandom.urlsafe_base64(32)
+      request.session[:wechat_authorization_session] ||= request.session.id&.to_s || SecureRandom.hex(32)
       @app.with_lock do
         auth = @app.app_authorization || @app.build_app_authorization
-        auth.update!(initiator: admin, state_digest: Digest::SHA256.hexdigest(state), state_expires_at: 10.minutes.from_now)
+        auth.update!(initiator: admin, state_digest: self.class.session_digest(state, request), state_expires_at: 10.minutes.from_now)
         WechatPlatform.log!(@app, "authorize", actor: admin, request: request)
       end
       callback = yield(state)
       query = { component_appid: @platform.config[:appid], pre_auth_code: code, biz_appid: @app.appid, auth_type: 2, redirect_uri: callback }
       "https://mp.weixin.qq.com/cgi-bin/componentloginpage?#{query.to_query}"
+    end
+
+    def self.session_digest(state, request)
+      Digest::SHA256.hexdigest("#{request.session[:wechat_authorization_session]}:#{state}")
+    end
+
+    def self.pending!(state, admin, request)
+      raise Error, "授权请求已失效" unless state.is_a?(String) && state.present?
+      pending = AppAuthorization.where(initiator: admin).where("state_expires_at > ?", Time.current)
+      auth = pending.find_by(state_digest: session_digest(state, request))
+      # 升级前已打开的授权页，沿用原会话内的应用 ID 和摘要，直至十分钟有效期结束。
+      if !auth && request.session[:wechat_app_id]
+        auth = pending.find_by(app_id: request.session[:wechat_app_id], state_digest: Digest::SHA256.hexdigest(state))
+      end
+      auth || raise(Error, "授权请求已失效")
     end
 
     def self.authorization_attributes(info, app)
@@ -24,12 +40,12 @@ module WechatPlatform
       { refresh_token: refresh, scopes: Array(info["func_info"]).filter_map { |item| item.dig("funcscope_category", "id") } }
     end
 
-    def complete!(state, code, admin, request)
-      auth = @app.app_authorization
-      raise Error, "授权请求已失效" unless auth && state.present? && code.present?
+    def complete!(auth, code, admin, request)
+      raise Error, "授权请求已失效" if code.blank?
+      expected_digest = auth.state_digest
       consumed_at = auth.with_lock do
         valid = auth.initiator_id == admin.id && auth.state_expires_at&.future? &&
-          ActiveSupport::SecurityUtils.secure_compare(auth.state_digest.to_s, Digest::SHA256.hexdigest(state))
+          ActiveSupport::SecurityUtils.secure_compare(auth.state_digest.to_s, expected_digest)
         raise Error, "授权请求已失效" unless valid
         auth.update!(state_digest: nil, state_expires_at: nil)
         auth.updated_at
