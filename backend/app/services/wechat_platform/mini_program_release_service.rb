@@ -307,8 +307,7 @@ module WechatPlatform
       end
     rescue Error, AppConfiguration::Invalid, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
       if @api_token && error.is_a?(Wechat::BaseClient::Rejected) && error.invalid_token?
-        key = "apps/#{@app.id}/channel_token"
-        @app.app_authorization.with_lock { Rails.cache.delete(key) if Rails.cache.read(key)&.fetch(:value) == @api_token }
+        AuthorizerToken.expire(@app, @api_token)
       end
       reason = case error
       when ActiveRecord::RecordInvalid then "记录校验失败，请核对填写内容"

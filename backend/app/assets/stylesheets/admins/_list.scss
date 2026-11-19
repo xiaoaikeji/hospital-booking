@@ -9,8 +9,31 @@
 .admin-list-table .list-column-time { width: 8.75rem; }
 .admin-list-table .list-column-action { width: 5.625rem; }
 
-@media (min-width: 576px) {
-  .admin-list-table .list-column-actions-pair { width: 10.5rem; }
+.app-list-card {
+  container-type: inline-size;
+  .app-platform { width: 7.5rem; }
+  .app-actions { width: 20.5rem; }
+}
+
+@container (max-width: 64rem) {
+  .app-created { display: none; }
+}
+
+@container (max-width: 55rem) {
+  .app-appid { display: none; }
+}
+
+@container (max-width: 48rem) {
+  .app-platform, .app-actions { display: none; }
+  .app-list-card table tr {
+    display: grid;
+    grid-template-columns: 3.25rem minmax(0, 1fr) 4.75rem 4.75rem;
+    align-items: center;
+    height: auto;
+  }
+  .app-list-card table td { min-width: 0; }
+  .app-list-card tbody td:not(.app-action-cell) { border-bottom: 0; }
+  .app-action-cell { grid-column: 1 / -1; padding-top: 0; }
 }
 
 .admin-list-text-lines {

@@ -1,5 +1,10 @@
 module WechatPlatform
   class AuthorizerToken
+    def self.expire(app, token)
+      key = "apps/#{app.id}/channel_token"
+      app.app_authorization.with_lock { Rails.cache.delete(key) if Rails.cache.read(key)&.fetch(:value) == token }
+    end
+
     def self.fetch(app)
       auth = app.app_authorization
       raise Error, "请先完成该小程序的微信授权" unless app.provider == "wechat" && auth

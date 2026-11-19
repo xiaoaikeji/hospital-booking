@@ -9,7 +9,8 @@ module Admins
       if @filters["q"]
         scope = scope.where("nickname ILIKE :q OR appid ILIKE :q", q: "%#{App.sanitize_sql_like(@filters["q"])}%")
       end
-      @pagy, @apps = pagy(scope.order(id: :desc))
+      @pagy, @apps = pagy(scope.preload(:app_authorization).order(id: :desc))
+      @component_configured = WechatPlatform::ComponentToken.new.missing.empty? if @apps.any? { |app| app.provider == "wechat" }
     end
 
     def show

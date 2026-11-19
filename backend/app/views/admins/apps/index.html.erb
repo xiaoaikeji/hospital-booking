@@ -1,5 +1,6 @@
 <% content_for :title, "应用管理 · Booking 管理后台" %>
 <% empty = @apps.empty? %>
+<% content_for :head do %><%= javascript_include_tag "admins/app_qrcode", defer: true %><% end %>
 <% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "应用管理", icon: :package } do %>
   <%= link_to new_admins_app_path, class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增应用<% end %>
@@ -13,7 +14,7 @@
   </div>
 </section>
 
-<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="应用列表">
+<section class="<%= class_names("card app-list-card", "flex-fill" => empty) %>" aria-label="应用列表">
   <div class="card-header flex-shrink-0">
     <%= form_with url: admins_apps_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索应用" } } do |f| %>
       <% @filters.except("q").each do |key, value| %><%= hidden_field_tag key, value %><% end %>
@@ -32,25 +33,49 @@
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead><tr>
         <th scope="col" class="list-column-id px-2">ID</th>
-        <th scope="col" class="px-2">名称</th>
-        <th scope="col" class="d-none d-lg-table-cell">平台</th>
-        <th scope="col" class="list-column-number d-none d-md-table-cell">AppID</th>
-        <th scope="col" class="list-column-status px-2">状态</th>
-        <th scope="col" class="d-none d-xl-table-cell">接入凭据</th>
-        <th scope="col" class="list-column-action list-column-actions-pair px-2">操作</th>
+        <th scope="col" class="app-platform px-2">应用平台</th>
+        <th scope="col" class="px-2">应用名称</th>
+        <th scope="col" class="app-appid list-column-number px-2">AppID</th>
+        <th scope="col" class="app-authorization list-column-status px-2">微信授权</th>
+        <th scope="col" class="list-column-status px-2">运行状态</th>
+        <th scope="col" class="app-created list-column-time px-2">创建时间</th>
+        <th scope="col" class="app-actions px-2">操作</th>
       </tr></thead>
       <tbody>
         <% @apps.each do |app| %>
+          <% authorized = app.provider == "wechat" && app.app_authorization&.authorized? %>
+          <% detail_url = admins_app_path(app) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
-            <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name %></td>
-            <td class="d-none d-lg-table-cell"><%= render "admins/shared/list_text", text: App::PROVIDERS[app.provider] %></td>
-            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: app.appid %></td>
+            <td class="app-platform px-2">
+              <%= App::PROVIDERS.fetch(app.provider) %>小程序
+              <div class="small text-secondary"><%= render "admins/shared/list_text", text: "凭据#{AppConfiguration.new(app).credential_status}" %></div>
+            </td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name, url: detail_url %></td>
+            <td class="app-appid px-2"><%= render "admins/shared/list_text", text: app.appid, url: detail_url %></td>
+            <td class="app-authorization px-2">
+              <% if app.provider == "wechat" %>
+                <% if authorized %>
+                  <span class="badge bg-success-lt">已授权</span>
+                <% else %>
+                  <%= link_to "未授权", admins_app_path(app, anchor: "wechat-authorization"), class: "badge bg-secondary-lt", title: "查看此应用的微信授权配置" %>
+                  <% if @component_configured %>
+                    <%= button_to "微信授权", admins_app_authorization_path(app), class: "btn btn-sm mt-1", form: { target: "_blank", rel: "noopener" } %>
+                  <% end %>
+                <% end %>
+              <% else %>
+                <span class="text-secondary">不适用</span>
+              <% end %>
+            </td>
             <td class="px-2"><%= app_status_badge(app.status) %></td>
-            <td class="d-none d-xl-table-cell"><%= render "admins/shared/list_text", text: AppConfiguration.new(app).credential_status %></td>
-            <td class="px-2"><div class="d-flex gap-1">
-              <%= link_to admins_app_path(app), class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
-              <%= link_to edit_admins_app_path(app), class: "btn btn-sm btn-outline-primary text-nowrap d-none d-sm-inline-flex" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+            <td class="app-created px-2"><%= admin_list_time(app.created_at) %></td>
+            <td class="app-action-cell px-2"><div class="d-flex flex-wrap gap-1">
+              <%= link_to detail_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
+              <% if app.provider == "wechat" %>
+                <button type="button" class="btn btn-sm text-nowrap" title="查看正式版小程序码" data-bs-toggle="modal" data-bs-target="#app-qrcode" data-qrcode-url="<%= admins_app_qrcode_path(app) %>" data-app-name="<%= app.display_name %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :eye %>二维码</button>
+              <% end %>
+              <%= link_to edit_admins_app_path(app), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+              <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
             </div></td>
           </tr>
         <% end %>
@@ -59,3 +84,6 @@
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_apps_path(@filters.merge(page: page)) } %>
   <% end %>
 </section>
+
+<%= render "qrcode_modal" if @apps.any? { |app| app.provider == "wechat" } %>
+<%= render partial: "delete_confirmation", collection: @apps, as: :app %>

@@ -4,6 +4,7 @@ namespace :admins do
   root "dashboard#index"
   resource :account, only: %i[edit update]
   resources :apps do
+    resource :qrcode, only: :show, controller: "wechat_qrcodes"
     resource :authorization, only: :create, controller: "wechat_authorizations"
     resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
       member do
