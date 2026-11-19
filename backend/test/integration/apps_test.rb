@@ -7,6 +7,19 @@ class AppsTest < ActionDispatch::IntegrationTest
   setup { install_wechat_stubs }
   teardown { remove_wechat_stubs }
 
+  test "未配置第三方平台时打开微信应用详情无需加载微信客户端" do
+    sign_in Admin.create!(username: "boss", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxDetail")
+    @previous_env.each_key { |name| ENV.delete(name) }
+
+    stub_const(Object, :Wechat, Module.new) do
+      get admins_app_path(app)
+      assert_response :success
+      assert_select "h2", "应用资料"
+      assert_select "[role='status']", /请配置第三方平台/
+    end
+  end
+
   test "管理页面及写操作仅向超管开放" do
     app = App.create!(provider: "wechat", appid: "wxA", appsecret: "demo-only")
     %w[operator customer_service].each do |role|

@@ -1,13 +1,13 @@
 module WechatPlatform
   class ComponentToken
     KEYS = %i[appid appsecret token encoding_aes_key].freeze
-    attr_reader :config, :client
+    attr_reader :config
 
     def initialize
       @config = KEYS.index_with { |key| IntegrationSettings.read(:wechat_component, key, env_key: "WECHAT_COMPONENT_#{key.upcase}") }
-      @client = Wechat::ComponentClient.new
     end
 
+    def client = @client ||= Wechat::ComponentClient.new
     def missing = KEYS.select { |key| @config[key].blank? }
     def ticket_key = "wechat/component/#{@config[:appid]}/ticket"
     # 平台明确拒绝令牌时淘汰这次用的值，写接口不在此自动重放。
