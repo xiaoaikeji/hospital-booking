@@ -1,5 +1,6 @@
 <script setup>
-import { clinics, doctors, entries, tabs } from '../home-first-mock.js'
+import { doctors } from '@/mock/doctors.js'
+import { clinics, entries } from '../home-first-mock.js'
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
 const capsule = uni.getMenuButtonBoundingClientRect()
@@ -59,12 +60,6 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
       </view>
     </view>
 
-    <view class="home-tabs">
-      <view v-for="(tab, index) in tabs" :key="tab.label" class="home-tab" :class="{ 'tab-active': index === 0 }">
-        <image class="tab-icon" :src="'/static/tabbar/' + tab.icon" mode="aspectFit" />
-        <text class="tab-label">{{ tab.label }}</text>
-      </view>
-    </view>
   </view>
 </template>
 
@@ -72,7 +67,6 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
 .home-page {
   color: #111;
   background: #fff;
-  padding-bottom: calc(82rpx + env(safe-area-inset-bottom));
 }
 .home-navigation { position: sticky; z-index: 1; top: 0; background: #f8f8f8; border-bottom: 1rpx solid #f8f8f8; }
 .navigation-row { display: flex; align-items: center; justify-content: flex-end; }
@@ -162,26 +156,4 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
   font-weight: 300;
   line-height: 33rpx;
 }
-.home-tabs {
-  position: fixed;
-  z-index: 1;
-  inset: auto 0 0;
-  display: flex;
-  border-top: 1rpx solid #f7f7f7;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: #fff;
-}
-.home-tab {
-  flex: 1;
-  height: 82rpx;
-  box-sizing: border-box;
-  padding-top: 14rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #999;
-}
-.tab-icon { width: 42rpx; height: 42rpx; }
-.tab-label { margin-top: 6rpx; font-size: 20rpx; line-height: 27rpx; }
-.tab-active { color: #65a6d0; }
 </style>
