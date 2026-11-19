@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { appName } from '@/store/app-configuration.js'
 
 defineProps({ label: { type: String, required: true } })
 const emit = defineEmits(['authorized', 'denied'])
@@ -31,7 +32,7 @@ function receivePhone(event) {
     <view v-if="showDemo" class="phone-mask">
       <view class="phone-backdrop" @tap="chooseDemo(false)" @touchmove.stop.prevent />
       <view class="phone-sheet" aria-role="dialog" aria-label="体验手机号授权">
-        <view class="app-name"><image class="app-logo" src="/static/ucenter/hospital-logo.jpg" />临汾西京眼耳鼻喉医院预约挂号</view>
+        <view class="app-name"><image class="app-logo" src="/static/ucenter/hospital-logo.jpg" />{{ appName }}</view>
         <view class="request">申请获取并验证你的手机号</view>
         <view class="purpose">本地模拟登录或注册</view>
         <button class="phone-choice" @tap="chooseDemo(true)">100****0000<text class="demo-label">体验号码</text></button>

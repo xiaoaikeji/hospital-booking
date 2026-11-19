@@ -4,6 +4,7 @@ import { bookingMode } from '@/pages/booking/booking-mode.js'
 import { switchFromHomeCard } from '@/utils/guest-tab.js'
 import { openBooking } from '@/utils/booking-navigation.js'
 import { clinics } from '@/mock/clinics.js'
+import { appName } from '@/store/app-configuration.js'
 import { banners, entries } from '../home-first-mock.js'
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
@@ -26,7 +27,7 @@ function openEntry(entry) {
   <view class="home-page">
     <view class="home-navigation" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view class="navigation-row" :style="{ height: navigationHeight + 'px', width: titleSpace + 'px' }">
-        <text class="navigation-title">临汾西京眼耳鼻喉医院预约挂号</text>
+        <text class="navigation-title">{{ appName }}</text>
       </view>
     </view>
     <view class="home-content">
@@ -90,10 +91,13 @@ function openEntry(entry) {
   background: #fff;
 }
 .home-navigation { position: sticky; z-index: 1; top: 0; background: #f8f8f8; border-bottom: 1rpx solid #f8f8f8; }
-.navigation-row { display: flex; align-items: center; justify-content: flex-end; }
+.navigation-row { display: flex; align-items: center; }
+.navigation-row::before, .navigation-row::after { content: ''; flex: 1 1 0%; }
+/* 给左侧留出与微信胶囊等宽的空间，长标题可向左延伸。 */
+.navigation-row::before { flex-basis: calc(100vw - 100%); }
 .navigation-title {
+  flex: none;
   max-width: calc(100% - 12rpx);
-  margin-right: max(0px, calc(100% - 50vw - 7em));
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

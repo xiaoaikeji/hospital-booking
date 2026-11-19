@@ -1,6 +1,6 @@
 {
 	"pages": [
-		{ "path": "pages/index/index", "style": { "navigationBarTitleText": "临汾西京眼耳鼻喉医院预约挂号", "navigationStyle": "custom", "navigationBarBackgroundColor": "#F8F8F8" } },
+		{ "path": "pages/index/index", "style": { "navigationBarTitleText": "", "navigationStyle": "custom", "navigationBarBackgroundColor": "#F8F8F8" } },
 		{ "path": "pages/booking/index", "style": { "navigationBarTitleText": "预约挂号", "navigationStyle": "custom" } },
 		{ "path": "pages/booking/doctors", "style": { "navigationBarTitleText": "医生", "navigationStyle": "custom" } },
 		{ "path": "pages/booking/schedule", "style": { "navigationBarTitleText": "门诊排班", "navigationStyle": "custom" } },
