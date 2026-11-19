@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { bookingMode as mode } from './booking-mode.js'
 import DoctorCard from './components/doctor_card.vue'
 import { doctors } from '@/mock/doctors.js'
 
@@ -13,7 +13,6 @@ const dates = [
   { day: '周六', date: '11–21' }, { day: '周日', date: '11–22' },
   { day: '周一', date: '11–23' }, { day: '周二', date: '11–24' },
 ]
-const mode = ref('department')
 </script>
 
 <template>

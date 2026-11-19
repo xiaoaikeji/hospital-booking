@@ -1,12 +1,22 @@
 <script setup>
 import { doctors } from '@/mock/doctors.js'
-import { clinics, entries } from '../home-first-mock.js'
+import { bookingMode } from '@/pages/booking/booking-mode.js'
+import { banners, clinics, entries } from '../home-first-mock.js'
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
 const capsule = uni.getMenuButtonBoundingClientRect()
 const hasCapsule = capsule.height > 0 && capsule.top >= statusBarHeight
 const navigationHeight = hasCapsule ? capsule.height + 2 * (capsule.top - statusBarHeight) : 44
 const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
+
+function openEntry(entry) {
+  if (entry.id === 'registration') {
+    bookingMode.value = 'department'
+    uni.switchTab({ url: entry.url })
+    return
+  }
+  uni.navigateTo({ url: entry.url })
+}
 </script>
 
 <template>
@@ -18,12 +28,18 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
     </view>
     <view class="home-content">
       <view class="home-banner">
-        <image class="banner-art" src="/static/home/registration-banner.jpg" mode="scaleToFill" aria-label="预约挂号智慧平台，线上预约，快速便捷" />
-        <view class="banner-dot" />
+        <swiper class="banner-swiper" :indicator-dots="banners.length > 1" indicator-active-color="#fff"
+          :autoplay="banners.length > 1" :circular="banners.length > 1" :interval="5000">
+          <swiper-item v-for="banner in banners" :key="banner.image">
+            <image class="banner-art" :src="banner.image" mode="scaleToFill" :aria-label="banner.label" />
+          </swiper-item>
+        </swiper>
+        <view v-if="banners.length === 1" class="banner-dot" />
       </view>
 
       <view class="home-entries">
-        <view v-for="entry in entries" :key="entry.id" class="entry-card" :class="'entry-' + entry.id">
+        <view v-for="entry in entries" :key="entry.id" class="entry-card" :class="'entry-' + entry.id"
+          role="link" :aria-label="entry.title" @tap="openEntry(entry)">
           <text class="entry-title">{{ entry.title }}</text>
           <text class="entry-description">{{ entry.description }}</text>
           <image class="entry-icon" :src="'/static/home/' + entry.id + '.svg'" mode="aspectFit" />
@@ -88,8 +104,9 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
   border-radius: 17rpx;
   background: #61bfbd;
 }
-.banner-art { display: block; width: 100%; height: 100%; }
+.banner-swiper, .banner-art { display: block; width: 100%; height: 100%; }
 .banner-dot {
+  pointer-events: none;
   position: absolute;
   left: 50%;
   bottom: 17rpx;
