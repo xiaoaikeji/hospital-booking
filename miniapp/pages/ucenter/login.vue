@@ -1,3 +1,20 @@
+<script setup>
+import { onLoad } from '@dcloudio/uni-app'
+import { startDemoSession } from '@/mock/session.js'
+import { leaveLogin, resumeBooking } from '@/utils/booking-navigation.js'
+
+let target = {}
+let leaving = false
+onLoad(options => { target = options })
+
+function authorize({ phone }) {
+  if (leaving) return
+  leaving = true
+  startDemoSession(phone)
+  resumeBooking(target)
+}
+</script>
+
 <template>
   <view class="login-page">
     <custom-page-header title="授权登录" back />
@@ -6,7 +23,9 @@
       <view class="permission">
         <text class="permission-title">申请获取以下权限</text>
         <text class="permission-note">获取你的公开信息(微信昵称、头像等) 授权登录</text>
-        <button class="login-button" hover-class="none">授权登录</button>
+        <custom-phone-authorization label="授权登录" @authorized="authorize" @denied="leaveLogin">
+          <view class="login-button">授权登录</view>
+        </custom-phone-authorization>
       </view>
     </view>
   </view>
@@ -20,5 +39,4 @@
 .permission-title { color: #333; font-size: 29rpx; line-height: 44rpx; }
 .permission-note { margin-top: 19rpx; color: #999; font-size: 24rpx; line-height: 36rpx; }
 .login-button { width: 100%; height: 70rpx; margin-top: 84rpx; border-radius: 35rpx; background: #5ba6e7; color: #fff; font-size: 27rpx; line-height: 70rpx; }
-.login-button::after { border: 0; }
 </style>

@@ -1,9 +1,19 @@
 <script setup>
-defineProps({ doctor: { type: Object, required: true } })
+import { openBooking } from '@/utils/booking-navigation.js'
+
+const props = defineProps({
+  doctor: { type: Object, required: true },
+  date: { type: String, default: '' },
+  department: Boolean,
+})
+
+function open(target) {
+  openBooking(target, { id: props.doctor.id, date: props.date, department: props.department })
+}
 </script>
 
 <template>
-  <view class="doctor-card">
+  <view class="doctor-card" aria-role="link" :aria-label="doctor.name + '的医生主页'" @tap="open('doctor')">
     <view class="doctor-summary">
       <image class="doctor-portrait" :src="doctor.portrait" mode="aspectFill" :aria-label="doctor.name" />
       <view class="doctor-text">
@@ -13,7 +23,7 @@ defineProps({ doctor: { type: Object, required: true } })
         </view>
         <text v-for="line in doctor.credentials" :key="line" class="credential">{{ line }}</text>
       </view>
-      <text class="booking-action">预约</text>
+      <view class="booking-action" aria-role="button" :aria-label="'预约' + doctor.name" @tap.stop="open('form')">预约</view>
     </view>
     <view class="specialty">
       <view class="specialty-summary"><text class="specialty-label">【擅长】</text>：{{ doctor.introduction }}</view>

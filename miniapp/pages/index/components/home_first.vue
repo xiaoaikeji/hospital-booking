@@ -2,7 +2,9 @@
 import { doctors } from '@/mock/doctors.js'
 import { bookingMode } from '@/pages/booking/booking-mode.js'
 import { switchFromHomeCard } from '@/utils/guest-tab.js'
-import { banners, clinics, entries } from '../home-first-mock.js'
+import { openBooking } from '@/utils/booking-navigation.js'
+import { clinics } from '@/mock/clinics.js'
+import { banners, entries } from '../home-first-mock.js'
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
 const capsule = uni.getMenuButtonBoundingClientRect()
@@ -50,11 +52,11 @@ function openEntry(entry) {
       <view class="clinics-section">
         <text class="section-title">专病门诊</text>
         <view class="clinic-grid">
-          <navigator v-for="clinic in clinics" :key="clinic.icon" class="clinic-item"
-            url="/pages/ucenter/login" hover-class="none" :aria-label="clinic.name">
+          <view v-for="clinic in clinics" :key="clinic.icon" class="clinic-item"
+            aria-role="link" :aria-label="clinic.name" @tap="openBooking('schedule', { clinic: clinic.icon })">
             <image class="clinic-icon" :src="'/static/home/' + clinic.icon + '.svg'" mode="aspectFit" />
             <text class="clinic-name">{{ clinic.name }}</text>
-          </navigator>
+          </view>
         </view>
       </view>
 
@@ -64,8 +66,8 @@ function openEntry(entry) {
           <navigator class="doctors-more" url="/pages/booking/doctors" hover-class="none" aria-label="更多医生">更多</navigator>
         </view>
         <view class="doctor-list">
-          <navigator v-for="doctor in doctors" :key="doctor.id" class="doctor-row"
-            url="/pages/ucenter/login" hover-class="none" :aria-label="doctor.name">
+          <view v-for="doctor in doctors" :key="doctor.id" class="doctor-row"
+            aria-role="link" :aria-label="doctor.name" @tap="openBooking('doctor', { id: doctor.id })">
             <image class="doctor-portrait" :src="doctor.portrait" mode="aspectFill" :aria-label="doctor.name" />
             <view class="doctor-info">
               <view class="doctor-heading">
@@ -74,7 +76,7 @@ function openEntry(entry) {
               </view>
               <text class="doctor-description">{{ doctor.introduction }}</text>
             </view>
-          </navigator>
+          </view>
         </view>
       </view>
     </view>

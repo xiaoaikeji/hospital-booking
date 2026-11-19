@@ -2,8 +2,10 @@
 import { computed, ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { bookingMode as mode } from './booking-mode.js'
+import DateStrip from './components/date_strip.vue'
+import { openBooking } from '@/utils/booking-navigation.js'
 import DoctorCard from './components/doctor_card.vue'
-import { getBookingSchedule, getScheduledDoctors } from '@/mock/booking-schedule.js'
+import { useBookingCalendar } from './booking-calendar.js'
 import { doctors } from '@/mock/doctors.js'
 import { handleTabShow } from '@/utils/guest-tab.js'
 
@@ -12,9 +14,7 @@ const modes = [
   { key: 'date', label: '按日期' },
   { key: 'doctor', label: '按医生' },
 ]
-const schedule = ref([])
-const selectedDay = ref(null)
-const scheduledDoctors = ref([])
+const { schedule, selectedDay, scheduledDoctors, loadDay, refresh } = useBookingCalendar()
 const doctorQuery = ref('')
 const visibleDoctors = computed(() => {
   if (mode.value === 'date') return scheduledDoctors.value
@@ -22,15 +22,9 @@ const visibleDoctors = computed(() => {
   return doctors.filter(doctor => doctor.name.includes(query))
 })
 
-function loadDay(day) {
-  selectedDay.value = day
-  scheduledDoctors.value = getScheduledDoctors(day)
-}
-
 onShow(() => {
   handleTabShow('/pages/booking/index')
-  schedule.value = getBookingSchedule()
-  loadDay(schedule.value.find(day => day.date === selectedDay.value?.date) ?? schedule.value[0])
+  refresh()
 })
 </script>
 
@@ -42,9 +36,9 @@ onShow(() => {
         <view class="mode-tabs">
           <view v-for="item in modes" :key="item.key" class="mode-tab" :class="{ selected: mode === item.key }" @tap="mode = item.key">{{ item.label }}</view>
         </view>
-        <navigator v-if="mode === 'department'" class="department-row" url="/pages/ucenter/login" hover-class="none">
+        <view v-if="mode === 'department'" class="department-row" aria-role="link" @tap="openBooking('schedule')">
           <text>耳鼻喉科</text><view class="department-arrow" />
-        </navigator>
+        </view>
         <view v-else-if="mode === 'doctor'" class="search-panel">
           <view class="search-field">
             <view class="search-glass" />
@@ -55,20 +49,11 @@ onShow(() => {
             </view>
           </view>
         </view>
-        <scroll-view v-show="mode === 'date'" scroll-x class="date-strip" :show-scrollbar="false">
-          <view class="date-options">
-            <view v-for="item in schedule" :key="item.date" class="date-option"
-              :class="{ 'date-selected': item.date === selectedDay?.date }" role="button" @tap="loadDay(item)">
-              <text>{{ item.weekday }}</text><text class="calendar-date">{{ item.label }}</text>
-            </view>
-          </view>
-        </scroll-view>
+        <DateStrip v-if="mode === 'date'" :schedule="schedule" :selected="selectedDay?.date" @select="loadDay" />
       </view>
       <view v-if="mode === 'date' || mode === 'doctor'" class="doctor-list">
-        <navigator v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id" url="/pages/ucenter/login"
-          hover-class="none" :aria-label="'预约' + doctor.name">
-          <DoctorCard :doctor="doctor" />
-        </navigator>
+        <DoctorCard v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id"
+          :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" />
       </view>
     </view>
   </view>
@@ -91,10 +76,5 @@ onShow(() => {
 .search-glass::after { content: ''; position: absolute; width: 10rpx; height: 3rpx; right: -7rpx; bottom: -3rpx; transform: rotate(45deg); background: #c7c7c7; }
 .search-input { flex: 1; min-width: 0; height: 100%; color: #101010; font-size: 25rpx; }
 .search-clear { display: flex; align-items: center; justify-content: flex-end; width: 48rpx; height: 100%; }
-.date-strip { width: 100%; white-space: nowrap; }
-.date-options { display: inline-flex; width: max-content; gap: 20rpx; padding: 22rpx 20rpx 25rpx; vertical-align: top; }
-.date-option { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4rpx; width: 98rpx; height: 100rpx; border-radius: 8rpx; background: #f5f4fa; font-size: 26rpx; line-height: 36rpx; }
-.date-selected { background: #5da8e4; color: #fff; }
-.calendar-date { font-size: 22rpx; font-weight: 300; line-height: 30rpx; }
 .doctor-list { padding-top: 2rpx; }
 </style>

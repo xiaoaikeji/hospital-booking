@@ -16,7 +16,8 @@ const filteredDoctors = computed(() => {
   const department = selection.department.value
   const result = doctors.filter(doctor => !department || doctor.department === department)
   const sort = selection.sort.value
-  if (sort) result.sort((a, b) => a.mockRanks[sort] - b.mockRanks[sort])
+  if (sort === 'visits') result.sort((a, b) => b.visits - a.visits)
+  else if (sort) result.sort((a, b) => a.mockRanks[sort] - b.mockRanks[sort])
   return result
 })
 
@@ -46,10 +47,7 @@ function selectOption(option) {
     </view>
     <view v-if="openFilter" class="filter-backdrop" aria-label="收起筛选" @tap="openFilter = ''" @touchmove.stop.prevent />
     <view class="doctor-results">
-      <navigator v-for="doctor in filteredDoctors" :key="doctor.id" url="/pages/ucenter/login" hover-class="none"
-        :aria-label="'预约' + doctor.name">
-        <DoctorCard :doctor="doctor" />
-      </navigator>
+      <DoctorCard v-for="doctor in filteredDoctors" :key="doctor.id" :doctor="doctor" />
     </view>
   </view>
 </template>

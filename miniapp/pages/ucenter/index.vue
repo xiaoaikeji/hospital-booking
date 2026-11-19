@@ -1,6 +1,7 @@
 <script setup>
 import { onShow } from '@dcloudio/uni-app'
 import { handleTabShow } from '@/utils/guest-tab.js'
+import { endDemoSession, session } from '@/mock/session.js'
 
 onShow(() => handleTabShow('/pages/ucenter/index'))
 
@@ -9,6 +10,22 @@ const services = [
   { label: '意见反馈', icon: 'appointment', url: '/pages/ucenter/feedback' },
   { label: '了解我院', icon: 'experts', url: '/pages/ucenter/hospital' },
 ]
+
+function confirmLogout() {
+  uni.showModal({
+    title: '温馨提示',
+    content: '确定退出',
+    cancelText: '知道了',
+    cancelColor: '#bbbbbb',
+    confirmText: '确定',
+    confirmColor: '#63a9d9',
+    success: ({ confirm }) => {
+      if (!confirm) return
+      endDemoSession()
+      uni.switchTab({ url: '/pages/index/index' })
+    },
+  })
+}
 </script>
 
 <template>
@@ -25,6 +42,10 @@ const services = [
           <image class="service-icon" :src="'/static/home/' + service.icon + '.svg'" mode="aspectFit" />
           <text>{{ service.label }}</text>
         </navigator>
+        <view v-if="session" class="service logout" aria-role="button" @tap="confirmLogout">
+          <view class="service-icon logout-icon"><view class="door" /><view class="arrow" /></view>
+          <text>退出登录</text>
+        </view>
       </view>
     </view>
   </view>
@@ -40,4 +61,8 @@ const services = [
 .service-list { display: grid; grid-template-columns: repeat(4, 1fr); margin: 54rpx 28rpx 0; width: 85%; }
 .service { display: flex; flex-direction: column; align-items: center; gap: 30rpx; font-size: 25rpx; line-height: 36rpx; }
 .service-icon { width: 68rpx; height: 66rpx; }
+.logout-icon { position: relative; color: #686868; }
+.door { position: absolute; left: 10rpx; top: 13rpx; width: 23rpx; height: 36rpx; border: 4rpx solid; border-right: 0; border-radius: 5rpx 0 0 5rpx; }
+.arrow { position: absolute; left: 20rpx; top: 27rpx; width: 26rpx; height: 14rpx; border-radius: 2rpx; background: currentColor; }
+.arrow::after { content: ''; position: absolute; top: -9rpx; right: -14rpx; border-block: 16rpx solid transparent; border-left: 18rpx solid currentColor; }
 </style>
