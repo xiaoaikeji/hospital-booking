@@ -1,8 +1,11 @@
 class HttpConnection
+  OPEN_TIMEOUT = 3
+  READ_TIMEOUT = 12
+
   class Unavailable < StandardError; end
 
   def self.build(origin)
-    Faraday.new(url: origin, request: { open_timeout: 3, timeout: 12 }, ssl: { verify: true }) do |connection|
+    Faraday.new(url: origin, request: { open_timeout: OPEN_TIMEOUT, timeout: READ_TIMEOUT }, ssl: { verify: true }) do |connection|
       connection.request :json
       connection.adapter Faraday.default_adapter
     end

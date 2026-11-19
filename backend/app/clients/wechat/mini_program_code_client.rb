@@ -32,10 +32,13 @@ module Wechat
     end
     def publish = command("release", {})
 
-    def latest_id
-      id = required(json(:get, "/wxa/get_latest_auditstatus", query: @query), "auditid").to_s
+    def latest_id = latest_audit&.fetch("auditid")
+
+    def latest_audit
+      data = json(:get, "/wxa/get_latest_auditstatus", query: @query)
+      id = required(data, "auditid").to_s
       raise HttpConnection::Unavailable, "微信未返回有效审核单号" unless id.match?(/\A\d+\z/)
-      id
+      data.slice("user_version", "submit_audit_time").merge("auditid" => id)
     rescue Rejected => error
       raise unless error.code == 85058
       nil

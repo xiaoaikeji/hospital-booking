@@ -6,5 +6,5 @@
 Rails.application.config.filter_parameters += [
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   :mobile, :phone, :authorization, :private_key, :auth_code, :pre_auth_code, :state, :signature, :ticket, :xml, :database_url, :redis_url, :storage_settings,
-  /\Aq\z/i, /\Afiles?\z/i
+  :rejection_reason, :rejection_screenshots, /\Aq\z/i, /\Afiles?\z/i
 ]

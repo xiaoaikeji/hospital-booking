@@ -33,7 +33,15 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     @a.update!(verified_digest: AppConfiguration.new(@a).digest(@a.appsecret))
     @online = {}
     @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0, exp_info: { exp_version: "1.1", exp_desc: "门诊" }, release_info: @online) }
-    @stubs.get("/wxa/get_latest_auditstatus") { response_for(@latest_remote_id ? { errcode: 0, auditid: @latest_remote_id } : { errcode: 85058 }) }
+    @latest_fields = {}
+    @stubs.get("/wxa/get_latest_auditstatus") do
+      if @latest_remote_id
+        response_for({ errcode: 0, auditid: @latest_remote_id, user_version: "1.1",
+          submit_audit_time: @a.mini_program_audits.last.created_at.to_i }.merge(@latest_fields))
+      else
+        response_for(errcode: 85058)
+      end
+    end
   end
 
   def submit(release, auto: false)
@@ -126,6 +134,95 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     assert_equal "pending", audit.status
   end
 
+  test "超时认领和发布都拒绝版本或提交时间不属于本轮的微信单号" do
+    release = upload
+    prepare_submit
+    @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { submit(release, auto: true) }
+    audit = @a.mini_program_audits.sole
+    @latest_remote_id = 801
+    @stubs.post("/wxa/get_auditstatus") { response_for(errcode: 0, status: 0) }
+    publishes = 0
+    @stubs.post("/wxa/release") do
+      publishes += 1
+      response_for(errcode: 0)
+    end
+
+    Sidekiq.testing!(:fake) do
+      conflicts = [ { user_version: "2.0" }, { submit_audit_time: audit.created_at.to_i - 60 },
+        { submit_audit_time: audit.created_at.to_i + 3600 }, { user_version: nil }, { submit_audit_time: nil } ]
+      conflicts.each do |fields|
+        @latest_fields = fields
+        assert_raises(WechatPlatform::Error) { @service.resolve!(audit, outcome: "accepted", confirmed_id: "801") }
+        assert_equal "submit_unknown", audit.reload.status
+        assert_nil audit.audit_id
+      end
+      assert_empty WechatPlatform::AutoPublishWorker.jobs.select { |job| job["args"] == [ audit.id ] }
+      @latest_fields = {}
+      @service.resolve!(audit, outcome: "accepted", confirmed_id: "801")
+      assert_equal "passed", audit.reload.status
+      @latest_fields = { user_version: "2.0" }
+      assert_raises(WechatPlatform::Error) { @service.publish!(audit) }
+      assert_raises(WechatPlatform::Error) { WechatPlatform::AutoPublishWorker.new.perform(audit.id) }
+      assert_equal "unpublished", audit.reload.publication
+      assert_equal 0, publishes
+    end
+  end
+
+  test "后轮超时未受理时按前轮的当前结果恢复应用状态" do
+    release = upload
+    prepare_submit
+    first = accepted_round(release, 701)
+    @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { submit(release) }
+    second = @a.mini_program_audits.last
+    @stubs.post("/wxa/get_auditstatus") { response_for(errcode: 0, status: 0) }
+    @service.sync!(first)
+    assert_equal "auditing", @a.reload.status
+    @service.resolve!(second, outcome: "not_accepted", confirmed_id: "")
+    assert_empty @a.mini_program_audits.pending
+    get api_app_configuration_path("wechat", @a.appid)
+    assert_equal "active", response.parsed_body["status"]
+    assert_equal "active", @b.reload.status
+  end
+
+  test "未受理不能提前结束前轮审核，也不能恢复已人工停用的应用" do
+    release = upload
+    prepare_submit
+    first = accepted_round(release, 705)
+    @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { submit(release) }
+    @service.resolve!(@a.mini_program_audits.last, outcome: "not_accepted", confirmed_id: "")
+    assert_equal "pending", first.reload.status
+    assert_equal "auditing", @a.reload.status
+
+    assert_raises(WechatPlatform::Error) { submit(release) }
+    @a.update!(status: "disabled")
+    @stubs.post("/wxa/get_auditstatus") { response_for(errcode: 0, status: 0) }
+    @service.sync!(first)
+    @service.resolve!(@a.mini_program_audits.last, outcome: "not_accepted", confirmed_id: "")
+    get api_app_configuration_path("wechat", @a.appid)
+    assert_response :forbidden
+    assert_equal "disabled", response.parsed_body["status"]
+  end
+
+  test "补查旧拒审反馈不改变手动设置的审核中" do
+    release = upload
+    prepare_submit
+    first = accepted_round(release, 706)
+    feedback = {}
+    @stubs.post("/wxa/get_auditstatus") { response_for({ status: 1 }.merge(feedback)) }
+    @service.sync!(first)
+    assert_equal "active", @a.reload.status
+    @a.update!(status: "auditing")
+    @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { submit(release) }
+    feedback[:reason] = "补充审核意见"
+    @service.sync!(first)
+    @service.resolve!(@a.mini_program_audits.last, outcome: "not_accepted", confirmed_id: "")
+    assert_equal "auditing", @a.reload.status
+  end
+
   test "微信已受理后本地成功审计写入失败，保留意图及远端单号" do
     release = upload
     prepare_submit
@@ -139,6 +236,39 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     assert_includes failure.details["remote_result"], "850"
   ensure
     Log.skip_callback(:create, :before, reject_log) if reject_log
+  end
+
+  test "拒审反馈随单号保存、显示并可补查，迟到和重复通知不影响新轮次" do
+    release = upload
+    prepare_submit
+    rejected = accepted_round(release, 881)
+    pending = accepted_round(release, 882)
+    feedback = { reason: "请补充门诊预约的测试说明", ScreenShot: "media-one|media-two" }
+    @stubs.post("/wxa/get_auditstatus") do |env|
+      id = JSON.parse(env.body).fetch("auditid")
+      response_for(id == 881 ? { auditid: id, status: 1 }.merge(feedback) : { auditid: id, status: 2 })
+    end
+    Sidekiq.testing!(:fake) do
+      xml = "<xml><ToUserName>gh_A</ToUserName><MsgType>event</MsgType><Event>weapp_audit_fail</Event></xml>"
+      2.times { signed_push("/api/wechat/component/apps/wxA/messages", xml) }
+      WechatPlatform::AuditEventWorker.drain
+    end
+    get admins_app_path(@a)
+    assert_includes response.body, "请补充门诊预约的测试说明"
+    assert_equal %w[media-one media-two], rejected.reload.rejection_screenshots
+    assert_nil pending.reload.rejection_reason
+    assert_equal "auditing", @a.reload.status
+    feedback = {}
+    @service.sync!(rejected)
+    assert_equal "请补充门诊预约的测试说明", rejected.reload.rejection_reason
+    assert_equal %w[media-one media-two], rejected.rejection_screenshots
+    rejected.update!(rejection_reason: nil, rejection_screenshots: [])
+    feedback = { reason: "请上传新版说明", screenshot: "new-a|new-b" }
+    patch sync_admins_app_audit_path(@a, rejected)
+    get admins_app_path(@a)
+    assert_includes response.body, "请上传新版说明"
+    assert_includes response.body, "new-b"
+    assert_not_includes Log.pluck(:details).to_json, "new-b"
   end
 
   test "撤回仅作用于远端最新轮次，配额错误可见，成功后恢复正常" do

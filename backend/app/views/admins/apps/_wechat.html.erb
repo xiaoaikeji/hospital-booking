@@ -83,6 +83,16 @@
           <% end %>
         </div>
         <p class="text-break"><%= audit.description %></p>
+        <% if audit.status == "rejected" %>
+          <dl class="mb-3">
+            <dt>拒审原因</dt>
+            <dd class="text-break"><%= audit.rejection_reason.presence || "暂无拒审说明，可点击「查询结果」补查。" %></dd>
+            <% if audit.rejection_screenshots.any? %>
+              <dt>微信截图标识</dt>
+              <% audit.rejection_screenshots.each do |media_id| %><dd class="text-break"><code><%= media_id %></code></dd><% end %>
+            <% end %>
+          </dl>
+        <% end %>
         <% if audit.error_code %><p class="text-danger">微信错误码 <%= audit.error_code %></p><% end %>
         <% withdraw = audit.id == @latest_round && %w[pending delayed].include?(audit.status) %>
         <% publish = audit.id == @latest_round && audit.status == "passed" && %w[unpublished failed].include?(audit.publication) && audit.mini_program_release && audit.mini_program_release.status != "closed" %>

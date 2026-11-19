@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -133,10 +133,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_020000) do
     t.bigint "mini_program_release_id"
     t.bigint "operator_id", null: false
     t.string "previous_audit_id"
+    t.boolean "previous_audit_pending"
     t.string "previous_status", null: false
     t.string "prior_online_marker"
     t.string "publication", default: "unpublished", null: false
+    t.text "rejection_reason"
+    t.text "rejection_screenshots", default: [], null: false, array: true
     t.string "status", default: "submit_unknown", null: false
+    t.datetime "submission_finished_at"
     t.datetime "updated_at", null: false
     t.string "version", null: false
     t.index ["app_id", "audit_id"], name: "index_mini_program_audits_on_app_id_and_audit_id", unique: true

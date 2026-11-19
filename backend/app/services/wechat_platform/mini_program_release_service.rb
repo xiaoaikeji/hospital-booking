@@ -72,7 +72,9 @@ module WechatPlatform
         audit = @app.with_lock do
           config = AppConfiguration.new(@app)
           config.verify! if @app.accessible? && (@app.status == "active" || config.credential_status != "已验证")
+          prior_status = @app.mini_program_audits.accepted_or_uncertain.order(id: :desc).pick(:status)
           row = @app.mini_program_audits.create!(mini_program_release: release, previous_audit_id: previous_id,
+            previous_audit_pending: MiniProgramAudit::PENDING.include?(prior_status),
             version: release.version, description: description.presence || release.description,
             auto_publish: auto_publish, operator: @actor, previous_status: @app.status)
           @app.update!(status: "auditing") if @app.status == "active"
@@ -80,15 +82,15 @@ module WechatPlatform
         end
         begin
           id = api.submit(audit.description)
+          @remote = "微信已受理，审核单号 #{id}"
         rescue Wechat::BaseClient::Rejected => error
-          raise if error.code == -1
-          @app.with_lock do
-            audit.update!(status: "not_accepted", error_code: error.code)
-            @app.update!(status: audit.previous_status) if @app.status == "auditing"
+          unless error.code == -1
+            @app.with_lock { record_nonacceptance!(audit, error_code: error.code) }
           end
           raise
+        ensure
+          audit.update!(submission_finished_at: Time.current)
         end
-        @remote = "微信已受理，审核单号 #{id}"
         App.transaction do
           audit.update!(audit_id: id, status: "pending")
           log!(round_id: audit.id, audit_id: id)
@@ -102,26 +104,30 @@ module WechatPlatform
         audit.reload
         api = client
         if audit.status == "submit_unknown"
-          candidate = api.latest_id
-          raise Error, "微信最新单号与提交前相同，受理结果仍待核实" if candidate == audit.previous_audit_id
-          raise Error, "请在微信核实本轮版本与审核单号 #{candidate} 后登记" if candidate
-          raise Error, "尚未查到本轮单号，请在微信核实后处理"
+          latest = api.latest_audit
+          raise Error, "尚未查到本轮单号，请在微信核实后处理" unless latest
+          raise Error, "微信最新单号与提交前相同，受理结果仍待核实" if latest["auditid"] == audit.previous_audit_id
+          verify_submission!(audit, latest)
+          raise Error, "请在微信核实本轮版本与审核单号 #{latest['auditid']} 后登记"
         end
         if audit.publication == "publish_unknown"
           reconcile_publication!(api, audit)
         elsif MiniProgramAudit::PENDING.include?(audit.status)
-          apply_result!(audit, remote_status(api, audit.audit_id))
+          apply_result!(audit, remote_result(api, audit.audit_id))
         elsif audit.audit_id
-          result = remote_status(api, audit.audit_id)
-          raise Error, "微信结果与已归档轮次不符，请核实" unless result == audit.status
-          log!(round_id: audit.id, result: result)
+          result = remote_result(api, audit.audit_id)
+          raise Error, "微信结果与已归档轮次不符，请核实" unless result[:status] == audit.status
+          App.transaction do
+            audit.update!(result) if audit.status == "rejected"
+            log!(round_id: audit.id, result: audit.status)
+          end
         else
           raise Error, "本轮未受理，没有可查询的微信审核单"
         end
       end
     end
 
-    # 最新单号本身不能证明版本归属。管理员在微信后台核实版本后，再以本应用的令牌逐单复查。
+    # 超管核实后，服务端再次比对微信的版本、提交时间和该应用的审核单号。
     def resolve!(audit, outcome:, confirmed_id:)
       operation("resolve", audit) do
         audit.reload
@@ -135,22 +141,23 @@ module WechatPlatform
             log!(round_id: audit.id, result: "人工核实未发布")
           end
         elsif audit.status == "withdraw_unknown" && outcome == "not_withdrawn"
-          state = remote_status(api, audit.audit_id)
-          raise Error, "审核状态已改变，请同步结果" unless %w[pending delayed].include?(state)
-          apply_result!(audit, state, confirmed: true)
+          result = remote_result(api, audit.audit_id)
+          raise Error, "审核状态已改变，请同步结果" unless %w[pending delayed].include?(result[:status])
+          apply_result!(audit, result, confirmed: true)
         else
           raise Error, "该轮提审已核实" unless audit.status == "submit_unknown"
-          candidate = api.latest_id
+          latest = api.latest_audit
+          candidate = latest&.fetch("auditid")
           if outcome == "accepted"
             id = confirmed_id.to_s.strip
             raise Error, "单号不匹配，请在微信核实本轮版本" unless id.present? && id == candidate && id != audit.previous_audit_id
-            result = remote_status(api, id)
+            verify_submission!(audit, latest)
+            result = remote_result(api, id)
             audit.audit_id = id
             apply_result!(audit, result)
           elsif outcome == "not_accepted" && candidate == audit.previous_audit_id
             @app.with_lock do
-              audit.update!(status: "not_accepted")
-              @app.update!(status: audit.previous_status) if @app.status == "auditing"
+              record_nonacceptance!(audit)
               log!(round_id: audit.id, result: "人工核实未受理")
             end
           else
@@ -166,7 +173,7 @@ module WechatPlatform
         raise Error, "只能撤回当前在审轮次" unless latest_round?(audit) && %w[pending delayed].include?(audit.status)
         api = client
         raise Error, "微信最新单号已变化，请先核实" unless api.latest_id == audit.audit_id
-        before = remote_status(api, audit.audit_id)
+        before = remote_result(api, audit.audit_id).fetch(:status)
         raise Error, "微信审核已结束，请先同步" unless %w[pending delayed].include?(before)
         audit.update!(status: "withdraw_unknown")
         begin
@@ -176,7 +183,7 @@ module WechatPlatform
           raise
         end
         @remote = "微信已确认撤回"
-        apply_result!(audit, "withdrawn")
+        apply_result!(audit, { status: "withdrawn" })
       end
     end
 
@@ -192,10 +199,12 @@ module WechatPlatform
         next if automatic && !(eligible && audit.auto_publish? && audit.publication == "unpublished")
         raise Error, "只能发布最新通过的有效轮次" unless eligible
         api = client
-        unless api.latest_id == audit.audit_id && remote_status(api, audit.audit_id) == "passed"
-          raise Error, "微信最新通过单与本轮不符，请核实"
-        end
-        audit.update!(publication: "publish_unknown", prior_online_marker: online_marker(api.version_info))
+        marker = online_marker(api.version_info)
+        raise Error, "该审核单尚未通过，请核实" unless remote_result(api, audit.audit_id).fetch(:status) == "passed"
+        latest = api.latest_audit
+        verify_submission!(audit, latest)
+        raise Error, "微信最新通过单与本轮不符，请核实" unless latest.fetch("auditid") == audit.audit_id
+        audit.update!(publication: "publish_unknown", prior_online_marker: marker)
         begin
           api.publish
         rescue Wechat::BaseClient::Rejected => error
@@ -219,6 +228,35 @@ module WechatPlatform
 
     private
 
+    def verify_submission!(audit, latest)
+      raise Error, "微信审核版本与本轮不符或缺失，请核实" unless latest && latest["user_version"] == audit.version
+      submitted = Integer(latest["submit_audit_time"].to_s, 10, exception: false)
+      # 微信按秒返回时间。历史记录或进程中断时，以原请求的连接和读取超时限定可认领范围。
+      finished = audit.submission_finished_at || audit.created_at + HttpConnection::OPEN_TIMEOUT + HttpConnection::READ_TIMEOUT
+      unless submitted && submitted.between?(audit.created_at.to_i, [ finished.to_i, Time.current.to_i ].min)
+        raise Error, "微信提交时间与本轮不符或缺失，请核实"
+      end
+    end
+
+    # 调用方持有应用行锁，先排除本次尝试，再看上一有效轮次是否在等待核实期间结束。
+    def record_nonacceptance!(audit, error_code: nil)
+      audit.update!(status: "not_accepted", error_code: error_code)
+      return unless @app.status == "auditing"
+
+      previous = @app.mini_program_audits.accepted_or_uncertain.order(id: :desc).first
+      # 老轮次没有前序状态快照，只能通过该轮在本次提审后的更新判断。
+      was_pending = audit.previous_audit_pending
+      was_pending = previous && previous.updated_at >= audit.created_at if was_pending.nil?
+      status = if previous && MiniProgramAudit::PENDING.include?(previous.status)
+        "auditing"
+      elsif was_pending
+        "active"
+      else
+        audit.previous_status
+      end
+      @app.update!(status: status) if @app.status != status
+    end
+
     def online_marker(info)
       online = info["release_info"] || {}
       Digest::SHA256.hexdigest(online.values_at("release_version", "release_desc", "release_time").to_json)
@@ -227,7 +265,9 @@ module WechatPlatform
     def reconcile_publication!(api, audit, confirmed: false)
       info = api.version_info
       same_version = info.dig("release_info", "release_version") == audit.version
-      if same_version && (confirmed || online_marker(info) != audit.prior_online_marker) && api.latest_id == audit.audit_id
+      latest = api.latest_audit
+      verify_submission!(audit, latest)
+      if same_version && (confirmed || online_marker(info) != audit.prior_online_marker) && latest.fetch("auditid") == audit.audit_id
         mark_published!(audit)
       else
         raise Error, "线上版本尚不能确认本轮发布结果，请核实后再操作"
@@ -241,12 +281,20 @@ module WechatPlatform
       end
     end
 
-    def remote_status(api, id)
+    def remote_result(api, id)
       data = api.status(id)
       if data["auditid"].present? && data["auditid"].to_s != id
         raise Error, "微信返回的审核单号不符"
       end
-      RESULTS.fetch(data["status"].to_s) { raise Error, "未知微信审核状态，请稍后核实" }
+      status = RESULTS.fetch(data["status"].to_s) { raise Error, "未知微信审核状态，请稍后核实" }
+      result = { status: status }
+      if status == "rejected"
+        reason = data["reason"].presence
+        screenshots = (data["screenshot"].presence || data["ScreenShot"]).to_s.split("|").map(&:strip).compact_blank.uniq
+        result[:rejection_reason] = reason if reason
+        result[:rejection_screenshots] = screenshots if screenshots.any?
+      end
+      result
     end
 
     def latest_round?(audit)
@@ -254,17 +302,18 @@ module WechatPlatform
     end
 
     def apply_result!(audit, result, confirmed: false)
+      status = result.fetch(:status)
       @app.with_lock do
         # 未明确撤回失败前，查询仍在审不代表可以再次扣减撤回配额。
-        unless audit.status == "withdraw_unknown" && %w[pending delayed].include?(result) && !confirmed
-          audit.update!(status: result)
+        unless audit.status == "withdraw_unknown" && %w[pending delayed].include?(status) && !confirmed
+          audit.update!(result)
         end
         latest = latest_round?(audit)
-        if latest && @app.status == "auditing" && !MiniProgramAudit::PENDING.include?(result)
+        if latest && @app.status == "auditing" && !MiniProgramAudit::PENDING.include?(status)
           @app.update!(status: "active")
         end
         log!(round_id: audit.id, audit_id: audit.audit_id, result: audit.status)
-        if latest && result == "passed" && audit.auto_publish? && audit.publication == "unpublished" &&
+        if latest && status == "passed" && audit.auto_publish? && audit.publication == "unpublished" &&
             audit.mini_program_release && audit.mini_program_release.status != "closed"
           ActiveRecord.after_all_transactions_commit do
             AutoPublishWorker.perform_async(audit.id)
