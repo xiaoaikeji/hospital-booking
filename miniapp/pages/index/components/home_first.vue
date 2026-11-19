@@ -62,7 +62,7 @@ function openEntry(entry) {
           <text class="doctors-more">更多</text>
         </view>
         <view class="doctor-list">
-          <view v-for="doctor in doctors" :key="doctor.name" class="doctor-row">
+          <view v-for="doctor in doctors" :key="doctor.id" class="doctor-row">
             <image class="doctor-portrait" :src="doctor.portrait" mode="aspectFill" :aria-label="doctor.name" />
             <view class="doctor-info">
               <view class="doctor-heading">

@@ -11,7 +11,10 @@ import { doctors } from '@/mock/doctors.js'
       <view class="filter-label">综合排序<view class="filter-arrow" /></view>
     </view>
     <view class="doctor-results">
-      <DoctorCard v-for="doctor in doctors" :key="doctor.name" :doctor="doctor" />
+      <navigator v-for="doctor in doctors" :key="doctor.id" url="/pages/ucenter/login" hover-class="none"
+        :aria-label="'预约' + doctor.name">
+        <DoctorCard :doctor="doctor" />
+      </navigator>
     </view>
   </view>
 </template>

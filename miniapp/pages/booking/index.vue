@@ -36,7 +36,7 @@ const dates = [
         </scroll-view>
       </view>
       <view v-if="mode !== 'department'" class="doctor-list">
-        <DoctorCard v-for="doctor in doctors" :key="doctor.name" :doctor="doctor" />
+        <DoctorCard v-for="doctor in doctors" :key="doctor.id" :doctor="doctor" />
       </view>
     </view>
   </view>

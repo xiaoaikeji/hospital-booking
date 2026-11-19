@@ -1,5 +1,6 @@
 export const doctors = [
   {
+    id: 1,
     name: '初淑芹',
     title: '主任',
     portrait: '/static/home/doctor-chu.jpg',
@@ -7,6 +8,7 @@ export const doctors = [
     introduction: '各种耳鼻咽喉相关疾病的诊治，耳鸣耳聋、中耳炎、鼓膜穿孔、大疱鼓膜炎、耳石症、鼻炎、鼻窦炎、鼻出血、鼻息…',
   },
   {
+    id: 2,
     name: '潘喜娥',
     title: '主任',
     portrait: '/static/home/doctor-pan.jpg',
