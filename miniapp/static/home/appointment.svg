@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 78 75">
+  <defs><linearGradient id="chat" x1="0%" y1="0%" x2="12%" y2="100%"><stop stop-color="#59c1da"/><stop offset="1" stop-color="#b8e5eb"/></linearGradient></defs>
+  <path fill="url(#chat)" d="M10 3h57a9 9 0 0 1 9 9v40c0 6-3 9-9 9H44L24 73c-2 1-4 0-4-2V61H10c-6 0-9-4-9-10V13c0-6 4-10 9-10Z"/>
+  <g fill="#fff"><circle cx="19" cy="33" r="5"/><circle cx="39" cy="33" r="5"/><circle cx="59" cy="33" r="5"/></g>
+</svg>

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><linearGradient id="spot" x1="0%" y1="100%" x2="100%" y2="0%" gradientUnits="objectBoundingBox"><stop stop-color="#e9eeff"/><stop offset="1" stop-color="#729aff"/></linearGradient></defs>
+  <g fill="url(#spot)"><path d="M34 17a12 12 0 1 1 12 12H34Z"/></g>
+  <g fill="none" stroke="#272b38" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round"><path d="M29 29H17a12 12 0 1 1 12-12ZM29 35v12a12 12 0 1 1-12-12ZM35 35h12a12 12 0 1 1-12 12Z" stroke-width="2.5"/></g>
+</svg>

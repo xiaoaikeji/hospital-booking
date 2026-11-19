@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs><linearGradient id="spot" x1="0%" y1="100%" x2="100%" y2="0%" gradientUnits="objectBoundingBox"><stop stop-color="#e9eeff"/><stop offset="1" stop-color="#729aff"/></linearGradient></defs>
+  <g fill="url(#spot)"><circle cx="34" cy="27" r="11"/></g>
+  <g fill="none" stroke="#272b38" stroke-width="3.7" stroke-linecap="round" stroke-linejoin="round"><path d="M23 55v-6h-5c-2 0-3-2-2-4l1-4-5-1c-2-1-2-2 0-5l4-7c-3-13 6-22 19-22 14 0 23 9 23 22 0 5-2 10-6 14v13H33v-5h-6"/><path d="M39 20c7 0 8 12 1 13-3 1-5 0-6-2M9 38c-2 2-2 5 0 7M5 36c-4 4-4 10 0 14"/></g>
+</svg>
