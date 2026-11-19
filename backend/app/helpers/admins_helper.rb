@@ -10,6 +10,10 @@ module AdminsHelper
     ]
   end
 
+  def wechat_component_messages_template_url
+    api_wechat_component_messages_url(appid: "APPID").sub("/APPID/", '/$APPID$/')
+  end
+
   def admin_appearance
     @admin_appearance ||= AppearanceSettings.new(admin: current_admin)
   end

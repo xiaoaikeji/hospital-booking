@@ -36,7 +36,7 @@ module Api
         case message["InfoType"]
         when "component_verify_ticket"
           return head :bad_request if message["ComponentVerifyTicket"].blank?
-          Rails.cache.write(platform.ticket_key, message["ComponentVerifyTicket"], expires_in: 12.hours)
+          platform.store_ticket(message["ComponentVerifyTicket"])
         when "unauthorized", "updateauthorized"
           auth = App.find_by(provider: "wechat", appid: message["AuthorizerAppid"])&.app_authorization
           if auth

@@ -59,6 +59,64 @@ class WechatAuthorizationTest < ActionDispatch::IntegrationTest
     assert_not_includes Log.pluck(:details).to_json, "demo-"
   end
 
+  test "平台状态按本院应用统计，验签后才显示票据接收时间，刷新不换令牌" do
+    platform = WechatPlatform::ComponentToken.new
+    @target.create_app_authorization!(refresh_token: "local-authorizer")
+    official = App.create!(provider: "wechat", app_type: "official_account", appid: "wxService")
+    official.create_app_authorization!(revoked_at: Time.current)
+    idle = App.create!(provider: "wechat", appid: "wxPending")
+    idle.create_app_authorization!(state_digest: "pending")
+    push_url = api_wechat_component_events_path
+    ticket = "<xml><AppId>wxPlatform</AppId><InfoType>component_verify_ticket</InfoType><ComponentVerifyTicket>local-ticket</ComponentVerifyTicket></xml>"
+
+    signed_push(push_url, ticket, tamper: true)
+    assert_response :forbidden
+    assert_nil platform.ticket_received_at
+    Rails.cache.write(platform.ticket_key, "legacy-ticket", expires_in: 12.hours)
+    get admins_wechat_platform_path
+    assert_response :success
+    assert_includes response.body, "等待下次推送更新时间"
+    assert_includes response.body, "/api/wechat/component/apps/$APPID$/messages"
+    assert_select "dt", text: "微信小程序" do |labels|
+      assert_equal "已授权 1 个，已取消 0 个", labels.first.next_element.text
+    end
+    assert_select "dt", text: "微信公众号" do |labels|
+      assert_equal "已授权 0 个，已取消 1 个", labels.first.next_element.text
+    end
+
+    freeze_time do
+      signed_push(push_url, ticket)
+      assert_response :success
+      assert_equal Time.current, platform.ticket_received_at
+      Rails.cache.write(platform.token_key, "local-platform-token", expires_in: 1.hour)
+      assert_no_difference("Log.count") { get admins_wechat_platform_path }
+      assert_select "dd", text: Time.current.strftime("%Y-%m-%d %H:%M")
+      assert_select "dd", text: "已缓存"
+      (@component.except(:appid).values + %w[local-ticket local-platform-token local-authorizer legacy-ticket]).each do |secret|
+        assert_not_includes response.body, secret
+      end
+      travel 13.hours
+      get admins_wechat_platform_path
+      assert_select "dd", text: "暂无有效票据"
+      assert_select "dd", text: "暂无缓存"
+    end
+  end
+
+  test "平台未配置仍显示接收地址，运营和客服看不到诊断入口也不能直访" do
+    ENV.delete("WECHAT_COMPONENT_APPSECRET")
+    get admins_wechat_platform_path
+    assert_response :success
+    assert_select "[role=status]", text: /WECHAT_COMPONENT_APPSECRET/
+    assert_includes response.body, api_wechat_component_events_url
+    %w[operator customer_service].each do |role|
+      sign_in Admin.create!(username: "platform_#{role}", role: role)
+      get admins_root_path
+      assert_select "a[href=?]", admins_wechat_platform_path, count: 0
+      get admins_wechat_platform_path
+      assert_response :forbidden
+    end
+  end
+
   test "更新授权和乱序通知保留初始授权时间，取消后仍能查阅" do
     Rails.cache.write("wechat/component/wxPlatform/token", "test-token")
     authorize("wxA")

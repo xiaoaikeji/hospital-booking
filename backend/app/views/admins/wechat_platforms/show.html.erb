@@ -1,0 +1,34 @@
+<% content_for :title, "微信第三方平台 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "微信第三方平台", icon: :settings } do %>
+  <%= link_to admins_wechat_platform_path, class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>刷新状态<% end %>
+<% end %>
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">平台配置</h2></div>
+  <div class="card-body">
+    <% missing = @platform.missing %>
+    <% if missing.any? %><p class="alert alert-warning" role="status">请在部署配置中补齐 <%= missing.map { |key| "WECHAT_COMPONENT_#{key.upcase}" }.join("、") %>。</p><% end %>
+    <% fields = { "平台 AppID" => @platform.config[:appid].presence || "未配置" }
+       { appsecret: "AppSecret", token: "消息校验 Token", encoding_aes_key: "消息加解密密钥" }.each do |key, label|
+         fields[label] = missing.include?(key) ? "未配置" : "已配置"
+       end
+       fields["票据接收时间"] = admin_list_time(@platform.ticket_received_at, fallback: @platform.ticket_cached? ? "已收到，等待下次推送更新时间" : "暂无有效票据")
+       fields["平台令牌"] = @platform.token_cached? ? "已缓存" : "暂无缓存" %>
+    <%= render "admins/shared/field_rows", fields: fields %>
+  </div>
+</section>
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">微信后台接收地址</h2></div>
+  <div class="card-body">
+    <% addresses = { "授权事件地址" => api_wechat_component_events_url, "消息与事件地址" => wechat_component_messages_template_url,
+                     "授权发起页域名" => request.host, "授权回调域" => request.host } %>
+    <%= render "admins/shared/field_rows", fields: addresses, full: addresses.keys %>
+  </div>
+</section>
+<section class="card">
+  <div class="card-header"><h2 class="card-title">本院授权概况</h2></div>
+  <div class="card-body">
+    <%= render "admins/shared/field_rows", fields: App::TYPES.to_h { |key, label|
+      ["微信#{label}", "已授权 #{@authorized.fetch(key, 0)} 个，已取消 #{@revoked.fetch(key, 0)} 个"]
+    } %>
+  </div>
+</section>

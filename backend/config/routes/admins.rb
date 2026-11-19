@@ -8,6 +8,7 @@ namespace :admins do
     get :confirmation, on: :member
   end
   resources :code_templates, only: %i[index create destroy]
+  resource :wechat_platform, only: :show
   resources :official_account_links, only: :index
   resources :open_platform_accounts, only: %i[index new create show] do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
