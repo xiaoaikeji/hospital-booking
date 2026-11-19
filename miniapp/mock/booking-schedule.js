@@ -11,14 +11,11 @@ export function getBookingSchedule(start = new Date()) {
       date: `${date.getFullYear()}-${month}-${day}`,
       label: `${month}–${day}`,
       weekday: WEEKDAYS[date.getDay()],
-      doctorIds: date.getDay() % 2 === 0 ? [1, 2] : [2, 1],
+      doctorIds: [1, 2],
     }
   })
 }
 
-export async function fetchScheduledDoctors(date) {
-  const day = getBookingSchedule().find(item => item.date === date)
-  // 模拟排班接口的响应时间，方便在开发者工具里观察日期切换。
-  await new Promise(resolve => setTimeout(resolve, 400))
-  return (day?.doctorIds ?? []).map(id => doctors.find(doctor => doctor.id === id)).filter(Boolean)
+export function getScheduledDoctors(day) {
+  return day.doctorIds.map(id => doctors.find(doctor => doctor.id === id)).filter(Boolean)
 }
