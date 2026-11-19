@@ -1,0 +1,21 @@
+<% content_for :title, "插件列表 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "插件列表", icon: :puzzle } do %><% end %>
+<% if @apps.any? %>
+  <section class="card mb-3"><div class="card-body py-2">
+    <div class="row align-items-baseline g-2"><div class="col-12 col-md-2 col-xl-1 text-secondary">小程序</div>
+      <nav class="col nav nav-pills" aria-label="选择小程序"><% @apps.each do |app| %>
+        <%= link_to app.display_name, admins_plugins_path(app_id: app.id), class: class_names("nav-link text-break", active: app == @app), title: app.appid, aria: { current: ("page" if app == @app) } %>
+      <% end %></nav>
+    </div>
+  </div></section>
+<% end %>
+<section class="card"><% if @app %>
+  <div class="card-header flex-wrap gap-2"><h2 class="card-title"><%= @app.display_name %> 的插件</h2>
+    <div class="card-actions"><%= link_to admins_app_path(@app, tab: "plugins"), class: "btn" do %><%= render "layouts/admins/icon", name: :settings %>管理插件<% end %></div>
+  </div>
+  <% if @load_error %><div class="card-body"><p class="alert alert-warning" role="alert"><%= @load_error %></p>
+    <%= link_to admins_plugins_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
+  </div><% else %><%= render "admins/apps/plugin_table", plugins: @plugins, manage: false %><% end %>
+<% else %>
+  <%= render "admins/shared/list_empty", icon: :puzzle, title: @apps.any? ? "请选择小程序" : "暂无已授权的微信小程序" %>
+<% end %></section>

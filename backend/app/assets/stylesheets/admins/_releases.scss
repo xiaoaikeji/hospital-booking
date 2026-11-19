@@ -39,15 +39,15 @@
 .template-table td, .template-table th { padding-inline: .5rem; }
 .template-table tr:last-child td { border-bottom: 0; }
 @media (max-width: 991.98px) {
-  .template-table, .template-table tbody { display: block; }
-  .template-table thead { display: none; }
-  .template-table > tbody > tr {
+  :is(.template-table, .plugin-table), :is(.template-table, .plugin-table) tbody { display: block; }
+  :is(.template-table, .plugin-table) thead { display: none; }
+  :is(.template-table, .plugin-table) > tbody > tr {
     display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
     height: auto; padding: .75rem; border-bottom: var(--tblr-border-width) solid var(--tblr-border-color);
   }
-  .template-table td { min-width: 0; padding: .25rem; border: 0; }
-  .template-table [data-label]::before { content: attr(data-label); display: block; color: var(--tblr-secondary); font-size: .75rem; }
-  .template-table .template-actions { width: auto; grid-column: 1 / -1; }
+  :is(.template-table, .plugin-table) td { min-width: 0; padding: .25rem; border: 0; }
+  :is(.template-table, .plugin-table) [data-label]::before { content: attr(data-label); display: block; color: var(--tblr-secondary); font-size: .75rem; }
+  .template-table .template-actions, .plugin-table .plugin-actions { width: auto; grid-column: 1 / -1; }
 }
 .release-table td { padding-inline: .5rem; }
 @media (max-width: 991.98px) {

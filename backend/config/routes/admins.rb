@@ -9,6 +9,7 @@ namespace :admins do
   end
   resources :code_templates, only: %i[index create destroy]
   resource :wechat_platform, only: :show
+  resources :plugins, only: :index
   resources :official_account_links, only: :index
   resources :open_platform_accounts, only: %i[index new create show] do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
@@ -18,6 +19,7 @@ namespace :admins do
     resources :mini_program_links, only: %i[create destroy], controller: "app_mini_program_links" do
       post :verify, on: :collection
     end
+    resources :plugins, only: %i[create update destroy], controller: "app_plugins"
     resources :experiencers, only: :create, controller: "app_experiencers" do
       delete :destroy, on: :collection, path: ""
     end

@@ -16,7 +16,7 @@ module Admins
     WECHAT_TABS = {
       "overview" => "基本资料", "releases" => "代码发布", "experiencers" => "体验者",
       "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理",
-      "links" => "关联小程序", "open_platform" => "开放平台"
+      "plugins" => "插件", "links" => "关联小程序", "open_platform" => "开放平台"
     }.freeze
 
     def show
@@ -101,6 +101,7 @@ module Admins
       when "experiencers" then @experiencers = WechatPlatform::Experiencers.new(@app).list
       when "privacy" then @privacy = WechatPlatform::PrivacySettings.new(@app).read
       when "categories" then @category_page = WechatPlatform::AppCategories.new(@app).page
+      when "plugins" then @plugins = WechatPlatform::AppPlugins.new(@app).list
       when "domains" then @domain_settings = WechatPlatform::AppDomains.new(@app).snapshot
       end
     rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error

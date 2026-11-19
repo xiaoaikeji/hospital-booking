@@ -1,0 +1,26 @@
+<% draft = flash[:plugin_form].presence || {}
+   draft = {} unless draft["app_id"] == @app.id %>
+<section class="card">
+  <div class="card-header flex-wrap gap-2"><h2 class="card-title">插件管理</h2>
+    <div class="card-actions btn-list">
+      <%= link_to admins_plugins_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :puzzle %>插件列表<% end %>
+      <%= link_to admins_app_path(@app, application_context_params.merge(tab: "plugins")), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
+    </div>
+  </div>
+  <div class="card-body">
+    <%= form_with url: admins_app_plugins_path(@app, application_context_params), class: "row g-2 align-items-end" do |f| %>
+      <div class="col-12 col-sm-6 col-lg-4"><%= f.label :plugin_appid, "插件 AppID", class: "form-label" %>
+        <%= f.text_field :plugin_appid, value: (draft["id"] if draft["action"] == "apply"), class: "form-control", required: true, maxlength: 64, size: nil, autocomplete: "off" %>
+      </div>
+      <div class="col-auto"><%= f.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>申请使用<% end %></div>
+    <% end %>
+  </div>
+  <%= render "admins/apps/plugin_table", plugins: @plugins, manage: true, draft: draft %>
+</section>
+<% @plugins.each_with_index do |plugin, index| %>
+  <% form_id = "unbind-plugin-#{index}" %>
+  <%= form_with url: admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), method: :delete, id: form_id do %><% end %>
+  <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm", title: "解除插件",
+      context: "#{@app.display_name} · #{plugin['nickname'].presence || plugin['appid']}", description: "确认解除本应用对插件 #{plugin['appid']} 的使用？",
+      color: "danger", confirm_label: "确认解除", confirm_icon: :close, cancel_icon: :arrow_left %>
+<% end %>

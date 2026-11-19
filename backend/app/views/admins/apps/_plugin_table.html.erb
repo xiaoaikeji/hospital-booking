@@ -1,0 +1,26 @@
+<% if plugins.empty? %>
+  <%= render "admins/shared/list_empty", icon: :puzzle, title: "暂无插件" %>
+<% else %>
+  <table class="table table-fixed table-vcenter card-table table-hover plugin-table mb-0">
+    <thead><tr><th scope="col">插件</th><th scope="col">AppID</th><th scope="col">状态</th><th scope="col">版本</th><% if manage %><th scope="col" class="col-lg-4">操作</th><% end %></tr></thead>
+    <tbody><% plugins.each_with_index do |plugin, index| %>
+      <tr><td data-label="插件"><div class="d-flex align-items-center gap-2">
+        <% if plugin["headimgurl"].to_s.start_with?("https://") %><%= image_tag plugin["headimgurl"], alt: "", class: "avatar avatar-sm", loading: "lazy", referrerpolicy: "no-referrer" %><% end %>
+        <%= render "admins/shared/list_text", text: plugin["nickname"].presence || "—" %>
+      </div></td>
+      <td class="text-break" data-label="AppID"><%= plugin.fetch("appid") %></td>
+      <% status = plugin["status"].to_s.to_i %>
+      <td data-label="状态"><span class="badge bg-<%= {1=>"warning",2=>"success",3=>"danger"}.fetch(status, "secondary") %>-lt"><%= Wechat::MiniProgramPluginClient::STATUS_LABELS.fetch(status, "未知") %></span></td>
+      <td data-label="版本"><%= plugin["version"].presence || "—" %></td>
+      <% if manage %><td class="plugin-actions"><div class="d-flex flex-wrap gap-2 align-items-center">
+        <%= form_with url: admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), method: :patch, class: "d-flex gap-1 align-items-center" do |f| %>
+          <%= f.text_field :user_version, id: nil, value: (draft["version"] if draft["action"] == "update" && draft["id"] == plugin["appid"]),
+            placeholder: "版本号", size: 8, maxlength: 32, required: true, class: "form-control form-control-sm w-auto", aria: { label: "#{plugin['appid']} 的目标版本" } %>
+          <%= f.button class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>更新<% end %>
+        <% end %>
+        <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-plugin-<%= index %>-confirm"><%= render "layouts/admins/icon", name: :close %>解除</button>
+      </div></td><% end %>
+      </tr>
+    <% end %></tbody>
+  </table>
+<% end %>
