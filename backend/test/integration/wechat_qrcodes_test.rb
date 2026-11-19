@@ -113,6 +113,37 @@ class WechatQrcodesTest < ActionDispatch::IntegrationTest
     assert_equal({ release: 2, trial: 2 }, calls)
   end
 
+  test "正式版命中缓存后体验码令牌过期，单独重试取得新图并缓存" do
+    release = @managed.mini_program_releases.create!(current_build: true, status: "uploaded",
+      template_id: "8", version: "2.1", description: "门诊体验版", operator: @admin)
+    Rails.cache.write(WechatPlatform::ReleaseQrcode.release_key(@managed), PNG + "online")
+    Rails.cache.write("wechat/component/wxPlatform/token", "component")
+    requests = []
+    @stubs.post("/cgi-bin/component/api_authorizer_token") do |env|
+      requests << ["renew", JSON.parse(env.body).fetch("authorizer_appid")]
+      response_for(authorizer_access_token: "renewed", expires_in: 7200)
+    end
+    @stubs.get("/wxa/get_qrcode") do |env|
+      token = env.params.fetch("access_token")
+      requests << ["trial", token]
+      token == "managed" ? response_for(errcode: 42001) : [200, { "Content-Type" => "image/png" }, PNG + "trial"]
+    end
+    get admins_app_qrcode_path(@managed)
+    assert_equal PNG + "online", response.body.b
+    url = trial_admins_app_release_path(@managed, release)
+    get url
+    assert_response :service_unavailable
+    assert_includes response.parsed_body.fetch("error"), "42001"
+    assert_equal [["trial", "managed"]], requests
+    get url
+    assert_equal [["trial", "managed"], ["renew", @managed.appid], ["trial", "renewed"]], requests
+    assert_response :success
+    assert_equal PNG + "trial", response.body.b
+    get url
+    assert_equal "image/png", response.media_type
+    assert_equal 3, requests.size
+  end
+
   test "微信拒绝旧授权令牌时仅清除此应用的失效缓存" do
     key = "apps/#{@managed.id}/channel_token"
     @stubs.post("/wxa/getwxacodeunlimit") { response_for(errcode: 40001) }
