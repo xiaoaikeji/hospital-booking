@@ -1,9 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { ref } from 'vue'
+import { onShow, onUnload } from '@dcloudio/uni-app'
 import { bookingMode as mode } from './booking-mode.js'
 import DoctorCard from './components/doctor_card.vue'
-import { getBookingSchedule } from '@/mock/booking-schedule.js'
+import { fetchScheduledDoctors, getBookingSchedule } from '@/mock/booking-schedule.js'
 import { doctors } from '@/mock/doctors.js'
 
 const modes = [
@@ -13,12 +13,38 @@ const modes = [
 ]
 const schedule = ref([])
 const selectedDay = ref(null)
-const scheduledDoctors = computed(() => doctors.filter(doctor => selectedDay.value?.doctorIds.includes(doctor.id)))
+const scheduledDoctors = ref([])
+const scheduleState = ref('idle')
+let latestRequest = 0
+
+async function loadDay(day) {
+  selectedDay.value = day
+  const request = ++latestRequest
+  scheduleState.value = 'loading'
+  try {
+    const result = await fetchScheduledDoctors(day.date)
+    if (request !== latestRequest) return
+    scheduledDoctors.value = result
+    scheduleState.value = 'ready'
+  } catch {
+    if (request === latestRequest) scheduleState.value = 'error'
+  }
+}
+
+function selectMode(key) {
+  mode.value = key
+  if (key === 'date' && selectedDay.value) loadDay(selectedDay.value)
+}
 
 onShow(() => {
   schedule.value = getBookingSchedule()
-  selectedDay.value = schedule.value.find(day => day.date === selectedDay.value?.date) ?? schedule.value[0]
+  if (!schedule.value.some(day => day.date === selectedDay.value?.date)) {
+    selectedDay.value = schedule.value[0]
+    if (mode.value === 'date') loadDay(selectedDay.value)
+  }
 })
+
+onUnload(() => { latestRequest++ })
 </script>
 
 <template>
@@ -27,7 +53,7 @@ onShow(() => {
     <view class="booking-content">
       <view class="filter-panel" :class="{ 'department-panel': mode === 'department' }">
         <view class="mode-tabs">
-          <view v-for="item in modes" :key="item.key" class="mode-tab" :class="{ selected: mode === item.key }" @tap="mode = item.key">{{ item.label }}</view>
+          <view v-for="item in modes" :key="item.key" class="mode-tab" :class="{ selected: mode === item.key }" @tap="selectMode(item.key)">{{ item.label }}</view>
         </view>
         <navigator v-if="mode === 'department'" class="department-row" url="/pages/ucenter/login" hover-class="none">
           <text>耳鼻喉科</text><view class="department-arrow" />
@@ -38,17 +64,22 @@ onShow(() => {
         <scroll-view v-show="mode === 'date'" scroll-x class="date-strip" :show-scrollbar="false">
           <view class="date-options">
             <view v-for="item in schedule" :key="item.date" class="date-option"
-              :class="{ 'date-selected': item.date === selectedDay?.date }" role="button" @tap="selectedDay = item">
+              :class="{ 'date-selected': item.date === selectedDay?.date }" role="button" @tap="loadDay(item)">
               <text>{{ item.weekday }}</text><text class="calendar-date">{{ item.label }}</text>
             </view>
           </view>
         </scroll-view>
       </view>
       <view v-if="mode === 'date'" class="doctor-list">
-        <navigator v-for="doctor in scheduledDoctors" :key="doctor.id" url="/pages/ucenter/login"
-          hover-class="none" :aria-label="'预约' + doctor.name">
-          <DoctorCard :doctor="doctor" />
-        </navigator>
+        <view v-if="scheduleState === 'loading'" class="schedule-status">正在加载 {{ selectedDay.label }} 的排班…</view>
+        <view v-else-if="scheduleState === 'error'" class="schedule-status" role="button" @tap="loadDay(selectedDay)">排班加载失败，点此重试</view>
+        <view v-else-if="scheduleState === 'ready' && !scheduledDoctors.length" class="schedule-status">当天暂无出诊医生</view>
+        <template v-else>
+          <navigator v-for="doctor in scheduledDoctors" :key="doctor.id" url="/pages/ucenter/login"
+            hover-class="none" :aria-label="'预约' + doctor.name">
+            <DoctorCard :doctor="doctor" />
+          </navigator>
+        </template>
       </view>
       <view v-else-if="mode === 'doctor'" class="doctor-list">
         <DoctorCard v-for="doctor in doctors" :key="doctor.id" :doctor="doctor" />
@@ -78,4 +109,5 @@ onShow(() => {
 .date-selected { background: #5da8e4; color: #fff; }
 .calendar-date { font-size: 22rpx; font-weight: 300; line-height: 30rpx; }
 .doctor-list { padding-top: 2rpx; }
+.schedule-status { margin-top: 20rpx; padding: 36rpx 24rpx; border-radius: 18rpx; background: #fff; color: #666; font-size: 25rpx; text-align: center; }
 </style>
