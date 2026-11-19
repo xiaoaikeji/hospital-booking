@@ -49,20 +49,22 @@ function openEntry(entry) {
       <view class="clinics-section">
         <text class="section-title">专病门诊</text>
         <view class="clinic-grid">
-          <view v-for="clinic in clinics" :key="clinic.icon" class="clinic-item">
+          <navigator v-for="clinic in clinics" :key="clinic.icon" class="clinic-item"
+            url="/pages/ucenter/login" hover-class="none" :aria-label="clinic.name">
             <image class="clinic-icon" :src="'/static/home/' + clinic.icon + '.svg'" mode="aspectFit" />
             <text class="clinic-name">{{ clinic.name }}</text>
-          </view>
+          </navigator>
         </view>
       </view>
 
       <view class="doctors-section">
         <view class="doctors-heading">
           <text class="section-title">医生推荐</text>
-          <text class="doctors-more">更多</text>
+          <navigator class="doctors-more" url="/pages/booking/doctors" hover-class="none" aria-label="更多医生">更多</navigator>
         </view>
         <view class="doctor-list">
-          <view v-for="doctor in doctors" :key="doctor.id" class="doctor-row">
+          <navigator v-for="doctor in doctors" :key="doctor.id" class="doctor-row"
+            url="/pages/ucenter/login" hover-class="none" :aria-label="doctor.name">
             <image class="doctor-portrait" :src="doctor.portrait" mode="aspectFill" :aria-label="doctor.name" />
             <view class="doctor-info">
               <view class="doctor-heading">
@@ -71,7 +73,7 @@ function openEntry(entry) {
               </view>
               <text class="doctor-description">{{ doctor.introduction }}</text>
             </view>
-          </view>
+          </navigator>
         </view>
       </view>
     </view>
