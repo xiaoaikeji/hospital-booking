@@ -1,5 +1,5 @@
 <div class="card-header flex-wrap gap-2"><h2 class="card-title">版本信息</h2><div class="card-actions btn-list">
-  <%= link_to admins_mini_program_releases_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :eye %>全部代码记录<% end %>
+  <%= link_to admins_mini_program_releases_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :code %>全部代码记录<% end %>
   <% if WechatPlatform::ReleaseActions.new(@app).upload? %><%= link_to admins_mini_program_releases_path(app_id: @app.id, upload: 1), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :import %>上传代码<% end %><% end %>
 </div></div>
 <div class="card-body">
