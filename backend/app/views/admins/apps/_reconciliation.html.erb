@@ -1,4 +1,5 @@
-<%= form_with url: resolve_admins_app_audit_path(@app, audit), namespace: dom_id(audit, :resolve), class: "border-top mt-3 pt-3", data: { admin_form: true } do |f| %>
+<%= form_with url: resolve_admins_app_audit_path(audit.app, audit), namespace: dom_id(audit, :resolve), class: "border-top mt-3 pt-3", data: { admin_form: true } do |f| %>
+  <%= render "admins/mini_program_releases/return_fields" %>
   <p class="text-secondary">请在微信后台核实 AppID、版本和本轮操作时间，再登记结果。</p>
   <div class="row g-3">
     <% if audit.status == "withdraw_unknown" %>

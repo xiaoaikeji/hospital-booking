@@ -17,6 +17,10 @@
         <%= admin_field_errors(@app, :provider) %>
       </div>
       <div class="col-md-6 col-xl-4">
+        <%= f.label :app_type, "应用类型", class: "form-label required" %>
+        <%= f.select :app_type, App::TYPES.invert, {}, disabled: @app.persisted?, class: "form-select", data: { enhanced_select: "single" } %>
+      </div>
+      <div class="col-md-6 col-xl-4">
         <%= f.label :appid, "AppID", class: "form-label required" %>
         <%= f.text_field :appid, required: true, readonly: @app.persisted?, class: admin_field_class(@app, :appid), aria: { describedby: ("appid-error" if @app.errors[:appid].any?) } %>
         <%= admin_field_errors(@app, :appid) %>

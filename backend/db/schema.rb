@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -78,6 +78,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
   end
 
   create_table "apps", force: :cascade do |t|
+    t.string "app_type", default: "mini_program", null: false
     t.string "appid", null: false
     t.text "appsecret"
     t.datetime "created_at", null: false
@@ -89,6 +90,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
     t.datetime "updated_at", null: false
     t.string "verified_digest"
     t.index ["provider", "appid"], name: "index_apps_on_provider_and_appid", unique: true
+    t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
   end
@@ -125,6 +127,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
 
   create_table "mini_program_audits", force: :cascade do |t|
     t.bigint "app_id", null: false
+    t.datetime "approved_at"
     t.string "audit_id"
     t.boolean "auto_publish", default: false, null: false
     t.datetime "created_at", null: false
@@ -155,9 +158,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_032000) do
     t.boolean "current_build", default: false, null: false
     t.text "description", null: false
     t.integer "error_code"
+    t.jsonb "ext_config"
     t.bigint "operator_id", null: false
     t.string "status", default: "upload_unknown", null: false
     t.string "template_id", null: false
+    t.string "template_type", default: "normal", null: false
     t.datetime "updated_at", null: false
     t.string "version", null: false
     t.index ["app_id"], name: "index_mini_program_releases_on_app_id"

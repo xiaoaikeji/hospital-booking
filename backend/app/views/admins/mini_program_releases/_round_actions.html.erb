@@ -1,0 +1,12 @@
+<% app = round.app %>
+<% if actions.sync? %>
+  <%= form_with url: sync_admins_app_audit_path(app, round), method: :patch do |f| %>
+    <%= render "admins/mini_program_releases/return_fields" %><%= f.button type: :submit, class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :search %>查询结果<% end %>
+  <% end %>
+<% end %>
+<% if actions.change_mode? %><button type="button" class="btn btn-sm" data-release-dialog="<%= confirmation_admins_mini_program_release_path(release, app_id: app.id, operation: "mode", round_id: round.id) %>"><%= render "layouts/admins/icon", name: :edit %>修改本轮发布方式</button><% end %>
+<% if actions.withdraw? %><%= render "admins/mini_program_releases/confirm_action", record: round, action: "withdraw", method: :post, url: withdraw_admins_app_audit_path(app, round), label: "撤回审核", description: "将撤回本轮微信审核，消耗撤回额度。", color: "danger" %><% end %>
+<% if actions.manual_publish? %><%= render "admins/mini_program_releases/confirm_action", record: round, action: "publish", method: :post, url: publish_admins_app_audit_path(app, round), label: round.publication == "failed" ? "重试发布" : "发布", description: "审核通过时间 #{round.approved_at ? admin_list_time(round.approved_at) : '历史记录未保存'}。确认后会更新此小程序的线上版本。", color: "danger" %><% end %>
+<% if actions.resolve? %>
+  <details class="w-100"><summary class="text-warning">核实本轮结果</summary><%= render "admins/apps/reconciliation", audit: round %></details>
+<% end %>

@@ -25,11 +25,6 @@ module Wechat
       component_post("api_authorizer_token", token, component_appid: appid, authorizer_appid: target, authorizer_refresh_token: refresh_token)
     end
 
-    def templates(token)
-      result = json(:get, "/wxa/gettemplatelist", query: { access_token: token })
-      result.fetch("template_list", []).map { |row| row.slice("template_id", "user_version", "user_desc") }
-    end
-
     private
 
     def component_post(path, token, body)

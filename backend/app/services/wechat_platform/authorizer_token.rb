@@ -7,7 +7,7 @@ module WechatPlatform
 
     def self.fetch(app)
       auth = app.app_authorization
-      raise Error, "请先完成该小程序的微信授权" unless app.provider == "wechat" && auth
+      raise Error, "请先完成该应用的平台授权" unless app.provider == "wechat" && auth
       auth.with_lock do
         raise Error, "授权已取消，请重新授权" unless auth.authorized?
         key = "apps/#{app.id}/channel_token"

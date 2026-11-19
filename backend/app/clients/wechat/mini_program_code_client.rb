@@ -6,8 +6,7 @@ module Wechat
     end
 
     def upload(release)
-      ext = { extEnable: true, extAppid: release.app.appid, ext: { provider: "wechat", appid: release.app.appid } }
-      command("commit", template_id: release.template_id, ext_json: ext.to_json, user_version: release.version, user_desc: release.description)
+      command("commit", template_id: release.template_id, ext_json: release.ext_config.to_json, user_version: release.version, user_desc: release.description)
     end
 
     def trial_qrcode
@@ -17,8 +16,10 @@ module Wechat
       raise HttpConnection::Unavailable, "微信未返回体验码"
     end
 
-    def submit(description)
-      data = json(:post, "/wxa/submit_audit", query: @query, body: { version_desc: description })
+    def submit(description, items: [])
+      body = { version_desc: description }
+      body[:item_list] = items if items.any?
+      data = json(:post, "/wxa/submit_audit", query: @query, body: body)
       id = data["auditid"].to_s
       raise HttpConnection::Unavailable, "微信未返回有效审核单号" unless id.match?(/\A\d+\z/)
       id
@@ -31,6 +32,14 @@ module Wechat
       raise HttpConnection::Unavailable, "微信未确认撤回结果" unless data.key?("errcode")
     end
     def publish = command("release", {})
+
+    def quota = json(:get, "/wxa/queryquota", query: @query)
+    def audit_screenshot(media_id)
+      response = HttpConnection.request(@connection, :post, "/cgi-bin/material/get_material", query: @query, body: { media_id: media_id })
+      data = response.body.to_s.b
+      checked(HttpConnection.json(response)) if data.lstrip.start_with?("{")
+      data
+    end
 
     def latest_id = latest_audit&.fetch("auditid")
 

@@ -4,7 +4,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("select[data-enhanced-select]").forEach((select) => {
     if (select.tomselect) return;
 
-    const options = { create: false, copyClassesToDropdown: false, dropdownParent: "body" };
+    const options = { create: false, copyClassesToDropdown: false, dropdownParent: select.closest(".modal-content") || "body" };
     if (select.dataset.enhancedSelect === "single") {
       options.controlInput = null;
       options.allowEmptyOption = true;

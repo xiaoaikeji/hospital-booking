@@ -1,0 +1,4 @@
+<% if controller_name == "mini_program_releases" && action_name == "index" %>
+  <%= hidden_field_tag "list[page]", @pagy.page, id: nil %>
+  <% @filters.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value, id: nil %><% end %>
+<% elsif controller_name == "mini_program_releases" && @release %><%= hidden_field_tag :detail, @release.id, id: nil %><% end %>

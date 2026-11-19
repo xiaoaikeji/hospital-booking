@@ -1,0 +1,8 @@
+<% content_for :title, "模板 · Booking 管理后台" %>
+<% content_for :head do %><%= javascript_include_tag "admins/code_templates", defer: true %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "模板", icon: :package } do %>
+  <% if @configured %><button type="button" class="btn" id="refresh-templates"><%= render "layouts/admins/icon", name: :rotate %>刷新微信数据</button><% end %>
+<% end %>
+<% if !@configured %><div class="alert alert-warning">第三方平台未配置，请先配置平台凭据。</div><% end %>
+<div role="status" id="template-feedback"></div>
+<div id="template-library" data-source="<%= admins_code_templates_path(fresh: 1) if @configured %>"><%= render "lists" %></div>

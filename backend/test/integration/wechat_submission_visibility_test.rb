@@ -14,6 +14,7 @@ class WechatSubmissionVisibilityTest < ActiveSupport::TestCase
     Rails.cache.write("apps/#{app.id}/channel_token", { value: "demo-token", revision: auth.updated_at.to_f })
     release = app.mini_program_releases.create!(template_id: "88", operator: admin, version: "1.1", description: "门诊",
       status: "uploaded", current_build: true)
+    @stubs.get("/cgi-bin/wxopen/getcategory") { response_for(categories: []) }
     @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "demo-token") }
     @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0) }
     @stubs.get("/wxa/get_latest_auditstatus") { response_for(errcode: 85058) }
