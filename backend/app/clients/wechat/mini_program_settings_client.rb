@@ -4,6 +4,16 @@ module Wechat
       super(**options)
       @query = { access_token: token }
     end
+
+    def upload_image(file, type)
+      extension = type == "image/png" ? "png" : "jpg"
+      filename = "#{Time.current.to_i}#{Digest::MD5.file(file.path).hexdigest.first(6)}.#{extension}"
+      file.rewind
+      part = Faraday::Multipart::FilePart.new(file.tempfile, type, filename)
+      response = HttpConnection.request(@connection, :post, "/cgi-bin/media/upload", query: @query.merge(type: "image"), body: { media: part })
+      required(checked(HttpConnection.json(response)), "media_id")
+    end
+
     def category_settings
       data = json(:get, "/cgi-bin/wxopen/getcategory", query: @query)
       rows = data["categories"]

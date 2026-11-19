@@ -6,15 +6,6 @@ module Wechat
       rows
     end
 
-    def upload_certificate(file, type)
-      extension = type == "image/png" ? "png" : "jpg"
-      filename = "#{Time.current.to_i}#{Digest::MD5.file(file.path).hexdigest.first(6)}.#{extension}"
-      file.rewind
-      part = Faraday::Multipart::FilePart.new(file.tempfile, type, filename)
-      response = HttpConnection.request(@connection, :post, "/cgi-bin/media/upload", query: @query.merge(type: "image"), body: { media: part })
-      required(checked(HttpConnection.json(response)), "media_id")
-    end
-
     def add(first, second, certificates, urgent)
       item = { first: first, second: second, certicates: certificates }
       item[:audit_urgent] = 1 if urgent

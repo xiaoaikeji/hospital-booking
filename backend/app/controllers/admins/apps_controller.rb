@@ -16,7 +16,7 @@ module Admins
     WECHAT_TABS = {
       "overview" => "基本资料", "releases" => "代码发布", "experiencers" => "体验者",
       "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理",
-      "plugins" => "插件", "links" => "关联小程序", "open_platform" => "开放平台"
+      "plugins" => "插件", "profile" => "账号资料", "links" => "关联小程序", "open_platform" => "开放平台"
     }.freeze
 
     def show
@@ -102,10 +102,23 @@ module Admins
       when "privacy" then @privacy = WechatPlatform::PrivacySettings.new(@app).read
       when "categories" then @category_page = WechatPlatform::AppCategories.new(@app).page
       when "plugins" then @plugins = WechatPlatform::AppPlugins.new(@app).list
+      when "profile" then load_profile
       when "domains" then @domain_settings = WechatPlatform::AppDomains.new(@app).snapshot
       end
     rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       @tab_error = error.message
+    end
+
+    def load_profile
+      service = WechatPlatform::AppProfile.new(@app)
+      @profile = service.read
+      @nickname_query = params[:nickname].to_s.strip
+      return if @nickname_query.empty?
+      begin
+        @nickname_check = service.check_nickname(@nickname_query)
+      rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+        @nickname_error = error.message
+      end
     end
 
     def load_app = @app = App.find(params[:id])

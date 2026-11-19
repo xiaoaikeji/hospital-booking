@@ -42,7 +42,7 @@ module WechatPlatform
         end
         # 先校验所有资质，再上传临时素材。临时素材失败不代表类目申请已提交。
         certificates = files.map do |name, file, type, validity|
-          { key: name, value: client.upload_certificate(file, type) }.merge(validity)
+          { key: name, value: client.upload_image(file, type) }.merge(validity)
         end
         urgent = files.any? && input[:audit_urgent] == "1"
         dispatch! { client.add(@first, @second, certificates, urgent) }

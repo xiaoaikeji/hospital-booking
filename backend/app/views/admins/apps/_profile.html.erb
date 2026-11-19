@@ -1,0 +1,68 @@
+<% nickname = @profile.fetch("nickname_info", {})
+   signature = @profile.fetch("signature_info", {})
+   head_image = @profile.fetch("head_image_info", {})
+   avatar = wechat_avatar_url(head_image["head_image_url"])
+   draft = flash[:profile_draft]
+   signature_value = draft && draft["app_id"] == @app.id ? draft["signature"] : signature["signature"] %>
+<section class="card mb-3">
+  <div class="card-header flex-wrap gap-2"><h2 class="card-title">微信账号资料</h2>
+    <div class="card-actions"><%= link_to admins_app_path(@app, application_context_params.merge(tab: "profile")), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %></div>
+  </div>
+  <div class="card-body">
+    <% name_value = nickname["nickname"].presence || @profile["nickname"].presence || "—"
+       avatar_value = avatar ? image_tag(avatar, class: "avatar avatar-sm object-cover", alt: "当前微信头像", referrerpolicy: "no-referrer") : "—" %>
+    <%= render "admins/shared/field_rows", fields: {
+      "微信名称" => safe_join([name_value, wechat_profile_quota(nickname, "本年")].compact, " · "),
+      "微信头像" => safe_join([avatar_value, wechat_profile_quota(head_image, "本年")].compact, " · "),
+      "微信简介" => safe_join([signature["signature"].presence || "—", wechat_profile_quota(signature, "本月")].compact, " · ")
+    }, full: ["微信简介"] %>
+  </div>
+  <div class="card-footer bg-transparent">
+    <%= form_with url: admins_app_path(@app), method: :get, class: "row g-2 align-items-end" do |f| %>
+      <%= hidden_field_tag :tab, "profile" %>
+      <% application_list_context.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value %><% end %>
+      <div class="col-12 col-md-6 col-lg-4"><%= f.label :nickname, "名称检测", class: "form-label" %>
+        <%= f.text_field :nickname, value: @nickname_query, size: nil, maxlength: 60, class: "form-control", required: true, placeholder: "输入待检测的名称" %>
+      </div>
+      <div class="col-auto"><%= f.button class: "btn" do %><%= render "layouts/admins/icon", name: :search %>检测名称<% end %></div>
+    <% end %>
+    <% if @nickname_error %><div class="alert alert-warning mt-3 mb-0" role="alert"><%= @nickname_error %></div>
+    <% elsif @nickname_check %>
+      <div class="alert alert-<%= @nickname_check["hit_condition"] ? "warning" : "success" %> mt-3 mb-0" role="status">
+        「<%= @nickname_query %>」<%= @nickname_check["hit_condition"] ? "命中微信名称规则" : "未命中微信名称规则" %>。<%= @nickname_check["wording"] %>
+      </div>
+    <% end %>
+    <p class="form-hint mt-2 mb-0">正式改名请到微信公众平台办理。</p>
+  </div>
+</section>
+<div class="row g-3">
+  <% [["signature", "简介", signature], ["head_image", "头像", head_image]].each do |field, label, info| %>
+    <% form_id = "wechat-profile-#{field}" %>
+    <div class="col-12 col-lg-6">
+      <%= form_with url: admins_app_profile_path(@app, application_context_params), method: :patch, id: form_id,
+          multipart: field == "head_image", class: "card h-100" do |f| %>
+        <div class="card-header"><h2 class="card-title">修改<%= label %></h2></div>
+        <div class="card-body">
+          <%= hidden_field_tag :field, field, id: nil %>
+          <%= hidden_field_tag :revision, WechatPlatform::AppProfile.revision(@app, field, info), id: nil %>
+          <% if field == "signature" %>
+            <%= f.label :signature, "新简介", class: "form-label" %>
+            <%= f.text_area :signature, value: signature_value, rows: 2, minlength: 4, maxlength: 120, required: true, class: "form-control" %>
+            <div class="form-hint">4～120 个字符，至少包含 4 个汉字。</div>
+          <% else %>
+            <%= f.label :head_image, "新头像", class: "form-label" %>
+            <%= f.file_field :head_image, accept: "image/jpeg,image/png", required: true, class: "form-control" %>
+            <div class="form-hint">选择 2MB 以内的 JPG 或 PNG，使用整张图片。</div>
+          <% end %>
+        </div>
+        <div class="card-footer bg-transparent text-end">
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: (field == "signature" ? :save : :import) %>提交<%= label %></button>
+        </div>
+      <% end %>
+    </div>
+    <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm",
+        title: "修改微信#{label}", context: "#{@app.display_name} · #{@app.appid}",
+        description: "确认向微信提交这个小程序的新#{label}？此次修改占用微信修改额度。",
+        color: "danger", confirm_label: "确认提交#{label}", confirm_icon: :check, cancel_icon: :close %>
+  <% end %>
+</div>
