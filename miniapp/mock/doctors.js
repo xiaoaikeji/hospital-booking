@@ -2,6 +2,8 @@ export const doctors = [
   {
     id: 1,
     name: '初淑芹',
+    department: '耳鼻喉科',
+    mockRanks: { satisfaction: 1, visits: 2, recommendation: 1 },
     title: '主任',
     portrait: '/static/home/doctor-chu.jpg',
     credentials: ['中华医学会耳鼻喉科学会委员', '中国耳鼻喉微创治疗协会荣誉会员', '曾任职北京武警三院耳鼻喉科主任'],
@@ -10,6 +12,8 @@ export const doctors = [
   {
     id: 2,
     name: '潘喜娥',
+    department: '耳鼻喉科',
+    mockRanks: { satisfaction: 2, visits: 1, recommendation: 2 },
     title: '主任',
     portrait: '/static/home/doctor-pan.jpg',
     credentials: ['中华医学会耳鼻咽喉专业学会委员', '从事耳鼻喉科30余年', '曾任职北京武警三院耳鼻喉科主任'],
