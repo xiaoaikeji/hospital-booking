@@ -19,9 +19,10 @@
 .admin-detail-field dt { font-weight: 500; }
 .admin-detail-field-wide { grid-column: 1 / -1; }
 .release-config { white-space: pre-wrap; overflow-wrap: anywhere; }
-.release-table .release-operations { width: max(18rem, 24%); }
+.release-table .release-operations { width: 18.5rem; }
 .card-table.release-table :is(th, td).release-operations:last-child { padding-inline: .5rem; }
 @media (min-width: 1200px) {
+  .release-table:has(form[action$="/publish"]) .release-operations { width: 23rem; }
   .release-table:has(form[action$="/withdraw"]) .release-operations { width: 30rem; }
 }
 .release-table .release-status { width: 7rem; }
