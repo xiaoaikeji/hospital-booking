@@ -4,7 +4,7 @@ document.addEventListener("submit", (event) => {
   if (!form) return;
 
   if (form.dataset.disableConfirmation && form.dataset.confirmed !== "true" &&
-      form.elements.namedItem("administrator[enabled]")?.value === "false") {
+      form.elements.namedItem(form.dataset.disableField || "administrator[enabled]")?.value === (form.dataset.disableValue || "false")) {
     event.preventDefault();
     window.tabler.Modal.getOrCreateInstance(document.getElementById(form.dataset.disableConfirmation)).show();
     return;

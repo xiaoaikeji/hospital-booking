@@ -1,26 +1,53 @@
-<% content_for :title, title %>
+<% content_for :title, "#{title} · Booking 管理后台" %>
 <% content_for :head do %><meta name="turbo-cache-control" content="no-cache"><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :package } do %>
-  <%= link_to "返回列表", admins_apps_path, class: "btn" %>
-<% end %>
 <% config = AppConfiguration.new(@app) %>
 <% value, source = config.credential %>
-<%= form_with model: [:admins, @app], class: "card" do |f| %>
-  <div class="card-body row g-3">
+<% confirm_id = "disable-app" if @app.persisted? && @app.status_in_database != "disabled" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :package } do %>
+  <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+<%= form_with model: [:admins, @app], id: "app-form", class: "card", data: { admin_form: true, disable_confirmation: confirm_id, disable_field: "app[status]", disable_value: "disabled" } do |f| %>
+  <div class="card-body">
     <%= render "admins/shared/form_errors", record: @app %>
-    <div class="col-md-6"><%= f.label :provider, "平台", class: "form-label" %>
-      <%= f.select :provider, App::PROVIDERS.invert, {}, disabled: @app.persisted?, class: "form-select", data: { enhanced_select: "single" } %></div>
-    <div class="col-md-6"><%= f.label :appid, "AppID", class: "form-label" %>
-      <%= f.text_field :appid, required: true, readonly: @app.persisted?, class: "form-control" %></div>
-    <div class="col-md-6"><%= f.label :nickname, "名称", class: "form-label" %><%= f.text_field :nickname, class: "form-control" %></div>
-    <div class="col-md-6"><%= f.label :status, "运行状态", class: "form-label" %>
-      <%= f.select :status, App::STATUSES.invert, {}, class: "form-select", data: { enhanced_select: "single" } %></div>
-    <div class="col-12"><%= f.label :appsecret, "AppSecret（#{source}）", class: "form-label" %>
-      <%= f.text_field :appsecret, value: value, autocomplete: "off", class: "form-control" %>
-      <% if @app.persisted? %><%= f.hidden_field :revision, value: config.revision([value, source]) %><% end %>
-      <% if source == "加密数据库" %><label class="form-check mt-2"><%= f.check_box :clear_secret, class: "form-check-input" %>清除数据库覆盖</label><% end %></div>
-    <div class="col-12"><%= f.label :memo, "备注", class: "form-label" %><%= f.text_area :memo, class: "form-control" %></div>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <%= f.label :provider, "平台", class: "form-label required" %>
+        <%= f.select :provider, App::PROVIDERS.invert, {}, disabled: @app.persisted?, required: true, class: admin_field_class(@app, :provider, "form-select"), data: { enhanced_select: "single" }, aria: { describedby: ("provider-error" if @app.errors[:provider].any?) } %>
+        <%= admin_field_errors(@app, :provider) %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <%= f.label :appid, "AppID", class: "form-label required" %>
+        <%= f.text_field :appid, required: true, readonly: @app.persisted?, class: admin_field_class(@app, :appid), aria: { describedby: ("appid-error" if @app.errors[:appid].any?) } %>
+        <%= admin_field_errors(@app, :appid) %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <%= f.label :nickname, "名称", class: "form-label" %>
+        <%= f.text_field :nickname, class: admin_field_class(@app, :nickname) %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <%= f.label :status, "运行状态", class: "form-label required" %>
+        <%= f.select :status, App::STATUSES.invert, {}, required: true, class: admin_field_class(@app, :status, "form-select"), data: { enhanced_select: "single" }, aria: { describedby: ("status-error" if @app.errors[:status].any?) } %>
+        <%= admin_field_errors(@app, :status) %>
+      </div>
+      <div class="col-md-6 col-xl-8">
+        <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, value: value, source: source %>
+        <% if @app.persisted? %><%= f.hidden_field :revision, value: config.revision([value, source]) %><% end %>
+        <% if source == "加密数据库" %>
+          <label class="form-check mt-2"><%= f.check_box :clear_secret, class: "form-check-input" %><span class="form-check-label">清除数据库覆盖</span></label>
+        <% end %>
+      </div>
+      <div class="col-12">
+        <%= f.label :memo, "备注", class: "form-label" %>
+        <%= f.text_area :memo, rows: 3, class: admin_field_class(@app, :memo) %>
+      </div>
+    </div>
   </div>
-  <div class="card-footer text-end"><%= render "admins/shared/submit_button", label: "保存", icon: :save %></div>
+  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+    <%= link_to (@app.persisted? ? admins_app_path(@app) : admins_apps_path), class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+  </div></div>
+<% end %>
+<% if confirm_id %>
+  <%= render "admins/shared/confirmation_modal", modal_id: confirm_id, form_id: "app-form", title: "确认停用应用", context: @app.display_name, description: "停用后，此应用下次读取启动配置时将无法进入服务。", color: "warning", confirm_label: "确认停用并保存", confirm_icon: :alert, cancel_icon: :close %>
 <% end %>

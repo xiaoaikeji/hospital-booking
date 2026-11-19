@@ -39,9 +39,14 @@ module AdminsHelper
     [ type.presence, ("##{id}" if id) ].compact.join(" ").presence || "—"
   end
 
+  def app_status_badge(status)
+    color = { "active" => "success", "auditing" => "warning", "disabled" => "secondary" }.fetch(status)
+    tag.span(App::STATUSES.fetch(status), class: "badge bg-#{color}-lt")
+  end
+
   def configuration_source(source)
     case source
-    when "系统配置" then [ "系统配置", "success" ]
+    when "系统配置", "加密数据库" then [ source, "success" ]
     when "环境变量" then [ "ENV", "success" ]
     when "Rails credentials" then [ "credentials", "success" ]
     when "默认本地" then [ "默认", "secondary" ]

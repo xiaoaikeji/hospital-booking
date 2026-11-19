@@ -1,18 +1,21 @@
-<% content_for :title, @app.display_name %>
+<% content_for :title, "#{@app.display_name} · Booking 管理后台" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: @app.display_name, icon: :package } do %>
-  <%= link_to "返回列表", admins_apps_path, class: "btn" %>
-  <%= link_to "编辑", edit_admins_app_path(@app), class: "btn btn-primary" %>
+  <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+  <%= link_to edit_admins_app_path(@app), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+  <button type="button" class="btn btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-delete-app"><%= render "layouts/admins/icon", name: :trash %>删除</button>
 <% end %>
-<section class="card mb-3"><dl class="card-body datagrid mb-0">
-  <% { "平台" => App::PROVIDERS[@app.provider], "AppID" => @app.appid, "状态" => App::STATUSES[@app.status], "接入凭据" => AppConfiguration.new(@app).credential_status, "备注" => @app.memo }.each do |label, value| %>
-    <div class="datagrid-item"><dt class="datagrid-title"><%= label %></dt><dd class="datagrid-content"><%= value.presence || "—" %></dd></div>
-  <% end %>
-</dl></section>
+<%= form_with url: admins_app_path(@app), method: :delete, id: "delete-app", class: "d-none" do %><% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "confirm-delete-app", form_id: "delete-app", title: "确认删除应用", context: @app.display_name, description: "仅可删除没有授权、发布及业务记录的空应用。", color: "danger", confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>
+
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">应用资料</h2></div>
+  <div class="card-body datagrid">
+    <% { "平台" => App::PROVIDERS[@app.provider], "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "接入凭据" => AppConfiguration.new(@app).credential_status, "备注" => @app.memo }.each do |label, value| %>
+      <div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content text-break"><%= value.presence || "—" %></div></div>
+    <% end %>
+  </div>
+</section>
 <% if @app.provider == "wechat" %>
   <%= render "admins/shared/enhanced_select_assets" %>
   <%= render "wechat" %>
 <% end %>
-<%= form_with url: admins_app_path(@app), method: :delete, id: "delete-app" do %>
-  <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#confirm-delete-app">删除</button>
-<% end %>
-<%= render "admins/shared/confirmation_modal", modal_id: "confirm-delete-app", form_id: "delete-app", title: "确认删除应用", context: @app.display_name, description: "仅可删除没有授权、发布及业务记录的空应用。", color: "danger", confirm_label: "删除" %>

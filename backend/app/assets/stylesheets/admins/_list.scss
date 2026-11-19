@@ -9,6 +9,10 @@
 .admin-list-table .list-column-time { width: 8.75rem; }
 .admin-list-table .list-column-action { width: 5.625rem; }
 
+@media (min-width: 576px) {
+  .admin-list-table .list-column-actions-pair { width: 10.5rem; }
+}
+
 .admin-list-text-lines {
   display: -webkit-box;
   overflow: hidden;

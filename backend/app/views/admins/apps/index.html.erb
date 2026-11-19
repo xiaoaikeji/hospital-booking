@@ -1,31 +1,61 @@
-<% content_for :title, "应用管理" %>
+<% content_for :title, "应用管理 · Booking 管理后台" %>
+<% empty = @apps.empty? %>
+<% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "应用管理", icon: :package } do %>
-  <%= link_to "新增应用", new_admins_app_path, class: "btn btn-primary" %>
+  <%= link_to new_admins_app_path, class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增应用<% end %>
 <% end %>
-<section class="card mb-3"><div class="list-group list-group-flush">
-  <% { provider: ["平台", App::PROVIDERS], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
-    <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
-  <% end %>
-</div></section>
-<section class="card">
-  <div class="card-header">
-    <%= form_with url: admins_apps_path, method: :get, class: "d-flex gap-2" do |f| %>
-      <% @filters.except("q").each do |key, value| %><%= hidden_field_tag key, value %><% end %>
-      <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID", aria: { label: "名称或 AppID" }, class: "form-control" %>
-      <%= f.submit "搜索", class: "btn" %>
+
+<section class="card mb-3 flex-shrink-0" aria-label="应用筛选条件">
+  <div class="list-group list-group-flush">
+    <% { provider: ["平台", App::PROVIDERS], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
+      <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
     <% end %>
   </div>
-  <% if @apps.empty? %>
-    <%= render "admins/shared/list_empty", icon: :package, title: "暂无匹配应用", description: nil %>
+</section>
+
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="应用列表">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_apps_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索应用" } } do |f| %>
+      <% @filters.except("q").each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
+        <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID", aria: { label: "应用名称或 AppID" }, class: "form-control text-truncate" %>
+      </div>
+      <%= f.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+      <% if @filters.any? %>
+        <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% end %>
+    <% end %>
+  </div>
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :package, title: (@filters.any? ? "没有找到匹配的应用" : "暂无应用"), description: ("试试其他关键词，或重置筛选。" if @filters.any?) %>
   <% else %>
-    <div class="table-responsive"><table class="table table-vcenter card-table">
-      <thead><tr><% %w[名称 平台 AppID 状态 接入凭据 操作].each do |label| %><th><%= label %></th><% end %></tr></thead>
-      <tbody><% @apps.each do |app| %>
-        <tr><td><%= app.display_name %></td><td><%= App::PROVIDERS[app.provider] %></td><td><%= app.appid %></td>
-          <td><%= App::STATUSES[app.status] %></td><td><%= AppConfiguration.new(app).credential_status %></td>
-          <td><%= link_to "查看", admins_app_path(app), class: "btn btn-sm" %> <%= link_to "编辑", edit_admins_app_path(app), class: "btn btn-sm" %></td></tr>
-      <% end %></tbody>
-    </table></div>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr>
+        <th scope="col" class="list-column-id px-2">ID</th>
+        <th scope="col" class="px-2">名称</th>
+        <th scope="col" class="d-none d-lg-table-cell">平台</th>
+        <th scope="col" class="list-column-number d-none d-md-table-cell">AppID</th>
+        <th scope="col" class="list-column-status px-2">状态</th>
+        <th scope="col" class="d-none d-xl-table-cell">接入凭据</th>
+        <th scope="col" class="list-column-action list-column-actions-pair px-2">操作</th>
+      </tr></thead>
+      <tbody>
+        <% @apps.each do |app| %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name %></td>
+            <td class="d-none d-lg-table-cell"><%= render "admins/shared/list_text", text: App::PROVIDERS[app.provider] %></td>
+            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: app.appid %></td>
+            <td class="px-2"><%= app_status_badge(app.status) %></td>
+            <td class="d-none d-xl-table-cell"><%= render "admins/shared/list_text", text: AppConfiguration.new(app).credential_status %></td>
+            <td class="px-2"><div class="d-flex gap-1">
+              <%= link_to admins_app_path(app), class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
+              <%= link_to edit_admins_app_path(app), class: "btn btn-sm btn-outline-primary text-nowrap d-none d-sm-inline-flex" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+            </div></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_apps_path(@filters.merge(page: page)) } %>
   <% end %>
 </section>
