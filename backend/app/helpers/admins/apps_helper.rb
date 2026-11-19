@@ -1,4 +1,10 @@
 module Admins::AppsHelper
+  def app_direct_qrcode_available?(app)
+    app.code_capable? && AppConfiguration.new(app).credential.first.present?
+  rescue AppConfiguration::Invalid
+    false
+  end
+
   def wechat_interface_doc(path)
     return if path.blank?
     url = URI.join("https://developers.weixin.qq.com/", path.to_s)

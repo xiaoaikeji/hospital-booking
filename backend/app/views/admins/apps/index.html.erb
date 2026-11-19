@@ -43,7 +43,7 @@
       </tr></thead>
       <tbody>
         <% @apps.each do |app| %>
-          <% authorized = app.provider == "wechat" && app.app_authorization&.authorized? %>
+          <% authorized = app.platform_authorized? %>
           <% detail_url = admins_app_path(app, application_context_params) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
@@ -55,10 +55,7 @@
                 <% if authorized %>
                   <span class="badge bg-success-lt">已授权</span>
                 <% else %>
-                  <%= link_to app.app_authorization&.revoked_at ? "已取消授权" : "未授权", admins_app_path(app, application_context_params.merge(anchor: "wechat-authorization")), class: "badge bg-secondary-lt", title: "查看此应用的平台授权配置" %>
-                  <% if @component_configured %>
-                    <%= button_to admins_app_authorization_path(app), class: "btn btn-sm mt-1 text-nowrap", form: { target: "_blank", rel: "noopener" } do %><%= render "layouts/admins/icon", name: :check %>平台授权<% end %>
-                  <% end %>
+                  <span class="badge bg-secondary-lt"><%= app.app_authorization&.revoked_at ? "已取消授权" : "未授权" %></span>
                 <% end %>
               <% else %>
                 <span class="text-secondary">不适用</span>
@@ -69,7 +66,10 @@
             <td class="app-action-cell px-2"><div class="d-flex flex-wrap gap-1">
               <%= link_to detail_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
               <% if app.provider == "wechat" %>
-                <%= render "qrcode_button", app: app, label: "二维码" %>
+                <% if @component_configured && !authorized %>
+                  <%= button_to admins_app_authorization_path(app), class: "btn btn-sm text-nowrap", form: { class: "app-quick-authorization d-inline-flex", target: "_blank", rel: "noopener" } do %><%= render "layouts/admins/icon", name: :link %>平台授权<% end %>
+                <% end %>
+                <%= render "qrcode_button", app: app, label: "二维码" if authorized || app_direct_qrcode_available?(app) %>
               <% end %>
               <%= link_to edit_admins_app_path(app, application_context_params), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
               <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>

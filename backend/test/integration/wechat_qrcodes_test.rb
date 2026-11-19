@@ -20,13 +20,18 @@ class WechatQrcodesTest < ActionDispatch::IntegrationTest
 
   test "列表按平台提供正式版码与微信授权，打开前不调用微信" do
     douyin = App.create!(provider: "douyin", appid: "dyA")
+    disconnected = App.create!(provider: "wechat", appid: "wxDisconnected")
     get admins_apps_path
     assert_response :success
     [ @direct, @managed ].each do |app|
       assert_select "button[data-qrcode-url=?]", admins_app_qrcode_path(app), text: "二维码"
     end
     assert_select "button[data-qrcode-url=?]", admins_app_qrcode_path(douyin), count: 0
-    assert_select "form[action=?]", admins_app_authorization_path(@direct), count: 1
+    assert_select ".app-authorization .btn", count: 0
+    [ @direct, disconnected ].each do |app|
+      assert_select ".app-action-cell form[method=post][target=_blank][action=?] button", admins_app_authorization_path(app), text: "平台授权"
+    end
+    assert_select "button[data-qrcode-url=?]", admins_app_qrcode_path(disconnected), count: 0
     assert_select "form[action=?]", admins_app_authorization_path(@managed), count: 0
     get admins_app_qrcode_path(douyin)
     assert_response :not_found
