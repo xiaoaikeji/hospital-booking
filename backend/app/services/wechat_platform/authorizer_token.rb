@@ -1,5 +1,17 @@
 module WechatPlatform
   class AuthorizerToken
+    # 微信明确拒绝本次业务请求使用的令牌时，只淘汰同一应用、同一值。
+    # 获取授权方令牌时发生的平台令牌错误由 ComponentToken 处理。
+    def self.with_token(app)
+      token = fetch(app)
+      begin
+        yield token
+      rescue Wechat::BaseClient::Rejected => error
+        expire(app, token) if error.invalid_token?
+        raise
+      end
+    end
+
     def self.expire(app, token)
       key = "apps/#{app.id}/channel_token"
       app.app_authorization.with_lock { Rails.cache.delete(key) if Rails.cache.read(key)&.fetch(:value) == token }

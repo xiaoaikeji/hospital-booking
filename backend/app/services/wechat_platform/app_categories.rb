@@ -8,13 +8,13 @@ module WechatPlatform
     end
 
     def page
-      data = client.category_settings
+      data = with_client(&:category_settings)
       used = data.fetch("categories").map { |row| "#{row['first']}-#{row['second']}" }
       last_event = Log.where(target_type: "App", target_id: @app.id, source: "system", action: "wechat.category_audit")
         .order(Arel.sql("(details ->> 'occurred_at')::bigint DESC"), id: :desc).first
       result = { settings: data, options: [], blocked: quota_blocker(data), revision: revision(data), pending: unresolved, last_event: last_event }
       begin
-        result[:options] = catalog.options(added: used)
+        result[:options] = CategoryCatalog.for(@app) { with_client(&:catalog) }.options(added: used)
       rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
         result[:blocked] ||= "可添加的类目暂不可读：#{error.message}"
       end
@@ -24,10 +24,10 @@ module WechatPlatform
     def awaiting_verification? = unresolved.present?
 
     def add!(input)
-      mutate("category_add", input) do |data|
+      mutate("category_add", input) do |data, client|
         raise Error, quota_blocker(data) if quota_blocker(data)
         raise Error, "本应用已设置此类目，请刷新" if configured?(data)
-        category = catalog.find(@first, @second) || raise(Error, "请选择有效的一级和二级分类")
+        category = CategoryCatalog.for(@app) { client.catalog }.find(@first, @second) || raise(Error, "请选择有效的一级和二级分类")
         plans = category["plans"]
         index = plans.size == 1 ? 0 : Integer(input[:plan].to_s, 10, exception: false)
         raise Error, "请选择资质方案" if plans.any? && (!index || index < 0 || index >= plans.size)
@@ -50,7 +50,7 @@ module WechatPlatform
     end
 
     def remove!(input)
-      mutate("category_delete", input) do |data|
+      mutate("category_delete", input) do |data, client|
         raise Error, "类目已变更，请刷新" unless configured?(data)
         dispatch! { client.remove(@first, @second) }
       end
@@ -64,7 +64,7 @@ module WechatPlatform
           raise Error, "请核实当前待确认的类目操作"
         end
         @first, @second = previous.details.values_at("first", "second")
-        applied = configured?(client.category_settings) == (previous.action == "wechat.category_add")
+        applied = configured?(with_client(&:category_settings)) == (previous.action == "wechat.category_add")
         expected = applied ? "applied" : "not_applied"
         raise Error, "登记结果与微信当前类目列表不一致，请核实后再试" unless input[:outcome] == expected
         record("category_verify", "success", operation_id: previous.id, outcome: expected)
@@ -83,9 +83,11 @@ module WechatPlatform
       locked do
         raise Error, "请先核实上次服务类目操作" if unresolved
         raise Error, "服务类目编号无效" unless @first&.positive? && @second&.positive?
-        data = client.category_settings
-        raise Error, "微信类目或额度已变化，请刷新后重新选择" unless revision(data) == input[:revision]
-        yield data
+        with_client do |client|
+          data = client.category_settings
+          raise Error, "微信类目或额度已变化，请刷新后重新选择" unless revision(data) == input[:revision]
+          yield data, client
+        end
       end
     rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       # 待核实意图由 started 表示，失败审计不会清除它。
@@ -112,12 +114,10 @@ module WechatPlatform
       raise Error, "类目操作未能完整登记，请刷新并核实微信当前类目"
     end
 
-    def client
+    def with_client
       raise Error, "请先完成目标小程序的平台授权" unless @app.code_capable? && @app.platform_authorized?
-      @client ||= Wechat::MiniProgramCategoryClient.new(AuthorizerToken.fetch(@app))
+      AuthorizerToken.with_token(@app) { |token| yield Wechat::MiniProgramCategoryClient.new(token) }
     end
-
-    def catalog = CategoryCatalog.for(@app, client)
 
     def require_admin!
       raise Error, "需要超级管理员权限" unless @actor&.super_admin?

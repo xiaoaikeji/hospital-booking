@@ -24,7 +24,7 @@ module WechatPlatform
 
     def snapshot
       FIELDS.keys.index_with do |kind|
-        domains = read(kind)
+        domains = with_client { |client| read(client, kind) }
         { domains: domains, revision: revision(kind, domains) }
       rescue Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected => error
         { error: error.message }
@@ -40,21 +40,14 @@ module WechatPlatform
 
     def replace!(kind, texts:, clear:, expected:)
       @app.with_lock do
-        current = read(kind)
-        raise Error, "微信域名已变化，请重新核对当前值" unless expected == revision(kind, current)
-        updated = current.dup
-        FIELDS.fetch(kind).each do |field, (label, scheme)|
-          entries = texts[field].to_s.lines.map(&:strip).compact_blank.uniq
-          if clear.include?(field)
-            raise Error, "请先删除#{label}编辑框中的内容，再确认清空" if entries.any?
-            updated[field] = []
-          elsif entries.any? && entries.sort != current[field].sort
-            updated[field] = validate(entries, kind, label, scheme)
-          end
+        with_client do |client|
+          current = read(client, kind)
+          raise Error, "微信域名已变化，请重新核对当前值" unless expected == revision(kind, current)
+          updated = replacement(kind, current, texts, clear)
+          changed = updated.keys.select { |key| updated[key].sort != current.fetch(key).sort }
+          client.replace(kind, updated) if changed.any?
+          changed
         end
-        changed = updated.keys.select { |key| updated[key].sort != current.fetch(key).sort }
-        client.replace(kind, updated) if changed.any?
-        changed
       end
     rescue Wechat::BaseClient::Rejected => error
       hint = WECHAT_HINTS[error.code]
@@ -65,7 +58,21 @@ module WechatPlatform
 
     private
 
-    def read(kind)
+    def replacement(kind, current, texts, clear)
+      current.dup.tap do |updated|
+        FIELDS.fetch(kind).each do |field, (label, scheme)|
+          entries = texts[field].to_s.lines.map(&:strip).compact_blank.uniq
+          if clear.include?(field)
+            raise Error, "请先删除#{label}编辑框中的内容，再确认清空" if entries.any?
+            updated[field] = []
+          elsif entries.any? && entries.sort != current[field].sort
+            updated[field] = validate(entries, kind, label, scheme)
+          end
+        end
+      end
+    end
+
+    def read(client, kind)
       data = client.read(kind)
       keys = FIELDS.fetch(kind).keys
       unless keys.any? { |key| data.key?(key) } && keys.all? { |key| !data.key?(key) || (data[key].is_a?(Array) && data[key].all?(String)) }
@@ -74,8 +81,8 @@ module WechatPlatform
       keys.index_with { |key| Array(data[key]).uniq }
     end
 
-    def client
-      @client ||= Wechat::MiniProgramDomainClient.new(WechatPlatform::AuthorizerToken.fetch(@app))
+    def with_client
+      AuthorizerToken.with_token(@app) { |token| yield Wechat::MiniProgramDomainClient.new(token) }
     end
 
     def revision(kind, domains)

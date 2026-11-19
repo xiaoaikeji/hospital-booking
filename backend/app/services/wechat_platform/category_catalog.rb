@@ -7,8 +7,8 @@ module WechatPlatform
   class CategoryCatalog
     CACHE_TTL = 6.hours
 
-    def self.for(app, client)
-      new(Rails.cache.fetch("wechat/apps/#{app.id}/category_catalog", expires_in: CACHE_TTL) { client.catalog })
+    def self.for(app, &fetch_catalog)
+      new(Rails.cache.fetch("wechat/apps/#{app.id}/category_catalog", expires_in: CACHE_TTL, &fetch_catalog))
     end
 
     def initialize(nodes)

@@ -18,8 +18,10 @@ module WechatPlatform
 
     private
 
-    def client = @client ||= Wechat::MiniProgramSettingsClient.new(AuthorizerToken.fetch(@app))
-    def approved = client.categories.select { |row| row["audit_status"].to_i == 3 }
+    def approved
+      categories = AuthorizerToken.with_token(@app) { |token| Wechat::MiniProgramSettingsClient.new(token).categories }
+      categories.select { |row| row["audit_status"].to_i == 3 }
+    end
 
     def category_message
       names = approved.map { |row| [row["first_name"], row["second_name"]].compact_blank.join(" / ") }
