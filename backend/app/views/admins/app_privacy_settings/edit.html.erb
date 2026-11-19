@@ -1,0 +1,41 @@
+<% content_for :title, "编辑隐私指引 · #{@app.display_name}" %>
+<% content_for :head do %><%= javascript_include_tag "admins/privacy_settings", defer: true %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "编辑隐私指引", icon: :edit } do %>
+  <%= link_to admins_app_path(@app, application_context_params.merge(tab: "privacy")), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回应用<% end %>
+<% end %>
+<%= form_with url: admins_app_privacy_setting_path(@app, application_context_params), method: :patch, scope: :privacy, id: "privacy-form", data: { admin_form: true } do |f| %>
+  <%= f.hidden_field :revision, value: @revision %>
+  <section class="card mb-3">
+    <div class="card-header"><h2 class="card-title"><%= @app.display_name %> · 微信开发版</h2></div>
+    <div class="card-body">
+      <%= render "admins/shared/field_rows", fields: { "AppID" => @app.appid, "配置来源" => "微信开发版" } %>
+      <div class="row g-3 mt-2">
+        <% WechatPlatform::PrivacySettings::OWNER_FIELDS.each do |key, label| %>
+          <div class="col-12 col-md-6">
+            <%= label_tag "privacy-#{key}", label, class: "form-label" %>
+            <%= text_field_tag "privacy[owner][#{key}]", @owner[key], id: "privacy-#{key}", required: key == "notice_method", type: key == "contact_email" ? "email" : "text", class: "form-control" %>
+          </div>
+        <% end %>
+      </div>
+      <p class="form-hint mt-3 mb-0">请至少填写一种开发者联系方式，并说明指引发生变更时如何通知用户。</p>
+    </div>
+  </section>
+  <section class="card">
+    <div class="card-header flex-wrap gap-2"><h2 class="card-title">收集信息与用途</h2>
+      <div class="card-actions"><button type="button" class="btn btn-sm" data-add-privacy-entry data-next="<%= @entries.size %>"><%= render "layouts/admins/icon", name: :plus %>新增声明项</button></div>
+    </div>
+    <div class="card-body border-bottom py-2 text-secondary">请勾选实际使用的接口，填写面向用户的用途说明。取消勾选将从开发版指引中移除该项。</div>
+    <% known_keys = @privacy&.entries&.pluck("key") || [] %>
+    <div id="privacy-entries" class="list-group list-group-flush">
+      <% @entries.each_with_index do |entry, index| %>
+        <%= render "entry", index: index, entry: entry, locked_key: known_keys.include?(entry["key"]), detected: @privacy&.keys&.include?(entry["key"]) %>
+      <% end %>
+    </div>
+    <template id="privacy-entry-template"><%= render "entry", index: "NEW_ENTRY", entry: { "enabled" => "1" }, locked_key: false, detected: false %></template>
+    <div class="card-footer bg-transparent btn-list justify-content-end">
+      <%= link_to "重新读取", edit_admins_app_privacy_setting_path(@app, application_context_params), class: "btn" %>
+      <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#privacy-confirm"><%= render "layouts/admins/icon", name: :check %>更新开发版指引</button>
+    </div>
+  </section>
+<% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "privacy-confirm", form_id: "privacy-form", title: "更新开发版隐私指引", context: "#{@app.display_name} · #{@app.appid}", description: "将本页填写的联系方式和勾选的用途声明提交给此小程序的微信开发版。", color: "primary", confirm_label: "确认更新", confirm_icon: :check, cancel_icon: :close %>

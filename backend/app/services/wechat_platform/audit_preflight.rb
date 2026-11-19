@@ -1,7 +1,6 @@
 module WechatPlatform
   class AuditPreflight
     Note = Data.define(:text, :warning)
-    CONTACT_KEYS = %w[contact_email contact_phone contact_qq contact_weixin].freeze
 
     def initialize(app)
       @app = app
@@ -31,14 +30,12 @@ module WechatPlatform
     end
 
     def privacy_message
-      data = client.privacy
-      declared = Array(data["setting_list"]).pluck("privacy_key")
-      missing = Array(data["privacy_list"]) - declared
-      return Note.new("隐私指引尚未声明：#{missing.join('、')}，建议先完善。", true) if missing.any?
-      owner = data["owner_setting"]
-      unless owner.is_a?(Hash) && owner.values_at(*CONTACT_KEYS).any?(&:present?)
+      current = PrivacySettings.new(@app).read
+      return Note.new("隐私指引尚未声明：#{current.missing.join('、')}，建议先完善。", true) if current.missing.any?
+      unless current.owner.values_at(*PrivacySettings::CONTACT_KEYS).any?(&:present?)
         return Note.new("开发版隐私指引缺少主体联系方式，建议先完善。", true)
       end
+      return Note.new("开发版隐私指引缺少变更通知方式，建议先完善。", true) if current.owner["notice_method"].blank?
       Note.new("已读取开发版隐私指引。", false)
     rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       Note.new("隐私指引暂不可读（#{error.message}），仍可提交。", true)

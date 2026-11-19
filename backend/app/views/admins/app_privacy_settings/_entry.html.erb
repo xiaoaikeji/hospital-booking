@@ -1,0 +1,15 @@
+<div class="list-group-item">
+  <% prefix = "privacy[entries][#{index}]" %>
+  <div class="row g-3">
+    <div class="col-12 col-lg-4">
+      <label class="form-check mb-1"><%= check_box_tag "#{prefix}[enabled]", "1", entry["enabled"] == "1", id: "privacy-enabled-#{index}", class: "form-check-input" %>
+        <span class="form-check-label">声明此项<%= " · 代码已检测" if detected %></span></label>
+      <%= label_tag "privacy-key-#{index}", "微信接口标识", class: "form-label" %>
+      <%= text_field_tag "#{prefix}[key]", entry["key"], id: "privacy-key-#{index}", readonly: locked_key, class: "form-control" %>
+    </div>
+    <div class="col-12 col-lg-8">
+      <%= label_tag "privacy-purpose-#{index}", "收集用途", class: "form-label" %>
+      <%= text_area_tag "#{prefix}[purpose]", entry["purpose"], id: "privacy-purpose-#{index}", rows: 2, class: "form-control" %>
+    </div>
+  </div>
+</div>

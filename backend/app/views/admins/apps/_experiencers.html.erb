@@ -1,0 +1,38 @@
+<section class="card" aria-labelledby="experiencer-title">
+  <div class="card-header">
+    <h2 class="card-title" id="experiencer-title">体验者 <span class="text-secondary">（<%= @experiencers.size %>）</span></h2>
+  </div>
+  <div class="card-body">
+    <%= form_with url: admins_app_experiencers_path(@app, application_context_params), class: "row g-2 align-items-end" do |form| %>
+      <div class="col-12 col-sm-5 col-lg-3">
+        <%= form.label :wechatid, "体验者微信号", class: "form-label" %>
+        <%= form.text_field :wechatid, class: "form-control", maxlength: 64, size: nil, required: true, autocomplete: "off", placeholder: "输入微信号" %>
+      </div>
+      <div class="col-auto"><%= form.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>绑定体验者<% end %></div>
+    <% end %>
+  </div>
+  <% if @experiencers.empty? %>
+    <%= render "admins/shared/list_empty", icon: :users, title: "暂无体验者" %>
+  <% else %>
+    <div class="table-responsive">
+      <table class="table table-vcenter card-table table-hover mb-0">
+        <thead><tr><th scope="col">体验者标识</th><th scope="col" class="w-1">操作</th></tr></thead>
+        <tbody>
+          <% @experiencers.each_with_index do |userstr, index| %>
+            <tr><td class="text-break"><%= userstr %></td><td>
+              <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-<%= index %>-confirmation">解绑</button>
+            </td></tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% @experiencers.each_with_index do |userstr, index| %>
+      <% form_id = "unbind-#{index}" %>
+      <%= form_with url: admins_app_experiencers_path(@app, application_context_params), method: :delete, id: form_id, class: "d-none" do %>
+        <%= hidden_field_tag :userstr, userstr, id: nil %>
+      <% end %>
+      <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: "解绑体验者",
+            context: @app.display_name, description: "解除体验者 #{truncate(userstr, length: 32)} 对本应用体验版的访问权限？", color: "danger", confirm_label: "确认解绑", confirm_icon: :check %>
+    <% end %>
+  <% end %>
+</section>

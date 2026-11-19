@@ -1,3 +1,5 @@
+require "faraday/multipart"
+
 class HttpConnection
   OPEN_TIMEOUT = 3
   READ_TIMEOUT = 12
@@ -6,6 +8,7 @@ class HttpConnection
 
   def self.build(origin)
     Faraday.new(url: origin, request: { open_timeout: OPEN_TIMEOUT, timeout: READ_TIMEOUT }, ssl: { verify: true }) do |connection|
+      connection.request :multipart
       connection.request :json
       connection.adapter Faraday.default_adapter
     end

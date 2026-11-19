@@ -6,11 +6,13 @@
 <% end %>
 <section class="card mb-3">
   <% if @app.code_capable? %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
-    <% { "overview" => "基本资料", "releases" => "代码发布" }.each do |key, label| %>
+    <% @tabs.each do |key, label| %>
       <%= link_to label, admins_app_path(@app, application_context_params.merge(tab: (key unless key == "overview")).compact), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %>
     <% end %>
   </nav></div><% end %>
-  <% if @tab == "releases" %><%= render "versions" %><% else %>
+  <% if %w[overview releases].exclude?(@tab) %>
+    <div class="card-body py-2 text-break"><strong><%= @app.display_name %></strong> <span class="text-secondary ms-2"><%= @app.appid %></span></div>
+  <% elsif @tab == "releases" %><%= render "versions" %><% else %>
     <h2 class="visually-hidden">应用资料</h2>
     <div class="card-body"><%= render "admins/shared/field_rows", fields: {
       "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
@@ -24,8 +26,11 @@
   <% end %>
 </section>
 <%= render "wechat" if @app.provider == "wechat" && @tab == "overview" %>
-<% if @app.code_capable? %>
+<% if @app.code_capable? && %w[overview releases].include?(@tab) %>
   <% if @tab == "overview" %><section class="card mb-3"><%= render "versions" %></section><% end %>
   <%= render "release_history" %>
 <% end %>
-<%= render "qrcode_modal" if @app.provider == "wechat" %>
+<% if %w[overview releases].exclude?(@tab) %>
+  <%= render(@app.platform_authorized? && @tab_error.nil? ? "admins/apps/#{@tab}" : "management_notice") %>
+<% end %>
+<%= render "qrcode_modal" if @app.provider == "wechat" && %w[overview releases].include?(@tab) %>

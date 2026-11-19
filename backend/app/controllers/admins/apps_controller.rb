@@ -13,8 +13,15 @@ module Admins
       @component_configured = WechatPlatform::ComponentToken.new.missing.empty? if @apps.any? { |app| app.provider == "wechat" }
     end
 
+    WECHAT_TABS = {
+      "overview" => "基本资料", "releases" => "代码发布", "experiencers" => "体验者",
+      "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理"
+    }.freeze
+
     def show
-      @tab = @app.code_capable? && params[:tab] == "releases" ? "releases" : "overview"
+      @tabs = @app.code_capable? ? WECHAT_TABS : WECHAT_TABS.slice("overview")
+      @tab = @tabs.key?(params[:tab]) ? params[:tab] : "overview"
+      return load_management_tab unless %w[overview releases].include?(@tab)
       return unless @app.provider == "wechat"
       @platform = WechatPlatform::ComponentToken.new
       return unless @app.code_capable?
@@ -75,6 +82,19 @@ module Admins
     end
 
     private
+
+    def load_management_tab
+      return unless @app.platform_authorized?
+
+      case @tab
+      when "experiencers" then @experiencers = WechatPlatform::Experiencers.new(@app).list
+      when "privacy" then @privacy = WechatPlatform::PrivacySettings.new(@app).read
+      when "categories" then @category_page = WechatPlatform::AppCategories.new(@app).page
+      when "domains" then @domain_settings = WechatPlatform::AppDomains.new(@app).snapshot
+      end
+    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+      @tab_error = error.message
+    end
 
     def load_app = @app = App.find(params[:id])
     def input = params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret, :clear_secret, :revision)

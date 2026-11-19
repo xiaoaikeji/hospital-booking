@@ -1,0 +1,26 @@
+<section class="card mb-3" aria-label="隐私指引">
+  <div class="card-header flex-wrap gap-2">
+    <h2 class="card-title">微信开发版隐私指引</h2>
+    <div class="card-actions btn-list">
+      <%= link_to admins_app_path(@app, application_context_params.merge(tab: "privacy")), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
+      <%= link_to edit_admins_app_privacy_setting_path(@app, application_context_params), class: "btn btn-outline-primary" do %><%= render "layouts/admins/icon", name: :edit %>编辑指引<% end %>
+    </div>
+  </div>
+  <div class="card-body">
+    <%= render "admins/shared/field_rows", fields: { "资料来源" => "微信开发版", "开发版代码" => { "1" => "已上传", "0" => "未上传" }[@privacy.code_exist.to_s] || "微信未返回", "检测到的接口" => @privacy.keys.join("、").presence || "未检测到" }, full: ["检测到的接口"] %>
+    <% if @privacy.missing.any? %><div class="alert alert-warning mt-3 mb-0">以下接口尚未填写用途：<%= @privacy.missing.join("、") %></div><% end %>
+  </div>
+  <div class="card-header"><h2 class="card-title">已声明的收集用途</h2></div>
+  <div class="card-body"><% if @privacy.declared.any? %>
+    <% purposes = @privacy.entries.select { |row| row["enabled"] == "1" }.to_h { |row| [[row["key"], row["label"].presence].compact.join(" · "), row["purpose"]] } %>
+    <%= render "admins/shared/field_rows", fields: purposes, full: purposes.keys %>
+  <% else %><span class="text-secondary">微信开发版暂无用途声明。</span><% end %></div>
+  <div class="card-header"><h2 class="card-title">开发者联系方式</h2></div>
+  <div class="card-body">
+    <% owner_fields = WechatPlatform::PrivacySettings::OWNER_FIELDS.to_h { |key, label| [label, @privacy.owner[key]] } %>
+    <% { "store_expire_timestamp" => "存储期限", "ext_file_media_id" => "补充文件标识" }.each do |key, label| %>
+      <% owner_fields[label] = @privacy.owner[key] if @privacy.owner[key].present? %>
+    <% end %>
+    <%= render "admins/shared/field_rows", fields: owner_fields %>
+  </div>
+</section>

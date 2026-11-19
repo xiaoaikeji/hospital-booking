@@ -1,0 +1,35 @@
+<% content_for :head do %><%= javascript_include_tag "admins/app_domains", defer: true %><% end %>
+<% WechatPlatform::AppDomains::FIELDS.each do |kind, fields| %>
+  <% info = @domain_settings.fetch(kind); title = WechatPlatform::AppDomains::TITLES.fetch(kind) %>
+  <section class="card mb-3" aria-label="<%= title %>" data-domain-editor>
+    <div class="card-header"><h2 class="card-title"><%= title %></h2></div>
+    <% if info[:error] %><div class="card-body"><div class="alert alert-warning" role="status"><%= info[:error] %></div>
+      <%= link_to admins_app_path(@app, application_context_params.merge(tab: "domains")), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %></div>
+    <% else %>
+      <% form_id = "app-#{kind}-domains"; defaults = WechatPlatform::AppDomains.defaults(kind) %>
+      <%= form_with url: (kind == "server" ? admins_app_server_domain_path(@app, application_context_params) : admins_app_business_domain_path(@app, application_context_params)), method: :patch, id: form_id do %>
+        <div class="card-body">
+          <p class="form-hint mb-3">每行一个域名。留空保留微信现值；移除整类域名时，删除框内内容并勾选清空。</p>
+          <%= hidden_field_tag :revision, info.fetch(:revision), id: "#{kind}-revision" %>
+          <% if defaults.any? %><details class="mb-3"><summary>医院默认域名</summary>
+            <dl class="mt-2"><% defaults.each do |key, values| %><dt><%= fields.fetch(key).first %></dt><dd class="text-break"><%= safe_join(values, tag.br) %></dd><% end %></dl>
+            <button type="button" class="btn btn-sm" data-all-domain-defaults><%= render "layouts/admins/icon", name: :edit %>填入全部默认值</button>
+          </details><% end %>
+          <div class="row g-3"><% fields.each do |field, (label, scheme)| %>
+            <% current = info.fetch(:domains).fetch(field); area_id = "domain-#{field}" %>
+            <div class="<%= kind == 'server' ? 'col-12 col-lg-6' : 'col-12' %>">
+              <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
+                <%= label_tag area_id, label, class: "form-label mb-0" %>
+                <% if defaults[field] %><button type="button" class="btn btn-sm" data-fill-domain="<%= area_id %>" data-value="<%= defaults[field].join("\n") %>">填入默认值</button><% end %>
+              </div>
+              <%= text_area_tag "domains[#{field}]", current.join("\n"), id: area_id, rows: 3, spellcheck: false, autocomplete: "off", placeholder: "#{scheme}://", class: "form-control font-monospace" %>
+              <% if current.any? %><label class="form-check mt-1"><%= check_box_tag "clear[]", field, false, class: "form-check-input", id: "clear-#{field}" %><span class="form-check-label">清空<%= label %></span></label><% end %>
+            </div>
+          <% end %></div>
+        </div>
+        <div class="card-footer bg-transparent text-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :save %>保存<%= title %></button></div>
+      <% end %>
+      <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm", title: "确认更新#{title}", context: "#{@app.display_name} · #{@app.appid}", description: "微信将替换这个小程序的#{title}。请核对填写的地址及勾选清空的类别。", color: "danger", confirm_label: "确认保存#{title}", confirm_icon: :check, cancel_icon: :close %>
+    <% end %>
+  </section>
+<% end %>

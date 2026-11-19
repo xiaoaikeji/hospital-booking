@@ -9,6 +9,15 @@ namespace :admins do
   end
   resources :code_templates, only: %i[index create destroy]
   resources :apps do
+    resources :experiencers, only: :create, controller: "app_experiencers" do
+      delete :destroy, on: :collection, path: ""
+    end
+    resource :privacy_setting, only: %i[edit update], controller: "app_privacy_settings"
+    resources :categories, only: %i[create destroy], controller: "app_categories" do
+      post :verify, on: :collection
+    end
+    resource :server_domain, only: :update, controller: "app_domains", defaults: { kind: "server" }
+    resource :business_domain, only: :update, controller: "app_domains", defaults: { kind: "business" }
     resource :qrcode, only: :show, controller: "wechat_qrcodes"
     resource :authorization, only: :create, controller: "wechat_authorizations"
     resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
