@@ -14,14 +14,17 @@
     <div class="card-body py-2 text-break"><strong><%= @app.display_name %></strong> <span class="text-secondary ms-2"><%= @app.appid %></span></div>
   <% elsif @tab == "releases" %><%= render "versions" %><% else %>
     <h2 class="visually-hidden">应用资料</h2>
-    <div class="card-body"><%= render "admins/shared/field_rows", fields: {
+    <div class="card-body"><div class="row gy-3">
+      <div class="<%= @app.code_capable? ? "col-12 col-xl-8" : "col-12" %>"><%= render "admins/shared/field_rows", fields: {
       "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
       "AppID" => @app.appid, "原始 ID" => @app.app_authorization&.original_id, "运行状态" => app_status_badge(@app.status),
       "AppSecret" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at),
       "更新时间" => admin_list_time(@app.updated_at),
-      **(@app.provider == "wechat" ? { "二维码" => render("qrcode_button", app: @app, label: (@app.code_capable? ? "正式版小程序码" : "公众号二维码")) } : {}),
+      **(@app.app_type == "official_account" && @app.provider == "wechat" ? { "二维码" => render("qrcode_button", app: @app, label: "公众号二维码") } : {}),
       "备注" => @app.memo
-    }, full: ["备注"], columns: 3 %></div>
+    }, full: ["备注"], columns: (@app.code_capable? ? 2 : 3) %></div>
+      <% if @app.code_capable? %><div class="col-12 col-xl-4"><%= render "qrcode_panel", app: @app, trial: @trial %></div><% end %>
+    </div></div>
 
   <% end %>
 </section>
@@ -33,4 +36,4 @@
 <% if %w[overview releases].exclude?(@tab) %>
   <%= render(@app.platform_authorized? && @tab_error.nil? ? "admins/apps/#{@tab}" : "management_notice") %>
 <% end %>
-<%= render "qrcode_modal" if @app.provider == "wechat" && %w[overview releases].include?(@tab) %>
+<%= render "qrcode_modal" if @tab == "releases" || (@app.provider == "wechat" && @app.app_type == "official_account") %>

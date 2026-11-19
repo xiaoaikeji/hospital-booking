@@ -55,7 +55,7 @@ class AppsTest < ActionDispatch::IntegrationTest
     get admins_app_path(app), params: { list: { app_type: "mini_program", q: "门诊" } }
     assert_select "dd", text: "1.1 · 审核中"
     assert_select "dd", text: "1.2"
-    assert_select "button[data-qrcode-url=?]", trial_admins_app_release_path(app, trial)
+    assert_select "[data-qrcode-panel] [data-code-src=?]", trial_admins_app_release_path(app, trial)
     assert_select "a[href=?]", admins_apps_path(app_type: "mini_program", q: "门诊"), text: /返回列表/
     post admins_apps_path, params: { app: { provider: "douyin", app_type: "official_account", appid: "invalid" } }
     assert_response :unprocessable_content

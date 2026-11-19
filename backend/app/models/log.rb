@@ -2,6 +2,7 @@ class Log < ApplicationRecord
   OPERATION_EVENTS = {
     [ "wechat", "wechat.authorize" ] => "发起平台授权",
     [ "wechat", "wechat.authorized" ] => "完成平台授权",
+    [ "wechat", "wechat.qrcode_refresh" ] => "刷新小程序码缓存",
     [ "wechat", "wechat.tester_bind" ] => "绑定体验者",
     [ "wechat", "wechat.tester_unbind" ] => "解绑体验者",
     [ "wechat", "wechat.privacy_update" ] => "更新开发版隐私指引",

@@ -57,7 +57,7 @@
                 <% else %>
                   <%= link_to app.app_authorization&.revoked_at ? "已取消授权" : "未授权", admins_app_path(app, application_context_params.merge(anchor: "wechat-authorization")), class: "badge bg-secondary-lt", title: "查看此应用的平台授权配置" %>
                   <% if @component_configured %>
-                    <%= button_to "平台授权", admins_app_authorization_path(app), class: "btn btn-sm mt-1", form: { target: "_blank", rel: "noopener" } %>
+                    <%= button_to admins_app_authorization_path(app), class: "btn btn-sm mt-1 text-nowrap", form: { target: "_blank", rel: "noopener" } do %><%= render "layouts/admins/icon", name: :check %>平台授权<% end %>
                   <% end %>
                 <% end %>
               <% else %>

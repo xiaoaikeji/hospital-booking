@@ -33,7 +33,7 @@
     </div>
     <template id="privacy-entry-template"><%= render "entry", index: "NEW_ENTRY", entry: { "enabled" => "1" }, locked_key: false, detected: false %></template>
     <div class="card-footer bg-transparent btn-list justify-content-end">
-      <%= link_to "重新读取", edit_admins_app_privacy_setting_path(@app, application_context_params), class: "btn" %>
+      <%= link_to edit_admins_app_privacy_setting_path(@app, application_context_params), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
       <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#privacy-confirm"><%= render "layouts/admins/icon", name: :check %>更新开发版指引</button>
     </div>
   </section>

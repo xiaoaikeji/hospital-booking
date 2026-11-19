@@ -4,7 +4,7 @@
     <div class="d-flex flex-wrap align-items-center gap-2"><strong><%= round.version %></strong>
       <span><%= MiniProgramAudit::LABELS.fetch(round.status) %></span>
       <span class="text-secondary"><%= admin_list_time(round.created_at) %></span>
-      <% if round.mini_program_release_id %><%= link_to "查看代码记录", admins_mini_program_release_path(round.mini_program_release_id), class: "btn btn-sm ms-auto" %><% end %>
+      <% if round.mini_program_release_id %><%= link_to admins_mini_program_release_path(round.mini_program_release_id), class: "btn btn-info btn-sm ms-auto" do %><%= render "layouts/admins/icon", name: :eye %>查看代码记录<% end %><% end %>
     </div>
     <% feedback = round.status == "delayed" ? {"延后原因" => round.delay_reason} : {"拒审原因" => round.rejection_reason} %>
     <% if feedback.values.any?(&:present?) %><div class="mt-2"><%= render "admins/shared/field_rows", fields: feedback, full: feedback.keys %></div><% end %>

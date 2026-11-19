@@ -74,6 +74,45 @@ class WechatQrcodesTest < ActionDispatch::IntegrationTest
     assert_equal %w[direct managed], requests
   end
 
+  test "基本资料原位刷新两种码，仅清空本应用缓存并记录一次人工操作" do
+    trial = @managed.mini_program_releases.create!(current_build: true, status: "uploaded", template_id: "7", version: "2.0", description: "体验版", operator: @admin)
+    other_key = WechatPlatform::ReleaseQrcode.release_key(@direct)
+    Rails.cache.write(other_key, PNG + "B")
+    calls = Hash.new(0)
+    @stubs.post("/wxa/getwxacodeunlimit") { [200, { "Content-Type" => "image/png" }, PNG + "release#{calls[:release] += 1}"] }
+    @stubs.get("/wxa/get_qrcode") { [200, { "Content-Type" => "image/png" }, PNG + "trial#{calls[:trial] += 1}"] }
+    release_url = admins_app_qrcode_path(@managed)
+    trial_url = trial_admins_app_release_path(@managed, trial)
+    get admins_app_path(@managed)
+    assert_select "[data-qrcode-panel] [data-code-src=?]", release_url
+    assert_select "[data-qrcode-panel] [data-code-src=?]", trial_url
+    assert_empty calls
+    2.times do
+      get release_url
+      assert_equal PNG + "release1", response.body.b
+      get trial_url
+      assert_equal PNG + "trial1", response.body.b
+    end
+    post refresh_admins_app_qrcode_path(@managed), xhr: true
+    assert_response :success
+    assert_select "[data-qrcode-panel] [data-code-src=?]", trial_url
+    assert_equal PNG + "B", Rails.cache.read(other_key)
+    get release_url
+    assert_equal PNG + "release2", response.body.b
+    get trial_url
+    assert_equal PNG + "trial2", response.body.b
+    log = Log.where(action: "wechat.qrcode_refresh").sole
+    assert_equal [@managed.id, @admin.id, "success"], [log.target_id, log.actor_id, log.status]
+
+    trial.update!(current_build: false)
+    post refresh_admins_app_qrcode_path(@managed), xhr: true
+    assert_select "[data-qrcode-panel] [data-code-src=?]", trial_url, count: 0
+    assert_includes response.body, "暂无可用的体验版"
+    get trial_url
+    assert_response :service_unavailable
+    assert_equal({ release: 2, trial: 2 }, calls)
+  end
+
   test "微信拒绝旧授权令牌时仅清除此应用的失效缓存" do
     key = "apps/#{@managed.id}/channel_token"
     @stubs.post("/wxa/getwxacodeunlimit") { response_for(errcode: 40001) }
@@ -95,6 +134,10 @@ class WechatQrcodesTest < ActionDispatch::IntegrationTest
       sign_in Admin.create!(username: role, role: role)
       get admins_app_qrcode_path(@managed)
       assert_response :forbidden
+      assert_no_difference("Log.where(action: 'wechat.qrcode_refresh').count") do
+        post refresh_admins_app_qrcode_path(@managed)
+        assert_response :forbidden
+      end
     end
   end
 end

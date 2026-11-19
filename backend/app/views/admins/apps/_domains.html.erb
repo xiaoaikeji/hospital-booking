@@ -20,7 +20,7 @@
             <div class="<%= kind == 'server' ? 'col-12 col-lg-6' : 'col-12' %>">
               <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
                 <%= label_tag area_id, label, class: "form-label mb-0" %>
-                <% if defaults[field] %><button type="button" class="btn btn-sm" data-fill-domain="<%= area_id %>" data-value="<%= defaults[field].join("\n") %>">填入默认值</button><% end %>
+                <% if defaults[field] %><button type="button" class="btn btn-sm" data-fill-domain="<%= area_id %>" data-value="<%= defaults[field].join("\n") %>"><%= render "layouts/admins/icon", name: :edit %>填入默认值</button><% end %>
               </div>
               <%= text_area_tag "domains[#{field}]", current.join("\n"), id: area_id, rows: 3, spellcheck: false, autocomplete: "off", placeholder: "#{scheme}://", class: "form-control font-monospace" %>
               <% if current.any? %><label class="form-check mt-1"><%= check_box_tag "clear[]", field, false, class: "form-check-input", id: "clear-#{field}" %><span class="form-check-label">清空<%= label %></span></label><% end %>

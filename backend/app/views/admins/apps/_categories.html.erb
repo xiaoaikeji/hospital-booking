@@ -17,7 +17,7 @@
         <%= form.hidden_field :operation_id, value: pending.id %>
         <%= form.select :outcome, [["微信已执行", "applied"], ["微信未执行", "not_applied"]], {}, class: "form-select w-auto", data: { enhanced_select: "single" }, aria: { label: "上次操作结果" } %>
         <label class="form-check mb-0"><%= form.check_box :confirmed, class: "form-check-input", required: true %><span>已核实微信后台当前类目</span></label>
-        <%= form.submit "登记核实结果", class: "btn btn-primary" %>
+        <%= render "admins/shared/submit_button", label: "登记核实结果", icon: :check %>
       <% end %>
     </div>
   <% elsif @category_page[:blocked] %><p class="text-warning px-3 pt-3 mb-0" role="status"><%= @category_page[:blocked] %></p><% end %>
@@ -51,6 +51,6 @@
     <%= form_with url: admins_app_category_path(@app, key, application_context_params), method: :delete, id: form_id do |form| %>
       <%= form.hidden_field :revision, value: @category_page[:revision], id: nil %>
     <% end %>
-    <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirm", form_id: form_id, title: "删除服务类目", context: "#{@app.display_name} · #{row['first_name']} / #{row['second_name']}", description: "确认从此小程序删除该类目？再次申请须按微信要求提交资质与审核。", color: "danger", confirm_label: "确认删除", confirm_icon: :trash %>
+    <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirm", form_id: form_id, title: "删除服务类目", context: "#{@app.display_name} · #{row['first_name']} / #{row['second_name']}", description: "确认从此小程序删除该类目？再次申请须按微信要求提交资质与审核。", color: "danger", confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>
   <% end %>
 <% end %>

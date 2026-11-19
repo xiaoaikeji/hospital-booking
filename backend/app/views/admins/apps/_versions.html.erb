@@ -8,7 +8,7 @@
     "线上版本" => @online_version || "尚无发布记录", "当前体验版" => @trial && link_to(@trial.version, admins_mini_program_release_path(@trial)),
     "最近审核" => @current_round && "#{@current_round.version} · #{progress}"
   }, columns: 3 %>
-  <% if @trial && WechatPlatform::ReleaseActions.new(@app, release: @trial).trial? %><div class="mt-3"><%= render "qrcode_button", app: @app, trial: @trial, label: "查看体验码" %></div><% end %>
+  <% if @tab == "releases" && @trial && WechatPlatform::ReleaseActions.new(@app, release: @trial).trial? %><div class="mt-3"><%= render "qrcode_button", app: @app, trial: @trial, label: "查看体验码" %></div><% end %>
   <% if @tab == "releases" && @app.platform_authorized? %>
     <% if @version_info %><hr><%= render "admins/shared/field_rows", fields: { "微信线上版本" => @version_info.dig("release_info", "release_version").presence || "尚未发布", "微信体验版" => @version_info.dig("exp_info", "exp_version").presence || "暂无体验版" } %><% end %>
     <% if @version_error %><div class="alert alert-warning mt-3" role="status"><%= @version_error %></div><% end %>

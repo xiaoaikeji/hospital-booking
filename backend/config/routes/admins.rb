@@ -18,7 +18,9 @@ namespace :admins do
     end
     resource :server_domain, only: :update, controller: "app_domains", defaults: { kind: "server" }
     resource :business_domain, only: :update, controller: "app_domains", defaults: { kind: "business" }
-    resource :qrcode, only: :show, controller: "wechat_qrcodes"
+    resource :qrcode, only: :show, controller: "wechat_qrcodes" do
+      post :refresh
+    end
     resource :authorization, only: :create, controller: "wechat_authorizations"
     resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
       member do

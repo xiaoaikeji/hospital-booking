@@ -15,7 +15,7 @@
       <fieldset class="mb-3" data-plans hidden><legend class="form-label required">资质方案</legend><div></div></fieldset>
       <div data-files></div>
       <label class="form-check mb-3" data-urgent hidden><%= form.check_box :audit_urgent, class: "form-check-input" %><span>审核加急</span></label>
-      <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "提交类目申请", icon: :check %></div>
+      <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>取消</button><%= render "admins/shared/submit_button", label: "提交类目申请", icon: :check %></div>
     <% end %>
     <template data-certificate><fieldset class="border-top pt-3 mb-3">
       <legend class="form-label required"></legend>

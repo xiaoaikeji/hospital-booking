@@ -20,7 +20,7 @@
         <tbody>
           <% @experiencers.each_with_index do |userstr, index| %>
             <tr><td class="text-break"><%= userstr %></td><td>
-              <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-<%= index %>-confirmation">解绑</button>
+              <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-<%= index %>-confirmation"><%= render "layouts/admins/icon", name: :close %>解绑</button>
             </td></tr>
           <% end %>
         </tbody>
@@ -32,7 +32,7 @@
         <%= hidden_field_tag :userstr, userstr, id: nil %>
       <% end %>
       <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: "解绑体验者",
-            context: @app.display_name, description: "解除体验者 #{truncate(userstr, length: 32)} 对本应用体验版的访问权限？", color: "danger", confirm_label: "确认解绑", confirm_icon: :check %>
+            context: @app.display_name, description: "解除体验者 #{truncate(userstr, length: 32)} 对本应用体验版的访问权限？", color: "danger", confirm_label: "确认解绑", confirm_icon: :check, cancel_icon: :close %>
     <% end %>
   <% end %>
 </section>

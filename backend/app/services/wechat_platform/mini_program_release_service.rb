@@ -67,7 +67,7 @@ module WechatPlatform
 
     def trial(release)
       raise Error, "请选择已授权应用的当前体验版" unless release.app_id == @app.id && ReleaseActions.new(@app, release: release).trial?
-      client.trial_qrcode
+      Rails.cache.fetch(ReleaseQrcode.trial_key(release), expires_in: 15.minutes) { client.trial_qrcode }
     end
 
     def submit!(release, description:, auto_publish:, expected_round:)

@@ -11,9 +11,9 @@
         <img class="img-fluid" alt="正式版小程序码" hidden>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn" data-bs-dismiss="modal">关闭</button>
-        <button class="btn" type="button" data-retry hidden>重试</button>
-        <a class="btn btn-primary" data-download hidden>下载二维码</a>
+        <button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>关闭</button>
+        <button class="btn" type="button" data-retry hidden><%= render "layouts/admins/icon", name: :rotate %>重试</button>
+        <a class="btn btn-outline-secondary" data-download hidden><%= render "layouts/admins/icon", name: :export %>下载二维码</a>
       </div>
     </div>
   </div>
