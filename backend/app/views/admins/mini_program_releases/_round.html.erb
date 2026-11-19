@@ -1,12 +1,10 @@
-<h3 class="h3 mb-3"><%= round.version %> · <%= MiniProgramAudit::LABELS[round.status] %></h3>
+<h3 class="h3 mb-3">第 <%= sequence %> 轮 · <%= MiniProgramAudit::LABELS[round.status] %></h3>
 <% fields = { "审核单号" => round.audit_id, "发布方式" => round.auto_publish? ? "自动发布" : "手动发布", "发布结果" => MiniProgramAudit::PUBLICATIONS[round.publication], "提审人" => round.operator.display_name, "提交时间" => admin_list_time(round.created_at), "通过时间" => round.approved_at && admin_list_time(round.approved_at), "本轮说明" => round.description } %>
+<% fields.delete("通过时间") unless round.approved_at %>
+<% fields.delete("发布结果") if round.publication == "unpublished" && round.status != "passed" %>
+<% fields["发布时间"] = admin_list_time(round.published_at) if round.published_at %>
+<% fields["延后原因"] = round.delay_reason if round.status == "delayed" && round.delay_reason.present? %>
 <% fields["微信操作反馈"] = Wechat::BaseClient::Rejected.new(round.error_code).message if round.error_code %>
 <% fields["拒审原因"] = round.rejection_reason.presence || "微信尚未返回原因，可查询结果补查" if round.status == "rejected" %>
-<%= render "admins/shared/field_rows", fields: fields, full: %w[本轮说明 拒审原因] %>
-<% if round.rejection_screenshots.any? %><div class="d-flex flex-wrap gap-3 mt-2"><% round.rejection_screenshots.each_with_index do |id, index| %>
-  <div data-screenshot="<%= screenshot_admins_app_audit_path(round.app_id, round, index: index) %>">
-    <% image = { title: "拒审截图 #{index + 1}", asset: screenshot_admins_app_audit_path(round.app_id, round, index: index) }; modal_id = dom_id(round, "screenshot_#{index}") %>
-    <template><%= render "admins/shared/image_thumbnail", image: image, modal_id: modal_id, size: "avatar-xl" %><%= render "admins/shared/image_modal", image: image, modal_id: modal_id %></template>
-    <small role="status">正在读取截图…</small><button hidden type="button" class="btn btn-sm" data-retry-image>重试</button>
-  </div>
-<% end %></div><% end %>
+<%= render "admins/shared/field_rows", fields: fields, full: %w[本轮说明 拒审原因 延后原因 微信操作反馈], columns: 3 %>
+<%= render "admins/mini_program_releases/audit_screenshots", round: round %>

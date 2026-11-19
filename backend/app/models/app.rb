@@ -3,7 +3,7 @@ class App < ApplicationRecord
   TYPES = { "mini_program" => "小程序", "official_account" => "公众号" }.freeze
   scope :wechat_mini_programs, -> { where(provider: "wechat", app_type: "mini_program") }
   validates :app_type, inclusion: { in: TYPES.keys }
-  validates :provider, inclusion: { in: ["wechat"], message: "公众号目前仅支持微信" }, if: -> { app_type == "official_account" }
+  validates :app_type, exclusion: { in: ["official_account"], message: "抖音仅支持小程序" }, if: -> { provider == "douyin" }
   def code_capable? = provider == "wechat" && app_type == "mini_program"
   def platform_label = "#{PROVIDERS[provider]}#{TYPES[app_type]}"
   def platform_authorized? = provider == "wechat" && app_authorization&.authorized?

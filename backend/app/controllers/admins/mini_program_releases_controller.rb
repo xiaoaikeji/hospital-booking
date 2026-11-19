@@ -5,10 +5,16 @@ module Admins
     def index
       @filters = params.permit(:q, :app_id, :status, :in_progress).to_h.compact_blank
       @apps = App.wechat_mini_programs.includes(:app_authorization).order(:nickname, :appid)
-      @upload_apps = @apps.select { |app| WechatPlatform::ReleaseActions.new(app).upload? }
+      @selected_app = @apps.find { |app| app.id.to_s == @filters["app_id"] } if @filters["app_id"]
+      @upload_scope = @filters["app_id"] ? Array(@selected_app) : @apps
+      @upload_apps = @upload_scope.select { |app| WechatPlatform::ReleaseActions.new(app).upload? }
       rows = MiniProgramRelease.with_progress.merge(App.wechat_mini_programs)
       rows = rows.where(app_id: @filters["app_id"]) if @filters["app_id"]
-      rows = rows.where("progress = ?", @filters["status"]) if @filters["status"]
+      if @filters["status"]
+        stage = MiniProgramRelease::STAGE_BY_PROGRESS.fetch(@filters["status"], @filters["status"])
+        @filters["status"] = stage
+        rows = rows.where("progress IN (?)", MiniProgramRelease::STAGES.dig(stage, 1) || [])
+      end
       rows = rows.where("progress IN (?)", MiniProgramRelease::IN_PROGRESS) if @filters["in_progress"] == "1"
       if @filters["q"]
         rows = rows.where("apps.nickname ILIKE :term OR apps.appid ILIKE :term OR mini_program_releases.version ILIKE :term",
@@ -22,9 +28,10 @@ module Admins
     end
 
     def show
+      @list = params[:list].permit(:q, :app_id, :status, :in_progress, :page).to_h if params[:list].is_a?(ActionController::Parameters)
       @release = MiniProgramRelease.with_progress.merge(App.wechat_mini_programs).find(params[:id])
       @rounds = @release.mini_program_audits.includes(:operator).order(id: :desc)
-      @activity = Log.operations_visible_to(current_admin).where(target_type: "App", target_id: @release.app_id, category: "wechat", status: "success")
+      @activity = Log.where(source: %w[admin system], target_type: "App", target_id: @release.app_id, category: "wechat")
         .where("details ->> 'release_id' = :id OR details ->> 'round_id' IN (:rounds)", id: @release.id.to_s, rounds: @rounds.map { |r| r.id.to_s })
         .order(id: :desc)
       @operators = Admin.where(id: @activity.select(:actor_id)).index_by(&:id)
@@ -38,6 +45,10 @@ module Admins
         @revision = @release.app.mini_program_audits.maximum(:id).to_i
         @warnings = WechatPlatform::AuditPreflight.new(@release.app).messages
         render partial: "submit"
+      elsif params[:operation] == "verify_upload" && actions.verify_upload?
+        render partial: "verify_upload"
+      elsif params[:operation] == "resolve" && actions.resolve?
+        render partial: "admins/apps/reconciliation", locals: { audit: @round, dialog: true }
       elsif params[:operation] == "mode" && actions.change_mode?
         render partial: "mode"
       else
@@ -46,7 +57,7 @@ module Admins
     end
 
     def read_quota
-      app = @apps.find(&:platform_authorized?)
+      app = @upload_scope.find(&:platform_authorized?)
       raise WechatPlatform::Error, "请先完成一个微信小程序的平台授权" unless app
       @quota = Wechat::MiniProgramCodeClient.new(WechatPlatform::AuthorizerToken.fetch(app)).quota
     rescue WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected => error

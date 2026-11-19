@@ -1,6 +1,15 @@
 module WechatPlatform
   class ReleaseQrcode
     def self.fetch(app)
+      if app.app_type == "official_account"
+        raise Error, "请先完成此公众号的平台授权" unless app.platform_authorized?
+        return Rails.cache.fetch("apps/#{app.id}/wechat/official_account_qrcode", expires_in: 30.days) do
+          platform = ComponentToken.new
+          info = platform.with_token { |token| platform.client.authorizer_info(token, platform.config[:appid], app.appid) }
+          Wechat::OfficialAccountQrcodeClient.new.fetch(info)
+        end
+      end
+
       Rails.cache.fetch("apps/#{app.id}/wechat/release_home_qrcode", expires_in: 30.days) do
         managed = app.app_authorization&.authorized?
         token = if managed

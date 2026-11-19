@@ -1,22 +1,19 @@
 <% if @releases.empty? %>
-  <%= render "admins/shared/list_empty", icon: :package, title: @filters.any? ? "没有匹配的代码记录" : "暂无代码记录" %>
+  <%= render "admins/shared/list_empty", icon: :code, title: @filters.any? ? "没有匹配的代码记录" : "暂无代码记录" %>
 <% else %>
   <table class="table table-fixed table-vcenter card-table table-hover admin-list-table release-table mb-0">
-    <thead><tr><th class="list-column-id">ID</th><th>应用</th><th>版本</th><th>最近结果</th><th class="list-column-time">更新时间</th><th class="release-operations">操作</th></tr></thead>
-    <tbody><% @releases.each do |release| %><tr>
-      <td class="text-secondary">#<%= release.id %></td>
-      <td><%= render "admins/shared/list_text", text: release.app.display_name, url: admins_app_path(release.app) %><small class="text-secondary"><%= render "admins/shared/list_text", text: release.app.appid %></small></td>
-      <td><%= render "admins/shared/list_text", text: release.version, url: admins_mini_program_release_path(release) %></td>
-      <% color = case release.progress
-         when "passed", "published", "uploaded" then "success"
-         when "upload_failed", "rejected", "failed", "not_accepted" then "danger"
-         when *MiniProgramRelease::IN_PROGRESS then "warning"
-         else "secondary"
-         end %>
-      <td><span class="badge bg-<%= color %>-lt"><%= MiniProgramRelease::STATES.fetch(release.progress) %></span></td>
-      <td class="release-time"><%= admin_list_time(release.activity_at) %></td>
-      <td class="release-operations"><%= render "actions", release: release %></td>
-    </tr><% end %></tbody>
+    <thead><tr><th class="list-column-id">ID</th><th>小程序</th><th>版本</th><th class="release-status">状态</th><th>最近结果</th><th class="list-column-time">更新时间</th><th class="release-operations">操作</th></tr></thead>
+    <tbody><% @releases.each do |release| %>
+      <tr id="<%= dom_id(release) %>">
+        <td class="text-secondary release-id">#<%= release.id %></td>
+        <td><%= render "admins/shared/list_text", text: release.app.display_name, url: admins_app_path(release.app) %><small class="text-secondary"><%= render "admins/shared/list_text", text: release.app.appid %></small></td>
+        <td><%= render "admins/shared/list_text", text: release.version, url: release_detail_url(release) %><small class="text-secondary"><%= render "admins/shared/list_text", text: "模板 ##{release.template_id} · #{WechatPlatform::CodeTemplates::TYPES[release.template_type]}" %></small></td>
+        <td class="release-status"><%= release_progress_badge(release) %></td>
+        <td class="release-result"><%= render "admins/shared/list_text", text: release_result_text(release) || "—", multiline: true %></td>
+        <td class="release-time"><%= admin_list_time(release.activity_at.in_time_zone) %></td>
+        <td class="release-operations"><%= render "actions", release: release %></td>
+      </tr>
+    <% end %></tbody>
   </table>
   <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_mini_program_releases_path(@filters.merge(page: page)) } %>
 <% end %>

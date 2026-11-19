@@ -1,18 +1,31 @@
-<% content_for :title, "#{@app.display_name} · Booking 管理后台" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: @app.display_name, icon: :package } do %>
-  <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
-  <%= link_to edit_admins_app_path(@app), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
-  <button type="button" class="btn btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(@app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
+<% content_for :title, "#{@app.display_name} · 应用详情" %>
+<% content_for :head do %><%= javascript_include_tag "admins/app_qrcode", defer: true %><%= javascript_include_tag "admins/releases", defer: true if @app.code_capable? %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "应用详情", icon: :device_mobile } do %>
+  <%= link_to edit_admins_app_path(@app, application_context_params), class: "btn btn-outline-primary" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+  <%= link_to admins_apps_path(application_list_context), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
-<%= render "delete_confirmation", app: @app %>
-
 <section class="card mb-3">
-  <div class="card-header"><h2 class="card-title">应用资料</h2></div>
-  <div class="card-body">
-    <%= render "admins/shared/field_rows", fields: { "应用平台" => @app.platform_label, "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "接入凭据" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at), "备注" => @app.memo }, full: ["备注"] %>
-  </div>
+  <% if @app.code_capable? %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
+    <% { "overview" => "基本资料", "releases" => "代码发布" }.each do |key, label| %>
+      <%= link_to label, admins_app_path(@app, application_context_params.merge(tab: (key unless key == "overview")).compact), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %>
+    <% end %>
+  </nav></div><% end %>
+  <% if @tab == "releases" %><%= render "versions" %><% else %>
+    <h2 class="visually-hidden">应用资料</h2>
+    <div class="card-body"><%= render "admins/shared/field_rows", fields: {
+      "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
+      "AppID" => @app.appid, "原始 ID" => @app.app_authorization&.original_id, "运行状态" => app_status_badge(@app.status),
+      "AppSecret" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at),
+      "更新时间" => admin_list_time(@app.updated_at),
+      **(@app.provider == "wechat" ? { "二维码" => render("qrcode_button", app: @app, label: (@app.code_capable? ? "正式版小程序码" : "公众号二维码")) } : {}),
+      "备注" => @app.memo
+    }, full: ["备注"], columns: 3 %></div>
+
+  <% end %>
 </section>
-<% if @app.provider == "wechat" %>
-  <%= render "admins/shared/enhanced_select_assets" %>
-  <%= render "wechat" %>
+<%= render "wechat" if @app.provider == "wechat" && @tab == "overview" %>
+<% if @app.code_capable? %>
+  <% if @tab == "overview" %><section class="card mb-3"><%= render "versions" %></section><% end %>
+  <%= render "release_history" %>
 <% end %>
+<%= render "qrcode_modal" if @app.provider == "wechat" %>

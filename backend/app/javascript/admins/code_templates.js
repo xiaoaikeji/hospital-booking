@@ -1,22 +1,32 @@
 (() => {
-  const section = document.getElementById("template-library");
-  if (!section?.dataset.source) return;
+  const library = document.getElementById("template-library");
+  if (!library?.dataset.source) return;
   const button = document.getElementById("refresh-templates");
-  let generation = 0;
-  async function refresh() {
-    const request = ++generation;
-    button.disabled = true;
-    document.getElementById("template-feedback").textContent = "";
-    try {
-      const response = await fetch(section.dataset.source);
-      if (!response.ok || response.redirected) throw new Error();
-      const html = await response.text();
-      if (request === generation && !document.querySelector(".modal.show")) section.innerHTML = html;
-    } catch {
-      if (request === generation) document.getElementById("template-feedback").textContent = "刷新失败，请重试。";
-    } finally { button.disabled = false; }
+  const feedback = document.getElementById("template-feedback");
+  let pendingHtml = null;
+  function applyRefresh() {
+    if (pendingHtml !== null && !library.querySelector(".modal.show")) {
+      library.innerHTML = pendingHtml;
+      pendingHtml = null;
+    }
   }
-  section.addEventListener("show.bs.modal", () => { generation++; });
+  async function refresh() {
+    if (button.disabled) return;
+    button.disabled = true;
+    feedback.textContent = "正在刷新微信数据…";
+    try {
+      const response = await fetch(library.dataset.source);
+      if (!response.ok || response.redirected) throw new Error();
+      pendingHtml = await response.text();
+      applyRefresh();
+      feedback.textContent = "";
+    } catch {
+      feedback.textContent = "微信数据刷新失败，可再次刷新。";
+    } finally {
+      button.disabled = false;
+    }
+  }
+  library.addEventListener("hidden.bs.modal", applyRefresh);
   button.addEventListener("click", refresh);
   refresh();
 })();

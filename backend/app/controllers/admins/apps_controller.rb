@@ -4,8 +4,8 @@ module Admins
     before_action :load_app, only: %i[show edit update destroy]
 
     def index
-      @filters = params.permit(:q, :provider, :status).to_h.compact_blank
-      scope = App.where(@filters.slice("provider", "status"))
+      @filters = params.permit(:q, :provider, :app_type, :status).to_h.compact_blank
+      scope = App.where(@filters.slice("provider", "app_type", "status"))
       if @filters["q"]
         scope = scope.where("nickname ILIKE :q OR appid ILIKE :q", q: "%#{App.sanitize_sql_like(@filters["q"])}%")
       end
@@ -14,13 +14,25 @@ module Admins
     end
 
     def show
+      @tab = @app.code_capable? && params[:tab] == "releases" ? "releases" : "overview"
       return unless @app.provider == "wechat"
       @platform = WechatPlatform::ComponentToken.new
-      @trial_version = @app.mini_program_releases.find_by(current_build: true)&.version
+      return unless @app.code_capable?
+      @trial = @app.mini_program_releases.find_by(current_build: true)
       @online_version = @app.mini_program_audits.where(publication: "published").order(id: :desc).pick(:version)
-      @audit_history, @audits = pagy(@app.mini_program_audits.includes(:mini_program_release).order(id: :desc), limit: 10)
-      @latest_progress = @app.mini_program_releases.with_progress.order(Arel.sql("activity_at DESC, mini_program_releases.id DESC")).first
-      @recent_uploads = @app.mini_program_releases.order(id: :desc).limit(3)
+      history = @app.mini_program_audits.order(id: :desc)
+      @current_round = history.accepted_or_uncertain.first || history.first
+      if @tab == "releases"
+        @audit_history, @audits = pagy(history, limit: 10)
+        if params[:verify_version] == "1" && @app.platform_authorized?
+          token = WechatPlatform::AuthorizerToken.fetch(@app)
+          @version_info = Wechat::MiniProgramCodeClient.new(token).version_info
+        end
+      else
+        @audits = history.limit(3)
+      end
+    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+      @version_error = error.message
     end
 
     def edit
@@ -47,7 +59,7 @@ module Admins
         @app.destroy!
         audit("destroy")
       end
-      redirect_to admins_apps_path, notice: "应用已删除", status: :see_other
+      redirect_to admins_apps_path(helpers.application_list_context), notice: "应用已删除", status: :see_other
     rescue ActiveRecord::ActiveRecordError => error
       message = if @app.app_authorization
         "已有微信授权记录，只能停用"
@@ -59,7 +71,7 @@ module Admins
         "删除失败"
       end
       audit("destroy", status: "failed", details: { reason: message })
-      redirect_to admins_app_path(@app), alert: message
+      redirect_to admins_app_path(@app, helpers.application_context_params), alert: message
     end
 
     private
@@ -87,10 +99,10 @@ module Admins
           ActiveRecord.after_all_transactions_commit { Rails.cache.delete("apps/#{@app.id}/channel_token") }
         end
       end
-      redirect_to admins_app_path(@app), notice: "应用已保存", status: :see_other
-    rescue AppConfiguration::Invalid, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
+      redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已保存", status: :see_other
+    rescue AppConfiguration::Invalid, WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
       reason = case error
-      when ActiveRecord::RecordInvalid then "请核对应用资料或重复的 AppID"
+      when ActiveRecord::RecordInvalid then "请核对标出的应用资料"
       when ActiveRecord::ActiveRecordError then "保存失败，请刷新页面"
       else error.message
       end

@@ -1,50 +1,85 @@
 (() => {
-  const upload = document.querySelector("#release-upload");
-  let loading = 0;
-  let templates = [];
-  async function refreshTemplates() {
-    const sequence = ++loading;
-    const status = upload.querySelector("[role=status]");
-    const list = upload.querySelector("#upload-template");
-    status.textContent = "正在读取微信模板…";
-    try {
-      const res = await fetch(upload.dataset.templates);
-      if (!res.ok) throw Error();
-      const data = await res.json();
-      if (sequence !== loading) return;
-      templates = data.templates;
-      const options = templates.map(row => {
-        const option = new Option(`#${row.template_id} · ${row.user_version} · ${row.user_desc || ""}`, row.template_id);
-        return option;
-      });
-      list.tomselect?.clear(true);
-      list.tomselect?.clearOptions();
-      list.replaceChildren(new Option("请选择模板", ""), ...options);
-      list.tomselect?.sync();
-      list.tomselect?.refreshOptions(false);
-      status.textContent = data.error || (options.length ? "" : "微信模板库为空，请先将草稿加入库。");
-    } catch { if (sequence === loading) status.textContent = "读取失败，可手工填写模板资料。"; }
-  }
+  const upload = document.querySelector("#release-upload[data-templates]");
   if (upload) {
     const form = upload.querySelector("form");
-    const app = upload.querySelector("#upload-app");
-    const selectApp = () => { form.action = app.value; };
-    selectApp();
-    app.addEventListener("change", selectApp);
-    upload.addEventListener("show.bs.modal", refreshTemplates);
-    upload.querySelector("[data-refresh-templates]").addEventListener("click", refreshTemplates);
-    upload.querySelector("#upload-template").addEventListener("change", event => {
-      const row = templates.find(item => String(item.template_id) === event.target.value);
-      if (!row) return;
-      form.elements["release[template_id]"].value = row.template_id;
-      const type = form.elements["release[template_type]"];
-      type.value = Number(row.template_type) === 1 ? "standard" : "normal";
+    const app = form.querySelector("#upload-app");
+    const list = form.querySelector("#upload-template");
+    const status = form.querySelector("[role=status]");
+    const fields = form.querySelector("[data-template-fields]");
+    const templateId = form.elements["release[template_id]"];
+    const version = form.elements["release[version]"];
+    const description = form.elements["release[description]"];
+    const type = form.elements["release[template_type]"];
+    const typeValue = document.createElement("input");
+    typeValue.type = "hidden";
+    typeValue.name = type.name;
+    form.append(typeValue);
+    const submit = form.querySelector("[type=submit]");
+    let rows = [], manual = false, loading = false;
+
+    function updateControls() {
+      const row = rows.find(item => String(item.template_id) === list.value);
+      fields.hidden = !row && !manual;
+      templateId.readOnly = !manual;
+      version.readOnly = !manual && Boolean(row?.user_version);
+      description.readOnly = !manual && Boolean(row?.user_desc);
+      typeValue.value = type.value;
+      typeValue.disabled = manual;
+      type.disabled = !manual;
+      if (manual) type.tomselect?.enable();
+      else type.tomselect?.disable();
+      list.required = !manual;
+      submit.disabled = loading || fields.hidden || !app.value;
+      if (app.value) form.action = app.value;
+    }
+    function fillSelection() {
+      const row = rows.find(item => String(item.template_id) === list.value);
+      templateId.value = row?.template_id || "";
+      type.value = Number(row?.template_type) === 1 ? "standard" : "normal";
       type.tomselect?.setValue(type.value, true);
-      form.elements["release[version]"].value = row.user_version || "";
-      form.elements["release[description]"].value = row.user_desc || "";
-    });
+      version.value = row?.user_version || "";
+      description.value = row?.user_desc || "";
+      updateControls();
+    }
+
+    async function refreshTemplates() {
+      if (loading) return;
+      loading = true;
+      submit.disabled = true;
+      status.textContent = "正在读取微信模板…";
+      try {
+        const res = await fetch(upload.dataset.templates);
+        if (!res.ok || res.redirected) throw Error();
+        const data = await res.json();
+        const previousId = templateId.value || list.value;
+        rows = data.templates;
+        manual = Boolean(data.error);
+        const options = rows.map(row => new Option(`#${row.template_id} · ${row.user_version || ""} · ${row.user_desc || ""}`, row.template_id));
+        list.tomselect?.clear(true);
+        list.tomselect?.clearOptions();
+        list.replaceChildren(new Option(manual ? "选择缓存模板或手工填写" : "请选择模板", ""), ...options);
+        list.tomselect?.sync();
+        const available = rows.some(row => String(row.template_id) === previousId);
+        list.value = available ? previousId : "";
+        list.tomselect?.setValue(list.value, true);
+        if (!manual) fillSelection();
+        status.textContent = data.error || (previousId && !available ? "所选模板已从微信模板库移除，请重新选择。" : rows.length ? "" : "微信模板库为空，请先将草稿加入库。");
+      } catch {
+        manual = true;
+        status.textContent = "读取微信模板失败，可手工填写模板资料。";
+      } finally {
+        loading = false;
+        updateControls();
+      }
+    }
+    updateControls();
+    app.addEventListener("change", updateControls);
+    list.addEventListener("change", fillSelection);
+    upload.querySelector("[data-refresh-templates]").addEventListener("click", refreshTemplates);
+    upload.addEventListener("show.bs.modal", refreshTemplates);
+    if (upload.dataset.destination) refreshTemplates();
     if (upload.dataset.open === "true") {
-      document.addEventListener("DOMContentLoaded", () => window.tabler.Modal.getOrCreateInstance(upload).show(), {once: true});
+      document.addEventListener("DOMContentLoaded", () => window.tabler.Modal.getOrCreateInstance(upload).show(), { once: true });
     }
   }
 
@@ -92,7 +127,7 @@
   const list = document.querySelector("#release-list");
   let polling = false;
   const paused = () => document.hidden || document.querySelector(".modal.show, [data-busy], form[aria-busy=true], #release-list details[open]");
-  if (list) setInterval(async () => {
+  async function refreshList() {
     if (polling || paused()) return;
     const id = generation;
     polling = true;
@@ -103,7 +138,18 @@
       if (id === generation && !paused()) list.innerHTML = html;
     } catch { /* 保留最近成功显示的列表。 */ }
     finally { polling = false; }
-  }, 15000);
+  }
+  if (list) setInterval(refreshList, 15000);
+  document.addEventListener("hide.bs.modal", event => {
+    if (event.target.querySelector("form[data-busy]")) event.preventDefault();
+  });
+  let refreshOnClose = false;
+  document.addEventListener("hidden.bs.modal", () => {
+    if (!refreshOnClose) return;
+    refreshOnClose = false;
+    if (list) refreshList();
+    else location.reload();
+  });
 
   document.addEventListener("submit", async event => {
     generation++;
@@ -113,7 +159,7 @@
       return;
     }
     event.preventDefault();
-    if (form.dataset.busy) return;
+    if (form.dataset.busy || form.dataset.uncertain) return;
     form.dataset.busy = "1";
     const submit = form.querySelector("[type=submit]");
     if (submit) submit.disabled = true;
@@ -124,14 +170,19 @@
       const res = await fetch(form.action, {method:"POST", body:new FormData(form), headers:{Accept:"application/json"}});
       const data = await res.json();
       if (data.expected_round && form.elements.expected_round) form.elements.expected_round.value = data.expected_round;
+      if (!res.ok) refreshOnClose = true;
       if (!res.ok && !data.reconcile) { alert.textContent = data.error; return; }
-      const target = new URL(location.href);
+      const target = new URL(upload?.contains(form) && upload.dataset.destination || location.href, location.href);
       target.searchParams.delete("upload");
       location.replace(target);
-    } catch { alert.textContent = "请求结果未确认，请刷新并核实本地记录。"; }
+    } catch {
+      alert.textContent = "请求结果未确认，请关闭并核实本地记录。";
+      form.dataset.uncertain = "1";
+      refreshOnClose = true;
+    }
     finally {
       delete form.dataset.busy;
-      if (submit) submit.disabled = false;
+      if (submit) submit.disabled = Boolean(form.dataset.uncertain);
       submit?.querySelector(".spinner-border")?.classList.add("d-none");
       submit?.querySelector("[data-admin-submit-icon]")?.classList.remove("d-none");
     }

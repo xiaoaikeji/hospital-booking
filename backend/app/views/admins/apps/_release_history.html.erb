@@ -1,0 +1,16 @@
+<section class="card"><div class="card-header"><h2 class="card-title"><%= @tab == "releases" ? "审核记录" : "近期审核" %></h2></div>
+  <% if @audits.empty? %><div class="card-body text-secondary">暂无提审记录</div><% end %>
+  <div class="list-group list-group-flush"><% @audits.each do |round| %><article class="list-group-item">
+    <div class="d-flex flex-wrap align-items-center gap-2"><strong><%= round.version %></strong>
+      <span><%= MiniProgramAudit::LABELS.fetch(round.status) %></span>
+      <span class="text-secondary"><%= admin_list_time(round.created_at) %></span>
+      <% if round.mini_program_release_id %><%= link_to "查看代码记录", admins_mini_program_release_path(round.mini_program_release_id), class: "btn btn-sm ms-auto" %><% end %>
+    </div>
+    <% feedback = round.status == "delayed" ? {"延后原因" => round.delay_reason} : {"拒审原因" => round.rejection_reason} %>
+    <% if feedback.values.any?(&:present?) %><div class="mt-2"><%= render "admins/shared/field_rows", fields: feedback, full: feedback.keys %></div><% end %>
+    <%= render "admins/mini_program_releases/audit_screenshots", round: round %>
+    <% unless round.mini_program_release_id %><div class="btn-list mt-2"><%= render "admins/mini_program_releases/round_actions", release: nil, round: round, actions: WechatPlatform::ReleaseActions.new(@app, round: round) %></div><% end %>
+  </article><% end %></div>
+  <% if @audit_history %><%= render "admins/shared/pagination", pagy: @audit_history, url: ->(page) { admins_app_path(@app, application_context_params.merge(tab: "releases", page: page)) } %>
+  <% elsif @audits.any? %><div class="card-footer bg-transparent"><%= link_to "全部审核记录", admins_app_path(@app, application_context_params.merge(tab: "releases")) %></div><% end %>
+</section>

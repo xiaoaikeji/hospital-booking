@@ -55,7 +55,8 @@ module WechatPlatform
         info = @platform.with_token { |token| @platform.client.authorization(token, @platform.config[:appid], code) }
         attributes = self.class.authorization_attributes(info, @app)
         original = @platform.with_token { |token| @platform.client.original_id(token, @platform.config[:appid], @app.appid) }
-        auth.update!(attributes.merge(original_id: original, event_at: Time.current))
+        at = Time.current
+        auth.update!(attributes.merge(original_id: original, event_at: at, authorized_at: at))
         WechatPlatform.log!(@app, "authorized", actor: admin, request: request)
       end
     end

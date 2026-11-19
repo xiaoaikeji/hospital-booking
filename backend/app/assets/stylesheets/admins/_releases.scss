@@ -1,5 +1,34 @@
-.release-table .release-operations { width: 34%; }
-.template-table .template-actions { width: 17%; }
+.admin-detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 1.5rem;
+  row-gap: .65rem;
+}
+@media (min-width: 1200px) {
+  .admin-detail-fields-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+  .admin-detail-fields { grid-template-columns: minmax(0, 1fr); }
+}
+.admin-detail-field {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  column-gap: .75rem;
+  align-items: baseline;
+}
+.admin-detail-field dt { font-weight: 500; }
+.admin-detail-field-wide { grid-column: 1 / -1; }
+.release-config { white-space: pre-wrap; overflow-wrap: anywhere; }
+.release-table .release-operations { width: max(18rem, 24%); }
+.card-table.release-table :is(th, td).release-operations:last-child { padding-inline: .5rem; }
+@media (min-width: 1200px) {
+  .release-table:has(form[action$="/withdraw"]) .release-operations { width: 30rem; }
+}
+.release-table .release-status { width: 7rem; }
+@media (min-width: 992px) {
+  .template-table .template-actions { width: 5rem; }
+  .template-drafts .template-actions { width: 17.5rem; }
+}
 .card-table:is(.release-table, .template-table) :is(th, td):first-child {
   padding-inline: .5rem;
   white-space: nowrap;
@@ -19,13 +48,14 @@
   .template-table .template-actions { width: auto; grid-column: 1 / -1; }
 }
 .release-table td { padding-inline: .5rem; }
-.release-filters .ts-wrapper { min-width: 9rem; }
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .release-table, .release-table tbody { display: block; }
   .release-table thead { display: none; }
-  .release-table > tbody > tr { height: auto; display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(3rem, auto); align-items: center; padding: .75rem; border-bottom: var(--tblr-border-width) solid var(--tblr-border-color); }
+  .release-table > tbody > tr { height: auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; padding: .75rem; border-bottom: var(--tblr-border-width) solid var(--tblr-border-color); }
   .release-table td { min-width: 0; padding: .25rem; border: 0; }
-  .release-table .release-time { grid-column: span 2; }
+  .release-table .release-id { grid-column: 1 / -1; font-size: .75rem; }
+  .release-table .release-result { grid-column: 2; font-size: .8125rem; }
+  .release-table .release-time { grid-column: 1 / -1; font-size: .75rem; color: var(--tblr-secondary); }
   .release-table .release-operations { width: auto; grid-column: 1 / -1; }
-  .release-filters > * { max-width: 100%; }
+  .release-table .release-status { width: auto; }
 }

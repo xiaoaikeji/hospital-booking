@@ -9,6 +9,7 @@ class Log < ApplicationRecord
     [ "wechat", "wechat.submit" ] => "提交微信审核",
     [ "wechat", "wechat.sync" ] => "核对微信结果",
     [ "wechat", "wechat.withdraw" ] => "撤回微信审核",
+    [ "wechat", "wechat.resume_auto" ] => "补排自动发布任务",
     [ "wechat", "wechat.publish" ] => "发布微信版本",
     [ "wechat", "wechat.close" ] => "关闭发布记录",
     [ "wechat", "wechat.delete" ] => "删除发布记录",

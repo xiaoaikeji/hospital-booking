@@ -1,15 +1,18 @@
 <% app = release.app; actions = WechatPlatform::ReleaseActions.new(app, release: release, round: release.action_round) %>
-<div class="d-flex flex-wrap gap-1 align-items-start">
-<% if !actions.authorized? %><%= link_to "恢复平台授权后继续", admins_app_path(app, anchor: "wechat-authorization"), class: "small" %><% end %>
-<% if actions.trial? %><%= link_to trial_admins_app_release_path(app, release), class: "btn btn-sm", target: "_blank", rel: "noopener" do %><%= render "layouts/admins/icon", name: :qrcode %>查看体验码<% end %><% end %>
-<% if actions.submit? %><button type="button" class="btn btn-sm btn-primary" data-release-dialog="<%= confirmation_admins_mini_program_release_path(release, app_id: app.id, operation: "submit") %>"><%= render "layouts/admins/icon", name: :check %>提交审核</button><% end %>
-<% unless local_assigns[:detail] %><%= link_to admins_mini_program_release_path(release), class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %><% end %>
-<%= render "admins/mini_program_releases/round_actions", release: release, round: release.action_round, actions: actions if release.action_round %>
-<% if actions.verify_upload? %>
-  <%= form_with url: verify_upload_admins_app_release_path(app, release), method: :patch do |f| %>
-    <%= render "admins/mini_program_releases/return_fields" %><label class="form-check"><%= f.check_box :confirmed, required: true, class: "form-check-input" %>已核实模板和版本</label><%= f.select :outcome, [["上传已生效", "uploaded"], ["微信未执行上传", "not_uploaded"]], {}, class: "form-select form-select-sm", aria: { label: "上传核实结果" } %><%= f.submit "核实当前体验版", class: "btn btn-sm" %>
+<div class="d-flex flex-wrap gap-1 align-items-center">
+  <% unless local_assigns[:detail] %><%= link_to release_detail_url(release), class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %><% end %>
+  <% if actions.trial? %>
+    <%= render "admins/apps/qrcode_button", app: app, trial: release, label: "查看体验码" %>
   <% end %>
-<% end %>
-<% if local_assigns[:detail] && (actions.close? || actions.delete?) %>
-  <% delete = actions.delete? %><%= render "admins/mini_program_releases/confirm_action", record: release, action: "retire", method: delete ? :delete : :patch, url: delete ? admins_app_release_path(app, release) : close_admins_app_release_path(app, release), label: delete ? "删除本地记录" : "关闭本地记录", description: "停止本地自动发布，已受理的审核单继续跟踪。", color: "danger" %>
-<% end %></div>
+  <% if actions.submit? %>
+    <button type="button" class="btn btn-sm btn-primary" data-release-dialog="<%= confirmation_admins_mini_program_release_path(release, app_id: app.id, operation: "submit") %>"><%= render "layouts/admins/icon", name: :check %><%= release.latest_audit ? "重新提审" : "提交审核" %></button>
+  <% end %>
+  <% if actions.retry_upload? %>
+    <%= render "admins/mini_program_releases/confirm_action", record: release, action: "retry_upload", method: :post, url: retry_upload_admins_app_release_path(app, release), label: "重新上传", description: "使用模板 ##{release.template_id} 和此版本快照重新生成体验版。", color: "primary" %>
+  <% end %>
+  <%= render "admins/mini_program_releases/round_actions", release: release, round: release.action_round, actions: actions if release.action_round %>
+  <% if actions.verify_upload? %>
+    <button type="button" class="btn btn-sm" data-release-dialog="<%= confirmation_admins_mini_program_release_path(release, app_id: app.id, operation: "verify_upload") %>"><%= render "layouts/admins/icon", name: :check %>核实当前体验版</button>
+  <% end %>
+  <% if !local_assigns[:detail] && actions.delete? %><%= render "admins/mini_program_releases/retire", release: release, delete: true, compact: true %><% end %>
+</div>

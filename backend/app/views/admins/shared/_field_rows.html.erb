@@ -1,7 +1,8 @@
-<dl class="row g-3 mb-0">
+<dl class="<%= class_names("admin-detail-fields mb-0", "admin-detail-fields-three" => local_assigns[:columns] == 3) %>">
   <% fields.each do |label, value| %>
-    <div class="<%= Array(local_assigns[:full]).include?(label) ? 'col-12' : 'col-12 col-lg-6' %>">
-      <div class="row g-2"><dt class="col-4 text-secondary fw-normal"><%= label %></dt><dd class="col-8 text-break mb-0"><%= value.presence || "—" %></dd></div>
+    <div class="<%= class_names("admin-detail-field", "admin-detail-field-wide" => Array(local_assigns[:full]).include?(label)) %>">
+      <dt class="text-secondary"><%= label %></dt>
+      <dd class="text-break mb-0"><%= value.presence || "—" %></dd>
     </div>
   <% end %>
 </dl>

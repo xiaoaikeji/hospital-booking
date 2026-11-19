@@ -17,7 +17,14 @@ module Api
         auth = App.find_by(provider: "wechat", appid: params[:appid])&.app_authorization
         return head :forbidden unless auth&.authorized? && auth.original_id.present? && auth.original_id == message["ToUserName"]
         if message["MsgType"] == "event" && %w[weapp_audit_success weapp_audit_fail weapp_audit_delay].include?(message["Event"])
-          WechatPlatform::AuditEventWorker.perform_async(auth.app_id)
+          audit_id = message["AuditId"].presence || message["AuditID"].presence
+          if audit_id&.match?(/\A\d+\z/)
+            feedback = { "type" => message["Event"], "audit_id" => audit_id, "time" => message["CreateTime"],
+              "reason" => message["Reason"], "screenshots" => message["ScreenShot"] }.compact
+            WechatPlatform::AuditEventWorker.perform_async(auth.app_id, feedback)
+          else
+            WechatPlatform::AuditEventWorker.perform_async(auth.app_id)
+          end
         end
       else
         return head :forbidden unless message["AppId"] == platform.config[:appid]
@@ -32,7 +39,7 @@ module Api
             auth.with_lock do
               next if auth.event_at && at.to_i < auth.event_at.to_i
               if message["InfoType"] == "unauthorized"
-                auth.update!(refresh_token: nil, scopes: [], event_at: at, state_digest: nil)
+                auth.update!(refresh_token: nil, scopes: [], event_at: at, revoked_at: at, state_digest: nil)
               elsif auth.authorized? && (!auth.event_at || at.to_i > auth.event_at.to_i)
                 info = platform.with_token { |token| platform.client.authorization(token, platform.config[:appid], message["AuthorizationCode"]) }
                 attributes = WechatPlatform::AuthorizationFlow.authorization_attributes(info, auth.app)

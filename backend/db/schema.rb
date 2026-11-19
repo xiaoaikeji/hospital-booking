@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -64,11 +64,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
 
   create_table "app_authorizations", force: :cascade do |t|
     t.bigint "app_id", null: false
+    t.datetime "authorized_at"
     t.datetime "created_at", null: false
     t.datetime "event_at"
     t.bigint "initiator_id"
     t.string "original_id"
     t.text "refresh_token"
+    t.datetime "revoked_at"
     t.jsonb "scopes", default: [], null: false
     t.string "state_digest"
     t.datetime "state_expires_at"
@@ -131,6 +133,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
     t.string "audit_id"
     t.boolean "auto_publish", default: false, null: false
     t.datetime "created_at", null: false
+    t.text "delay_reason"
     t.text "description", null: false
     t.integer "error_code"
     t.bigint "mini_program_release_id"
@@ -140,6 +143,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
     t.string "previous_status", null: false
     t.string "prior_online_marker"
     t.string "publication", default: "unpublished", null: false
+    t.datetime "published_at"
     t.text "rejection_reason"
     t.text "rejection_screenshots", default: [], null: false, array: true
     t.string "status", default: "submit_unknown", null: false
@@ -154,20 +158,27 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
 
   create_table "mini_program_releases", force: :cascade do |t|
     t.bigint "app_id", null: false
+    t.text "audit_description"
     t.datetime "created_at", null: false
     t.boolean "current_build", default: false, null: false
     t.text "description", null: false
     t.integer "error_code"
     t.jsonb "ext_config"
     t.bigint "operator_id", null: false
+    t.bigint "previous_build_id"
+    t.bigint "restored_for_id"
+    t.bigint "source_release_id"
     t.string "status", default: "upload_unknown", null: false
     t.string "template_id", null: false
     t.string "template_type", default: "normal", null: false
     t.datetime "updated_at", null: false
     t.string "version", null: false
+    t.index ["app_id", "restored_for_id"], name: "index_mini_program_releases_on_app_id_and_restored_for_id", where: "(restored_for_id IS NOT NULL)"
     t.index ["app_id"], name: "index_mini_program_releases_on_app_id"
     t.index ["app_id"], name: "one_current_build_per_app", unique: true, where: "current_build"
     t.index ["operator_id"], name: "index_mini_program_releases_on_operator_id"
+    t.index ["previous_build_id"], name: "index_mini_program_releases_on_previous_build_id"
+    t.index ["source_release_id"], name: "index_mini_program_releases_on_source_release_id"
   end
 
   create_table "settings", force: :cascade do |t|
@@ -189,4 +200,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_040000) do
   add_foreign_key "mini_program_audits", "mini_program_releases", on_delete: :nullify
   add_foreign_key "mini_program_releases", "admins", column: "operator_id"
   add_foreign_key "mini_program_releases", "apps"
+  add_foreign_key "mini_program_releases", "mini_program_releases", column: "previous_build_id", on_delete: :nullify
+  add_foreign_key "mini_program_releases", "mini_program_releases", column: "source_release_id", on_delete: :nullify
 end

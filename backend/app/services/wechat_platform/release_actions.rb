@@ -11,16 +11,36 @@ module WechatPlatform
     def trial? = authorized? && release&.current_build? && release.status == "uploaded" && release.action_round&.publication != "published"
     def verify_upload? = authorized? && release&.status == "upload_unknown"
     def submit?
-      trial? && !uncertain_audit? && (release.effective_audit.nil? || %w[rejected withdrawn].include?(release.effective_audit.status))
+      upload? && release&.status == "uploaded" && !release.restored_for_id &&
+        (release.effective_audit.nil? || %w[rejected withdrawn].include?(release.effective_audit.status)) && !blocked_by_review
+    end
+
+    def blocked_by_review
+      app.mini_program_audits.where(status: %w[pending delayed]).order(id: :desc).first
+    end
+
+    def retry_upload?
+      return false unless upload? && release&.status == "upload_failed"
+      return false if app.mini_program_releases.exists?(source_release_id: release.id)
+      return true unless release.restored_for_id
+
+      source = app.mini_program_releases.find_by(id: release.restored_for_id)
+      latest = app.mini_program_releases.where(restored_for_id: release.restored_for_id).maximum(:id)
+      latest == release.id && ReleaseActions.new(app, release: source).submit?
     end
     def sync? = authorized? && round && (MiniProgramAudit::PENDING.include?(round.status) || round.publication == "publish_unknown" || round.status == "rejected")
     def resolve? = authorized? && round && (%w[submit_unknown withdraw_unknown].include?(round.status) || round.publication == "publish_unknown")
     def withdraw? = authorized? && latest? && %w[pending delayed].include?(round.status) && !uncertain_audit?
-    def change_mode? = withdraw? && open_record?
+    def change_mode? = open_record? && latest? && %w[pending delayed].include?(round.status) && !uncertain_audit?
     def manual_publish? = publishable? && (round.publication == "failed" || (!round.auto_publish? && round.publication == "unpublished"))
     def auto_publish? = publishable? && round.auto_publish? && round.publication == "unpublished"
-    def close? = release && !%w[closed upload_unknown].include?(release.status) && release.action_round&.publication != "published"
-    def delete? = release&.status == "closed"
+    alias_method :resume_auto?, :auto_publish?
+    def close? = delete? && open_record? && release.action_round&.publication != "published"
+    def delete?
+      release && release.status != "upload_unknown" &&
+        !app.mini_program_releases.where(status: "upload_unknown").where("previous_build_id = :id OR restored_for_id = :id", id: release.id).exists? &&
+        !release.mini_program_audits.where(status: %w[submit_unknown withdraw_unknown]).or(release.mini_program_audits.where(publication: "publish_unknown")).exists?
+    end
 
     private
 

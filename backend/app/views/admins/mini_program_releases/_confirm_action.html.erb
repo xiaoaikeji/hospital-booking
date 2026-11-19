@@ -1,6 +1,6 @@
 <% form_id = dom_id(record, action) %>
 <%= form_with url: url, method: method, id: form_id do %>
   <%= render "admins/mini_program_releases/return_fields" %>
-  <button type="button" class="btn btn-sm <%= color == 'danger' ? 'btn-outline-danger' : 'btn-primary' %>" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: { "withdraw" => :rotate, "publish" => :check, "retire" => :close }.fetch(action) %><%= label %></button>
+  <button type="button" class="btn btn-sm <%= color == 'danger' ? 'btn-outline-danger' : 'btn-primary' %>" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: { "withdraw" => :rotate, "publish" => :check, "delete" => :trash, "close" => :close, "retry_upload" => :import, "resume_auto" => :rotate }.fetch(action) %><%= label %></button>
 <% end %>
 <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirm", form_id: form_id, title: "确认#{label}", context: "#{record.app.display_name} · #{record.app.appid} · #{record.version}", description: description, color: color, confirm_label: "确认#{label}", cancel_icon: :close, confirm_icon: :check %>

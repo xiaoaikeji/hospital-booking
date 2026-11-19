@@ -1,26 +1,67 @@
-<% content_for :title, "#{@release.app.display_name} · #{@release.version} · 代码" %>
-<% content_for :head do %><%= javascript_include_tag "admins/releases", defer: true %><% end %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "#{@release.app.display_name} · #{@release.version}", icon: :package } do %>
-  <%= link_to "全部代码记录", admins_mini_program_releases_path(app_id: @release.app_id), class: "btn" %>
+<% app = @release.app; round = @release.action_round %>
+<% actions = WechatPlatform::ReleaseActions.new(app, release: @release, round: round) %>
+<% content_for :title, "#{app.display_name} · #{@release.version} · 代码" %>
+<% content_for :head do %><%= javascript_include_tag "admins/releases", "admins/app_qrcode", defer: true %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "发布详情", icon: :code } do %>
+  <%= link_to admins_mini_program_releases_path(@list || {app_id: app.id}), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回代码列表<% end %>
 <% end %>
-<section class="card mb-3"><div class="card-header"><h2 class="card-title">上传快照</h2></div><div class="card-body">
-  <%= render "admins/shared/field_rows", fields: { "应用" => link_to(@release.app.display_name, admins_app_path(@release.app)), "AppID" => @release.app.appid, "模板 ID" => @release.template_id, "模板类型" => WechatPlatform::CodeTemplates::TYPES[@release.template_type], "版本" => @release.version, "最近结果" => MiniProgramRelease::STATES[@release.progress], "上传人" => @release.operator.display_name, "上传时间" => admin_list_time(@release.created_at), "说明" => @release.description, "扩展配置" => tag.code(@release.ext_config.to_json) }, full: %w[说明 扩展配置] %>
-  <% if @release.error_code %><p class="text-danger mt-3"><%= Wechat::BaseClient::Rejected.new(@release.error_code).message %></p><% end %>
-  <% if !@release.current_build? && %w[rejected withdrawn].include?(@release.action_round&.status) %>
-    <p class="text-secondary mt-3">体验版已更换。请核对当前体验版；如需再次提审此代码，可从<%= link_to "本应用代码列表", admins_mini_program_releases_path(app_id: @release.app_id) %>上传。</p>
+<section class="card mb-3">
+  <div class="card-header gap-2 flex-wrap"><h2 class="card-title"><%= app.display_name %> · <%= @release.version %></h2><%= release_progress_badge(@release) %></div>
+  <div class="card-body">
+    <% fields = { "小程序" => link_to(app.display_name, admins_app_path(app)), "AppID" => app.appid, "版本" => @release.version } %>
+    <% if round %>
+      <% fields["微信审核单号"] = round.audit_id; fields["本轮发布方式"] = round.auto_publish? ? "自动发布" : "手动发布" %>
+    <% end %>
+    <% fields["更新时间"] = admin_list_time(@release.activity_at.in_time_zone) %>
+    <% result = release_result_text(@release); fields["最近结果"] = result if result && !%w[pending delayed].include?(@release.progress) %>
+    <%= render "admins/shared/field_rows", fields: fields, full: ["最近结果"], columns: 3 %>
+    <% if @release.restored_for_id %>
+      <% original = app.mini_program_releases.find_by(id: @release.restored_for_id) %>
+      <p class="text-secondary mt-3 mb-0">本次上传用于恢复体验版，审核历史归属<%= original ? link_to("发布记录 ##{original.id}", admins_mini_program_release_path(original, list: @list)) : "已删除的发布记录 ##{@release.restored_for_id}" %>。</p>
+    <% end %>
+    <% if !actions.authorized? && !%w[published closed].include?(@release.progress) %>
+      <p class="text-secondary small mt-3 mb-0">微信操作需要此小程序的授权。<%= link_to "查看平台授权", admins_app_path(app, anchor: "wechat-authorization") %></p>
+    <% end %>
+    <% if @release.status == "uploaded" && !@release.current_build? && %w[rejected withdrawn].include?(round&.status) %>
+      <p class="text-secondary small mt-3 mb-0">当前体验版已更换，重新提审时需恢复此版本的代码。</p>
+    <% end %>
+  </div>
+  <% if actions.trial? || actions.submit? || actions.retry_upload? || actions.verify_upload? || actions.sync? || actions.change_mode? || actions.resolve? || actions.withdraw? || actions.manual_publish? || actions.resume_auto? %>
+    <div class="card-footer"><%= render "actions", release: @release, detail: true %></div>
   <% end %>
-  <div class="mt-3"><%= render "actions", release: @release, detail: true %></div>
-</div></section>
-<section class="card"><div class="card-header"><h2 class="card-title">历次审核</h2></div>
-  <% if @rounds.empty? %><%= render "admins/shared/list_empty", icon: :clock, title: "暂无提审记录" %><% end %>
-  <div class="list-group list-group-flush"><% @rounds.each do |round| %>
-    <article class="list-group-item"><%= render "round", round: round %>
-      <% if round != @release.action_round %><div class="btn-list mt-2"><%= render "round_actions", release: @release, round: round, actions: WechatPlatform::ReleaseActions.new(@release.app, release: @release, round: round) %></div><% end %>
+</section>
+<section class="card mb-3"><div class="card-header"><h2 class="card-title">历次审核</h2><span class="text-secondary ms-auto"><%= @rounds.size %> 轮</span></div>
+  <% if @rounds.empty? %><div class="card-body text-secondary">此版本尚未提交审核。</div><% end %>
+  <div class="list-group list-group-flush"><% @rounds.each_with_index do |item, index| %>
+    <article class="list-group-item"><%= render "round", round: item, sequence: @rounds.size - index %>
+      <% if item != round %><div class="btn-list mt-2"><%= render "round_actions", release: @release, round: item, actions: WechatPlatform::ReleaseActions.new(app, release: @release, round: item) %></div><% end %>
     </article>
   <% end %></div>
 </section>
-<% if @activity.any? %><section class="card mt-3"><div class="card-header"><h2 class="card-title">操作记录</h2></div><div class="list-group list-group-flush">
-  <% @activity.each do |entry| %><div class="list-group-item"><%= Log::OPERATION_EVENTS[[entry.category, entry.action]] %> · <%= @operators[entry.actor_id]&.display_name || "管理员 ##{entry.actor_id}" %> · <%= admin_list_time(entry.created_at) %>
-    <% if entry.action == "wechat.publication_mode" %> · <%= entry.details["before"] ? "自动" : "手动" %> → <%= entry.details["after"] ? "自动" : "手动" %><% end %>
-  </div><% end %></div></section><% end %>
+<section class="card mb-3"><div class="card-header"><h2 class="card-title">上传快照</h2></div><div class="card-body">
+  <%= render "admins/shared/field_rows", fields: { "模板 ID" => @release.template_id, "模板类型" => WechatPlatform::CodeTemplates::TYPES[@release.template_type], "代码版本" => @release.version, "上传人" => @release.operator.display_name, "上传时间" => admin_list_time(@release.created_at), "说明" => @release.description }, full: ["说明"], columns: 3 %>
+  <details class="mt-3"><summary class="text-secondary">查看扩展配置（ext_json）</summary><pre class="release-config mt-2 mb-0"><code><%= JSON.pretty_generate(@release.ext_config) %></code></pre></details>
+</div></section>
+<% if @activity.any? %>
+  <section class="card mb-3"><div class="card-header"><h2 class="card-title">操作记录</h2></div>
+    <div class="list-group list-group-flush">
+      <% @activity.each do |entry| %>
+        <div class="list-group-item"><div class="d-flex flex-wrap align-items-center gap-2">
+          <strong><%= entry.action == "wechat.auto_publish" ? "自动发布" : Log::OPERATION_EVENTS.fetch([entry.category, entry.action], entry.action) %></strong>
+          <% if entry.status == "failed" %><span class="badge bg-danger-lt">失败</span><% end %>
+          <span><%= entry.source == "system" ? "后台任务" : @operators[entry.actor_id]&.display_name || "管理员 ##{entry.actor_id}" %></span>
+          <span class="text-secondary ms-sm-auto"><%= admin_list_time(entry.created_at) %></span>
+        </div>
+        <% if entry.action == "wechat.publication_mode" && entry.details.key?("after") %><div class="text-secondary"><%= entry.details["before"] ? "自动" : "手动" %> → <%= entry.details["after"] ? "自动" : "手动" %></div><% end %>
+        <% if entry.details["reason"].present? %><p class="text-danger text-break mb-0"><%= entry.details["reason"] %></p><% end %></div>
+      <% end %>
+    </div></section>
+<% end %>
+<% if actions.close? || actions.delete? %>
+  <div class="d-flex flex-wrap gap-2 justify-content-end">
+    <%= render "retire", release: @release, delete: false if actions.close? %>
+    <%= render "retire", release: @release, delete: true if actions.delete? %>
+  </div>
+<% end %>
 <%= render "dialog" %>
+<%= render "admins/apps/qrcode_modal" %>

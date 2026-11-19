@@ -1,9 +1,18 @@
-<p><strong><%= @release.app.display_name %></strong> · <%= @release.app.appid %> · 版本 <%= @release.version %></p>
-<ul class="alert alert-info d-block ps-5"><% @warnings.each do |text| %><li><%= text %></li><% end %></ul>
+<dl class="row g-2 mb-3">
+  <dt class="col-3 text-secondary">目标小程序</dt><dd class="col-9 mb-0"><%= @release.app.display_name %></dd>
+  <dt class="col-3 text-secondary">AppID</dt><dd class="col-9 text-break mb-0"><%= @release.app.appid %></dd>
+  <dt class="col-3 text-secondary">提审版本</dt><dd class="col-9 mb-0"><%= @release.version %></dd>
+</dl>
+<% unless @release.current_build? %>
+  <p class="alert alert-warning">将核对微信当前体验版。若版本不同，将用 <%= @release.version %> 的上传快照替换此小程序的体验版，再提交审核。</p>
+<% end %>
+<% @warnings.each do |note| %>
+  <p class="<%= note.warning ? "alert alert-warning py-2" : "text-secondary small" %> mb-2"><%= note.text %></p>
+<% end %>
 <%= form_with url: submit_admins_app_release_path(@release.app, @release), data: { release_form: true } do |f| %>
   <div role="alert" class="text-danger mb-2"></div>
   <%= f.hidden_field :expected_round, value: @revision %>
-  <%= f.label :description, "本轮提审说明", class: "form-label" %><%= f.text_area :description, value: @release.latest_audit&.description || @release.description, class: "form-control mb-3" %>
-  <label class="form-check mb-3"><%= f.check_box :auto_publish, checked: true, class: "form-check-input" %>审核通过后自动发布</label>
+  <%= f.label :description, "本轮提审说明", class: "form-label" %><%= f.text_area :description, value: @release.audit_description.presence || @release.latest_audit&.description || @release.description, rows: 3, class: "form-control mb-3" %>
+  <label class="form-check mb-3"><%= f.check_box :auto_publish, checked: true, class: "form-check-input" %><span class="form-check-label">审核通过后自动发布</span></label>
   <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "确认提审", icon: :check %></div>
 <% end %>

@@ -1,6 +1,7 @@
 <p><strong><%= @release.app.display_name %></strong> · <%= @release.app.appid %> · 版本 <%= @release.version %> · 审核单 <%= @round.audit_id %></p>
 <%= form_with url: mode_admins_app_audit_path(@release.app, @round), method: :patch, data: { release_form: true } do |f| %>
   <div role="alert" class="text-danger mb-2"></div>
+  <% unless @release.app.platform_authorized? %><p class="text-secondary">选择仅保存在本轮。后台需恢复此应用的平台授权后才能执行自动发布。</p><% end %>
   <%= hidden_field_tag :expected_mode, @round.auto_publish? ? "1" : "0" %>
   <label class="form-check mb-3"><%= f.check_box :auto_publish, checked: @round.auto_publish?, class: "form-check-input" %>审核通过后自动发布</label>
   <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "保存发布方式", icon: :save %></div>

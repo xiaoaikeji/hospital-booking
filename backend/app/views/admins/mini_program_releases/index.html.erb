@@ -1,25 +1,45 @@
-<% content_for :title, "代码 · Booking 管理后台" %>
+<% content_for :title, "小程序代码管理 · Booking 管理后台" %>
 <% content_for :fill_content, "true" if @releases.empty? %>
 <%= render "admins/shared/enhanced_select_assets" %>
-<% content_for :head do %><%= javascript_include_tag "admins/releases", defer: true %><% end %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "代码", icon: :package } do %>
-  <% if @upload_apps.any? %><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#release-upload"><%= render "layouts/admins/icon", name: :import %>上传代码</button><% end %>
-  <%= link_to admins_mini_program_releases_path(@filters.merge(page: @pagy.page, quota: 1)), class: "btn" do %><%= render "layouts/admins/icon", name: :search %>查询额度<% end %>
+<% content_for :head do %>
+  <%= javascript_include_tag "admins/releases", "admins/app_qrcode", defer: true %>
 <% end %>
-<% if @upload_apps.empty? %><div class="alert alert-info">可在<%= link_to "应用管理", admins_apps_path %>完成微信小程序的平台授权，或先核实已有操作，再上传代码。</div><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "小程序代码管理", icon: :code } do %>
+  <% if @upload_scope.any?(&:platform_authorized?) %>
+    <%= link_to admins_mini_program_releases_path(@filters.merge(page: @pagy.page, quota: 1)), class: "btn" do %><%= render "layouts/admins/icon", name: :search %>查询额度<% end %>
+  <% end %>
+<% end %>
 <% if @quota %><div class="alert alert-info">提审剩余 <%= @quota["rest"] %> / <%= @quota["limit"] %>，加急剩余 <%= @quota["speedup_rest"] %> / <%= @quota["speedup_limit"] %></div><% elsif @quota_error %><div class="alert alert-warning"><%= @quota_error %></div><% end %>
-<section class="<%= class_names("card", "flex-fill" => @releases.empty?) %>">
-  <div class="card-header">
-    <%= form_with url: admins_mini_program_releases_path, method: :get, class: "release-filters d-flex flex-wrap align-items-center gap-2", html: { role: "search" } do |f| %>
-      <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID / 版本", aria: { label: "搜索代码" }, class: "form-control w-auto mw-100" %>
-      <%= f.select :app_id, options_from_collection_for_select(@apps, :id, :display_name, @filters["app_id"]), { include_blank: "全部应用" }, class: "form-select w-auto", data: { enhanced_select: "search" }, aria: { label: "应用" } %>
-      <%= f.select :status, MiniProgramRelease::STATES.invert, { include_blank: "全部状态", selected: @filters["status"] }, class: "form-select w-auto", data: { enhanced_select: "single" }, aria: { label: "状态" } %>
-      <label class="form-check my-auto"><%= check_box_tag :in_progress, "1", @filters["in_progress"] == "1", class: "form-check-input" %>进行中</label>
+<section class="card mb-3" aria-label="代码筛选条件">
+  <button type="button" class="btn d-md-none justify-content-between border-0" data-bs-toggle="collapse" data-bs-target="#release-filter-options" aria-expanded="false" aria-controls="release-filter-options">
+    <span><%= render "layouts/admins/icon", name: :search %>筛选条件</span>
+    <span class="text-secondary"><%= [@selected_app&.display_name, @filters["in_progress"] == "1" ? "进行中" : MiniProgramRelease::STAGES.dig(@filters["status"], 0)].compact.presence&.join(" · ") || "全部" %></span>
+  </button>
+  <div id="release-filter-options" class="collapse d-md-block"><div class="list-group list-group-flush">
+    <% url_for_filter = ->(changes) { admins_mini_program_releases_path(@filters.merge(changes).compact_blank) } %>
+    <% if @apps.any? %>
+      <%= render "admins/shared/list_filter_row", label: "小程序", key: "app_id", options: @apps.to_h { |app| [app.id.to_s, app.display_name] }, selected: @filters["app_id"], filter_url: url_for_filter %>
+    <% end %>
+    <%= render "admins/shared/list_filter_row", label: "发布状态", key: "status",
+          options: { "ongoing" => "进行中" }.merge(MiniProgramRelease::STAGES.transform_values(&:first)), selected: @filters["in_progress"] == "1" ? "ongoing" : @filters["status"],
+          filter_url: ->(changes) { value = changes["status"]; url_for_filter.call("in_progress" => ("1" if value == "ongoing"), "status" => (value unless value == "ongoing")) } %>
+  </div></div>
+</section>
+<section class="<%= class_names("card", "flex-fill" => @releases.empty?) %>" aria-label="代码列表">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_mini_program_releases_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search" } do |f| %>
+      <% @filters.except("q").each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
+        <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID / 版本", aria: { label: "搜索代码" }, class: "form-control text-truncate" %>
+      </div>
       <%= f.button type: :submit, class: "btn" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
       <% if @filters.any? %><%= link_to admins_mini_program_releases_path, class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %><% end %>
+      <button type="button" class="btn btn-primary flex-shrink-0" data-bs-toggle="modal" data-bs-target="<%= @upload_apps.any? ? '#release-upload' : '#upload-requirements' %>"><%= render "layouts/admins/icon", name: :import %>上传代码</button>
+      <span class="text-secondary ms-sm-auto"><%= @pagy.count %> 条发布记录</span>
     <% end %>
   </div>
   <div class="d-flex flex-column flex-fill" id="release-list" data-source="<%= admins_mini_program_releases_path(@filters.merge(page: @pagy.page, fragment: 1)) %>"><%= render "list" %></div>
 </section>
 <%= render "dialog" %>
-<%= render "upload" if @upload_apps.any? %>
+<%= render @upload_apps.any? ? "upload" : "upload_requirements" %>
+<%= render "admins/apps/qrcode_modal" %>

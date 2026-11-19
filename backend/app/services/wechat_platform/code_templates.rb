@@ -13,6 +13,8 @@ module WechatPlatform
 
     def refresh(key)
       rows = platform.with_token { |token| key == :drafts ? @client.drafts(token) : @client.templates(token) }
+      id = key == :drafts ? "draft_id" : "template_id"
+      rows = rows.sort_by { |row| -row.fetch(id).to_i }
       Rails.cache.write(cache_key(key), rows, expires_in: 7.days)
       rows
     end
@@ -54,11 +56,12 @@ module WechatPlatform
         action == "add" ? @client.add(token, id.to_i, type) : @client.remove(token, id.to_i)
       end
       remote = true
+      Rails.cache.delete(cache_key(:templates))
       Log.record!(category: "wechat", action: "wechat.template_#{action}", actor: actor, request: request, details: details)
     rescue Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
       reason = remote ? "微信已确认，操作审计未保存，请先刷新模板库" : error.message
       Log.record!(category: "wechat", action: "wechat.template_#{action}", actor: actor, request: request,
-        status: "failed", details: { reason: reason })
+        status: "failed", details: details.merge(reason: reason))
       raise Error, reason
     end
 

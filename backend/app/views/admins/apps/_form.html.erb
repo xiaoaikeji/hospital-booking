@@ -1,13 +1,16 @@
 <% content_for :title, "#{title} · Booking 管理后台" %>
 <% content_for :head do %><meta name="turbo-cache-control" content="no-cache"><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
+<% content_for :head do %><%= javascript_include_tag "admins/app_type", defer: true unless @app.persisted? %><% end %>
 <% config = AppConfiguration.new(@app) %>
 <% value, source = config.credential %>
 <% confirm_id = "disable-app" if @app.persisted? && @app.status_in_database != "disabled" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :package } do %>
-  <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :device_mobile } do %>
+  <%= link_to admins_apps_path(application_list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <%= form_with model: [:admins, @app], id: "app-form", class: "card", data: { admin_form: true, disable_confirmation: confirm_id, disable_field: "app[status]", disable_value: "disabled" } do |f| %>
+  <% application_list_context.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value, id: nil %><% end %>
+  <div class="card-header"><h2 class="card-title">基本资料</h2></div>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @app %>
     <div class="row g-3">
@@ -18,7 +21,8 @@
       </div>
       <div class="col-md-6 col-xl-4">
         <%= f.label :app_type, "应用类型", class: "form-label required" %>
-        <%= f.select :app_type, App::TYPES.invert, {}, disabled: @app.persisted?, class: "form-select", data: { enhanced_select: "single" } %>
+        <%= f.select :app_type, App::TYPES.invert, {}, disabled: @app.persisted?, class: admin_field_class(@app, :app_type, "form-select"), data: { enhanced_select: "single" }, aria: { describedby: ("app_type-error" if @app.errors[:app_type].any?) } %>
+        <%= admin_field_errors(@app, :app_type) %>
       </div>
       <div class="col-md-6 col-xl-4">
         <%= f.label :appid, "AppID", class: "form-label required" %>
@@ -34,21 +38,23 @@
         <%= f.select :status, App::STATUSES.invert, {}, required: true, class: admin_field_class(@app, :status, "form-select"), data: { enhanced_select: "single" }, aria: { describedby: ("status-error" if @app.errors[:status].any?) } %>
         <%= admin_field_errors(@app, :status) %>
       </div>
-      <div class="col-md-6 col-xl-8">
+      <div class="col-12"><%= f.label :memo, "备注", class: "form-label" %><%= f.text_area :memo, rows: 2, class: admin_field_class(@app, :memo) %></div>
+    </div>
+  </div>
+  <div class="card-header border-top"><h2 class="card-title">接入凭据</h2></div>
+  <div class="card-body"><div class="row g-3">
+      <div class="col-12 col-xl-8">
         <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, value: value, source: source %>
         <% if @app.persisted? %><%= f.hidden_field :revision, value: config.revision([value, source]) %><% end %>
         <% if source == "加密数据库" %>
           <label class="form-check mt-2"><%= f.check_box :clear_secret, class: "form-check-input" %><span class="form-check-label">清除数据库覆盖</span></label>
         <% end %>
       </div>
-      <div class="col-12">
-        <%= f.label :memo, "备注", class: "form-label" %>
-        <%= f.text_area :memo, rows: 3, class: admin_field_class(@app, :memo) %>
-      </div>
+
     </div>
   </div>
   <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
-    <%= link_to (@app.persisted? ? admins_app_path(@app) : admins_apps_path), class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
+    <%= link_to (@app.persisted? ? admins_app_path(@app, application_context_params) : admins_apps_path(application_list_context)), class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
   </div></div>
 <% end %>

@@ -45,7 +45,7 @@ class WechatManagementTest < ActionDispatch::IntegrationTest
     other = pending(release(@b), auto: true)
     approved_by_wechat(round)
     get admins_mini_program_releases_path(app_id: @a.id)
-    assert_select "button", text: "修改本轮发布方式"
+    assert_select "button", text: "修改发布方式"
     assert_select "button", text: /^发布$/, count: 0
     assert_select "button", text: "提交审核", count: 0
     post publish_admins_app_audit_path(@a, round)
@@ -164,6 +164,32 @@ class WechatManagementTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_equal %w[not_accepted pending], build.mini_program_audits.order(:id).pluck(:status)
     assert_equal "active", @b.reload.status
+  end
+
+  test "代码阶段按业务名称筛选，待核实仍能定位，返回保留筛选且不能向别的应用上传" do
+    build = release
+    round = pending(build, auto: true)
+    round.update!(status: "submit_unknown", audit_id: nil)
+    release(@b, version: "2.1")
+    get admins_mini_program_releases_path(app_id: @a.id, q: "1.1", status: "pending")
+    assert_response :success
+    labels = css_select("nav[aria-label='发布状态'] a").map { |link| link.text.strip }
+    assert_equal %w[全部 进行中 上传中 已上传 上传失败 审核中 审核延后 审核拒绝 审核通过 已撤回 已发布 发布失败 已关闭], labels
+    assert_select "tbody tr", count: 1
+    assert_select "td.release-status .badge", text: "审核中"
+    assert_select "td.release-result", text: /待确认微信是否受理/
+    assert_select "#release-upload", count: 0
+    assert_select "#upload-requirements a", text: "核实上次操作"
+    assert_select "button", text: "核实本轮结果"
+    detail_url = css_select("td.release-operations a").first["href"]
+    get detail_url
+    assert_response :success
+    return_link = css_select("a").find { |link| link.text.include?("返回代码列表") }
+    query = Rack::Utils.parse_nested_query(URI(return_link["href"]).query)
+    assert_equal({ "app_id" => @a.id.to_s, "page" => "1", "q" => "1.1", "status" => "pending" }, query)
+    get admins_mini_program_releases_path(status: "uploaded", app_id: @b.id)
+    assert_select "td.release-status .badge", text: "已上传"
+    assert_select "tbody tr", count: 1
   end
 
   test "截图仅代理本应用本轮素材，失败可重试，角色及应用类型受服务端限制" do

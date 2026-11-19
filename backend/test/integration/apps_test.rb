@@ -40,6 +40,28 @@ class AppsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "平台授权可独立校验启用，当前审核与新体验版分开，筛选后返回原列表" do
+    admin = Admin.create!(username: "app_scope_admin", role: "super_admin")
+    sign_in admin
+    app = App.create!(provider: "wechat", appid: "wxManaged", nickname: "门诊")
+    auth = app.create_app_authorization!(refresh_token: "test-refresh")
+    Rails.cache.write("apps/#{app.id}/channel_token", { value: "managed", revision: auth.updated_at.to_f })
+    patch admins_app_path(app), params: { app: { status: "active", revision: AppConfiguration.new(app).revision } }
+    assert_redirected_to admins_app_path(app)
+    assert_equal "active", app.reload.status
+    first = app.mini_program_releases.create!(status: "uploaded", template_id: "1", version: "1.1", description: "旧版本", operator: admin)
+    app.mini_program_audits.create!(mini_program_release: first, version: "1.1", description: "审核说明", operator: admin, previous_status: "active", status: "pending")
+    trial = app.mini_program_releases.create!(status: "uploaded", template_id: "2", version: "1.2", description: "体验版", operator: admin, current_build: true)
+    get admins_app_path(app), params: { list: { app_type: "mini_program", q: "门诊" } }
+    assert_select "dd", text: "1.1 · 审核中"
+    assert_select "dd", text: "1.2"
+    assert_select "button[data-qrcode-url=?]", trial_admins_app_release_path(app, trial)
+    assert_select "a[href=?]", admins_apps_path(app_type: "mini_program", q: "门诊"), text: /返回列表/
+    post admins_apps_path, params: { app: { provider: "douyin", app_type: "official_account", appid: "invalid" } }
+    assert_response :unprocessable_content
+    assert_select "#app_type-error", text: /抖音仅支持小程序/
+  end
+
   test "启用要求平台验证成功，清除覆盖后恢复本应用部署密钥" do
     sign_in Admin.create!(username: "boss", role: "super_admin")
     key = "MINI_APP_WECHAT_wxDemo_APPSECRET"

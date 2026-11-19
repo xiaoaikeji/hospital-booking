@@ -17,8 +17,12 @@ module Wechat
     end
 
     def original_id(token, appid, target)
+      required(authorizer_info(token, appid, target), "user_name")
+    end
+
+    def authorizer_info(token, appid, target)
       result = component_post("api_get_authorizer_info", token, component_appid: appid, authorizer_appid: target)
-      required(required(result, "authorizer_info"), "user_name")
+      required(result, "authorizer_info")
     end
 
     def refresh(token, appid, target, refresh_token)

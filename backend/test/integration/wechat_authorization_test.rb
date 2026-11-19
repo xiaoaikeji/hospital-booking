@@ -59,6 +59,34 @@ class WechatAuthorizationTest < ActionDispatch::IntegrationTest
     assert_not_includes Log.pluck(:details).to_json, "demo-"
   end
 
+  test "更新授权和乱序通知保留初始授权时间，取消后仍能查阅" do
+    Rails.cache.write("wechat/component/wxPlatform/token", "test-token")
+    authorize("wxA")
+    auth = @target.reload.app_authorization
+    original = auth.authorized_at
+    assert original
+    @stubs.post("/cgi-bin/component/api_query_auth") do
+      response_for(authorization_info: { authorizer_appid: "wxA", authorizer_refresh_token: "demo-new",
+        func_info: [{ funcscope_category: { id: 18 } }] })
+    end
+    push = lambda do |kind, at|
+      signed_push("/api/wechat/component/events", "<xml><AppId>wxPlatform</AppId><InfoType>#{kind}</InfoType><CreateTime>#{at}</CreateTime><AuthorizerAppid>wxA</AuthorizerAppid><AuthorizationCode>demo-code</AuthorizationCode></xml>")
+      assert_response :success
+    end
+    push.call("updateauthorized", original.to_i + 5)
+    assert_equal [18], auth.reload.scopes
+    push.call("unauthorized", original.to_i + 1)
+    assert auth.reload.authorized?
+    assert_nil auth.revoked_at
+    push.call("unauthorized", original.to_i + 7)
+    assert_not auth.reload.authorized?
+    assert_equal original, auth.authorized_at
+    assert_equal original.to_i + 7, auth.revoked_at.to_i
+    get admins_app_path(@target)
+    assert_select "dt", text: "授权时间"
+    assert_select "dt", text: "取消时间"
+  end
+
   test "同一超管的两个授权标签页各自回跳且只能消费一次" do
     b = App.create!(provider: "wechat", appid: "wxB")
     Rails.cache.write("wechat/component/wxPlatform/token", "demo-platform-token")

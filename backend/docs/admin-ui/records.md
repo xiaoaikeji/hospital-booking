@@ -24,7 +24,7 @@
 - 列宽按字段和常见内容分配。手机号、编号优先预留完整显示的宽度，和昵称一样保持单行；放不下时省略，悬停或键盘聚焦显示完整值。备注、说明可在行高允许的范围内换行，仍放不下也省略并显示全文提示。复用 [list_text](../../app/views/admins/shared/_list_text.html.erb) 的 Tabler Tooltip。
 - 状态按语义选用[状态 Badge](#状态与分页组件)。行按钮按 [操作与确认](actions.md) 选择。表格禁止横向滚动；空间不足时优先把次要字段移到详情，列取舍拿不准先问用户。
 
-详情使用 [field_rows](../../app/views/admins/shared/_field_rows.html.erb) 将字段名放在值的左侧，宽屏并排两组。备注和拒审原因可通过 `full` 独占一行。
+详情使用 [field_rows](../../app/views/admins/shared/_field_rows.html.erb) 将字段名放在值的左侧，根据内容宽度并排两至三组，窄屏收成一组。每组的字段名使用相同宽度，整行备注的值也与普通字段对齐。备注和拒审原因可通过 `full` 独占一行。
 
 ## 空态与分页
 

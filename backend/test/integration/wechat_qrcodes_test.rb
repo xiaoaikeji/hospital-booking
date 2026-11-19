@@ -32,6 +32,26 @@ class WechatQrcodesTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "公众号关注码只从微信图片域或账号原始 ID 读取，取消授权后不能复用缓存" do
+    @managed = App.create!(provider: "wechat", app_type: "official_account", appid: "wxOfficial")
+    @managed.create_app_authorization!(refresh_token: "demo-refresh")
+    Rails.cache.write("wechat/component/wxPlatform/token", "demo-platform")
+    @stubs.post("/cgi-bin/component/api_get_authorizer_info") do |env|
+      assert_equal @managed.appid, JSON.parse(env.body).fetch("authorizer_appid")
+      response_for(authorizer_info: { qrcode_url: "https://example.org/bad", user_name: "gh_managed" })
+    end
+    @stubs.get("https://open.weixin.qq.com/qr/code?username=gh_managed") do
+      [200, { "Content-Type" => "image/png" }, PNG + "official"]
+    end
+    get admins_app_qrcode_path(@managed)
+    assert_response :success
+    assert_equal PNG + "official", response.body.b
+    @managed.app_authorization.update!(refresh_token: nil)
+    get admins_app_qrcode_path(@managed)
+    assert_response :unprocessable_content
+    assert_includes response.parsed_body.fetch("error"), "公众号的平台授权"
+  end
+
   test "直连与代管各取本应用的正式版码，图片缓存按应用区分" do
     @stubs.post("/cgi-bin/stable_token") do |env|
       assert_equal({ "grant_type" => "client_credential", "appid" => @direct.appid, "secret" => "demo-direct-secret" }, JSON.parse(env.body))

@@ -36,7 +36,11 @@ class AppConfiguration
 
   def verify!
     value = credential.first
-    raise Invalid, "请先配置本应用的 AppSecret" if value.blank?
+    if value.blank? && @app.platform_authorized?
+      WechatPlatform::AuthorizerToken.fetch(@app)
+      return
+    end
+    raise Invalid, "请先配置本应用的 AppSecret，或完成平台授权" if value.blank?
     client = { "wechat" => Wechat::CredentialClient, "douyin" => Douyin::CredentialClient }.fetch(@app.provider) do
       raise Invalid, "应用平台无效"
     end

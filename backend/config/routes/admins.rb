@@ -14,6 +14,7 @@ namespace :admins do
     resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
       member do
         get :trial
+        post :retry_upload
         patch :verify_upload
         post :submit
         patch :close
@@ -26,6 +27,7 @@ namespace :admins do
         patch :sync
         post :resolve
         post :withdraw
+        post :resume_auto
         post :publish
       end
     end

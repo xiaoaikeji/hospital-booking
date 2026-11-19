@@ -2,13 +2,13 @@
 <% empty = @apps.empty? %>
 <% content_for :head do %><%= javascript_include_tag "admins/app_qrcode", defer: true %><% end %>
 <% content_for :fill_content, "true" if empty %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "应用管理", icon: :package } do %>
-  <%= link_to new_admins_app_path, class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增应用<% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "应用管理", icon: :device_mobile } do %>
+  <%= link_to new_admins_app_path(application_context_params), class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增应用<% end %>
 <% end %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="应用筛选条件">
   <div class="list-group list-group-flush">
-    <% { provider: ["平台", App::PROVIDERS], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
+    <% { provider: ["平台", App::PROVIDERS], app_type: ["应用类型", App::TYPES], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
       <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
     <% end %>
   </div>
@@ -44,7 +44,7 @@
       <tbody>
         <% @apps.each do |app| %>
           <% authorized = app.provider == "wechat" && app.app_authorization&.authorized? %>
-          <% detail_url = admins_app_path(app) %>
+          <% detail_url = admins_app_path(app, application_context_params) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
             <td class="app-platform px-2"><%= app.platform_label %></td>
@@ -55,7 +55,7 @@
                 <% if authorized %>
                   <span class="badge bg-success-lt">已授权</span>
                 <% else %>
-                  <%= link_to "未授权", admins_app_path(app, anchor: "wechat-authorization"), class: "badge bg-secondary-lt", title: "查看此应用的平台授权配置" %>
+                  <%= link_to app.app_authorization&.revoked_at ? "已取消授权" : "未授权", admins_app_path(app, application_context_params.merge(anchor: "wechat-authorization")), class: "badge bg-secondary-lt", title: "查看此应用的平台授权配置" %>
                   <% if @component_configured %>
                     <%= button_to "平台授权", admins_app_authorization_path(app), class: "btn btn-sm mt-1", form: { target: "_blank", rel: "noopener" } %>
                   <% end %>
@@ -68,10 +68,10 @@
             <td class="app-created px-2"><%= admin_list_time(app.created_at) %></td>
             <td class="app-action-cell px-2"><div class="d-flex flex-wrap gap-1">
               <%= link_to detail_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
-              <% if app.code_capable? %>
-                <button type="button" class="btn btn-sm text-nowrap" title="查看正式版小程序码" data-bs-toggle="modal" data-bs-target="#app-qrcode" data-qrcode-url="<%= admins_app_qrcode_path(app) %>" data-app-name="<%= app.display_name %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :qrcode %>二维码</button>
+              <% if app.provider == "wechat" %>
+                <%= render "qrcode_button", app: app, label: "二维码" %>
               <% end %>
-              <%= link_to edit_admins_app_path(app), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+              <%= link_to edit_admins_app_path(app, application_context_params), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
               <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
             </div></td>
           </tr>
