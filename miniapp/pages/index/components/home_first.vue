@@ -1,6 +1,7 @@
 <script setup>
 import { doctors } from '@/mock/doctors.js'
 import { bookingMode } from '@/pages/booking/booking-mode.js'
+import { switchFromHomeCard } from '@/utils/guest-tab.js'
 import { banners, clinics, entries } from '../home-first-mock.js'
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
@@ -12,7 +13,7 @@ const titleSpace = hasCapsule ? capsule.left - 4 : windowWidth - 88
 function openEntry(entry) {
   if (entry.id === 'registration') {
     bookingMode.value = 'department'
-    uni.switchTab({ url: entry.url })
+    switchFromHomeCard(entry.url)
     return
   }
   uni.navigateTo({ url: entry.url })

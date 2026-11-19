@@ -5,6 +5,7 @@ import { bookingMode as mode } from './booking-mode.js'
 import DoctorCard from './components/doctor_card.vue'
 import { getBookingSchedule, getScheduledDoctors } from '@/mock/booking-schedule.js'
 import { doctors } from '@/mock/doctors.js'
+import { handleTabShow } from '@/utils/guest-tab.js'
 
 const modes = [
   { key: 'department', label: '按科室' },
@@ -27,6 +28,7 @@ function loadDay(day) {
 }
 
 onShow(() => {
+  handleTabShow('/pages/booking/index')
   schedule.value = getBookingSchedule()
   loadDay(schedule.value.find(day => day.date === selectedDay.value?.date) ?? schedule.value[0])
 })

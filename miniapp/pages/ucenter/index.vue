@@ -1,8 +1,13 @@
 <script setup>
+import { onShow } from '@dcloudio/uni-app'
+import { handleTabShow } from '@/utils/guest-tab.js'
+
+onShow(() => handleTabShow('/pages/ucenter/index'))
+
 const services = [
-  { label: '预约记录', icon: 'registration' },
-  { label: '意见反馈', icon: 'appointment' },
-  { label: '了解我院', icon: 'experts' },
+  { label: '预约记录', icon: 'registration', url: '/pages/ucenter/appointments' },
+  { label: '意见反馈', icon: 'appointment', url: '/pages/ucenter/feedback' },
+  { label: '了解我院', icon: 'experts', url: '/pages/ucenter/hospital' },
 ]
 </script>
 
@@ -16,10 +21,10 @@ const services = [
     <view class="services-panel">
       <view class="services-title">就医服务</view>
       <view class="service-list">
-        <view v-for="service in services" :key="service.icon" class="service">
+        <navigator v-for="service in services" :key="service.url" class="service" :url="service.url" hover-class="none">
           <image class="service-icon" :src="'/static/home/' + service.icon + '.svg'" mode="aspectFit" />
           <text>{{ service.label }}</text>
-        </view>
+        </navigator>
       </view>
     </view>
   </view>
