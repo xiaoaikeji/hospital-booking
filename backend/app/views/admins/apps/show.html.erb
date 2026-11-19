@@ -1,0 +1,11 @@
+<% content_for :title, @app.display_name %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: @app.display_name, icon: :package } do %>
+  <%= link_to "返回列表", admins_apps_path, class: "btn" %>
+  <%= link_to "编辑", edit_admins_app_path(@app), class: "btn btn-primary" %>
+<% end %>
+<section class="card mb-3"><dl class="card-body datagrid mb-0">
+  <% { "平台" => App::PROVIDERS[@app.provider], "AppID" => @app.appid, "状态" => App::STATUSES[@app.status], "接入凭据" => AppConfiguration.new(@app).credential_status, "备注" => @app.memo }.each do |label, value| %>
+    <div class="datagrid-item"><dt class="datagrid-title"><%= label %></dt><dd class="datagrid-content"><%= value.presence || "—" %></dd></div>
+  <% end %>
+</dl></section>
+<%= button_to "删除", admins_app_path(@app), method: :delete, class: "btn btn-outline-danger", form: { data: { turbo_confirm: "确认删除此空应用？" } } %>

@@ -3,6 +3,7 @@ devise_for :admins, path: "admins", only: :sessions, controllers: { sessions: "a
 namespace :admins do
   root "dashboard#index"
   resource :account, only: %i[edit update]
+  resources :apps
   resources :administrators, only: %i[index new create edit update]
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do

@@ -1,5 +1,8 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "app", "app.create" ] => "新增应用",
+    [ "app", "app.update" ] => "修改应用资料、密钥或状态",
+    [ "app", "app.destroy" ] => "删除应用",
     [ "security", "admin.sign_in" ] => "管理员登录",
     [ "security", "admin.sign_out" ] => "管理员退出",
     [ "security", "admin.create" ] => "新增管理员",

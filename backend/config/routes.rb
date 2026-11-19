@@ -1,5 +1,6 @@
 Rails.application.routes.draw do
   draw :admins
+  draw :api
   root to: redirect("/admins", status: 302)
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html

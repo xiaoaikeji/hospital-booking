@@ -1,0 +1,60 @@
+require "test_helper"
+
+class AppsTest < ActionDispatch::IntegrationTest
+  include Devise::Test::IntegrationHelpers
+
+  test "管理页面及写操作仅向超管开放" do
+    app = App.create!(provider: "wechat", appid: "wxA", appsecret: "demo-only")
+    %w[operator customer_service].each do |role|
+      sign_in Admin.create!(username: role, role: role)
+      get admins_root_path
+      assert_select "a[href=?]", admins_apps_path, count: 0
+      [ admins_apps_path, admins_app_path(app), new_admins_app_path, edit_admins_app_path(app) ].each do |url|
+        get url
+        assert_response :forbidden
+        assert_not_includes response.body, "demo-only"
+      end
+      post admins_apps_path
+      assert_response :forbidden
+      patch admins_app_path(app)
+      assert_response :forbidden
+      delete admins_app_path(app)
+      assert_response :forbidden
+    end
+  end
+
+  test "来源、并发轮换、身份与删除审计按应用隔离" do
+    sign_in Admin.create!(username: "boss", role: "super_admin")
+    key = "MINI_APP_WECHAT_wxB_APPSECRET"
+    ENV[key] = "env-demo"
+    post admins_apps_path, params: { app: { provider: "wechat", appid: "wxA", appsecret: "demo-a" } }
+    a = App.find_by!(appid: "wxA")
+    b = App.create!(provider: "wechat", appid: "wxB")
+    get admins_apps_path
+    assert_response :success
+    get admins_app_path(a)
+    assert_response :success
+    get edit_admins_app_path(b)
+    assert_select "input[name='app[appsecret]'][value='env-demo']"
+    assert_includes response.body, "环境变量"
+    revision = AppConfiguration.new(b).revision
+    patch admins_app_path(b), params: { app: { appid: "wxA", nickname: "B", revision: revision, appsecret: "env-demo" } }
+    assert_redirected_to admins_app_path(b)
+    assert_nil b.reload.appsecret
+    assert_equal "wxB", b.appid
+    revision = AppConfiguration.new(b).revision
+    ENV[key] = "new-demo"
+    patch admins_app_path(b), params: { app: { revision: revision, appsecret: "env-demo" } }
+    assert_response :unprocessable_content
+    assert_nil b.reload.appsecret
+    patch admins_app_path(a), params: { app: { revision: AppConfiguration.new(a).revision, appsecret: "rotated-demo" } }
+    assert_equal "rotated-demo", a.reload.appsecret
+    assert_not_includes a.ciphertext_for(:appsecret), "rotated-demo"
+    assert_not_includes Log.pluck(:details).to_json, "demo"
+    delete admins_app_path(a)
+    assert_not App.exists?(a.id)
+    assert Log.exists?(target_id: a.id, action: "app.destroy", actor_id: Admin.find_by(username: "boss").id)
+  ensure
+    ENV.delete(key)
+  end
+end

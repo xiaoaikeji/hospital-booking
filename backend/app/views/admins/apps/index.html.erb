@@ -1,0 +1,31 @@
+<% content_for :title, "应用管理" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "应用管理", icon: :package } do %>
+  <%= link_to "新增应用", new_admins_app_path, class: "btn btn-primary" %>
+<% end %>
+<section class="card mb-3"><div class="list-group list-group-flush">
+  <% { provider: ["平台", App::PROVIDERS], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
+    <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
+  <% end %>
+</div></section>
+<section class="card">
+  <div class="card-header">
+    <%= form_with url: admins_apps_path, method: :get, class: "d-flex gap-2" do |f| %>
+      <% @filters.except("q").each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+      <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID", aria: { label: "名称或 AppID" }, class: "form-control" %>
+      <%= f.submit "搜索", class: "btn" %>
+    <% end %>
+  </div>
+  <% if @apps.empty? %>
+    <%= render "admins/shared/list_empty", icon: :package, title: "暂无匹配应用", description: nil %>
+  <% else %>
+    <div class="table-responsive"><table class="table table-vcenter card-table">
+      <thead><tr><% %w[名称 平台 AppID 状态 接入凭据 操作].each do |label| %><th><%= label %></th><% end %></tr></thead>
+      <tbody><% @apps.each do |app| %>
+        <tr><td><%= app.display_name %></td><td><%= App::PROVIDERS[app.provider] %></td><td><%= app.appid %></td>
+          <td><%= App::STATUSES[app.status] %></td><td><%= AppConfiguration.new(app).credential_status %></td>
+          <td><%= link_to "查看", admins_app_path(app), class: "btn btn-sm" %> <%= link_to "编辑", edit_admins_app_path(app), class: "btn btn-sm" %></td></tr>
+      <% end %></tbody>
+    </table></div>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_apps_path(@filters.merge(page: page)) } %>
+  <% end %>
+</section>

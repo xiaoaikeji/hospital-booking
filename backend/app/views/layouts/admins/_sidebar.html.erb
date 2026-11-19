@@ -58,6 +58,7 @@
           <a class="nav-link" href="<%= admins_root_path(anchor: "reports") %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: :chart %></span><span class="nav-link-title">数据概况</span></a>
         </li>
         <% [
+          (["应用管理", admins_apps_path, :package, "admins/apps"] if current_admin.super_admin?),
           (["管理员", admins_administrators_path, :users, "admins/administrators"] if current_admin.super_admin?),
           ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]
         ].compact.each do |label, path, icon, controller| %>

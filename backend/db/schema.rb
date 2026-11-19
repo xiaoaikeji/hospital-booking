@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_18_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -60,6 +60,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_18_010000) do
     t.index ["username"], name: "index_admins_on_username", unique: true
     t.check_constraint "jsonb_typeof(appearance_overrides) = 'object'::text", name: "admin_appearance_object_required"
     t.check_constraint "role::text = ANY (ARRAY['super_admin'::character varying, 'operator'::character varying, 'customer_service'::character varying]::text[])", name: "admins_role_allowed"
+  end
+
+  create_table "apps", force: :cascade do |t|
+    t.string "appid", null: false
+    t.text "appsecret"
+    t.datetime "created_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.text "memo"
+    t.string "nickname"
+    t.string "provider", null: false
+    t.string "status", default: "disabled", null: false
+    t.datetime "updated_at", null: false
+    t.string "verified_digest"
+    t.index ["provider", "appid"], name: "index_apps_on_provider_and_appid", unique: true
+    t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
   end
 
   create_table "logs", force: :cascade do |t|
