@@ -1,0 +1,19 @@
+<div id="<%= dom_id(record) %>" class="modal modal-blur fade" tabindex="-1" aria-hidden="true" aria-labelledby="<%= dom_id(record, :title) %>">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title" id="<%= dom_id(record, :title) %>">违规记录 #<%= record.id %></h2>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
+    <div class="modal-body">
+      <%= render "admins/shared/field_rows", fields: { "小程序" => record.app.display_name, "AppID" => record.app.appid,
+        "违规单号" => record.record_number, "违规时间" => admin_list_time(record.occurred_at), "规则" => record.rule_name,
+        "违规原因" => record.reason, "违规内容" => record.content }, full: ["规则", "违规原因", "违规内容"] %>
+      <h3 class="card-title mt-4">申诉记录（<%= record.appeals.size %>）</h3>
+      <% if record.appeals.empty? %><p class="text-secondary mb-0">微信尚未返回申诉记录。</p><% end %>
+      <% record.appeals.each do |appeal| %><div class="border-top py-2">
+        <%= render "admins/shared/field_rows", fields: { "申诉单号" => appeal.number, "申诉状态" => WechatAppeal::STATUSES.fetch(appeal.status),
+          "申诉时间" => admin_list_time(appeal.appealed_at), "审核时间" => admin_list_time(appeal.audited_at),
+          "处罚说明" => appeal.punishment, "审核意见" => appeal.reason }, full: ["处罚说明", "审核意见"] %>
+      </div><% end %>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>关闭</button></div>
+  </div></div>
+</div>

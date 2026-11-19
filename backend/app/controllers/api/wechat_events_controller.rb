@@ -25,6 +25,8 @@ module Api
           else
             WechatPlatform::AuditEventWorker.perform_async(auth.app_id)
           end
+        elsif auth.app.code_capable? && message["MsgType"] == "event" && message["Event"] == "wxa_appeal_record"
+          WechatPlatform::IllegalRecordWorker.perform_async(auth.app_id) if WechatPlatform::IllegalRecords.enabled?
         elsif auth.app.code_capable? && message["MsgType"] == "event" && message["Event"] == "wxa_category_audit"
           first, second, ret, time = message.values_at("first", "second", "ret", "CreateTime")
           if [first, second, time].all? { |value| value.to_s.match?(/\A\d{1,11}\z/) } && %w[2 3].include?(ret)

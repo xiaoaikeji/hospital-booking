@@ -12,6 +12,7 @@ module WechatPlatform
         return if events.where("details ->> 'event_digest' = ?", event_digest).exists?
         Log.record!(category: "wechat", action: "wechat.category_audit", source: "system", target: app,
           details: { first: first, second: second, result: result, occurred_at: occurred_at, event_digest: event_digest })
+        ResultNotifications.category(app, first, second, result, occurred_at)
       end
     end
   end

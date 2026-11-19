@@ -1,5 +1,6 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "wechat", "wechat.notification_settings" ] => "修改微信通知设置",
     [ "wechat", "wechat.authorize" ] => "发起平台授权",
     [ "wechat", "wechat.authorized" ] => "完成平台授权",
     [ "wechat", "wechat.link_create" ] => "发起小程序关联",

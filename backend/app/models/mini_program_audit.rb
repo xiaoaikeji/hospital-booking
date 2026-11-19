@@ -1,5 +1,6 @@
 class MiniProgramAudit < ApplicationRecord
   belongs_to :app
+  after_update { WechatPlatform::ResultNotifications.audit(self) }
   belongs_to :mini_program_release, optional: true
   belongs_to :operator, class_name: "Admin"
   PENDING = %w[submit_unknown pending delayed withdraw_unknown].freeze

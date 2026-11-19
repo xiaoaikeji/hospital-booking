@@ -63,6 +63,7 @@
           (["模板", admins_code_templates_path, :templates, "admins/code_templates"] if current_admin.super_admin?),
           (["公众号关联管理", admins_official_account_links_path, :link, "admins/official_account_links"] if current_admin.super_admin?),
           (["插件列表", admins_plugins_path, :puzzle, "admins/plugins"] if current_admin.super_admin?),
+          (["违规记录", admins_illegal_records_path, :alert, "admins/illegal_records"] if current_admin.super_admin?),
           (["微信第三方平台", admins_wechat_platform_path, :settings, "admins/wechat_platforms"] if current_admin.super_admin?),
           (["开放平台账号", admins_open_platform_accounts_path, :affiliate, "admins/open_platform_accounts"] if current_admin.super_admin?),
           (["管理员", admins_administrators_path, :users, "admins/administrators"] if current_admin.super_admin?),

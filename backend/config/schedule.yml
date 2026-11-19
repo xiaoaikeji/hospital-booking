@@ -2,3 +2,11 @@ wechat_mini_program_audit_poll:
   cron: "*/15 * * * *"
   class: "WechatPlatform::AuditPollWorker"
   queue: default
+wechat_illegal_records:
+  cron: "*/30 * * * *"
+  class: "WechatPlatform::IllegalRecordWorker"
+  queue: default
+wechat_result_notifications:
+  cron: "*/5 * * * *"
+  class: "WechatPlatform::NotificationWorker"
+  queue: default

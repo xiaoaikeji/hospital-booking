@@ -10,6 +10,8 @@ namespace :admins do
   resources :code_templates, only: %i[index create destroy]
   resource :wechat_platform, only: :show
   resources :plugins, only: :index
+  resources :illegal_records, only: :index
+  resources :wechat_notifications, only: :index
   resources :official_account_links, only: :index
   resources :open_platform_accounts, only: %i[index new create show] do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
@@ -62,6 +64,7 @@ namespace :admins do
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
     resource :storage, only: %i[edit update], controller: "storage"
+    resource :wechat_notifications, only: %i[edit update], controller: "wechat_notifications"
     resource :appearance, only: %i[edit update], controller: "appearance"
   end
   # 兼容旧存储页的书签和已打开的表单。

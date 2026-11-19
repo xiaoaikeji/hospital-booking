@@ -5,6 +5,7 @@
   <%= javascript_include_tag "admins/releases", "admins/app_qrcode", defer: true %>
 <% end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "小程序代码管理", icon: :code } do %>
+  <%= link_to admins_wechat_notifications_path(app_id: @selected_app&.id), class: "btn" do %><%= render "layouts/admins/icon", name: :bell %>通知记录<% end %>
   <% if @upload_scope.any?(&:platform_authorized?) %>
     <%= link_to admins_mini_program_releases_path(@filters.merge(page: @pagy.page, quota: 1)), class: "btn" do %><%= render "layouts/admins/icon", name: :search %>查询额度<% end %>
   <% end %>

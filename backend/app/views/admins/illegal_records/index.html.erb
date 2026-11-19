@@ -1,0 +1,30 @@
+<% content_for :title, "违规记录 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "违规记录", icon: :alert } do %>
+  <%= link_to edit_admins_system_settings_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :settings %>通知设置<% end %>
+<% end %>
+<%= render "admins/shared/wechat_app_filter", apps: @apps, selected: @app, filter_url: ->(changes) { admins_illegal_records_path(changes.compact) } %>
+<section class="card">
+  <div class="card-header text-secondary">共 <strong class="text-body mx-1"><%= @pagy.count %></strong> 条违规记录</div>
+  <% if @records.empty? %>
+    <%= render "admins/shared/list_empty", icon: :alert, title: "暂无违规记录", description: (WechatPlatform::IllegalRecords.enabled? ? "等待微信同步结果。" : "定时同步已关闭，可在通知设置中开启。") %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table table-hover wechat-violation-table admin-list-table mb-0">
+      <thead><tr><th class="list-column-id px-2">ID</th><th>小程序</th><th>违规原因及内容</th><th>规则</th><th class="list-column-time">违规时间</th><th>通知状态</th><th class="list-column-action px-2">操作</th></tr></thead>
+      <tbody><% @records.each do |record| %>
+        <tr><td class="text-secondary px-2" data-label="ID">#<%= record.id %></td>
+          <td data-label="小程序"><%= render "admins/shared/list_text", text: record.app.display_name, url: admins_app_path(record.app) %></td>
+          <td data-label="违规原因及内容"><%= render "admins/shared/list_text", text: record.reason.presence || "—" %>
+            <% if record.content.present? %><small class="text-secondary"><%= render "admins/shared/list_text", text: record.content %></small><% end %></td>
+          <td data-label="规则"><% if (url = record.safe_rule_url) %>
+            <%= link_to record.rule_name.presence || "查看规则", url, class: "d-block text-truncate", target: "_blank", rel: "noopener noreferrer" %>
+          <% else %><%= render "admins/shared/list_text", text: record.rule_name.presence || "—" %><% end %></td>
+          <td data-label="违规时间"><%= admin_list_time(record.occurred_at) %></td>
+          <td data-label="通知状态"><% state = @delivery["violation:#{record.id}"] %>
+            <span class="badge bg-<%= WechatNotificationEvent.color(state) %>-lt"><%= WechatNotificationEvent::STATES.fetch(state, "未通知") %></span></td>
+          <td class="px-2"><button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#<%= dom_id(record) %>" type="button"><%= render "layouts/admins/icon", name: :eye %>查看</button></td>
+        </tr><% end %></tbody>
+    </table>
+    <%= render partial: "record", collection: @records %>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_illegal_records_path(app_id: @app&.id, page: page) } %>
+  <% end %>
+</section>

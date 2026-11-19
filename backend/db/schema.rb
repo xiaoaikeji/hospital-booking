@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_090100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -92,6 +92,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.string "status", default: "disabled", null: false
     t.datetime "updated_at", null: false
     t.string "verified_digest"
+    t.datetime "violations_synced_at"
     t.index ["open_platform_account_id"], name: "index_apps_on_open_platform_account_id"
     t.index ["provider", "appid"], name: "index_apps_on_provider_and_appid", unique: true
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
@@ -233,17 +234,62 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
     t.check_constraint "jsonb_typeof(settings) = 'object'::text", name: "settings_object_required"
   end
 
+  create_table "wechat_appeals", force: :cascade do |t|
+    t.datetime "appealed_at"
+    t.datetime "audited_at"
+    t.datetime "created_at", null: false
+    t.string "number", null: false
+    t.text "punishment"
+    t.text "reason"
+    t.integer "status", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "wechat_violation_id", null: false
+    t.index ["wechat_violation_id", "number"], name: "index_wechat_appeals_on_wechat_violation_id_and_number", unique: true
+    t.index ["wechat_violation_id"], name: "index_wechat_appeals_on_wechat_violation_id"
+  end
+
   create_table "wechat_link_operations", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "app_id", null: false
     t.datetime "created_at", null: false
     t.integer "lock_version", default: 0, null: false
     t.string "mini_appid", null: false
+    t.bigint "mini_program_id"
     t.integer "previous_status"
     t.string "state", null: false
     t.datetime "updated_at", null: false
     t.index ["app_id", "mini_appid"], name: "index_wechat_link_operations_on_app_id_and_mini_appid", unique: true
     t.index ["app_id"], name: "index_wechat_link_operations_on_app_id"
+    t.index ["mini_program_id"], name: "index_wechat_link_operations_on_mini_program_id"
+  end
+
+  create_table "wechat_notification_events", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "error_code"
+    t.string "event_key", null: false
+    t.string "kind", null: false
+    t.text "message", null: false
+    t.string "status", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "event_key"], name: "index_wechat_notification_events_on_app_id_and_event_key", unique: true
+    t.index ["app_id"], name: "index_wechat_notification_events_on_app_id"
+    t.index ["status", "id"], name: "index_wechat_notification_events_on_status_and_id"
+  end
+
+  create_table "wechat_violations", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.text "content"
+    t.datetime "created_at", null: false
+    t.datetime "occurred_at", null: false
+    t.text "reason"
+    t.string "record_number", null: false
+    t.text "rule_name"
+    t.text "rule_url"
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "record_number"], name: "index_wechat_violations_on_app_id_and_record_number", unique: true
+    t.index ["app_id"], name: "index_wechat_violations_on_app_id"
+    t.index ["occurred_at", "id"], name: "index_wechat_violations_on_occurred_at_and_id"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -264,5 +310,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_080000) do
   add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
   add_foreign_key "open_platform_operations", "apps"
   add_foreign_key "open_platform_operations", "open_platform_accounts"
+  add_foreign_key "wechat_appeals", "wechat_violations"
   add_foreign_key "wechat_link_operations", "apps"
+  add_foreign_key "wechat_link_operations", "apps", column: "mini_program_id"
+  add_foreign_key "wechat_notification_events", "apps"
+  add_foreign_key "wechat_violations", "apps"
 end
