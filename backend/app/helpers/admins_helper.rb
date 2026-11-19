@@ -45,14 +45,14 @@ module AdminsHelper
     when "环境变量" then [ "ENV", "success" ]
     when "Rails credentials" then [ "credentials", "success" ]
     when "默认本地" then [ "默认", "secondary" ]
+    when "按地域生成" then [ source, "secondary" ]
     when "系统配置（解密失败）" then [ "解密失败", "danger" ]
     else [ "未配置", "danger" ]
     end
   end
 
-  def configuration_placeholder(source, example:, fallback_value: nil)
+  def configuration_placeholder(source, example:)
     label, color = configuration_source(source)
-    return "#{fallback_value}（#{label}），留空保留" if fallback_value.present?
     return "已配置（#{label}），留空保留" if color == "success"
     return "解密失败，请重新填写或清除" if label == "解密失败"
     example

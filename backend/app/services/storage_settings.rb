@@ -1,5 +1,3 @@
-require "digest"
-
 class StorageSettings
   include ActiveModel::Model
   class StaleRevision < IntegrationSettings::ConfigurationError; end
@@ -12,22 +10,22 @@ class StorageSettings
   SECRETS = %w[secret_id secret_key].freeze
   LABELS = { "service" => "存储方式", "secret_id" => "SecretId", "secret_key" => "SecretKey", "region" => "地域", "bucket" => "桶名", "endpoint" => "API 地址" }.freeze
 
-  def form_value(field, source:)
+  def form_value(field)
     return @display_values[field] if @display_values&.key?(field)
-    read(field) if field == "service" || source == "系统配置"
+    read(field)
+  rescue IntegrationSettings::ConfigurationError
+    nil # 来源标签提示解密失败，仍可重新填写或清除。
   end
 
-  def revision = self.class.revision_for(Setting.raw_snapshot)
-
-  def self.revision_for(raw)
-    Digest::SHA256.hexdigest(JSON.generate(raw.reject { |_key, value| value.empty? }))
-  end
+  def revision = StorageConfiguration.fingerprint(Setting.raw_snapshot)
 
   def read(field)
     return StorageConfiguration.service_name if field == "service"
 
     section, key = FIELDS.fetch(field)
-    IntegrationSettings.read(section.to_sym, key.to_sym, env_key: env_key(field))
+    value = IntegrationSettings.read(section.to_sym, key.to_sym, env_key: env_key(field))
+    return StorageConfiguration.default_cos_endpoint(read("region")) if field == "endpoint" && value.nil?
+    value
   end
 
   def source(field)
@@ -36,6 +34,7 @@ class StorageSettings
     return "系统配置" unless IntegrationSettings.unset?(value)
     return "环境变量" unless IntegrationSettings.unset?(ENV[env_key(field)])
     return "Rails credentials" unless IntegrationSettings.unset?(Rails.application.credentials.dig(section.to_sym, key.to_sym))
+    return "按地域生成" if field == "endpoint" && read(field)
     field == "service" ? "默认本地" : "未配置"
   rescue IntegrationSettings::ConfigurationError
     "系统配置（解密失败）"
@@ -68,7 +67,7 @@ class StorageSettings
       anchor.lock!
       records = { "active_storage" => anchor, "tencent_cos" => Setting.find_or_initialize_by(key: "tencent_cos") }
       old_raw = Setting.raw_snapshot
-      if !expected_revision.nil? && expected_revision != self.class.revision_for(old_raw)
+      if !expected_revision.nil? && expected_revision != StorageConfiguration.fingerprint(old_raw)
         raise StaleRevision, "配置已被其他操作修改，请刷新页面后重新填写"
       end
       changed = []
@@ -84,10 +83,9 @@ class StorageSettings
           value = input[field].strip
           @display_values[field] = value unless SECRETS.include?(field)
           validate_value!(field, value)
-          current = record.settings[key]
-          value = stored_value(field, value, current: current)
-          next if unchanged_value?(section, key, current, value)
+          next if unchanged_value?(field, value)
 
+          value = nil if field == "service" && value == IntegrationSettings.with_snapshot({}) { read("service") }
           record.write_value(key, value)
           changed << field
         end
@@ -122,19 +120,13 @@ class StorageSettings
     field == "service" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
   end
 
-  def unchanged_value?(section, key, current, value)
-    Setting.decode_value(section, key, current) == value
+  def unchanged_value?(field, value)
+    current = read(field)
+    return current == value if field == "service"
+    current.is_a?(String) && current.strip == value
   rescue IntegrationSettings::ConfigurationError
     # 显式输入的新密钥仍可替换已损坏的密文。
     false
-  end
-
-  def stored_value(field, value, current:)
-    return value unless field == "service"
-    return value if value == current && value != "local"
-
-    fallback = IntegrationSettings.with_snapshot({}) { read("service") }
-    value == fallback ? nil : value
   end
 
   def validate_value!(field, value)

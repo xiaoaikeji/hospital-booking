@@ -3,6 +3,8 @@ require "test_helper"
 class AdminSettingsPermissionsTest < ActionDispatch::IntegrationTest
   setup do
     @storage = Setting.create!(key: "tencent_cos", settings: { "region" => "ap-shanghai" })
+    @storage.write_value("secret_key", "permission-test-only-key")
+    @storage.save!
     @appearance = Setting.create!(key: "appearance", settings: { "navbar_style" => "floating" })
     @other = Admin.create!(username: "other_admin", role: "operator", appearance_overrides: { "theme_primary" => "red" })
   end
@@ -45,6 +47,7 @@ class AdminSettingsPermissionsTest < ActionDispatch::IntegrationTest
         [ edit_admins_system_settings_storage_path, edit_admins_system_settings_path, edit_admins_system_settings_appearance_path ].each do |path|
           get path
           assert_response :forbidden
+          assert_not_includes response.body, "permission-test-only-key"
           assert_select "nav[aria-label='系统设置'], form[action^='/admins/system_settings']", count: 0
         end
         [ admins_system_settings_storage_path, admins_system_settings_path ].each do |path|

@@ -110,18 +110,19 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_admin_session_path
   end
 
-  test "settings and log pages do not render submitted secrets even after validation failures" do
+  test "the authorized storage form shows saved secrets and validation failures and audits exclude rejected secrets" do
     login(@root)
     patch admins_system_settings_path, params: { storage_settings: { revision: StorageSettings.new.revision, service: "local", secret_id: "fake-secret-id", secret_key: "fake-secret-key", region: "ap-shanghai", bucket: "test-bucket-123" } }
     assert_redirected_to edit_admins_system_settings_storage_path
     get edit_admins_system_settings_storage_path
     assert_response :success
-    assert_select "input[name='storage_settings[secret_key]'][value]", count: 0
-    assert_not_includes response.body, "fake-secret-key"
+    assert_select "input[type=text][name='storage_settings[secret_key]'][value=?]", "fake-secret-key"
+    assert_includes response.headers.fetch("Cache-Control"), "no-store"
     patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "another-test-secret", endpoint: "http://unsafe.invalid" } }
     assert_response :unprocessable_content
     assert_select "#sidebar-menu a[aria-current=page][href=?]", edit_admins_system_settings_storage_path
     assert_not_includes response.body, "another-test-secret"
+    assert_select "input[name='storage_settings[secret_key]'][value=?]", "fake-secret-key"
     assert_equal "fake-secret-key", Setting.read_integration_value(:tencent_cos, :secret_key)
     failure = Log.find_by!(action: "storage_settings.update", status: "failed", actor_id: @root.id)
     assert_equal({ "fields" => %w[secret_key endpoint], "reason" => "配置校验失败" }, failure.details)
@@ -172,7 +173,7 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "配置已保存，存储客户端刷新失败"
     assert_not_includes response.body, "test-only-private-detail"
-    assert_not_includes response.body, "saved-test-secret"
+    assert_select "input[type=text][name='storage_settings[secret_key]'][value=?]", "saved-test-secret"
     assert_equal "saved-test-secret", Setting.read_integration_value(:tencent_cos, :secret_key)
     saved = Log.find_by!(action: "storage_settings.update", actor_id: @root.id)
     failure = Log.find_by!(action: "storage_settings.refresh", status: "failed", request_id: saved.request_id)
@@ -192,32 +193,55 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     external = {
       "ACTIVE_STORAGE_SERVICE" => "tencent_cos",
       "TENCENT_COS_SECRET_ID" => "test-only-env-id",
-      "TENCENT_COS_SECRET_KEY" => "test-only-env-key",
+      "TENCENT_COS_SECRET_KEY" => nil,
       "TENCENT_COS_REGION" => "ap-shanghai",
       "TENCENT_COS_BUCKET" => "env-bucket-123",
-      "TENCENT_COS_ENDPOINT" => "https://cos.ap-shanghai.myqcloud.com"
+      "TENCENT_COS_ENDPOINT" => nil
     }
     previous = external.keys.to_h { |key| [ key, ENV[key] ] }
+    credentials = Rails.application.credentials
+    had_cos = credentials.keys.include?(:tencent_cos)
+    previous_cos = credentials[:tencent_cos]
+    credentials[:tencent_cos] = { secret_key: "test-only-credentials-key" }
     ENV.update(external)
 
     login(@root)
     get edit_admins_system_settings_storage_path
     assert_response :success
-    bucket_input = css_select("input[name='storage_settings[bucket]']").first
-    assert_nil bucket_input["value"]
-    assert_includes bucket_input["placeholder"], "env-bucket-123（ENV）"
-    assert_not_includes response.body, "test-only-env-key"
+    values = { "revision" => css_select("input[name='storage_settings[revision]']").first["value"],
+      "service" => css_select("[data-storage-service] option[selected]").first["value"] }
+    {
+      "secret_id" => [ "test-only-env-id", "ENV" ], "secret_key" => [ "test-only-credentials-key", "credentials" ],
+      "region" => [ "ap-shanghai", "ENV" ], "bucket" => [ "env-bucket-123", "ENV" ],
+      "endpoint" => [ "https://cos.ap-shanghai.myqcloud.com", "按地域生成" ]
+    }.each do |field, (expected, source)|
+      input = css_select("[data-storage-cos-fields]:not([hidden]) input[type=text][name='storage_settings[#{field}]']").first
+      assert_equal expected, input["value"]
+      assert_equal source, input.parent.at_css(".badge").text
+      values[field] = input["value"]
+    end
+    patch admins_system_settings_storage_path, params: { storage_settings: values }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    assert_empty Setting.find_by!(key: "tencent_cos").settings
+    assert_empty Log.last.details.fetch("fields")
 
-    patch admins_system_settings_storage_path, params: { storage_settings: {
-      revision: StorageSettings.new.revision, service: "tencent_cos", bucket: bucket_input["value"].to_s,
-      secret_key: "updated-test-only-key"
-    } }
+    patch admins_system_settings_storage_path, params: { storage_settings: values.merge("secret_key" => "updated-test-only-key", "secret_id" => "") }
     assert_redirected_to edit_admins_system_settings_storage_path
     assert_nil Setting.read_integration_value(:active_storage, :service)
     assert_nil Setting.read_integration_value(:tencent_cos, :bucket)
     assert_equal "updated-test-only-key", Setting.read_integration_value(:tencent_cos, :secret_key)
+    assert_equal [ "secret_key" ], Log.last.details.fetch("fields")
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, clear_fields: [ "secret_key" ] } }
+    follow_redirect!
+    assert_select "input[name='storage_settings[secret_key]'][value=?]", "test-only-credentials-key"
+    assert_empty Setting.find_by!(key: "tencent_cos").settings
   ensure
     ENV.update(previous)
+    if had_cos
+      credentials[:tencent_cos] = previous_cos
+    else
+      credentials.delete(:tencent_cos)
+    end
     StorageConfiguration.reset!
   end
 

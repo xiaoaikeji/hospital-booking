@@ -49,8 +49,8 @@
   <%= render layout: "admins/shared/configuration_card", locals: { title: "配置字段与来源", preview: true, clear_target: "#configuration-preview-clear" } do %>
     <%= fields_for :configuration_preview do |form| %>
       <div class="row g-3">
-        <% [["missing_key", "密钥", "未配置"], ["env_key", "密钥", "环境变量"], ["credentials_key", "密钥", "Rails credentials"], ["database_key", "密钥", "系统配置"], ["damaged_key", "密钥", "系统配置（解密失败）"]].each do |field, label, source| %>
-          <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: source, secret: true, placeholder: "请输入密钥" %></div>
+        <% [["missing_key", "未配置", nil], ["env_key", "环境变量", "demo-env-key"], ["credentials_key", "Rails credentials", "demo-credentials-key"], ["database_key", "系统配置", "demo-database-key"], ["damaged_key", "系统配置（解密失败）", nil]].each do |field, source, value| %>
+          <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: field, label: "密钥", source: source, value: value, placeholder: "请输入密钥" %></div>
         <% end %>
         <div class="col-md-6 col-xl-4"><%= render "admins/shared/configuration_field", form: form, field: "storage", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %></div>
       </div>
@@ -64,7 +64,7 @@
       <div class="row g-3">
         <div class="col-md-6 col-xl-4" data-storage-service><%= render "admins/shared/configuration_field", form: form, field: "service", label: "存储方式", source: "默认本地", value: "local", choices: [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]], enhanced_select: "single" %></div>
         <% [["secret_id", "SecretId"], ["secret_key", "SecretKey"]].each do |field, label| %>
-          <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields hidden disabled><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: "未配置", secret: true, placeholder: "仅演示，不会保存" %></fieldset>
+          <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields hidden disabled><%= render "admins/shared/configuration_field", form: form, field: field, label: label, source: "未配置", placeholder: "仅演示，不会保存" %></fieldset>
         <% end %>
       </div>
     <% end %>

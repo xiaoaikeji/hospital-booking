@@ -14,6 +14,10 @@ module StorageConfiguration
     value.nil? ? "local" : value
   end
 
+  def self.default_cos_endpoint(region)
+    "https://cos.#{region.strip}.myqcloud.com" if region.is_a?(String) && region.strip.match?(/\A[a-z][a-z0-9-]*\z/)
+  end
+
   def self.validate!(values)
     IntegrationSettings.with_snapshot(values) do
       selected = service_name
@@ -28,17 +32,21 @@ module StorageConfiguration
     end
   end
 
+  def self.fingerprint(raw)
+    external = FIELDS.flat_map do |section, fields|
+      fields.map do |field|
+        env_key = section == "active_storage" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
+        [ ENV[env_key], Rails.application.credentials.dig(section.to_sym, field.to_sym) ]
+      end
+    end
+    Digest::SHA256.hexdigest(JSON.generate([ raw.reject { |_key, value| value.empty? }, external ]))
+  end
+
   def self.refresh!
     MUTEX.synchronize do
       raw = Setting.raw_snapshot
-      external = FIELDS.flat_map do |section, fields|
-        fields.map do |field|
-          env_key = section == "active_storage" ? "ACTIVE_STORAGE_SERVICE" : "TENCENT_COS_#{field.upcase}"
-          [ ENV[env_key], Rails.application.credentials.dig(section.to_sym, field.to_sym) ]
-        end
-      end
-      fingerprint = Digest::SHA256.hexdigest(JSON.generate([ raw, external ]))
-      return if @fingerprint == fingerprint
+      version = fingerprint(raw)
+      return if @fingerprint == version
       values = Setting.decode_snapshot(raw)
       selected = validate!(values)
       IntegrationSettings.with_snapshot(values) do
@@ -50,7 +58,7 @@ module StorageConfiguration
         registry.fetch("tencent_cos") if ActiveStorage::Blob.where(service_name: "tencent_cos").exists?
         ActiveStorage::Blob.services = registry
         ActiveStorage::Blob.service = service
-        @fingerprint = fingerprint
+        @fingerprint = version
       end
     end
   end
