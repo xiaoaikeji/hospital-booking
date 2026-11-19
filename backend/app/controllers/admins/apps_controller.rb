@@ -15,11 +15,18 @@ module Admins
 
     WECHAT_TABS = {
       "overview" => "基本资料", "releases" => "代码发布", "experiencers" => "体验者",
-      "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理"
+      "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理",
+      "links" => "关联小程序", "open_platform" => "开放平台"
     }.freeze
 
     def show
-      @tabs = @app.code_capable? ? WECHAT_TABS : WECHAT_TABS.slice("overview")
+      @tabs = if @app.code_capable?
+        WECHAT_TABS.except("links")
+      elsif @app.provider == "wechat"
+        WECHAT_TABS.slice("overview", "links", "open_platform")
+      else
+        WECHAT_TABS.slice("overview")
+      end
       @tab = @tabs.key?(params[:tab]) ? params[:tab] : "overview"
       return load_management_tab unless %w[overview releases].include?(@tab)
       return unless @app.provider == "wechat"
@@ -84,6 +91,10 @@ module Admins
     private
 
     def load_management_tab
+      if @tab == "links"
+        @links_page = WechatPlatform::OfficialAccountLinks.new(@app).page
+        return
+      end
       return unless @app.platform_authorized?
 
       case @tab

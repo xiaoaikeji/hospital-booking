@@ -1,7 +1,10 @@
 class App < ApplicationRecord
   PROVIDERS = { "wechat" => "微信", "douyin" => "抖音" }.freeze
   TYPES = { "mini_program" => "小程序", "official_account" => "公众号" }.freeze
-  scope :wechat_mini_programs, -> { where(provider: "wechat", app_type: "mini_program") }
+  scope :wechat_accounts, -> { where(provider: "wechat") }
+  scope :wechat_mini_programs, -> { wechat_accounts.where(app_type: "mini_program") }
+  scope :wechat_official_accounts, -> { wechat_accounts.where(app_type: "official_account") }
+  belongs_to :open_platform_account, optional: true
   validates :app_type, inclusion: { in: TYPES.keys }
   validates :app_type, exclusion: { in: ["official_account"], message: "抖音仅支持小程序" }, if: -> { provider == "douyin" }
   def code_capable? = provider == "wechat" && app_type == "mini_program"

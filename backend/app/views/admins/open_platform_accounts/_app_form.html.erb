@@ -1,0 +1,27 @@
+<% create_account = account.nil?
+   label = create_account ? "新增开放平台账号" : "绑定应用"
+   form_id = create_account ? "open-account-create" : "open-account-bind"
+   description = create_account ? "微信将为所选应用创建开放平台账号并绑定。若微信已绑定，将登记现有账号。" : "微信将把所选应用绑定到此开放平台账号，用于同一主体下的用户身份识别。" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% content_for :head do %>
+  <%= javascript_include_tag "admins/open_platform", defer: true %>
+<% end %>
+<%= form_with url: (create_account ? admins_open_platform_accounts_path : admins_open_platform_account_bindings_path(account)),
+      id: form_id, data: { open_platform_confirm: "#{form_id}-confirm" } do |form| %>
+  <div class="card-body"><div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <%= form.label :app_id, "微信应用", class: "form-label required" %>
+      <%= form.select :app_id, options_for_select(@bindable.map { |app| ["#{app.display_name} · #{app.platform_label} · #{app.appid}", app.id] }, params[:app_id]), {include_blank: "请选择应用"}, required: true, class: "form-select", data: { enhanced_select: "search" } %>
+    </div>
+    <% if create_account %><div class="col-12 col-lg-4">
+      <%= form.label :name, "账号名称", class: "form-label" %>
+      <%= form.text_field :name, maxlength: 120, value: params[:name], class: "form-control", placeholder: "留空按开放平台 AppID 命名" %>
+    </div><% end %>
+  </div></div>
+  <div class="card-footer bg-transparent text-end">
+    <%= form.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: (create_account ? :plus : :link) %><%= label %><% end %>
+  </div>
+<% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirm", form_id: form_id, title: "确认#{label}",
+      context: (account ? "#{account.name} · #{account.open_appid}" : "目标应用"), description: description,
+      color: "danger", confirm_label: "确认#{create_account ? '新增' : '绑定'}", confirm_icon: :check, cancel_icon: :close %>

@@ -5,7 +5,7 @@
   <%= link_to admins_apps_path(application_list_context), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <section class="card mb-3">
-  <% if @app.code_capable? %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
+  <% if @tabs.size > 1 %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
     <% @tabs.each do |key, label| %>
       <%= link_to label, admins_app_path(@app, application_context_params.merge(tab: (key unless key == "overview")).compact), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %>
     <% end %>
@@ -34,6 +34,7 @@
   <%= render "release_history" %>
 <% end %>
 <% if %w[overview releases].exclude?(@tab) %>
-  <%= render(@app.platform_authorized? && @tab_error.nil? ? "admins/apps/#{@tab}" : "management_notice") %>
+  <% visible = @app.platform_authorized? || %w[links open_platform].include?(@tab) %>
+  <%= render(visible && @tab_error.nil? ? "admins/apps/#{@tab}" : "management_notice") %>
 <% end %>
 <%= render "qrcode_modal" if @tab == "releases" || (@app.provider == "wechat" && @app.app_type == "official_account") %>

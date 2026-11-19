@@ -61,6 +61,8 @@
           (["应用管理", admins_apps_path, :device_mobile, "admins/apps"] if current_admin.super_admin?),
           (["代码", admins_mini_program_releases_path, :code, "admins/mini_program_releases"] if current_admin.super_admin?),
           (["模板", admins_code_templates_path, :templates, "admins/code_templates"] if current_admin.super_admin?),
+          (["公众号关联管理", admins_official_account_links_path, :link, "admins/official_account_links"] if current_admin.super_admin?),
+          (["开放平台账号", admins_open_platform_accounts_path, :affiliate, "admins/open_platform_accounts"] if current_admin.super_admin?),
           (["管理员", admins_administrators_path, :users, "admins/administrators"] if current_admin.super_admin?),
           ["操作日志", admins_operation_logs_path, :chart, "admins/operation_logs"]
         ].compact.each do |label, path, icon, controller| %>

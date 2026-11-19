@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_19_061000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -87,10 +87,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
     t.integer "lock_version", default: 0, null: false
     t.text "memo"
     t.string "nickname"
+    t.bigint "open_platform_account_id"
     t.string "provider", null: false
     t.string "status", default: "disabled", null: false
     t.datetime "updated_at", null: false
     t.string "verified_digest"
+    t.index ["open_platform_account_id"], name: "index_apps_on_open_platform_account_id"
     t.index ["provider", "appid"], name: "index_apps_on_provider_and_appid", unique: true
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
@@ -181,6 +183,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
     t.index ["source_release_id"], name: "index_mini_program_releases_on_source_release_id"
   end
 
+  create_table "open_platform_accounts", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "created_via_app_id", null: false
+    t.string "name", limit: 120, null: false
+    t.string "open_appid", limit: 60, null: false
+    t.bigint "operator_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["created_via_app_id"], name: "index_open_platform_accounts_on_created_via_app_id"
+    t.index ["open_appid"], name: "index_open_platform_accounts_on_open_appid", unique: true
+    t.index ["operator_id"], name: "index_open_platform_accounts_on_operator_id"
+  end
+
+  create_table "open_platform_operations", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", limit: 120
+    t.bigint "open_platform_account_id"
+    t.datetime "updated_at", null: false
+    t.index ["app_id"], name: "index_open_platform_operations_on_app_id", unique: true
+    t.index ["open_platform_account_id"], name: "index_open_platform_operations_on_open_platform_account_id"
+    t.check_constraint "action::text = 'create'::text AND open_platform_account_id IS NULL OR (action::text = ANY (ARRAY['bind'::character varying, 'unbind'::character varying]::text[])) AND open_platform_account_id IS NOT NULL", name: "valid_open_platform_operation"
+  end
+
   create_table "settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", limit: 255
@@ -191,10 +217,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
     t.check_constraint "jsonb_typeof(settings) = 'object'::text", name: "settings_object_required"
   end
 
+  create_table "wechat_link_operations", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "lock_version", default: 0, null: false
+    t.string "mini_appid", null: false
+    t.integer "previous_status"
+    t.string "state", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "mini_appid"], name: "index_wechat_link_operations_on_app_id_and_mini_appid", unique: true
+    t.index ["app_id"], name: "index_wechat_link_operations_on_app_id"
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
+  add_foreign_key "apps", "open_platform_accounts"
   add_foreign_key "mini_program_audits", "admins", column: "operator_id"
   add_foreign_key "mini_program_audits", "apps"
   add_foreign_key "mini_program_audits", "mini_program_releases", on_delete: :nullify
@@ -202,4 +242,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_054000) do
   add_foreign_key "mini_program_releases", "apps"
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "previous_build_id", on_delete: :nullify
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "source_release_id", on_delete: :nullify
+  add_foreign_key "open_platform_accounts", "admins", column: "operator_id"
+  add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
+  add_foreign_key "open_platform_operations", "apps"
+  add_foreign_key "open_platform_operations", "open_platform_accounts"
+  add_foreign_key "wechat_link_operations", "apps"
 end

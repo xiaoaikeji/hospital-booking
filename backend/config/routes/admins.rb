@@ -8,7 +8,15 @@ namespace :admins do
     get :confirmation, on: :member
   end
   resources :code_templates, only: %i[index create destroy]
+  resources :official_account_links, only: :index
+  resources :open_platform_accounts, only: %i[index new create show] do
+    resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
+  end
   resources :apps do
+    resource :open_platform, only: :update, controller: "app_open_platforms"
+    resources :mini_program_links, only: %i[create destroy], controller: "app_mini_program_links" do
+      post :verify, on: :collection
+    end
     resources :experiencers, only: :create, controller: "app_experiencers" do
       delete :destroy, on: :collection, path: ""
     end

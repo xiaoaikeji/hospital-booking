@@ -1,0 +1,43 @@
+<% content_for :title, "#{@account.name} · 开放平台账号" %>
+<%= render layout: "admins/shared/list_page_header", locals: {title: "开放平台账号详情", icon: :affiliate} do %>
+  <%= link_to admins_open_platform_accounts_path(params.permit(:q, :page).to_h.compact_blank), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+<section class="card mb-3"><div class="card-body">
+  <%= render "admins/shared/field_rows", columns: 3, fields: {
+      "名称" => @account.name, "开放平台 AppID" => @account.open_appid,
+      "登记来源" => link_to(@account.created_via_app.display_name, admins_app_path(@account.created_via_app, tab: "open_platform")),
+      "最近操作人" => @account.operator.username, "创建时间" => admin_list_time(@account.created_at)
+  } %>
+</div></section>
+<section class="card mb-3"><div class="card-header"><h2 class="card-title">已绑定应用（<%= @apps.size %>）</h2></div>
+  <% if @apps.any? %><table class="table table-fixed table-vcenter card-table mb-0">
+    <thead><tr><th scope="col">应用</th><th scope="col" class="d-none d-sm-table-cell">应用平台</th>
+      <th scope="col" class="d-none d-md-table-cell">AppID</th><th scope="col">操作</th></tr></thead>
+    <tbody><% @apps.each do |app| %><tr>
+      <td><%= render "admins/shared/list_text", text: app.display_name, url: admins_app_path(app, tab: "open_platform") %></td>
+      <td class="d-none d-sm-table-cell"><%= app.platform_label %></td>
+      <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: app.appid %></td><td>
+        <% if @pending.key?(app.id) %><%= link_to "核实绑定状态", admins_app_path(app, tab: "open_platform") %>
+        <% elsif app.platform_authorized? %>
+          <%= form_with url: admins_open_platform_account_binding_path(@account, app), method: :delete, id: "open-unbind-#{app.id}" do %>
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#open-unbind-<%= app.id %>-confirm"><%= render "layouts/admins/icon", name: :close %>解绑</button>
+          <% end %>
+        <% else %><%= link_to "恢复平台授权", admins_app_path(app) %><% end %>
+      </td></tr><% end %>
+    </tbody></table>
+  <% else %><%= render "admins/shared/list_empty", icon: :device_mobile, title: "暂无已绑定应用" %><% end %>
+</section>
+<% @apps.each do |app| %>
+  <% next if @pending.key?(app.id) || !app.platform_authorized? %>
+  <%= render "admins/shared/confirmation_modal", form_id: "open-unbind-#{app.id}", modal_id: "open-unbind-#{app.id}-confirm",
+      title: "确认解绑应用", context: "#{app.display_name} · #{app.appid}", description: "解绑后，此应用与账号 #{@account.open_appid} 下其他应用的 UnionID 将不再互通。",
+      color: "danger", confirm_label: "确认解绑", confirm_icon: :close, cancel_icon: :close %>
+<% end %>
+<% @pending.each_value do |operation| %>
+  <% if operation.action == "bind" %><div class="alert alert-warning" role="status"><%= operation.app.display_name %> 的绑定结果待核实。
+    <%= link_to "核实绑定状态", admins_app_path(operation.app, tab: "open_platform"), class: "alert-link" %></div><% end %>
+<% end %>
+<section class="card"><div class="card-header"><h2 class="card-title">绑定应用</h2></div>
+  <% if @bindable.any? %><%= render "app_form", account: @account %>
+  <% else %><div class="card-body text-secondary">暂无可绑定的已授权微信应用。</div><% end %>
+</section>

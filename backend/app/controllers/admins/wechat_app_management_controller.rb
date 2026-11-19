@@ -1,12 +1,14 @@
 module Admins
   class WechatAppManagementController < BaseController
     before_action :require_super_admin!
-    before_action :load_wechat_mini_program
+    before_action :load_wechat_app
 
     private
 
-    def load_wechat_mini_program
-      @app = App.wechat_mini_programs.find(params[:app_id])
+    def managed_app_scope = App.wechat_mini_programs
+
+    def load_wechat_app
+      @app = managed_app_scope.find(params[:app_id])
     end
 
     def perform_wechat_change(action, tab:, notice:, details: {})

@@ -1,0 +1,14 @@
+<% content_for :title, "新增开放平台账号" %>
+<%= render layout: "admins/shared/list_page_header", locals: {title: "新增开放平台账号", icon: :affiliate} do %>
+  <%= link_to admins_open_platform_accounts_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+<section class="card">
+  <div class="card-header"><h2 class="card-title">通过已授权应用创建</h2></div>
+  <% if @selected && !@bindable.any? { |app| app.id == @selected.id } %>
+    <div class="card-body"><%= link_to "查看 #{@selected.display_name} 的绑定状态", admins_app_path(@selected, tab: "open_platform") %></div>
+  <% end %>
+  <% if @bindable.any? %><%= render "app_form", account: nil %>
+  <% else %><%= render "admins/shared/list_empty", icon: :device_mobile, title: "暂无可用的微信应用", description: "请选择已完成平台授权、未绑定账号且没有待核实操作的应用。" %>
+    <div class="card-footer"><%= link_to "应用管理", admins_apps_path(provider: "wechat"), class: "btn" %></div>
+  <% end %>
+</section>
