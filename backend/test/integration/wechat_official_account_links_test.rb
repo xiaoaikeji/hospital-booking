@@ -96,6 +96,23 @@ class WechatOfficialAccountLinksTest < ActionDispatch::IntegrationTest
     assert_equal 3, @writes
   end
 
+  test "两次读取之间本轮邀请再次被拒时，超管可核实已执行并重开候选" do
+    @rows << {appid: @mini.appid, nickname: "门诊", status: 3}
+    @stubs.post("/cgi-bin/wxopen/wxamplink") { @writes += 1; response_for(errcode: 0) }
+    link(page_revision)
+    op = WechatLinkOperation.find_by!(app: @official, mini_appid: @mini.appid)
+    page_revision
+    assert_select "option[value=?]", @mini.id, count: 0
+    args = {operation_id: op.id, version: op.lock_version, outcome: "applied"}
+    post verify_admins_app_mini_program_links_path(@official), params: args
+    assert_equal "accepted", op.reload.state
+    post verify_admins_app_mini_program_links_path(@official), params: args.merge(confirmed: "1")
+    assert_equal "applied", op.reload.state
+    page_revision
+    assert_select "option[value=?]", @mini.id
+    assert_equal 1, @writes
+  end
+
   test "不确定的申请永久保留，管理员显式复查远端后才允许再试；注销授权仍能查本地历史" do
     rev = page_revision
     @stubs.post("/cgi-bin/wxopen/wxamplink") { @writes += 1; raise Faraday::TimeoutError }

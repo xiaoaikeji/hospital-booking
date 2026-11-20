@@ -1,8 +1,10 @@
 /* 选项内同时显示名称、平台与 AppID，选择和失焦时保持单行控件高度。 */
-form[data-open-platform-confirm] .ts-control {
+form[data-open-platform-confirm] .ts-control,
+#category-modal .ts-control {
   flex-wrap: nowrap;
 }
-form[data-open-platform-confirm] .ts-control > .item {
+form[data-open-platform-confirm] .ts-control > .item,
+#category-modal .ts-control > .item {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

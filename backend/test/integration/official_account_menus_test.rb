@@ -149,6 +149,20 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     assert_equal @b.appid, Rails.cache.read("apps/#{@b.id}/channel_token")[:value]
   end
 
+  test "读取到缺少动作字段的子菜单时保留整套原菜单" do
+    original = {"type" => "view", "name" => "官网", "url" => "https://example.test/hospital"}
+    publish([original])
+    assert_response :success
+    rev = @a.reload.official_account_menu.revision
+    %w[view click media_id article_id miniprogram].each do |type|
+      @remote = [{name: "门诊", sub_button: {list: [{name: "地址", type: type}]}}]
+      pull
+      assert_match(/菜单动作不完整/, flash[:alert])
+      assert_equal [original], @a.reload.official_account_menu.buttons
+      assert_equal rev, @a.official_account_menu.revision
+    end
+  end
+
   test "层级、名称、小程序和网址不合法时微信写入为零" do
     node = {type: "view", name: "官网", url: "https://example.test/"}
     [[node]*4, [{name: "更多", sub_button: [node]*6}], [{name: "更多", sub_button: [{name: "嵌套", sub_button:[node]}]}],

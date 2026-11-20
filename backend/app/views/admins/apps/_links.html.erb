@@ -34,6 +34,9 @@
 <% if operations.any? %><section class="card mt-3"><div class="card-header"><h2 class="card-title">待核实操作</h2></div>
   <% operations.each_value do |op| %><div class="card-body">
     <p><%= op.action == "create" ? "发起关联" : "解除关联" %> · <%= op.mini_appid %> · <%= admin_list_time(op.updated_at) %></p>
+    <% if op.action == "create" && op.state == "accepted" %>
+      <p class="form-hint">请核对微信公众平台上本次邀请的最终记录。若本次邀请已发出、随后被拒绝或解除，可登记「微信已执行」。</p>
+    <% end %>
     <% if page[:live] %><%= form_with url: verify_admins_app_mini_program_links_path(@app, context), class: "d-flex flex-wrap align-items-center gap-2" do |f| %>
       <%= f.hidden_field :operation_id, value: op.id, id: nil %><%= f.hidden_field :version, value: op.lock_version, id: nil %>
       <%= f.select :outcome, [["微信已执行", "applied"], ["微信未执行", "not_applied"]], {}, class: "form-select w-auto", id: nil, data: {enhanced_select: "single"}, aria: {label: "操作结果"} %>

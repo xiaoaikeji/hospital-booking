@@ -88,11 +88,16 @@ module WechatPlatform
         if !applied && remote != op.previous_status
           raise Error, "微信关联状态存在变更，请先核实本次操作"
         end
-        expected = applied ? "applied" : "not_applied"
-        raise Error, "核实结果与微信当前关联状态不一致" unless input[:outcome] == expected
+        outcome = input[:outcome]
+        # A second invitation can be rejected between reads, leaving the same list status.
+        accepted_invitation = op.state == "accepted" && op.action == "create" &&
+          remote == op.previous_status && (remote.nil? || REJECTED.include?(remote))
+        unless outcome == (applied ? "applied" : "not_applied") || (accepted_invitation && outcome == "applied")
+          raise Error, "核实结果与微信当前关联状态不一致"
+        end
         WechatLinkOperation.transaction do
-          op.update!(state: expected)
-          log("verify", op.mini_appid, "success", outcome: expected)
+          op.update!(state: outcome)
+          log("verify", op.mini_appid, "success", outcome: outcome, remote_status: remote)
         end
       end
     rescue Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error

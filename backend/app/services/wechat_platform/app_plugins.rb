@@ -11,11 +11,8 @@ module WechatPlatform
         op = updates[row["appid"]]
         next unless op
         if op.confirmed?
-          latest = row["version"].presence || op.version
-          if latest != op.version
-            WechatPluginUpdate.where(id: op.id, confirmed: true, version: op.version).update_all(version: latest, updated_at: Time.current)
-          end
-          row["confirmed_version"] = latest
+          row["confirmed_version"] = op.version
+          row["pending_update"] = op if op.conflicts_with_list?(row["version"])
         elsif row["version"] == op.version
           WechatPluginUpdate.where(id: op.id, confirmed: false).update_all(confirmed: true, updated_at: Time.current)
         else
@@ -41,6 +38,9 @@ module WechatPlatform
         raise Error, "当前小程序没有此插件，请刷新名单" unless plugin
         updates = WechatPluginUpdate.where(app: @app, plugin_appid: id)
         pending = updates.first
+        if pending&.conflicts_with_list?(plugin["version"])
+          raise Error, "已确认的版本为 #{pending.version}，与微信名单不一致，请先核实"
+        end
         if pending && !pending.confirmed?
           raise Error, "上次更新至 #{pending.version} 的结果待核实" unless plugin["version"] == pending.version
           pending.update!(confirmed: true)
@@ -67,7 +67,9 @@ module WechatPlatform
     def verify(id, operation_id, confirmed, actual_version)
       change(id) do |_token, plugin|
         op = WechatPluginUpdate.find_by(app: @app, plugin_appid: id, id: operation_id)
-        raise Error, "请刷新并核实本次插件更新" unless op && !op.confirmed? && confirmed == "1"
+        unless op && confirmed == "1" && (!op.confirmed? || op.conflicts_with_list?(plugin&.dig("version")))
+          raise Error, "请刷新并核实本次插件更新"
+        end
         unless actual_version.present? && actual_version.length <= 32
           raise Error, "请填写已在微信公众平台核实的实际版本"
         end

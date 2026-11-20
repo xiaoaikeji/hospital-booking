@@ -4,6 +4,8 @@ module WechatPlatform
     MAX_SUB = 5
     FALLBACK_URL = "https://mp.weixin.qq.com"
     REFERENCES = { "click" => "key", "media_id" => "media_id", "article_id" => "article_id" }.freeze
+    READ_FIELDS = { "view" => %w[url], "miniprogram" => %w[appid pagepath], "text" => %w[value] }
+      .merge(REFERENCES.transform_values { |field| [field] }).freeze
 
     def initialize(app, previous)
       @app = app
@@ -35,7 +37,7 @@ module WechatPlatform
     def from_wechat(rows, depth = 0)
       raise HttpConnection::Unavailable, "微信返回的菜单结构不完整" unless rows.is_a?(Array) && depth < 2
       rows.map do |node|
-        raise HttpConnection::Unavailable, "微信返回的菜单缺少名称" unless node.is_a?(Hash) && node["name"].is_a?(String)
+        raise HttpConnection::Unavailable, "微信返回的菜单缺少名称" unless node.is_a?(Hash) && node["name"].is_a?(String) && node["name"].present?
         if node.key?("sub_button")
           subs = node["sub_button"]
           subs = subs["list"] if subs.is_a?(Hash)
@@ -51,7 +53,11 @@ module WechatPlatform
           # These menu types can be published through the API.
         else
           item["legacy"] = true
-          item["value"] = node["value"].to_s if node["type"] == "text"
+          item["value"] = node["value"] if node["type"] == "text"
+        end
+        required = ["type", *READ_FIELDS[item["type"]]]
+        unless required.all? { |key| item[key].is_a?(String) && item[key].present? }
+          raise HttpConnection::Unavailable, "微信返回的「#{item['name']}」菜单动作不完整，请重新读取"
         end
         if (field = REFERENCES[item["type"]])
           previous = @previous.find { |old| old["type"] == item["type"] && old[field] == item[field] }

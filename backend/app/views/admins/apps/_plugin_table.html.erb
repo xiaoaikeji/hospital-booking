@@ -14,7 +14,11 @@
       <td data-label="版本"><%= plugin["version"].presence || ("#{plugin["confirmed_version"]}（核实值）" if plugin["confirmed_version"]) || "—" %></td>
       <% if manage %><td class="plugin-actions"><div class="d-flex flex-wrap gap-2 align-items-center">
         <% if (op = plugin["pending_update"]) %>
-          <p class="mb-1 text-warning">更新至 <%= op.version %> 的结果待核实。</p>
+          <% if op.confirmed? %>
+            <p class="mb-1 text-warning">已确认版本 <%= op.version %>，微信名单显示 <%= plugin["version"] %>。请重新读取；若微信公众平台确认版本已变化，可登记实际版本。</p>
+          <% else %>
+            <p class="mb-1 text-warning">更新至 <%= op.version %> 的结果待核实。</p>
+          <% end %>
           <%= form_with url: verify_admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), class: "d-flex flex-wrap align-items-center gap-1" do |form| %>
             <%= form.hidden_field :operation_id, value: op.id %>
             <%= form.text_field :actual_version, id: nil, maxlength: 32, required: true, placeholder: "实际版本", value: plugin["version"], class: "form-control form-control-sm w-auto", aria: { label: "微信当前实际版本" } %>
