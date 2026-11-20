@@ -1,0 +1,17 @@
+<% content_for :title, '微信模板消息 · Booking 管理后台' %>
+<%= render layout: 'admins/shared/list_page_header', locals: { title: '微信模板消息', icon: :templates } do %><%= link_to '回复内容', admins_reply_contents_path(app_id: @app&.id), class: 'btn' %><% end %>
+<%= render 'admins/shared/official_account_filter', accounts: @accounts, selected: @app, path: ->(id) { admins_template_messages_path(app_id: id) } %>
+<% if @error %><div class="alert alert-warning"><%= @error %></div><% end %>
+<% if @app && @templates.present? %>
+  <%= render 'admins/shared/enhanced_select_assets' %>
+  <% content_for :head do %><%= javascript_include_tag 'admins/template_messages', defer: true %><% end %>
+  <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.definitions.to_json %>" data-bindings="<%= @config.data.fetch('template_bindings', {}).to_json %>" data-revision="<%= @config.revision %>">
+    <div class="alert" data-template-feedback hidden role="status"></div>
+    <% Notifications::EventCatalog.definitions.each do |event, definition| %><section class="card mb-3" data-template-event="<%= event %>">
+      <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div><div class="card-body">
+        <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, @config.data.dig('template_bindings', event, 'template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true } %>
+        <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
+      </div><div class="card-footer"><button class="btn btn-primary" type="button" data-template-save><%= render 'layouts/admins/icon', name: :save %>确认并保存绑定</button></div>
+    </section><% end %>
+  </div>
+<% else %><section class="card"><%= render 'admins/shared/list_empty', icon: :templates, title: '暂无可选微信模板', description: '完成本公众号授权，并在微信公众平台添加模板后重新读取。' %></section><% end %>

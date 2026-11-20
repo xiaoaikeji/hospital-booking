@@ -64,6 +64,7 @@
           (["公众号关联管理", admins_official_account_links_path, :link, "admins/official_account_links"] if current_admin.super_admin?),
           (["公众号粉丝", admins_official_account_fans_path, :users, "admins/official_account_fans"] if current_admin.super_admin?),
           (["公众号自定义菜单", admins_official_account_menus_path, :templates, "admins/official_account_menus"] if current_admin.super_admin?),
+          (["微信模板消息", admins_template_messages_path, :templates, "admins/template_messages"] if current_admin.super_admin?),
           (["回复内容", admins_reply_contents_path, :templates, "admins/reply_contents"] if current_admin.super_admin?),
           (["发送记录", admins_notifications_path, :bell, "admins/notifications"] if current_admin.super_admin?),
           (["渠道二维码", admins_channel_qrcodes_path, :qrcode, "admins/channel_qrcodes"] if current_admin.super_admin?),

@@ -14,6 +14,7 @@ namespace :admins do
   resources :notifications, only: %i[index show] do
     post :retry_failed, on: :member
   end
+  resources :template_messages, only: :index
   resources :reply_contents, only: :index
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
@@ -24,6 +25,7 @@ namespace :admins do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
   end
   resources :apps do
+    resource :template_message, only: :update, controller: "template_messages"
     resources :reply_contents, only: %i[new create edit update] do
       post :media, on: :collection
       get :image, on: :collection

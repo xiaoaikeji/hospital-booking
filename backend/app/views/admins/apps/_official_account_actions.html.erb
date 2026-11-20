@@ -4,4 +4,5 @@
   <%= link_to admins_channel_qrcodes_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :qrcode %>渠道二维码<% end %>
   <%= link_to admins_reply_contents_path(app_id: app.id), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :templates %>回复内容<% end %>
   <%= link_to edit_admins_app_reply_rules_path(app), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :settings %>自动回复规则<% end %>
+  <%= link_to admins_template_messages_path(app_id: app.id), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :templates %>微信模板消息<% end %>
 </div>
