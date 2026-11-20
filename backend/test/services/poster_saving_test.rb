@@ -64,6 +64,27 @@ class PosterSavingTest < ActiveSupport::TestCase
     assert_equal 560, poster.qr_x
   end
 
+  test "a storage failure keeps the original layout in the form and on its next save" do
+    poster = Poster.new
+    assert PosterSaving.call(poster, attributes: { name: "义诊" }, file: poster_file, actor: @actor)
+    layout_fields = %w[image_width image_height qr_x qr_y qr_size]
+    old_layout = poster.attributes.values_at(*layout_fields)
+    old_blob = poster.background.blob
+    storage = old_blob.service
+    upload = storage.method(:upload)
+    storage.define_singleton_method(:upload) { |*| raise IOError, "storage offline" }
+
+    assert_not PosterSaving.call(poster, attributes: { name: "新名称" }, file: poster_file(width: 300, height: 200), actor: @actor)
+    assert_equal old_layout, poster.attributes.values_at(*layout_fields)
+    assert_equal "新名称", poster.name
+    assert_predicate poster.errors[:background], :present?
+    assert PosterSaving.call(poster, attributes: { name: poster.name }, actor: @actor)
+    assert_equal old_layout, poster.reload.attributes.values_at(*layout_fields)
+    assert_equal old_blob, poster.background.blob
+  ensure
+    storage.define_singleton_method(:upload, upload) if upload
+  end
+
   test "audit failure rolls back poster and uploaded background" do
     original = Log.method(:record!)
     Log.define_singleton_method(:record!) { |**| raise ActiveRecord::RecordInvalid, Log.new }

@@ -12,14 +12,14 @@ class PosterSaving
       end
       image.auto_orient
       image.strip
-      poster.image_width, poster.image_height = image.dimensions
-      if poster.new_record?
-        default_layout(poster)
-      elsif !layout_edited
-        fit_layout(poster)
-      end
       normalized = ActionDispatch::Http::UploadedFile.new(tempfile: File.open(image.path, "rb"), filename: file.original_filename, type: file.content_type)
       MediaUpload.attach(normalized, as: :poster_background) do |blob|
+        poster.image_width, poster.image_height = image.dimensions
+        if poster.new_record?
+          default_layout(poster)
+        elsif !layout_edited
+          fit_layout(poster)
+        end
         blob.update!(metadata: { width: poster.image_width, height: poster.image_height, analyzed: true })
         poster.background = blob
         save!(poster, actor, request)
@@ -30,9 +30,9 @@ class PosterSaving
     true
   rescue ActiveRecord::RecordInvalid
     poster.attachment_changes.delete("background")
-    if poster.persisted?
-      poster.image_width = poster.image_width_in_database
-      poster.image_height = poster.image_height_in_database
+    if file.present? && poster.persisted?
+      poster.restore_attributes(%w[image_width image_height])
+      poster.restore_attributes(%w[qr_x qr_y qr_size]) unless layout_edited
     end
     poster.errors.add(:base, "海报未能保存，请稍后重试") if poster.errors.empty?
     false
