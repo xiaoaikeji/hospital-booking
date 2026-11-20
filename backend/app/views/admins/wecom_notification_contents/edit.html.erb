@@ -17,6 +17,7 @@
     <div class="col-12 col-lg-8"><section class="card">
       <div class="card-header"><h2 class="card-title"><%= @reply['name'] %></h2></div><div class="card-body">
         <p class="form-hint">按顺序发送文字。未配置的事件沿用默认文案；保存后只影响新产生的通知。</p>
+        <%= render "admins/shared/notification_send_interval", value: @content.send_interval, hint: "同一应用在间隔内只向同一个群发送一次这类通知。留空或填 0 表示不限。" %>
         <div data-reply-items></div>
         <button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button>
       </div><div class="card-footer btn-list justify-content-end">
@@ -31,5 +32,5 @@
 </div>
 <% if @content.stored %>
   <%= form_with url: admins_wecom_notification_content_path(event: @kind), method: :patch, scope: :notification_content, id: "restore-content-form", class: "d-none" do |f| %><%= f.hidden_field :revision, value: @content.revision %><%= f.hidden_field :restore, value: '1' %><% end %>
-  <%= render "admins/shared/confirmation_modal", modal_id: "restore-notification-content", form_id: "restore-content-form", title: "恢复默认通知文案", context: @reply['name'], description: "此事件将重新使用系统默认文案，已排队和历史消息保持原内容。", confirm_label: "确认恢复", color: "warning", confirm_icon: :rotate %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "restore-notification-content", form_id: "restore-content-form", title: "恢复默认通知文案", context: @reply['name'], description: "此事件将恢复默认文案，发送间隔恢复为不限。已排队和历史消息保持原内容。", confirm_label: "确认恢复", color: "warning", confirm_icon: :rotate %>
 <% end %>

@@ -66,7 +66,7 @@ module Admins
     end
 
     def save_reply
-      input = params.require(:reply_content).permit(:name, :revision, :impact_revision, :scope, :qrcode_id,
+      input = params.require(:reply_content).permit(:name, :send_interval, :revision, :impact_revision, :scope, :qrcode_id,
         messages: [ :id, :type, :proof, { content: [ :text, :title, :appid, :pagepath, :thumb_media_id ] } ]).to_h
       input["id"] = params[:id] if params[:id]
       result = configuration.save_reply!(input, actor: current_admin, request: request)

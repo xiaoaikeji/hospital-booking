@@ -44,7 +44,8 @@ module Notifications
       id = input["id"].presence
       source_id = id
       only = input["scope"] == "only"
-      update!(input["revision"], actor: actor, request: request, action: "notification.reply_save") do |config|
+      fields = []
+      update!(input["revision"], actor: actor, request: request, action: "notification.reply_save", fields: fields) do |config|
         previous = id ? config.fetch("replies", {}).fetch(id) { raise Error, "回复内容不存在" } : nil
         if id && !only && input["impact_revision"] != impact_revision(id)
           raise Error, "受影响入口已变化，请重新核对后保存"
@@ -54,12 +55,17 @@ module Notifications
         name = input["name"].to_s.strip
         raise FieldError.new("请填写回复内容名称", field: "name") unless name.size.between?(1, 60)
         config["replies"] ||= {}
-        config["replies"][id] = { "name" => name, "messages" => messages, "variables_version" => 1 }
+        interval = SendInterval.normalize(input.fetch("send_interval") { previous&.dig("send_interval") })
+        saved = { "name" => name, "messages" => messages, "variables_version" => 1, "send_interval" => interval }.compact
+        config["replies"][id] = saved
+        before = only ? {} : previous || {}
+        fields.concat((before.keys | saved.keys).select { |key| before[key] != saved[key] })
         if input["qrcode_id"].present?
           code = OfficialAccountQrcode.where(app: app).find(input["qrcode_id"])
           binding = config.fetch("qrcodes", {}).fetch(code.id.to_s, { "mode" => "reply" })
           raise Error, "该渠道码的回复已改变，请重新打开" if source_id && binding["reply_id"] != source_id
           config["qrcodes"] ||= {}
+          fields << "qrcodes" if binding["reply_id"] != id || binding["mode"] == "none"
           config["qrcodes"][code.id.to_s] = binding.merge("reply_id" => id, "mode" => binding["mode"] == "none" ? "reply" : binding["mode"])
         end
       end
@@ -103,7 +109,7 @@ module Notifications
       end
     end
 
-    def update!(expected, actor:, request:, action:)
+    def update!(expected, actor:, request:, action:, fields: nil)
       Setting.transaction do
         Setting.connection.execute("SELECT pg_advisory_xact_lock(71020013)")
         row = Setting.find_or_create_by!(key: "notification")
@@ -116,7 +122,7 @@ module Notifications
         values["accounts"][app.appid] = config
         row.update!(settings: values)
         Log.record!(category: "notification", action: action, actor: actor, target: app, request: request,
-          details: { fields: [ action.delete_prefix("notification.") ] })
+          details: { fields: fields || [ action.delete_prefix("notification.") ] })
       end
     rescue Error => error
       Log.record!(category: "notification", action: action, actor: actor, target: app, request: request, status: "failed", details: { reason: error.message })

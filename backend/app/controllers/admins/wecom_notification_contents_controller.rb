@@ -12,9 +12,10 @@ module Admins
     end
 
     def update
-      input = params.require(:notification_content).permit(:revision, :restore, messages: [ :id, :type, { content: [ :text ] } ]).to_h
+      input = params.require(:notification_content).permit(:revision, :restore, :send_interval, messages: [ :id, :type, { content: [ :text ] } ]).to_h
       restore = input[:restore] == "1"
-      @content.save!(input[:messages], revision: input[:revision], actor: current_admin, request: request, restore: restore)
+      @content.save!(input[:messages], revision: input[:revision], actor: current_admin, request: request, restore: restore,
+        send_interval: input.fetch("send_interval") { @content.send_interval })
       flash[:notice] = restore ? "已恢复默认通知文案" : "企微通知文案已保存"
       if restore
         redirect_to edit_admins_wecom_notification_content_path(event: @kind), status: :see_other

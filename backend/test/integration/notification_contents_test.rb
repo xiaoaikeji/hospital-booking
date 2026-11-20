@@ -27,8 +27,8 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
 
   def content(kind = "rejected") = WechatPlatform::NotificationContents.new(kind)
   def input(texts) = texts.each_with_index.map { |text, i| { id: "text_#{i}", type: "text", content: { text: text } } }
-  def save_content(texts, kind: "rejected")
-    patch admins_wecom_notification_content_path(event: kind), params: { notification_content: { revision: content(kind).revision, messages: input(texts) } }, as: :json
+  def save_content(texts, kind: "rejected", **options)
+    patch admins_wecom_notification_content_path(event: kind), params: { notification_content: { revision: content(kind).revision, messages: input(texts), **options } }, as: :json
     assert_response :success
   end
 
@@ -76,8 +76,52 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
     assert_select "[data-insert-variable=version]", count: 0
   end
 
+  test "企微发送间隔按应用、事件和群隔离，回滚、重放与群切换不会误挡发送" do
+    path = admins_wecom_notification_content_path(event: "passed")
+    patch path, params: { notification_content: { revision: content("passed").revision, messages: input([ "第一条", "第二条" ]), send_interval: "5" } }, as: :json
+    assert_response :success
+    get edit_admins_wecom_notification_content_path(event: "passed")
+    assert_select "input#send-interval[value='5']"
+    stale = content("passed").revision
+    other = App.create!(provider: "wechat", appid: "wxIntervalB")
+    record = ->(app, kind, event_key) { WechatPlatform::ResultNotifications.record(app, kind, event_key, {}) }
+    freeze_time do
+      Sidekiq.testing!(:fake) do
+        WechatNotificationEvent.transaction(requires_new: true) do
+          record.call(@account, "passed", "undo")
+          raise ActiveRecord::Rollback
+        end
+        assert_empty Notification.all
+        assert_difference("Notification.count", 1) { record.call(@account, "passed", "first") }
+        assert_equal 2, Notification.sole.messages.size
+        travel 1.minute
+        assert_no_difference("Notification.count") { record.call(@account, "passed", "within") }
+        skipped = WechatNotificationEvent.find_by!(event_key: "within")
+        assert_equal "interval_skipped", skipped.status
+        assert_no_difference("Notification.count") { WechatPlatform::ResultNotifications.deliver(skipped.id) }
+        assert_empty @sent
+        assert_difference("Notification.count", 1) { record.call(other, "passed", "other-app") }
+        assert_difference("Notification.count", 1) { record.call(@account, "rejected", "other-kind") }
+        @settings.write_value("webhook_key", "demo-content-group-b")
+        @settings.save!
+        assert_difference("Notification.count", 1) { record.call(@account, "passed", "other-group") }
+        @settings.write_value("webhook_key", "demo-content-group-a")
+        @settings.save!
+        travel 4.minutes
+        assert_no_difference("Notification.count") { record.call(@account, "passed", "within") }
+        assert_difference("Notification.count", 1) { record.call(@account, "passed", "boundary") }
+        patch path, params: { notification_content: { revision: stale, messages: input([ "第一条", "第二条" ]), send_interval: 0 } }, as: :json
+        assert_response :success
+        assert_equal [ "send_interval" ], Log.where(action: "notification.wecom_content").last.details["fields"]
+        patch path, params: { notification_content: { revision: stale, messages: input([ "旧表单" ]) } }, as: :json
+        assert_response :unprocessable_content
+        assert_difference("Notification.count", 1) { record.call(@account, "passed", "unlimited") }
+      end
+    end
+  end
+
   test "真实触发替换变量后固定内容与 A 群，拒绝时仅补失败条目" do
-    save_content([ "{app_name} {version} {result}", "原因：{reason}" ])
+    save_content([ "{app_name} {version} {result}", "原因：{reason}" ], send_interval: 5)
     Sidekiq.testing!(:fake) do
       WechatPlatform::ResultNotifications.record(@account, "rejected", "round:1", { "版本" => "2.0", "原因" => "需要<br>补充" })
       row = Notification.sole

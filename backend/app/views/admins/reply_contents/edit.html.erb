@@ -12,6 +12,7 @@
     <div class="col-12 col-lg-8"><section class="card">
       <div class="card-header"><h2 class="card-title"><%= @app.display_name %></h2></div><div class="card-body">
         <label class="form-label required" for="reply-name">内容名称</label><div class="mb-3"><input id="reply-name" class="form-control" maxlength="60" value="<%= @reply['name'] %>" placeholder="例如 活动说明" required data-reply-field="name" data-required-message="请填写回复内容名称"></div>
+        <%= render "admins/shared/notification_send_interval", value: @reply["send_interval"], hint: "同一粉丝在间隔内只收到一次这组回复。留空或填 0 表示不限。" %>
         <% if params[:id] %>
           <label class="form-label" for="reply-scope">修改范围</label>
           <select id="reply-scope" class="form-select mb-3" data-enhanced-select="single"><option value="only" <%= 'selected' if @input[:scope] == 'only' %>><%= params[:qrcode_id].present? ? '仅改这个码' : '复制为新的回复内容' %></option><option value="all" <%= 'selected' if @input[:scope] == 'all' %>>更新全部</option></select>

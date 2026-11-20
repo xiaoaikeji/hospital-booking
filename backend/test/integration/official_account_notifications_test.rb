@@ -49,6 +49,51 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     message
   end
 
+  test "同一组回复跨菜单和扫码按粉丝限频，到期恢复；微信重放保留原应答" do
+    reply_id = create_reply
+    source = @config.reply(reply_id)
+    path = admins_app_reply_content_path(@a, reply_id)
+    update = ->(interval) {
+      patch path, params: { reply_content: { name: source["name"], messages: source["messages"], send_interval: interval,
+        revision: @config.revision, impact_revision: @config.impact_revision(reply_id), scope: "all" } }, as: :json
+    }
+    update.call(-1)
+    assert_response :unprocessable_content
+    assert_equal "send_interval", response.parsed_body["field"]
+    update.call("5")
+    assert_response :success
+    assert_equal [ "send_interval" ], Log.where(action: "notification.reply_save").last.details["fields"]
+    get edit_admins_app_reply_content_path(@a, reply_id)
+    assert_select "input#send-interval[value='5']"
+    qr = code
+    key = Notifications::AccountConfiguration.menu_key(reply_id)
+    @a.create_official_account_menu!(buttons: [ { "name" => "签到", "type" => "click", "key" => key } ])
+    @config.bind_code!(qr, mode: "reply", reply_id: reply_id, revision: @config.revision, actor: @admin)
+    freeze_time do
+      Sidekiq.testing!(:fake) do
+        original = push(Event: "CLICK", EventKey: key)
+        assert_equal 2, Notification.sole.messages.size
+        travel 1.minute
+        assert_no_difference("Notification.count") { push(EventKey: qr.scene) }
+        assert_equal "success", response.body
+        welcome = create_reply("欢迎")
+        @config.save_rules!({ revision: @config.revision, follow_first: welcome }, actor: @admin)
+        @config.bind_code!(qr, mode: "both", reply_id: reply_id, revision: @config.revision, actor: @admin)
+        assert_difference("Notification.count", 1) { push(Event: "subscribe", EventKey: "qrscene_#{qr.scene}") }
+        assert_equal 2, Notification.last.messages.size, "只跳过已进入间隔的专属回复，欢迎语按原顺序发送"
+        assert_difference("Notification.count", 1) { push(EventKey: qr.scene, FromUserName: "another-fan") }
+        assert_no_difference("Notification.count") { push(**original) }
+        assert Nokogiri::XML(response.body).at_xpath("//Encrypt"), "已处理的原回调仍返回原被动应答"
+        travel 4.minutes
+        assert_difference("Notification.count", 1) { push(EventKey: qr.scene) }
+        update.call("")
+        assert_response :success
+        travel 1.second
+        assert_difference("Notification.count", 1) { push(EventKey: qr.scene) }
+      end
+    end
+  end
+
   test "建内容后菜单和码共用，仅改一码自动复制且原码继续用；菜单草稿发布前不影响线上" do
     id = create_reply
     qr = code

@@ -1,0 +1,11 @@
+<div class="mb-3">
+  <div class="d-flex align-items-center gap-1 mb-2">
+    <label class="form-label mb-0" for="send-interval">发送间隔</label>
+    <%= render "admins/shared/field_help", label: "查看发送间隔说明", text: hint %>
+  </div>
+  <div class="input-group">
+    <%= number_field_tag :send_interval, value, id: "send-interval", class: "form-control", min: 0, max: Notifications::SendInterval::MAX_MINUTES,
+          step: 1, placeholder: "不限", data: { reply_field: "send_interval" } %>
+    <span class="input-group-text">分钟</span>
+  </div>
+</div>

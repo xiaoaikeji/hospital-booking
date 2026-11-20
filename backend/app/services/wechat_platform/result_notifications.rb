@@ -44,8 +44,16 @@ module WechatPlatform
           row.assign_attributes(kind: kind, message: messages.map { |item| item.dig("content", "text") }.join("\n\n"), status: "pending")
         end
         if event.previously_new_record?
-          Notifications.dispatch(event: kind, subject: event,
-            target: Notifications::Channels::WecomGroup.target(settings.key, name: "微信审核结果企微群"),
+          target = Notifications::Channels::WecomGroup.target(settings.key, name: "微信审核结果企微群")
+          limited = Notifications::SendInterval.active?(content.send_interval) do
+            Notification.where(event: kind, subject_type: "WechatNotificationEvent", subject_id: app.wechat_notification_events.select(:id))
+              .where("payload -> 'target' ->> 'channel_key' = ?", target.fetch("channel_key"))
+          end
+          if limited
+            event.update!(status: "interval_skipped")
+            next
+          end
+          Notifications.dispatch(event: kind, subject: event, target: target,
             messages: messages,
             idempotency_key: event_key)
         end

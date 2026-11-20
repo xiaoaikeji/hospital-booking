@@ -59,16 +59,18 @@ module WechatPlatform
       @kind = kind
     end
 
-    def stored = Setting.find_by(key: "notification")&.settings&.dig("wechat_results", kind)
+    def stored = settings.dig("wechat_results", kind)
     def messages = stored || self.class.defaults(kind)
-    def revision = Digest::SHA256.hexdigest([ kind, messages ].to_json)
+    def send_interval = settings.dig("wechat_result_intervals", kind)
+    def revision = Digest::SHA256.hexdigest([ kind, messages, send_interval ].compact.to_json)
 
-    def save!(rows, revision:, actor:, request: nil, restore: false)
+    def save!(rows, revision:, actor:, request: nil, restore: false, send_interval: self.send_interval)
       raise Notifications::Error, "需要超级管理员权限" unless actor.super_admin?
       Setting.transaction do
         Setting.connection.execute("SELECT pg_advisory_xact_lock(71020013)")
         row = Setting.find_or_create_by!(key: "notification")
         row.lock!
+        @settings = row.settings
         raise Notifications::Error, "通知文案已变化，请刷新后再保存" unless revision == self.revision
         values = row.settings.deep_dup
         values["wechat_results"] ||= {}
@@ -77,10 +79,19 @@ module WechatPlatform
         else
           values["wechat_results"][kind] = normalize(rows)
         end
-        changed = values != row.settings
+        interval = Notifications::SendInterval.normalize(send_interval) unless restore
+        if interval
+          (values["wechat_result_intervals"] ||= {})[kind] = interval
+        else
+          values["wechat_result_intervals"]&.delete(kind)
+        end
+        fields = []
+        fields << "messages" if row.settings.dig("wechat_results", kind) != values.dig("wechat_results", kind)
+        fields << "send_interval" if row.settings.dig("wechat_result_intervals", kind) != interval
         row.update!(settings: values)
+        @settings = row.settings
         Log.record!(category: "notification", action: "notification.wecom_content", actor: actor, target: row, request: request,
-          details: { event: kind, fields: changed ? [ "messages" ] : [] })
+          details: { event: kind, fields: fields })
       end
     rescue Notifications::Error => error
       Log.record!(category: "notification", action: "notification.wecom_content", actor: actor, request: request, status: "failed", details: { event: kind, reason: error.message })
@@ -88,6 +99,8 @@ module WechatPlatform
     end
 
     private
+
+    def settings = @settings ||= Setting.find_by(key: "notification")&.settings || {}
 
     def normalize(rows)
       raise Notifications::Error, "请新增 1～8 条文字消息" unless rows.is_a?(Array) && rows.size.between?(1, 8)

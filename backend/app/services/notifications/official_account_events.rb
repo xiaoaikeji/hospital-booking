@@ -49,9 +49,13 @@ module Notifications
         messages = selected.each_with_index.flat_map do |id, index|
           group = groups[id]
           next [] unless group
+          if group["send_interval"] && (selected.take(index).include?(id) || interval_active?(id, group["send_interval"]))
+            next []
+          end
           content = group.fetch("messages").deep_dup
           content = Variables.render(content, fields: ReplyVariables::FIELDS, data: values) if group["variables_version"] == 1
           content.map do |message|
+            message["reply_id"] = id
             message["id"] = "#{index}:#{message['id']}" if selected.size > 1
             message
           end
@@ -75,6 +79,14 @@ module Notifications
     private
 
     def event_name = @message["MsgType"] == "text" ? "official_account.keyword" : "official_account.#{@message['Event'].downcase}"
+
+    def interval_active?(reply_id, minutes)
+      SendInterval.active?(minutes) do
+        callbacks = OfficialAccountCallback.where(app: @app, sender_digest: @callback.sender_digest)
+        Notification.where(subject_type: "OfficialAccountCallback", subject_id: callbacks.select(:id))
+          .where("payload -> 'messages' @> ?", [ { reply_id: reply_id } ].to_json)
+      end
+    end
 
     def selected_replies(prior, subscribe, data)
       if @message["MsgType"] == "text"

@@ -5,16 +5,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const items = root.querySelector("[data-reply-items]"), preview = root.querySelector("[data-reply-preview]");
   const error = root.querySelector("[data-reply-error]");
   const scope = document.getElementById("reply-scope");
+  const interval = document.getElementById("send-interval");
   const save = root.querySelector("[data-reply-save]");
   const variables = JSON.parse(root.dataset.variables || "{}");
   const examples = JSON.parse(root.dataset.examples || "{}");
   let busy = false, dirty = false, lastTextArea = null;
+  interval.addEventListener("input", () => { dirty = true; });
+  const newId = () => crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");
   const node = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   function field(parent, title, key, value, multiline = false) {
     const group = node("div", "mb-3");
     const label = node("label", "form-label required", title);
     const control = node(multiline ? "textarea" : "input", "form-control");
-    control.id = "reply-" + crypto.randomUUID();
+    control.id = "reply-" + newId();
     label.htmlFor = control.id;
     control.value = value || "";
     control.required = true;
@@ -52,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!feedback) {
       feedback = node("div", "invalid-feedback d-block");
       feedback.id = id;
-      decorated.after(feedback);
+      (decorated.closest(".input-group") || decorated).after(feedback);
     }
     feedback.textContent = message;
   }
@@ -60,7 +63,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function validateFields() {
     let firstInvalid;
     root.querySelectorAll("[data-reply-field]").forEach(control => {
-      const message = control.required && !control.value.trim() ? control.dataset.requiredMessage : "";
+      let message = control.required && !control.value.trim() ? control.dataset.requiredMessage : "";
+      if (control === interval && !interval.validity.valid) message = "请输入 0～" + interval.max + " 之间的整数分钟";
       setFieldError(control, message);
       if (message && !firstInvalid) firstInvalid = control;
     });
@@ -128,14 +132,14 @@ document.addEventListener("DOMContentLoaded", () => {
         box.append(root.querySelector("[data-reply-card-template]").content.cloneNode(true));
         const miniSelect = box.querySelector("select");
         miniSelect.value = m.content.appid || "";
-        miniSelect.id = "mini-" + crypto.randomUUID();
+        miniSelect.id = "mini-" + newId();
         miniSelect.previousElementSibling.htmlFor = miniSelect.id;
         field(box, "页面路径", "pagepath", m.content.pagepath);
         const label = node("label", "form-label required", "卡片封面（上传到当前公众号）");
         const file = node("input", "form-control");
         file.type = "file";
         file.accept = "image/png,image/jpeg";
-        file.id = "cover-" + crypto.randomUUID();
+        file.id = "cover-" + newId();
         file.required = !m.content.thumb_media_id;
         file.dataset.replyField = "thumb_media_id";
         file.dataset.requiredMessage = "请上传卡片封面";
@@ -185,7 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
   root.querySelectorAll("[data-reply-add]").forEach(button => { button.onclick = () => {
-    if (busy) return; dirty = true; read(); reply.messages.push({ id: crypto.randomUUID(), type: button.dataset.replyAdd, content: {} }); draw();
+    if (busy) return; dirty = true; read(); reply.messages.push({ id: newId(), type: button.dataset.replyAdd, content: {} }); draw();
   }; });
   function toggleScope() { root.querySelector("[data-reply-impacts]")?.classList.toggle("d-none", scope.value !== "all"); }
   scope?.addEventListener("change", toggleScope); if (scope) toggleScope();
@@ -218,9 +222,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!validateFields()) return;
     read();
     busy = true;
+    const sendInterval = interval.value === "" ? null : interval.valueAsNumber;
     window.adminForms.setBusy(root, true);
     try {
-      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, name: reply.name, messages: reply.messages } });
+      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, send_interval: sendInterval, name: reply.name, messages: reply.messages } });
       dirty = false;
       if (root.dataset.inline === "true" && window.opener) { window.opener.postMessage({ type: "booking.reply.saved", ...result, appId: new URL(location.href).pathname.split("/")[3] }, location.origin); window.close(); }
       else location.assign(root.dataset.back);
