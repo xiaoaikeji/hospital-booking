@@ -1,5 +1,6 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "poster", "poster.save" ] => "保存通用海报",
     [ "notification", "notification.retry" ] => "补发失败通知",
     [ "notification", "notification.reply_save" ] => "保存回复内容",
     [ "notification", "notification.rules_save" ] => "保存自动回复规则",

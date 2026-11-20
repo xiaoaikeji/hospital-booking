@@ -2,6 +2,10 @@ devise_for :admins, path: "admins", only: :sessions, controllers: { sessions: "a
 
 namespace :admins do
   root "dashboard#index"
+  resources :posters, only: %i[index new create edit update] do
+    get :background, on: :member
+  end
+  resource :poster_code, only: :create
   resource :account, only: %i[edit update]
   resources :mini_program_releases, only: %i[index show] do
     get :templates, on: :collection

@@ -66,6 +66,7 @@
           (["公众号自定义菜单", admins_official_account_menus_path, :templates, "admins/official_account_menus"] if current_admin.super_admin?),
           (["回复内容", admins_reply_contents_path, :templates, "admins/reply_contents"] if current_admin.super_admin?),
           (["发送记录", admins_notifications_path, :bell, "admins/notifications"] if current_admin.super_admin?),
+          (["通用海报", admins_posters_path, :templates, "admins/posters"] if current_admin.super_admin?),
           (["渠道二维码", admins_channel_qrcodes_path, :qrcode, "admins/channel_qrcodes"] if current_admin.super_admin?),
           (["插件列表", admins_plugins_path, :puzzle, "admins/plugins"] if current_admin.super_admin?),
           (["违规记录", admins_illegal_records_path, :alert, "admins/illegal_records"] if current_admin.super_admin?),
