@@ -7,6 +7,8 @@ class WechatNotificationEvent < ApplicationRecord
     { "sent" => "success", "failed" => "danger", "unknown" => "warning" }.fetch(status, "secondary")
   end
 
+  def notification_deliverable? = WechatPlatform::NotificationSettings.new.enabled?(kind)
+
   after_create_commit do
     WechatPlatform::NotificationWorker.perform_async(id)
   rescue RedisClient::Error

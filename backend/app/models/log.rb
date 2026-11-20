@@ -1,5 +1,6 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "notification", "notification.retry" ] => "补发失败通知",
     [ "wechat", "wechat.channel_qrcode_create" ] => "新增公众号渠道二维码",
     [ "wechat", "wechat.fan_sync" ] => "同步公众号粉丝",
     [ "wechat", "wechat.menu_publish" ] => "发布公众号菜单",

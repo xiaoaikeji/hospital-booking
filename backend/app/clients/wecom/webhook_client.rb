@@ -1,13 +1,15 @@
 module Wecom
   class WebhookClient
-    def send_text(key, message)
+    def send_text(key, message) = send_message(key, message).fetch("errcode")
+
+    def send_message(key, message)
       connection = HttpConnection.build("https://qyapi.weixin.qq.com")
-      text = message.byteslice(0, 2048).scrub("")
       response = HttpConnection.request(connection, :post, "/cgi-bin/webhook/send", query: { key: key },
-        body: { msgtype: "text", text: { content: text } })
-      code = Integer(HttpConnection.json(response)["errcode"].to_s, 10, exception: false)
+        body: { msgtype: "text", text: { content: message.byteslice(0, 2048).scrub("") } })
+      data = HttpConnection.json(response)
+      code = Integer(data["errcode"].to_s, 10, exception: false)
       raise HttpConnection::Unavailable, "企业微信未确认发送结果" unless code
-      code
+      { "errcode" => code, "errmsg" => data["errmsg"].to_s.gsub(key, "[已过滤]").first(300) }
     end
   end
 end

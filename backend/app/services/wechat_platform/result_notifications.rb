@@ -38,8 +38,16 @@ module WechatPlatform
         value = ActionController::Base.helpers.strip_tags(raw.to_s.gsub(/<br\s*\/?>/i, "\n")).strip
         message << "#{label}：#{value}" if value.present?
       end
-      WechatNotificationEvent.create_or_find_by!(app: app, event_key: event_key) do |event|
-        event.assign_attributes(kind: kind, message: message.join("\n"), status: "pending")
+      WechatNotificationEvent.transaction do
+        event = WechatNotificationEvent.create_or_find_by!(app: app, event_key: event_key) do |row|
+          row.assign_attributes(kind: kind, message: message.join("\n"), status: "pending")
+        end
+        if event.previously_new_record?
+          Notifications.dispatch(event: kind, subject: event,
+            target: Notifications::Channels::WecomGroup.target(NotificationSettings.new.key, name: "微信审核结果企微群"),
+            messages: [{ id: "msg_1", type: "text", content: { text: event.message.byteslice(0, 2048).scrub("") } }],
+            idempotency_key: event_key)
+        end
       end
     rescue ActiveRecord::ActiveRecordError, IntegrationSettings::ConfigurationError => error
       Rails.logger.warn("微信通知登记失败 app_id=#{app.id} kind=#{kind} error=#{error.class.name}")
@@ -49,6 +57,20 @@ module WechatPlatform
       event = WechatNotificationEvent.find_by(id: id)
       return unless event&.status == "pending"
       settings = NotificationSettings.new
+      task = Notification.find_by(subject: event)
+      if task
+        if settings.enabled?(event.kind)
+          Notifications::Delivery.run(task.id)
+          task.reload
+          event.update!(status: task.uncertain? ? "unknown" : task.status,
+            error_code: task.results.filter_map { |r| r.dig("response", "errcode") }.find { |code| code != 0 })
+        else
+          task.update!(status: "failed", error_message: "通知类型已关闭，未发送")
+          event.update!(status: "skipped")
+        end
+        return
+      end
+      # 升级前任务没有目标快照，保留旧记录和原有发送约定，不推断历史目标。
       status = settings.enabled?(event.kind) ? "sending" : "skipped"
       claimed = WechatNotificationEvent.where(id: id, status: "pending").update_all(status: status, updated_at: Time.current)
       return unless claimed == 1 && status == "sending"

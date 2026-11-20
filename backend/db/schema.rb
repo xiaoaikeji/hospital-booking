@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -198,6 +198,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_040000) do
     t.index ["operator_id"], name: "index_mini_program_releases_on_operator_id"
     t.index ["previous_build_id"], name: "index_mini_program_releases_on_previous_build_id"
     t.index ["source_release_id"], name: "index_mini_program_releases_on_source_release_id"
+  end
+
+  create_table "notifications", force: :cascade do |t|
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.text "error_message"
+    t.string "event", limit: 100, null: false
+    t.string "idempotency_key", limit: 150
+    t.string "job_id", limit: 100
+    t.datetime "last_attempt_at", precision: nil
+    t.jsonb "payload", default: {}, null: false
+    t.jsonb "response_data", default: {}, null: false
+    t.datetime "scheduled_at", precision: nil
+    t.datetime "sent_at", precision: nil
+    t.string "status", limit: 20, null: false
+    t.bigint "subject_id", null: false
+    t.string "subject_type", limit: 50, null: false
+    t.datetime "updated_at", null: false
+    t.index ["event"], name: "index_notifications_on_event"
+    t.index ["idempotency_key"], name: "index_notifications_on_idempotency_key", unique: true
+    t.index ["status", "scheduled_at"], name: "index_notifications_on_status_and_scheduled_at"
+    t.index ["subject_type", "subject_id"], name: "index_notifications_on_subject_type_and_subject_id"
+    t.check_constraint "attempt_count >= 0", name: "notifications_attempts_valid"
+    t.check_constraint "jsonb_typeof(payload) = 'object'::text AND jsonb_typeof(response_data) = 'object'::text", name: "notifications_objects_required"
+    t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'sending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text])", name: "notifications_status_valid"
   end
 
   create_table "official_account_fan_events", force: :cascade do |t|

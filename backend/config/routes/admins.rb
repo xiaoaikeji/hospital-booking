@@ -11,6 +11,9 @@ namespace :admins do
   resource :wechat_platform, only: :show
   resources :plugins, only: :index
   resources :illegal_records, only: :index
+  resources :notifications, only: %i[index show] do
+    post :retry_failed, on: :member
+  end
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
   resources :official_account_fans, only: :index
