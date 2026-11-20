@@ -1,11 +1,5 @@
 module WechatPlatform
   class OfficialAccountMenus
-    MEDIA = {
-      "image" => [10.megabytes, %w[image/png image/jpeg image/gif image/bmp]],
-      "voice" => [2.megabytes, %w[audio/mpeg audio/amr audio/wav audio/x-wav]],
-      "video" => [10.megabytes, %w[video/mp4]]
-    }.freeze
-
     def initialize(app, actor:, request:)
       @app, @actor, @request = app, actor, request
     end
@@ -62,21 +56,17 @@ module WechatPlatform
 
     def image(id)
       buttons = OfficialAccountMenu.find_by(app: @app)&.buttons || []
-      nodes = buttons.flat_map { |node| [node, *node.fetch("sub_button", [])] }
+      nodes = buttons.flat_map { |node| [ node, *node.fetch("sub_button", []) ] }
       raise ActiveRecord::RecordNotFound unless nodes.any? { |node| node["type"] == "media_id" && node["kind"] == "image" && node["media_id"] == id }
       client { |api| api.image(id) }
     end
 
     def upload!(file, kind)
       action("media") do
-        limit, types = MEDIA[kind]
-        raise Error, "请选择图片、音频或视频文件" unless types && file.respond_to?(:tempfile)
-        raise Error, "文件超过 #{limit / 1.megabyte} MB" unless file.size.between?(1, limit)
-        mime = Marcel::MimeType.for(file.tempfile)
-        file.rewind
-        raise Error, "文件格式与素材类型不匹配" unless types.include?(mime)
-        ext = { "image/jpeg" => "jpg", "audio/mpeg" => "mp3", "audio/x-wav" => "wav" }.fetch(mime) { mime.split("/").last }
-        filename = "#{Time.current.to_i}#{Digest::MD5.file(file.path).hexdigest.first(6)}.#{ext}"
+        purpose = { "image" => :menu_image, "voice" => :menu_voice, "video" => :menu_video }[kind]
+        raise Error, "请选择图片、音频或视频文件" unless purpose
+        upload = MediaUpload.new(file, as: purpose).validate!
+        mime, filename = upload.content_type, upload.filename
         id = client { |api| api.upload(file, kind, mime, filename) }
         log("media", kind: kind)
         { media_id: id, kind: kind, label: File.basename(file.original_filename), proof: MenuButtons.proof(@app, "media_id", id) }
@@ -108,6 +98,8 @@ module WechatPlatform
 
     def action(name)
       yield
+    rescue MediaUpload::Invalid => error
+      raise Error, error.message
     rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => e
       log(name, status: "failed", reason: e.class.name, code: (e.code if e.respond_to?(:code)))
       raise

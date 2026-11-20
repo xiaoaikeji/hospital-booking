@@ -1,7 +1,6 @@
 module WechatPlatform
   class AppCategories
     EVENTS = %w[wechat.category_add wechat.category_delete wechat.category_verify].freeze
-    TYPES = %w[image/jpeg image/png].freeze
 
     def initialize(app, actor: nil, request: nil)
       @app, @actor, @request = app, actor, request
@@ -10,10 +9,10 @@ module WechatPlatform
     def page
       outstanding = acceptances.to_a
       data = with_client(&:category_settings)
-      used = data.fetch("categories").map { |row| [row["first"].to_i, row["second"].to_i] }
-      observed, waiting = outstanding.partition { |entry| used.include?([entry.first_category, entry.second_category]) }
+      used = data.fetch("categories").map { |row| [ row["first"].to_i, row["second"].to_i ] }
+      observed, waiting = outstanding.partition { |entry| used.include?([ entry.first_category, entry.second_category ]) }
       acceptances.where(id: observed.map(&:id)).delete_all if observed.any?
-      used = (used + waiting.map { |entry| [entry.first_category, entry.second_category] }).map { |ids| ids.join("-") }
+      used = (used + waiting.map { |entry| [ entry.first_category, entry.second_category ] }).map { |ids| ids.join("-") }
       last_event = Log.where(target_type: "App", target_id: @app.id, source: "system", action: "wechat.category_audit")
         .order(Arel.sql("(details ->> 'occurred_at')::bigint DESC"), id: :desc).first
       result = { settings: data, waiting: waiting, options: [], blocked: quota_blocker(data), revision: revision(data), pending: unresolved, last_event: last_event }
@@ -38,12 +37,13 @@ module WechatPlatform
         raise Error, "请选择资质方案" if plans.any? && (!index || index < 0 || index >= plans.size)
         files = Array(plans[index || 0]).each_with_index.map do |item, n|
           file = indexed(input, :certificates, n)
-          unless file.is_a?(ActionDispatch::Http::UploadedFile) && file.size.between?(1, 2.megabytes)
-            raise Error, "请上传 2MB 以内的 JPG 或 PNG 图片：#{item['name']}"
+          begin
+            upload = MediaUpload.new(file, as: :wechat_certificate).validate!
+          rescue MediaUpload::Invalid => error
+            raise Error, "#{item['name']}：#{error.message}"
           end
-          type = Marcel::MimeType.for(file.tempfile)
-          raise Error, "资质文件格式无效：#{item['name']}" unless TYPES.include?(type) && type == file.content_type
-          [item.fetch("name"), file, type, expiry(input, n)]
+          type = upload.content_type
+          [ item.fetch("name"), file, type, expiry(input, n) ]
         end
         # 先校验所有资质，再上传临时素材。临时素材失败不代表类目申请已提交。
         certificates = files.map do |name, file, type, validity|
@@ -182,7 +182,7 @@ module WechatPlatform
 
     def revision(data)
       summary = data["categories"].map { |row| row.values_at("first", "second", "audit_status").map(&:to_s) }.sort
-      Digest::SHA256.hexdigest([@app.id, summary, data["quota"], data["category_limit"], history.where(status: "success").maximum(:id)].to_json)
+      Digest::SHA256.hexdigest([ @app.id, summary, data["quota"], data["category_limit"], history.where(status: "success").maximum(:id) ].to_json)
     end
 
     def unresolved

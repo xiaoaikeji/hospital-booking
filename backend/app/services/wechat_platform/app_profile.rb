@@ -20,18 +20,17 @@ module WechatPlatform
     end
 
     def update_head_image(file, revision:)
-      unless file.is_a?(ActionDispatch::Http::UploadedFile) && file.size.between?(1, 2.megabytes)
-        raise Error, "请选择 2MB 以内的 JPG 或 PNG 头像"
-      end
-      type = Marcel::MimeType.for(file.tempfile)
-      raise Error, "请选择有效的 JPG 或 PNG 头像" unless %w[image/jpeg image/png].include?(type) && file.content_type == type
+      upload = MediaUpload.new(file, as: :wechat_avatar).validate!
+      type = upload.content_type
       change("head_image", revision) do |client, _current|
         client.modify_head_image(client.upload_image(file, type))
       end
+    rescue MediaUpload::Invalid => error
+      raise Error, error.message
     end
 
     def self.revision(app, field, info)
-      Digest::SHA256.hexdigest([app.appid, field, info.sort].to_json)
+      Digest::SHA256.hexdigest([ app.appid, field, info.sort ].to_json)
     end
 
     private
