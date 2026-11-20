@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_19_090100) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -200,6 +200,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_090100) do
     t.index ["source_release_id"], name: "index_mini_program_releases_on_source_release_id"
   end
 
+  create_table "official_account_menus", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.jsonb "buttons", default: [], null: false
+    t.datetime "created_at", null: false
+    t.jsonb "observed_buttons"
+    t.jsonb "pending_buttons"
+    t.integer "revision", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id"], name: "index_official_account_menus_on_app_id", unique: true
+  end
+
   create_table "open_platform_accounts", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "created_via_app_id", null: false
@@ -306,6 +317,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_19_090100) do
   add_foreign_key "mini_program_releases", "apps"
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "previous_build_id", on_delete: :nullify
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "source_release_id", on_delete: :nullify
+  add_foreign_key "official_account_menus", "apps"
   add_foreign_key "open_platform_accounts", "admins", column: "operator_id"
   add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
   add_foreign_key "open_platform_operations", "apps"

@@ -1,0 +1,6 @@
+.official-menu-phone #menu-screen { min-height: 17rem; }
+.official-menu-phone #menu-bar > button { flex: 1 1 0; min-width: 0; }
+#official-menu-editor [hidden] { display: none !important; }
+@media (max-width: 991.98px) {
+  .official-menu-phone #menu-screen { min-height: 7rem; }
+}

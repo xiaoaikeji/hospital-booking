@@ -1,5 +1,8 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "wechat", "wechat.menu_publish" ] => "发布公众号菜单",
+    [ "wechat", "wechat.menu_pull" ] => "读取公众号菜单",
+    [ "wechat", "wechat.menu_media" ] => "上传公众号菜单素材",
     [ "wechat", "wechat.notification_settings" ] => "修改微信通知设置",
     [ "wechat", "wechat.authorize" ] => "发起平台授权",
     [ "wechat", "wechat.authorized" ] => "完成平台授权",

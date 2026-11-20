@@ -13,6 +13,7 @@ class App < ApplicationRecord
 
   STATUSES = { "active" => "正常", "auditing" => "审核中", "disabled" => "已停用" }.freeze
   has_one :app_authorization, dependent: :restrict_with_error
+  has_one :official_account_menu, dependent: :destroy
   has_many :mini_program_releases, dependent: :restrict_with_error
   has_many :mini_program_audits, dependent: :restrict_with_error
   has_many :location_interface_applications, dependent: :restrict_with_error

@@ -21,6 +21,7 @@
       "AppSecret" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at),
       "更新时间" => admin_list_time(@app.updated_at),
       **(@app.app_type == "official_account" && @app.provider == "wechat" ? { "二维码" => render("qrcode_button", app: @app, label: "公众号二维码") } : {}),
+      **(@app.provider == "wechat" && @app.app_type == "official_account" ? { "公众号运营" => link_to(safe_join([render("layouts/admins/icon", name: :templates), "自定义菜单"]), admins_official_account_menus_path(app_id: @app.id), class: "btn btn-sm btn-outline-primary") } : {}),
       "备注" => @app.memo
     }, full: ["备注"], columns: (@app.code_capable? ? 2 : 3) %></div>
       <% if @app.code_capable? %><div class="col-12 col-xl-4"><%= render "qrcode_panel", app: @app, trial: @trial %></div><% end %>
