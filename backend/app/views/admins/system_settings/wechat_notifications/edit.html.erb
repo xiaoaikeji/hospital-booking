@@ -7,14 +7,13 @@
   <div class="card-body">
     <% if @settings.error %><p class="alert alert-danger" role="alert"><%= @settings.error %></p><% end %>
     <%= f.hidden_field :revision, value: @input&.fetch(:revision, nil) || @settings.revision %>
-    <div class="mb-4"><label class="form-check form-switch">
+    <div class="mb-4 d-flex align-items-center gap-1"><label class="form-check form-switch mb-0">
       <%= f.check_box :pull_violations, checked: @input ? @input[:pull_violations] == "1" : @settings.pull, class: "form-check-input" %>
       <span class="form-check-label">定时同步违规与申诉记录</span></label>
-      <div class="form-hint">每 30 分钟查询已授权小程序。首次同步的历史记录仅供查阅。</div>
+      <%= render "admins/shared/field_help", text: "每 30 分钟查询已授权小程序。首次同步的历史记录仅供查阅。", label: "查看定时同步说明" %>
     </div>
-    <div class="mb-4 col-lg-8"><%= f.label :webhook_key, "企业微信群机器人 Key", class: "form-label" %>
-      <%= f.text_field :webhook_key, value: @input&.fetch(:webhook_key, nil) || @settings.key, class: "form-control", autocomplete: "off", spellcheck: false %>
-      <div class="form-hint">当前来源：<%= @settings.source %>。支持 Key 或完整 Webhook 地址。</div>
+    <div class="mb-4 col-lg-8">
+      <%= render "admins/shared/configuration_field", form: f, field: :webhook_key, label: "企业微信群机器人 Key", source: @settings.source, value: @input&.fetch(:webhook_key, nil) || @settings.key, placeholder: "请输入 Key 或完整 Webhook 地址" %>
       <% if @settings.source == "加密数据库" %><label class="form-check mt-2"><%= f.check_box :clear_key, class: "form-check-input" %><span class="form-check-label">清除已保存的 Key，回退到部署配置</span></label><% end %>
     </div>
     <fieldset><legend class="form-label">发送到企业微信群的事件</legend><div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2">
