@@ -17,6 +17,7 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     @stubs.post("/cgi-bin/webhook/send") do |env|
       @calls << JSON.parse(env.body).dig("text", "content")
       @keys << env.params.fetch("key")
+      @after_webhook&.call
       rejected = @reject_second && @calls.size == @reject_call_number
       response_for(errcode: rejected ? 93000 : 0, errmsg: rejected ? "invalid webhook url" : "ok")
     end
@@ -125,6 +126,30 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
       assert_equal "disabled", partial_task.result_for("second").fetch("stage")
       assert_equal "unknown", partial_event.reload.status
       assert_empty partial_task.retryable_ids
+    end
+  end
+
+  test "发送第一条时关闭通知，保留首条回执并跳过还未发送的第二条" do
+    settings = Setting.create!(key: "wechat_notifications")
+    settings.write_value("webhook_key", "local-test-recovery-group")
+    settings.write_value("kinds", [ "passed" ])
+    settings.save!
+    @after_webhook = lambda do
+      settings.write_value("kinds", [])
+      settings.save!
+    end
+    Sidekiq.testing!(:fake) do
+      event = @account.wechat_notification_events.create!(kind: "passed", event_key: "mid-send", status: "pending", message: "审核通过")
+      task = Notifications.dispatch(event: "passed", subject: event, target: @target, idempotency_key: event.event_key,
+        messages: %w[第一条 第二条].map { |text| { id: text, type: "text", content: { text: text } } })
+      Notifications::Delivery.run(task.id)
+
+      assert_equal [ "第一条" ], @calls
+      assert_equal "channel_accepted", task.reload.result_for("第一条")["stage"]
+      assert_equal "disabled", task.result_for("第二条")["stage"]
+      assert_equal "部分已跳过", task.status_label
+      assert_equal "partially_skipped", event.reload.status
+      assert_empty task.retryable_ids
     end
   end
 

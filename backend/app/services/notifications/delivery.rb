@@ -21,7 +21,7 @@ module Notifications
       interrupted = @row.status == "sending" && !@row.response_data.key?("finished_at")
       return unless @row.status == "pending" || interrupted
 
-      deliverable = !@row.subject.respond_to?(:notification_deliverable?) || @row.subject.notification_deliverable?
+      subject = @row.subject
       @row.update!(status: "sending", attempt_count: @row.attempt_count + 1, last_attempt_at: Time.current,
         job_id: @job_id, response_data: @row.response_data.except("finished_at"))
       @row.messages.each do |message|
@@ -31,7 +31,7 @@ module Notifications
             "error_message" => "发送进程中断，请到渠道核实该条消息"))
         end
         next unless result["status"] == "pending"
-        unless deliverable
+        if subject.respond_to?(:notification_deliverable?) && !subject.notification_deliverable?
           save_result(message, result.merge("status" => "failed", "stage" => "disabled", "error_message" => "此事件通知已关闭"))
           next
         end

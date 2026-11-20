@@ -36,8 +36,12 @@ class Notification < ApplicationRecord
   def uncertain? = results.any? { |r| r["status"] == "sending" && r["provider_state"] != "passive_prepared" }
   def passive_prepared? = results.any? { |r| r["provider_state"] == "passive_prepared" }
   def disabled? = messages.all? { |m| result_for(m["id"])["stage"] == "disabled" }
+  def partially_skipped?
+    results.size == messages.size && results.to_set { |r| r["stage"] } == Set["channel_accepted", "disabled"]
+  end
   def status_label
     return "已跳过" if disabled?
+    return "部分已跳过" if partially_skipped?
     return "待核实" if uncertain?
     return "应答已生成" if status == "sending" && passive_prepared?
     STATES.fetch(status)
