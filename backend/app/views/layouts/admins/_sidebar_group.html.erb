@@ -1,0 +1,13 @@
+<% group_active = children.any? { |_title, _path, controller| Array(controller).include?(controller_path) } %>
+<li class="nav-item dropdown<%= " active" if group_active %>">
+  <a class="nav-link dropdown-toggle<%= " show" if group_active %>" href="#" data-bs-toggle="dropdown" data-bs-auto-close="false" role="button" aria-haspopup="true" aria-expanded="<%= group_active %>">
+    <span class="nav-link-icon"><%= render "layouts/admins/icon", name: icon %></span>
+    <span class="nav-link-title"><%= label %></span>
+  </a>
+  <div class="dropdown-menu<%= " show" if group_active %>">
+    <% children.each do |title, path, controller| %>
+      <% active = Array(controller).include?(controller_path) %>
+      <a class="dropdown-item<%= " active" if active %>" href="<%= path %>" aria-current="<%= active ? "page" : "false" %>"><%= title %></a>
+    <% end %>
+  </div>
+</li>

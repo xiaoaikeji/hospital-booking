@@ -21,6 +21,11 @@ namespace :admins do
   end
   resources :template_messages, only: :index
   resources :reply_contents, only: :index
+  resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
+  # 旧书签和已打开的文案编辑器仍可使用原地址。
+  scope path: "system_settings", as: "system_settings" do
+    resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
+  end
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
   resources :official_account_fans, only: :index
@@ -97,7 +102,6 @@ namespace :admins do
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
     resource :storage, only: %i[edit update], controller: "storage"
-    resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
     resource :wechat_notifications, only: %i[edit update], controller: "wechat_notifications"
     resource :appearance, only: %i[edit update], controller: "appearance"
   end

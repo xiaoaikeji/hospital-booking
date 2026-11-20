@@ -28,12 +28,27 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
   def content(kind = "rejected") = WechatPlatform::NotificationContents.new(kind)
   def input(texts) = texts.each_with_index.map { |text, i| { id: "text_#{i}", type: "text", content: { text: text } } }
   def save_content(texts, kind: "rejected")
-    patch admins_system_settings_wecom_notification_content_path(event: kind), params: { notification_content: { revision: content(kind).revision, messages: input(texts) } }, as: :json
+    patch admins_wecom_notification_content_path(event: kind), params: { notification_content: { revision: content(kind).revision, messages: input(texts) } }, as: :json
     assert_response :success
   end
 
+  test "旧文案链接和已打开的表单指向同一通知管理页" do
+    get edit_admins_system_settings_wecom_notification_content_path(event: "violation")
+    assert_response :success
+    assert_select "#sidebar-menu li.dropdown.active" do
+      assert_select ".dropdown-toggle[aria-expanded=true]", text: /通知管理/
+      assert_select "a.active[aria-current=page][href=?]", edit_admins_wecom_notification_content_path
+    end
+    assert_select "nav[aria-label='系统设置']", count: 0
+    assert_select "[data-save=?]", admins_wecom_notification_content_path(event: "violation")
+    patch admins_system_settings_wecom_notification_content_path(event: "violation"),
+      params: { notification_content: { revision: content("violation").revision, messages: input([ "旧表单保存" ]) } }, as: :json
+    assert_response :success
+    assert_equal "旧表单保存", content("violation").messages.first.dig("content", "text")
+  end
+
   test "管理员可按事件保存文案，未知变量和并发编辑拒绝，恢复只影响本事件" do
-    get edit_admins_system_settings_wecom_notification_content_path(event: "rejected")
+    get edit_admins_wecom_notification_content_path(event: "rejected")
     assert_response :success
     assert_select "[data-insert-variable=version]"
     assert_select "[data-insert-variable=partner_name]", count: 0
@@ -43,20 +58,20 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
     assert_equal "text_1", stored.last["id"]
     assert_equal "demo-content-group-a", WechatPlatform::NotificationSettings.new.key
     assert_not_includes Log.where(action: "notification.wecom_content").pluck(:details).to_json, "{app_name}"
-    patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: old_revision, messages: input([ "别覆盖" ]) } }, as: :json
+    patch admins_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: old_revision, messages: input([ "别覆盖" ]) } }, as: :json
     assert_response :unprocessable_content
     assert_equal stored, content.messages
-    patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, messages: input([ "审核通知", "{balance}" ]) } }, as: :json
+    patch admins_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, messages: input([ "审核通知", "{balance}" ]) } }, as: :json
     assert_response :unprocessable_content
     assert_includes response.parsed_body["error"], "{balance}"
     assert_equal "text", response.parsed_body["field"]
     assert_equal 1, response.parsed_body["message_index"]
     save_content([ "违规：{record_number}" ], kind: "violation")
-    patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, restore: "1" } }
-    assert_redirected_to edit_admins_system_settings_wecom_notification_content_path(event: "rejected")
+    patch admins_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, restore: "1" } }
+    assert_redirected_to edit_admins_wecom_notification_content_path(event: "rejected")
     assert_nil content.stored
     assert_equal "违规：{record_number}", content("violation").messages.first.dig("content", "text")
-    get edit_admins_system_settings_wecom_notification_content_path(event: "violation")
+    get edit_admins_wecom_notification_content_path(event: "violation")
     assert_select "[data-insert-variable=record_number]"
     assert_select "[data-insert-variable=version]", count: 0
   end
@@ -116,10 +131,14 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
     assert_equal [ "activity_start" ], Notifications::EventCatalog.for_templates.keys
     %w[operator customer_service].each do |role|
       sign_in Admin.create!(username: "content_#{role}", role: role)
-      get edit_admins_system_settings_wecom_notification_content_path
-      assert_response :forbidden
-      patch admins_system_settings_wecom_notification_content_path, params: { notification_content: { revision: content.revision, restore: "1" } }
-      assert_response :forbidden
+      [ edit_admins_wecom_notification_content_path, edit_admins_system_settings_wecom_notification_content_path ].each do |path|
+        get path
+        assert_response :forbidden
+      end
+      [ admins_wecom_notification_content_path, admins_system_settings_wecom_notification_content_path ].each do |path|
+        patch path, params: { notification_content: { revision: content.revision, restore: "1" } }
+        assert_response :forbidden
+      end
     end
   end
 end

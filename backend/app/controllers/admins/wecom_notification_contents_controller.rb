@@ -1,5 +1,5 @@
 module Admins
-  class SystemSettings::WecomNotificationContentsController < BaseController
+  class WecomNotificationContentsController < BaseController
     before_action :require_super_admin!
     before_action :load_content
     rescue_from Notifications::Error, with: :failed
@@ -17,7 +17,7 @@ module Admins
       @content.save!(input[:messages], revision: input[:revision], actor: current_admin, request: request, restore: restore)
       flash[:notice] = restore ? "已恢复默认通知文案" : "企微通知文案已保存"
       if restore
-        redirect_to edit_admins_system_settings_wecom_notification_content_path(event: @kind), status: :see_other
+        redirect_to edit_admins_wecom_notification_content_path(event: @kind), status: :see_other
       else
         render json: { revision: @content.revision }
       end
@@ -36,7 +36,7 @@ module Admins
         feedback = error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }
         render json: feedback, status: :unprocessable_content
       else
-        redirect_to edit_admins_system_settings_wecom_notification_content_path(event: @kind), alert: error.message, status: :see_other
+        redirect_to edit_admins_wecom_notification_content_path(event: @kind), alert: error.message, status: :see_other
       end
     end
   end
