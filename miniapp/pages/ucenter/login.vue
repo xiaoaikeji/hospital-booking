@@ -7,10 +7,15 @@ let target = {}
 let leaving = false
 onLoad(options => { target = options })
 
-function authorize({ phone }) {
+function authorize(result) {
   if (leaving) return
+  try {
+    startDemoSession(result?.phone)
+  } catch {
+    uni.showToast({ title: result?.phone ? '登录失败，请重试' : '暂未获取到手机号，请重试', icon: 'none' })
+    return
+  }
   leaving = true
-  startDemoSession(phone)
   resumeBooking(target)
 }
 </script>

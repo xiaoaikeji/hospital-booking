@@ -34,8 +34,7 @@ export function getBookingSlots(day, doctorId, now = new Date()) {
     // 上午 8:00–12:00，下午 14:00–17:30，每个号源半小时。
     const start = (index < 8 ? 8 * 60 : 10 * 60) + index * 30
     const begins = new Date(year, month - 1, date, 0, start)
-    const isToday = begins.toDateString() === now.toDateString()
-    const seats = REMAINING_SEATS[(index + offset + Number(isToday) * 2) % REMAINING_SEATS.length]
+    const seats = REMAINING_SEATS[(index + offset) % REMAINING_SEATS.length]
     return { label: clockTime(start) + '–' + clockTime(start + 30), remaining: begins <= now ? 0 : seats }
   })
 }

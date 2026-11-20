@@ -105,7 +105,7 @@ function openEntry(entry) {
   font-weight: 600;
   line-height: 1.4;
 }
-.home-content { padding: 0 22rpx; }
+.home-content { padding: 22rpx 22rpx 0; }
 .home-banner {
   position: relative;
   height: 224rpx;

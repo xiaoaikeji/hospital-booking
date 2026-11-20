@@ -26,6 +26,7 @@ onShow(refresh)
     <view class="schedule-results">
       <DoctorCard v-for="doctor in scheduledDoctors" :key="selectedDay.date + '-' + doctor.id"
         :doctor="doctor" :date="selectedDay.date" :department="!clinic" />
+      <view v-if="selectedDay && !scheduledDoctors.length" class="empty-results" role="status">当日暂无排班</view>
     </view>
   </view>
 </template>
@@ -34,4 +35,5 @@ onShow(refresh)
 .schedule-page { min-height: 100vh; display: flex; flex-direction: column; color: #101010; }
 .schedule-header { position: sticky; z-index: 1; top: 0; background: #fff; }
 .schedule-results { flex: 1; padding: 12rpx 32rpx 32rpx; background: linear-gradient(180deg,#a4cff1,#f4f4f6 69%); }
+.empty-results { padding: 64rpx 24rpx; text-align: center; color: #536777; font-size: 26rpx; }
 </style>

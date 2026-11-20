@@ -4,13 +4,13 @@ import { onUnload } from '@dcloudio/uni-app'
 import { submitFeedback } from '@/mock/feedback.js'
 
 const IMAGE_LIMIT = 3
-const NOTICE_KEY = 'feedback-image-notice-seen'
+const NOTICE_KEY = 'feedback-image-notice-agreed'
 const message = ref('')
 const images = ref([])
 const showNotice = ref(false)
 const submission = ref('idle')
 const submitting = computed(() => submission.value !== 'idle')
-let noticeSeen = uni.getStorageSync(NOTICE_KEY) === true
+let noticeAgreed = uni.getStorageSync(NOTICE_KEY) === true
 let choosing = false
 let unloaded = false
 
@@ -40,17 +40,17 @@ async function chooseImages() {
 }
 
 function addImages() {
-  if (noticeSeen) return chooseImages()
+  if (noticeAgreed) return chooseImages()
   uni.hideKeyboard()
   showNotice.value = true
 }
 
-function dismissNotice(continuePicking) {
+function dismissNotice(agree) {
   showNotice.value = false
-  noticeSeen = true
-  // 只记录提示已展示，系统相册和相机权限由微信处理。
+  if (!agree) return
+  noticeAgreed = true
   uni.setStorage({ key: NOTICE_KEY, data: true })
-  if (continuePicking) chooseImages()
+  chooseImages()
 }
 
 async function submit() {
@@ -71,10 +71,14 @@ async function submit() {
   if (unloaded) return
   submission.value = 'complete'
   uni.hideLoading()
-  uni.navigateBack({
-    success: () => uni.showToast({ title: '模拟提交成功', icon: 'success', duration: 1500 }),
-    fail: () => { submission.value = 'idle' },
-  })
+  message.value = ''
+  images.value = []
+  function showSuccess() {
+    submission.value = 'idle'
+    uni.showToast({ title: '模拟提交成功', icon: 'success', duration: 1500 })
+  }
+  if (getCurrentPages().length > 1) uni.navigateBack({ complete: showSuccess })
+  else showSuccess()
 }
 </script>
 

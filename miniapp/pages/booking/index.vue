@@ -1,13 +1,13 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onTabItemTap } from '@dcloudio/uni-app'
 import { bookingMode as mode } from './booking-mode.js'
 import DateStrip from './components/date_strip.vue'
 import { openBooking } from '@/utils/booking-navigation.js'
 import DoctorCard from './components/doctor_card.vue'
 import { useBookingCalendar } from './booking-calendar.js'
 import { doctors } from '@/mock/doctors.js'
-import { handleTabShow } from '@/utils/guest-tab.js'
+import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
 
 const modes = [
   { key: 'department', label: '按科室' },
@@ -26,6 +26,7 @@ onShow(() => {
   handleTabShow('/pages/booking/index')
   refresh()
 })
+onTabItemTap(() => requestTabLogin('/pages/booking/index'))
 </script>
 
 <template>
@@ -54,6 +55,7 @@ onShow(() => {
       <view v-if="mode === 'date' || mode === 'doctor'" class="doctor-list">
         <DoctorCard v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id"
           :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" />
+        <view v-if="!visibleDoctors.length" class="empty-results" role="status">{{ mode === 'date' ? '当日暂无排班' : '未找到匹配的医生' }}</view>
       </view>
     </view>
   </view>
@@ -77,4 +79,5 @@ onShow(() => {
 .search-input { flex: 1; min-width: 0; height: 100%; color: #101010; font-size: 25rpx; }
 .search-clear { display: flex; align-items: center; justify-content: flex-end; width: 48rpx; height: 100%; }
 .doctor-list { padding-top: 2rpx; }
+.empty-results { padding: 64rpx 24rpx; text-align: center; color: #536777; font-size: 26rpx; }
 </style>

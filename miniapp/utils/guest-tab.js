@@ -2,6 +2,8 @@ import { session } from '@/mock/session.js'
 
 let activeTab = ''
 let publicEntry = ''
+let loginTimer
+let openingLogin = false
 
 export function switchFromHomeCard(url) {
   publicEntry = url
@@ -14,11 +16,16 @@ export function handleTabShow(url) {
   activeTab = url
   publicEntry = ''
   // 从二级页返回也会触发 onShow，此时仍是原来的底栏页。
-  if (session.value || !changed || fromHomeCard || url === '/pages/index/index') return
-  setTimeout(() => {
+  if (changed && !fromHomeCard && url !== '/pages/index/index') requestTabLogin(url)
+}
+
+export function requestTabLogin(url) {
+  if (session.value || openingLogin || publicEntry === url) return
+  clearTimeout(loginTimer)
+  loginTimer = setTimeout(() => {
     const pages = getCurrentPages()
-    if ('/' + pages[pages.length - 1]?.route === url) {
-      uni.navigateTo({ url: '/pages/ucenter/login' })
-    }
+    if (session.value || '/' + pages[pages.length - 1]?.route !== url) return
+    openingLogin = true
+    uni.navigateTo({ url: '/pages/ucenter/login', complete: () => { openingLogin = false } })
   }, 0)
 }

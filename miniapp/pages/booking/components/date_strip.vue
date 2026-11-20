@@ -1,16 +1,17 @@
 <script setup>
-defineProps({
+const props = defineProps({
   schedule: { type: Array, required: true },
   selected: { type: String, default: '' },
   compact: Boolean,
 })
 defineEmits(['select'])
+const initialAnchor = props.selected && props.selected !== props.schedule[0]?.date ? 'day-' + props.selected : ''
 </script>
 
 <template>
-  <scroll-view scroll-x class="date-strip" :show-scrollbar="false">
+  <scroll-view scroll-x class="date-strip" :scroll-into-view="initialAnchor" :show-scrollbar="false">
     <view class="date-options" :class="{ compact }">
-      <view v-for="item in schedule" :key="item.date" class="date-option"
+      <view v-for="item in schedule" :key="item.date" :id="'day-' + item.date" class="date-option"
         :class="{ 'date-selected': item.date === selected }" role="button" @tap="$emit('select', item)">
         <text>{{ item.weekday }}</text><text class="calendar-date">{{ item.label }}</text>
       </view>

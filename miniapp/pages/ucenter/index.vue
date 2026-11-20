@@ -1,9 +1,10 @@
 <script setup>
-import { onShow } from '@dcloudio/uni-app'
-import { handleTabShow } from '@/utils/guest-tab.js'
+import { onShow, onTabItemTap } from '@dcloudio/uni-app'
+import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
 import { endDemoSession, session } from '@/mock/session.js'
 
 onShow(() => handleTabShow('/pages/ucenter/index'))
+onTabItemTap(() => requestTabLogin('/pages/ucenter/index'))
 
 const services = [
   { label: '预约记录', icon: 'registration', url: '/pages/ucenter/appointments' },

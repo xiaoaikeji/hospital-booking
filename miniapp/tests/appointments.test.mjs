@@ -4,7 +4,7 @@ import {
   allowedActions, bookingStatus, createAppointment, demoResults, getAvailableSlots,
   listAppointments, listPatients, newAppointmentNo, nextChangeAt, updateAppointment,
 } from '../mock/appointments.js'
-import { getBookingSchedule } from '../mock/booking-schedule.js'
+import { getBookingSchedule, getBookingSlots } from '../mock/booking-schedule.js'
 
 beforeEach(() => {
   const storage = new Map()
@@ -14,6 +14,16 @@ beforeEach(() => {
   }
   demoResults.paymentApproved = true
   demoResults.refundApproved = true
+})
+
+test('remaining seats stay stable across midnight until the slot starts', () => {
+  const evening = new Date(2026, 10, 20, 23, 59)
+  const day = getBookingSchedule(evening)[1]
+  const before = getBookingSlots(day, 2, evening)
+  assert.deepEqual(getBookingSlots(day, 2, new Date(2026, 10, 21, 0, 1)), before)
+  const atNine = getBookingSlots(day, 2, new Date(2026, 10, 21, 9))
+  assert.deepEqual(atNine.slice(0, 3).map(slot => slot.remaining), [0, 0, 0])
+  assert.deepEqual(atNine.slice(3), before.slice(3))
 })
 
 function form(doctorId) {
