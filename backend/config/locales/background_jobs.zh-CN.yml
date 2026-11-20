@@ -1,0 +1,7 @@
+zh-CN:
+  background_jobs:
+    cron:
+      wechat_mini_program_audit_poll: 小程序审核结果查询
+      wechat_illegal_records: 微信违规记录同步
+      wechat_result_notifications: 微信结果通知
+      notification_delivery: 通知投递检查

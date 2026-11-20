@@ -1,0 +1,52 @@
+<% content_for :title, "后台任务 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "后台任务", icon: :chart } do %>
+  <span class="text-secondary small">只读快照<% if @overview %> · <%= l(@overview.captured_at, format: "%H:%M:%S") %><% end %></span>
+<% end %>
+<% if @unavailable %>
+  <section class="card" data-jobs-unavailable><%= render "admins/shared/list_empty", icon: :alert, title: "暂时读不到任务服务", description: "无法连接任务 Redis，请稍后刷新。此时无法判断队列或工作进程状态。" %></section>
+<% else %>
+  <% waiting = @overview.queues.sum(&:waiting); busy = @overview.queues.sum(&:busy) %>
+  <div class="row g-3 mb-3">
+    <% [["工作进程", @overview.processes.size, :users, "primary", "执行中 #{busy} 个任务"], ["队列等待", waiting, :clock, "primary", "延时等待 #{@overview.scheduled} 个"], ["等待重试", @overview.retries, :rotate, "warning", "等待 Sidekiq 自动重试"], ["最终失败", @overview.dead, :alert, "danger", "已进入最终失败集合"]].each do |label, value, icon, color, hint| %>
+      <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="d-flex align-items-center gap-3"><span class="avatar bg-<%= color %>-lt"><%= render "layouts/admins/icon", name: icon %></span><div><div class="subheader"><%= label %></div><div class="h1 mb-0 mt-1"><%= number_with_delimiter(value) %></div></div></div><div class="text-secondary mt-3 small"><%= hint %></div></div></div></div>
+    <% end %>
+  </div>
+  <% if @overview.processes.empty? %><div class="alert alert-warning">当前没有工作进程心跳，任务可能无人处理。请检查 Sidekiq 进程。</div><% end %>
+  <section class="card mb-3" aria-label="队列当前分布">
+    <div class="card-header"><div><h2 class="card-title">队列当前分布</h2><div class="card-subtitle">同一刻的等待与执行数量 · <span class="text-primary">● 等待</span> <span class="text-success">● 执行</span></div></div></div>
+    <div class="card-body">
+      <% maximum = [@overview.queues.map { |q| q.waiting + q.busy }.max.to_i, 1].max %>
+      <% @overview.queues.each do |queue| %>
+        <div class="mb-3" data-job-queue="<%= queue.name %>"><div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><span class="fw-medium text-break"><%= queue.name %></span><span class="text-secondary small">等待 <%= number_with_delimiter(queue.waiting) %> · 执行 <%= number_with_delimiter(queue.busy) %></span></div><div class="progress" role="img" aria-label="<%= queue.name %>：等待 <%= queue.waiting %>，执行 <%= queue.busy %>"><div class="progress-bar bg-primary" style="width: <%= queue.waiting * 100.0 / maximum %>%"></div><div class="progress-bar bg-success" style="width: <%= queue.busy * 100.0 / maximum %>%"></div></div></div>
+      <% end %>
+      <% if waiting.zero? && busy.zero? %><p class="text-secondary mb-0" data-jobs-empty>队列为空，当前没有等待或执行中的任务。</p><% end %>
+    </div>
+  </section>
+  <section class="card mb-3" aria-label="当前工作进程">
+    <div class="card-header"><h2 class="card-title">当前工作进程</h2></div>
+    <% if @overview.processes.empty? %><div class="card-body text-secondary">暂无工作进程心跳</div><% else %>
+      <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>进程 / 队列</th><th>执行 / 并发</th><th class="d-none d-md-table-cell">最近心跳</th><th>状态</th></tr></thead><tbody>
+        <% @overview.processes.each do |process| %><tr><td class="text-break"><%= process.hostname %> · <%= process.pid %><div class="text-secondary small"><%= process.queues.join("、") %></div><div class="d-md-none text-secondary small">心跳 <%= admin_list_time(process.heartbeat_at) %></div></td><td><%= process.busy %> / <%= process.concurrency %></td><td class="d-none d-md-table-cell"><%= admin_list_time(process.heartbeat_at) %></td><td><span class="badge bg-<%= process.quiet ? 'warning' : 'success' %>-lt"><%= process.quiet ? "停止接单" : "运行中" %></span></td></tr><% end %>
+      </tbody></table>
+    <% end %>
+  </section>
+  <section class="card mb-3" aria-label="定时任务">
+    <div class="card-header"><div><h2 class="card-title">定时任务</h2><div class="card-subtitle">上次入队由调度器记录，执行完成及结果由工作进程记录。</div></div></div>
+    <% if @overview.cron_jobs.empty? %><div class="card-body text-secondary">本项目尚未配置定时任务。</div><% else %>
+      <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>任务 / 规则</th><th class="d-none d-lg-table-cell">上次入队</th><th class="d-none d-lg-table-cell">上次执行完成</th><th>最近执行结果</th></tr></thead><tbody>
+        <% @overview.cron_jobs.each do |job| %><tr data-job-cron="<%= job.name %>"><td><div class="fw-medium"><%= job.label %></div><div class="text-secondary small text-break"><%= job.name %></div><div class="text-secondary small text-break"><%= job.cron %> · <%= job.queue %></div><div class="d-lg-none small mt-1">上次入队：<%= admin_list_time(job.enqueued_at) %><br>执行完成：<%= admin_list_time(job.finished_at) %></div></td><td class="d-none d-lg-table-cell"><%= admin_list_time(job.enqueued_at) %></td><td class="d-none d-lg-table-cell"><%= admin_list_time(job.finished_at) %></td><td>
+          <% if job.succeeded.nil? %><span class="text-secondary">暂无执行记录</span><% else %><span class="badge bg-<%= job.succeeded ? 'success' : 'danger' %>-lt"><%= job.succeeded ? "成功" : "失败" %></span><% unless job.succeeded %><div class="text-danger small text-break mt-1"><%= job.error_class %></div><% end %><% end %>
+          <% if job.enqueued_at && (!job.finished_at || job.enqueued_at > job.finished_at) %><div class="text-secondary small mt-1">最近入队尚无完成记录</div><% end %>
+        </td></tr><% end %>
+      </tbody></table>
+    <% end %>
+  </section>
+  <section class="card" aria-label="最近失败详情">
+    <div class="card-header"><div><h2 class="card-title">最近失败详情</h2><div class="card-subtitle">重试集合前 1000 条与最终失败集合最新 20 条中，按最近失败时间显示最多 20 条。隐藏参数、报错正文及回溯。</div></div></div>
+    <% if @overview.failures.empty? %><div class="card-body text-secondary">当前没有等待重试或最终失败的任务。</div><% else %>
+      <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>任务 / 错误类型</th><th class="d-none d-md-table-cell">最近失败</th><th>状态 / 已重试</th></tr></thead><tbody>
+        <% @overview.failures.each do |job| %><tr><td><div class="fw-medium text-break"><%= job.job_class %></div><div class="text-danger small text-break"><%= job.error_class %></div><div class="text-secondary small text-break">队列 <%= job.queue %></div><div class="d-md-none text-secondary small"><%= admin_list_time(job.failed_at) %></div></td><td class="d-none d-md-table-cell"><%= admin_list_time(job.failed_at) %></td><td><span class="badge bg-<%= job.state == 'retry' ? 'warning' : 'danger' %>-lt"><%= job.state == 'retry' ? "等待重试" : "最终失败" %></span><div class="text-secondary small mt-1">已重试 <%= job.retry_count %> 次</div></td></tr><% end %>
+      </tbody></table>
+    <% end %>
+  </section>
+<% end %>

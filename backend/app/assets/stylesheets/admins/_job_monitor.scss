@@ -1,0 +1,9 @@
+.job-monitor-table {
+  th, td { overflow-wrap: anywhere; }
+  th:first-child { width: 38%; }
+  @media (max-width: 767px) {
+    th:first-child { width: 57%; }
+    td { vertical-align: top; }
+    th, td { padding: .75rem .5rem; }
+  }
+}

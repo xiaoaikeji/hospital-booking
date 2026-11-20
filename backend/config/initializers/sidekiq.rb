@@ -13,6 +13,7 @@ Sidekiq.configure_client { |config| config.redis = redis_options }
 Sidekiq.configure_server do |config|
   config.redis = redis_options
   config.on(:startup) do
+    config.server_middleware { |chain| chain.add BackgroundJobOverview::CronResultRecorder }
     config.server_middleware { |chain| chain.add StorageConfiguration::JobMiddleware }
     pool = ActiveRecord::Base.connection_db_config.max_connections
     if config.total_concurrency > pool

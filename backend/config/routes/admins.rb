@@ -6,6 +6,7 @@ namespace :admins do
     get :background, on: :member
   end
   resource :poster_code, only: :create
+  resource :background_jobs, only: :show
   resource :account, only: %i[edit update]
   resources :mini_program_releases, only: %i[index show] do
     get :templates, on: :collection
