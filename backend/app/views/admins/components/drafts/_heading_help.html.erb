@@ -1,0 +1,63 @@
+<div class="col-12" id="draft-heading-help" data-help-preview>
+  <div class="row g-3">
+    <section class="col-12 col-xl-6" aria-labelledby="draft-banner-title">
+      <div class="card h-100">
+        <div class="card-header">
+          <h2 id="draft-banner-title" class="card-title d-flex align-items-center gap-1 mb-0">
+            首页轮播
+            <%= render "admins/shared/field_help", label: "查看轮播生效时间", text: "小程序下次启动时读取更新。" %>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="draft-banner-name" class="form-label required">名称</label>
+              <input id="draft-banner-name" class="form-control" value="门诊服务" required>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                <label for="draft-banner-order" class="form-label required mb-0">排序</label>
+                <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
+              </div>
+              <input id="draft-banner-order" class="form-control" type="number" value="10" required>
+            </div>
+            <div class="col-12">
+              <label for="draft-banner-note" class="form-label">备注</label>
+              <input id="draft-banner-note" class="form-control" value="春季活动">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="col-12 col-xl-6" aria-labelledby="draft-message-title">
+      <div class="card h-100">
+        <div class="card-header">
+          <h2 id="draft-message-title" class="card-title d-flex flex-wrap align-items-center gap-1 mb-0">
+            <span>门诊服务公众号 · 就诊提醒模板消息</span>
+            <%= render "admins/shared/field_help", label: "查看模板适用范围", text: "此绑定仅用于当前公众号。" %>
+            <span class="badge bg-success-lt">已启用</span>
+          </h2>
+        </div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                <label for="draft-message-template" class="form-label required mb-0">模板 ID</label>
+                <%= render "admins/shared/field_help", label: "查看模板 ID 来源", text: "从当前公众号的模板库复制 ID。" %>
+                <span class="badge bg-primary-lt">已绑定</span>
+              </div>
+              <input id="draft-message-template" class="form-control" value="demo-template-id" required>
+            </div>
+            <div class="col-md-6">
+              <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+                <label for="draft-message-event" class="form-label mb-0">通知场景</label>
+                <span class="badge bg-secondary-lt">系统默认</span>
+              </div>
+              <input id="draft-message-event" class="form-control" value="就诊提醒" readonly>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>

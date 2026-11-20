@@ -1,6 +1,10 @@
 <% content_for :head do %>
   <%= javascript_include_tag "admins/notification_variables", "admins/component_drafts", defer: true %>
   <style>
+    [data-help-preview] button[data-bs-toggle="tooltip"] .icon {
+      --tblr-icon-size: 1.125em;
+      font-size: inherit;
+    }
     [data-draft-job-slot][aria-pressed="true"] {
       box-shadow: inset 0 0 0 2px var(--tblr-body-color);
     }
@@ -8,6 +12,7 @@
 <% end %>
 
 <div class="row row-cards">
+  <%= render "admins/components/drafts/heading_help" %>
   <%= render "admins/components/drafts/message_composer" %>
   <%= render "admins/components/drafts/keyword_order" %>
   <%= render "admins/components/drafts/job_monitor" %>

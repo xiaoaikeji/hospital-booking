@@ -1,7 +1,12 @@
 <% content_for :title, "组件规范 · Booking 管理后台" %>
 <div class="page-header mt-0 mb-3">
   <div class="row g-2 align-items-center">
-    <div class="col-auto"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :package, icon_class: "w-5 h-5" %></span>组件规范</h1></div>
+    <div class="col-auto"><h1 class="page-title fs-1 gap-3">
+      <span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :package, icon_class: "w-5 h-5" %></span>
+      <span class="d-inline-flex align-items-center gap-1">组件规范
+        <%= render "admins/shared/field_help", label: "查看预览说明", text: "预览操作不会保存或上传文件。" %>
+      </span>
+    </h1></div>
     <div class="col-auto ms-auto"><%= link_to "返回预约列表", admins_reservations_path, class: "btn text-nowrap" %></div>
   </div>
 </div>
@@ -21,6 +26,5 @@
     <% end %>
   </div>
 </nav>
-<p class="text-secondary small mb-3">样式预览，操作不会保存或上传文件。</p>
 <%= render "admins/components/#{@tab}" %>
 <%= render "notice_modal" %>
