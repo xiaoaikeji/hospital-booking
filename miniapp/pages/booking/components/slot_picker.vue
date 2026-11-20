@@ -1,17 +1,17 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { getBookingSlots } from '@/mock/booking-schedule.js'
+import { getAvailableSlots } from '@/mock/appointments.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
   doctorId: { type: Number, required: true },
   date: { type: String, required: true },
-  slot: { type: String, default: '' },
+  selectedSlot: { type: String, default: '' },
 })
 const emit = defineEmits(['cancel', 'confirm'])
 const day = ref(props.schedule.find(item => item.date === props.date) || props.schedule[0])
-const slots = computed(() => getBookingSlots(day.value, props.doctorId))
-const choice = ref(slots.value.find(item => item.label === props.slot && item.remaining > 0)?.label || '')
+const slots = computed(() => getAvailableSlots(day.value, props.doctorId))
+const choice = ref(slots.value.find(item => item.label === props.selectedSlot && item.remaining > 0)?.label || '')
 const initialAnchor = 'day-' + day.value.date
 
 function selectDay(item) {

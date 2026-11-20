@@ -5,7 +5,7 @@ export const doctors = [
     department: '耳鼻喉科',
     mockRanks: { satisfaction: 1, recommendation: 1 },
     visits: 9762,
-    fee: 10,
+    fee: 0,
     title: '主任',
     portrait: '/static/home/doctor-chu.jpg',
     credentials: ['中华医学会耳鼻喉科学会委员', '中国耳鼻喉微创治疗协会荣誉会员', '曾任职北京武警三院耳鼻喉科主任'],
