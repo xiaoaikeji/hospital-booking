@@ -11,8 +11,8 @@ class OfficialAccountFan < ApplicationRecord
     "ADD_SCENE_CHANNELS" => "视频号", "ADD_SCENE_WXA" => "小程序关注", "ADD_SCENE_OTHERS" => "其他"
   }.freeze
 
-  def channel
-    qr_scene.presence || SCENES.fetch(scene, scene)
+  def channel(names = {})
+    names[qr_scene] || qr_scene.presence || SCENES.fetch(scene, scene)
   end
 
   def supersedes?(time, event:, subscribed:)

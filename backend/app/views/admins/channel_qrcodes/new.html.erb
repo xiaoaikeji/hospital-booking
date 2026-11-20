@@ -1,0 +1,26 @@
+<% content_for :title, "新增渠道二维码 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "新增渠道二维码", icon: :qrcode } do %>
+  <%= link_to list_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+<%= form_with model: @code, url: admins_app_channel_qrcodes_path(@app, params.permit(:q, :page)), class: "card", data: { admin_form: true } do |form| %>
+  <div class="card-body">
+    <%= hidden_field_tag :form_key, @key %>
+    <div class="row g-3">
+      <div class="col-12 col-lg-5">
+        <label for="channel-account" class="form-label">公众号</label>
+        <input id="channel-account" class="form-control" readonly value="<%= @app.display_name %>">
+        <div class="form-hint">AppID <%= @app.appid %></div>
+      </div>
+      <div class="col-12 col-lg-5">
+        <%= form.label :name, "渠道码名称", class: "form-label required" %>
+        <%= form.text_field :name, maxlength: 60, size: nil, required: true, placeholder: "例如 门诊大厅海报", class: admin_field_class(@code, :name), aria: { describedby: "channel-name-hint", invalid: @code.errors[:name].any? } %>
+        <%= admin_field_errors(@code, :name) %>
+        <div class="form-hint" id="channel-name-hint">创建后名称和二维码固定，可长期印在物料上。</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-footer d-flex flex-wrap gap-2">
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+    <%= link_to list_path, class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
+  </div>
+<% end %>

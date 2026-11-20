@@ -10,12 +10,7 @@
 <% if @app %>
   <section class="card mb-3">
     <div class="list-group list-group-flush">
-      <div class="list-group-item py-2"><div class="row g-2 align-items-center">
-        <div class="col-12 col-md-2 col-xl-1 text-secondary">公众号</div>
-        <div class="col"><nav class="nav nav-pills" aria-label="公众号">
-          <% @accounts.each do |account| %><%= link_to account.display_name, admins_official_account_fans_path(filters.merge(app_id: account.id)), class: class_names("nav-link", active: @app == account), aria: { current: ("page" if @app == account) } %><% end %>
-        </nav></div>
-      </div></div>
+      <%= render "admins/shared/list_filter_row", label: "公众号", key: :app_id, options: @accounts.to_h { |account| [account.id, account.display_name] }, include_all: false, selected: @app.id, filter_url: ->(overrides) { admins_official_account_fans_path(filters.merge(overrides)) } %>
       <%= render "admins/shared/list_filter_row", label: "关注状态", key: :status, options: { "subscribed" => "关注中", "unsubscribed" => "已取关" }, selected: @status, filter_url: ->(overrides) { admins_official_account_fans_path(filters.merge(overrides).compact) } %>
     </div>
   </section>
@@ -43,7 +38,7 @@
             <td class="px-2"><%= render "admins/shared/list_text", text: user.nickname.presence || user.user_no, url: admins_app_fan_path(@app, fan, filters.except(:app_id).merge(page: params[:page]).compact) %>
               <% if user.nickname.present? %><small class="d-block text-secondary"><%= user.user_no %></small><% end %></td>
             <td class="px-2"><%= render "status", fan: fan %></td>
-            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: fan.channel.presence || "—" %></td>
+            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: fan.channel(@channels).presence || "—" %></td>
             <td class="d-none d-lg-table-cell"><%= @joined.include?(user.id) ? "是" : "否" %></td>
             <td class="d-none d-lg-table-cell"><%= admin_list_time(fan.subscribed_at) %></td>
             <td class="d-none d-xl-table-cell"><%= admin_list_time(fan.unsubscribed_at) %></td>

@@ -139,7 +139,8 @@ module WechatPlatform
         scene = info["subscribe_scene"].presence
         scene_key = qr_scene.presence || info["qr_scene_str"].presence
         fan.scene = scene if event || scene
-        fan.qr_scene = scene_key if event || scene_key || (scene && scene != "ADD_SCENE_QR_CODE")
+        # 微信没有返回新的扫码渠道时保留最近一次扫码关注来源，供渠道人数统计。
+        fan.qr_scene = scene_key if scene_key
       elsif event == "unsubscribe"
         fan.unsubscribed_at = at
       end
