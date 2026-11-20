@@ -1,7 +1,5 @@
 <% content_for :title, "小程序页面配置 · Booking 管理后台" %>
 <% content_for :fill_content, "true" if @links.empty? %>
-<% content_for :head do %><%= javascript_include_tag "admins/page_links", defer: true %><% end %>
-<%= render "admins/shared/enhanced_select_assets" %>
 <% context = { app_id: @app&.id, position: @position } %>
 <% item_label = @position == "home_banner" ? "轮播图" : "菜单项" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "小程序页面配置", icon: :device_mobile } do %>
@@ -10,17 +8,8 @@
 
 <section class="card mb-3 flex-shrink-0" aria-label="页面配置筛选条件">
   <div class="list-group list-group-flush">
-    <%= form_with url: admins_page_links_path, method: :get, class: "list-group-item py-2" do %>
-      <%= hidden_field_tag :position, @position %>
-      <div class="row g-2 align-items-center">
-        <%= label_tag "page-link-scope", "配置范围", class: "col-12 col-md-2 col-xl-1 text-secondary" %>
-        <div class="col-12 col-md-7 col-xl-5">
-          <%= select_tag :app_id, options_for_select([["通用配置", ""], *@scope_options], @app&.id || ""),
-            id: "page-link-scope", class: "form-select", data: { enhanced_select: "single", page_link_scope: true }, aria: { label: "配置范围" } %>
-          <noscript><button class="btn mt-2" type="submit">切换</button></noscript>
-        </div>
-      </div>
-    <% end %>
+    <%= render "admins/shared/list_filter_row", label: "配置范围", key: :app_id, options: @scope_options,
+      selected: @app&.id, include_all: false, row_class: "text-break", filter_url: ->(changes) { admins_page_links_path(context.merge(changes)) } %>
     <%= render "admins/shared/list_filter_row", label: "展示位置", key: :position, options: Link::POSITIONS,
       selected: @position, include_all: false, filter_url: ->(changes) { admins_page_links_path(context.merge(changes)) } %>
   </div>

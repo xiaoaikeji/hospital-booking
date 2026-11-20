@@ -1,7 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const scope = document.querySelector("[data-page-link-scope]");
-  scope?.addEventListener("change", () => scope.form.requestSubmit());
-
   const form = document.querySelector("[data-page-link-form]");
   if (!form) return;
 

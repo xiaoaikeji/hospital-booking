@@ -14,8 +14,13 @@ module Admins
       rows = @managed ? @group.records : @group.effective
       @pagy = Pagy::Offset.new(count: rows.size, page: [ params[:page].to_s.to_i, 1 ].max, limit: 20)
       @links = rows.slice(@pagy.offset, @pagy.limit)
-      @apps = App.wechat_mini_programs.order(:nickname, :appid)
-      @scope_options = @apps.map { |app| [ "#{app.display_name} · #{app.appid}", app.id ] }
+      apps = App.wechat_mini_programs.order(:nickname, :appid).to_a
+      names = ([ "通用配置" ] + apps.map(&:display_name)).tally
+      @scope_options = { nil => "通用配置" }
+      apps.each do |app|
+        name = app.display_name
+        @scope_options[app.id] = names.fetch(name) > 1 ? "#{name} · #{app.appid}" : name
+      end
     end
 
     def new
