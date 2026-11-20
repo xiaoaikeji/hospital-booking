@@ -3,4 +3,7 @@ Rails.application.config.to_prepare do
     activity_name: { label: "活动名称", type: "text", example: "周末活动" },
     starts_at: { label: "开始时间", type: "time", example: "2026-11-28 14:00" }
   })
+  WechatPlatform::NotificationSettings::LABELS.each do |kind, label|
+    Notifications::EventCatalog.register(kind, label: label, fields: WechatPlatform::NotificationContents.fields(kind), template_message: false)
+  end
 end

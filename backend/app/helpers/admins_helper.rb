@@ -7,6 +7,7 @@ module AdminsHelper
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
       [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ],
+      [ "企微通知文案", edit_admins_system_settings_wecom_notification_content_path, "admins/system_settings/wecom_notification_contents" ],
       [ "微信通知设置", edit_admins_system_settings_wechat_notifications_path, "admins/system_settings/wechat_notifications" ]
     ]
   end

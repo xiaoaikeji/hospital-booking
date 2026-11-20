@@ -22,7 +22,7 @@ module Notifications
     end
 
     def bind!(event:, template_id:, mapping:, revision:, actor:, request: nil)
-      definition = EventCatalog.fetch(event)
+      definition = EventCatalog.for_templates.fetch(event) { raise Error, "该事件不能绑定微信模板消息" }
       template = templates.find { |t| t["template_id"] == template_id } || raise(Error, "请选择本公众号已有的微信模板")
       fields = self.class.fields(template["content"])
       mapping = mapping.to_h.stringify_keys
@@ -37,7 +37,7 @@ module Notifications
 
     # 收件人、计划时间、真实数据和跳转由业务提供。只读已确认绑定，不再访问模板列表或重新猜字段。
     def deliver(event:, subject:, recipients:, data:, idempotency_key:, scheduled_at: nil, jump: {})
-      definition = EventCatalog.fetch(event)
+      definition = EventCatalog.for_templates.fetch(event) { raise Error, "该事件不能绑定微信模板消息" }
       binding = @config.data.dig("template_bindings", event) || raise(Error, "请先为本公众号配置微信模板消息")
       values = data.stringify_keys
       raise Error, "业务数据缺少必要字段" unless definition["fields"].keys.all? { |key| values[key].present? }

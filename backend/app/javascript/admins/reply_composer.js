@@ -5,18 +5,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const items = root.querySelector("[data-reply-items]"), preview = root.querySelector("[data-reply-preview]");
   const error = root.querySelector("[data-reply-error]");
   const scope = document.getElementById("reply-scope");
-  let busy = false;
+  const variables = JSON.parse(root.dataset.variables || "{}");
+  const examples = JSON.parse(root.dataset.examples || "{}");
+  let busy = false, dirty = false, lastTextArea = null;
   const node = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   function field(parent, title, key, value, multiline = false) {
     const label = node("label", "form-label", title);
     const control = node(multiline ? "textarea" : "input", "form-control mb-3");
     control.id = "reply-" + crypto.randomUUID(); label.htmlFor = control.id;
     control.value = value || ""; control.dataset.content = key;
+    if (key === "text") control.addEventListener("focus", () => { lastTextArea = control; });
     if (multiline) control.rows = 3;
     parent.append(label, control); return control;
   }
   function read() {
-    reply.name = document.getElementById("reply-name").value;
+    const name = document.getElementById("reply-name");
+    if (name) reply.name = name.value;
     items.querySelectorAll("[data-message-index]").forEach(box => {
       const m = reply.messages[Number(box.dataset.messageIndex)];
       box.querySelectorAll("[data-content]").forEach(control => { m.content[control.dataset.content] = control.value; });
@@ -26,7 +30,8 @@ document.addEventListener("DOMContentLoaded", () => {
     read(); preview.replaceChildren();
     reply.messages.forEach(m => {
       const box = node("div", "card card-body mb-2 text-break"); box.style.whiteSpace = "pre-wrap";
-      box.textContent = m.type === "text" ? m.content.text || "文字预览" : [m.content.title || "小程序卡片", m.content.appid, m.content.pagepath, m.content.thumb_media_id ? "封面已选择" : "请选择封面"].filter(Boolean).join("\n");
+      const rendered = window.NotificationVariables ? window.NotificationVariables.render(m.content.text, variables, examples) : m.content.text;
+      box.textContent = m.type === "text" ? (rendered || "当前示例无文字内容") : [m.content.title || "小程序卡片", m.content.appid, m.content.pagepath, m.content.thumb_media_id ? "封面已选择" : "请选择封面"].filter(Boolean).join("\n");
       if (m.type === "miniprogrampage" && m.content.thumb_media_id) {
         const img = document.createElement("img"); img.className = "rounded mt-2 img-fluid"; img.alt = "小程序卡片封面";
         img.src = m.previewUrl || root.dataset.image + "?" + new URLSearchParams({ media_id: m.content.thumb_media_id, proof: m.proof || "" });
@@ -45,7 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
       [["上移", -1], ["下移", 1], ["删除", 0]].forEach(([label, by]) => {
         const b = node("button", "btn btn-sm", label); b.type = "button";
         b.disabled = busy || (by !== 0 && (i + by < 0 || i + by >= reply.messages.length));
-        b.onclick = () => { read(); if (!by) reply.messages.splice(i, 1); else [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]]; draw(); };
+        b.onclick = () => { dirty = true; read(); if (!by) reply.messages.splice(i, 1); else [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]]; draw(); };
         tools.append(b);
       }); box.append(tools);
       if (m.type === "text") field(box, "文字内容", "text", m.content.text, true);
@@ -71,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
         box.append(label, file, hint);
       }
-      box.addEventListener("input", drawPreview); items.append(box);
+      box.addEventListener("input", () => { dirty = true; drawPreview(); }); items.append(box);
       box.querySelectorAll("select").forEach(select => { if (window.TomSelect) new window.TomSelect(select, { create: false, controlInput: null, dropdownParent: "body" }).focus_node.setAttribute("aria-label", select.getAttribute("aria-label") || "目标小程序"); });
     }); drawPreview();
   }
@@ -83,16 +88,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const result = await response.json(); if (!response.ok) throw new Error(result.error || "保存失败，请核对后重试"); return result;
   }
   root.querySelectorAll("[data-reply-add]").forEach(button => { button.onclick = () => {
-    if (busy) return; read(); reply.messages.push({ id: crypto.randomUUID(), type: button.dataset.replyAdd, content: {} }); draw();
+    if (busy) return; dirty = true; read(); reply.messages.push({ id: crypto.randomUUID(), type: button.dataset.replyAdd, content: {} }); draw();
   }; });
   function toggleScope() { const impact = root.querySelector("[data-reply-impacts]"); if (impact) impact.hidden = scope.value !== "all"; }
   scope?.addEventListener("change", toggleScope); if (scope) toggleScope();
-  document.getElementById("reply-name").addEventListener("input", drawPreview);
+  document.getElementById("reply-name")?.addEventListener("input", () => { dirty = true; drawPreview(); });
+  root.querySelectorAll("[data-insert-variable]").forEach(button => {
+    button.onclick = () => {
+      if (busy) return;
+      if (!lastTextArea || !document.contains(lastTextArea)) lastTextArea = items.querySelector('[data-content="text"]');
+      if (!lastTextArea) {
+        root.querySelector('[data-reply-add="text"]').click();
+        lastTextArea = items.querySelector('[data-content="text"]');
+      }
+      if (!lastTextArea) return;
+      const token = "{" + button.dataset.insertVariable + "}";
+      lastTextArea.setRangeText(token, lastTextArea.selectionStart, lastTextArea.selectionEnd, "end");
+      lastTextArea.dispatchEvent(new Event("input", { bubbles: true })); lastTextArea.focus();
+    };
+  });
+  document.getElementById("restore-content-form")?.addEventListener("submit", () => { dirty = false; });
+  window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
   root.querySelector("[data-reply-save]").onclick = async () => {
     if (busy) return; read(); busy = true; showError("");
     const button = root.querySelector("[data-reply-save]"); button.disabled = true;
     try {
-      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { reply_content: { ...input, scope: scope?.value || input.scope, name: reply.name, messages: reply.messages } });
+      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, name: reply.name, messages: reply.messages } });
+      dirty = false;
       if (root.dataset.inline === "true" && window.opener) { window.opener.postMessage({ type: "booking.reply.saved", ...result, appId: new URL(location.href).pathname.split("/")[3] }, location.origin); window.close(); }
       else location.assign(root.dataset.back);
     } catch (e) { showError(e.message); } finally { busy = false; button.disabled = false; }

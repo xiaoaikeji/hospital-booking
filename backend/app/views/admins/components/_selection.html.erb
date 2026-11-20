@@ -67,3 +67,8 @@
     </fieldset>
   </div>
 </section>
+
+<section class="mt-4" aria-label="通知可用变量预览">
+  <h2 class="h3">通知可用变量</h2><p class="text-secondary">只读预览；实际编辑页可点击变量插入文字。</p>
+  <div class="row"><div class="col-12 col-lg-5"><%= render 'admins/shared/notification_variables', fields: Notifications::ReplyVariables::FIELDS, readonly: true %></div></div>
+</section>

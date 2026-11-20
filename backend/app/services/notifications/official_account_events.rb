@@ -40,13 +40,18 @@ module Notifications
         OfficialAccountFanEvent.receive!(@app, @message["FromUserName"], @message["Event"], @message["CreateTime"].to_i, scene)
       end
       stale = prior&.event_at && prior.event_at.to_i > @message["CreateTime"].to_i
-      selected = stale ? [] : selected_replies(prior, subscribe)
+      config = @config.data
+      groups = config.fetch("replies", {})
+      selected = stale ? [] : selected_replies(prior, subscribe, config)
+      values = ReplyVariables.values(@app, @message) if selected.any? { |id| groups[id]&.fetch("variables_version", nil) == 1 }
       xml = nil
       @callback.transaction do
         messages = selected.each_with_index.flat_map do |id, index|
-          group = @config.replies[id]
+          group = groups[id]
           next [] unless group
-          group.fetch("messages").deep_dup.map do |message|
+          content = group.fetch("messages").deep_dup
+          content = Variables.render(content, fields: ReplyVariables::FIELDS, data: values) if group["variables_version"] == 1
+          content.map do |message|
             message["id"] = "#{index}:#{message['id']}" if selected.size > 1
             message
           end
@@ -71,8 +76,7 @@ module Notifications
 
     def event_name = @message["MsgType"] == "text" ? "official_account.keyword" : "official_account.#{@message['Event'].downcase}"
 
-    def selected_replies(prior, subscribe)
-      data = @config.data
+    def selected_replies(prior, subscribe, data)
       if @message["MsgType"] == "text"
         word = @message["Content"].to_s.strip.downcase
         rule = data.fetch("keywords", []).find do |r|
@@ -95,7 +99,7 @@ module Notifications
       scene = @message["EventKey"].to_s.delete_prefix("qrscene_")
       code = OfficialAccountQrcode.find_by(app: @app, scene: scene)
       return subscribe ? [ welcome ].compact : [] unless code
-      binding = @config.code_binding(code.id)
+      binding = data.fetch("qrcodes", {}).fetch(code.id.to_s, { "mode" => "none" })
       case binding["mode"]
       when "welcome" then [ welcome ].compact
       when "reply" then [ binding["reply_id"] ].compact

@@ -4,7 +4,7 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "#{params[:id] ? '编辑' : '新增'}回复内容", icon: :templates } do %>
   <% unless params[:inline] == '1' %><%= link_to "返回列表", admins_reply_contents_path(app_id: @app.id), class: "btn" %><% end %>
 <% end %>
-<div data-reply-editor data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-inline="<%= params[:inline] == '1' %>"
+<div data-reply-editor data-variables="<%= @variable_fields.to_json %>" data-examples="<%= @variable_examples.to_json %>" data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-inline="<%= params[:inline] == '1' %>"
      data-save="<%= params[:id] ? admins_app_reply_content_path(@app, params[:id]) : admins_app_reply_contents_path(@app) %>"
      data-image="<%= image_admins_app_reply_contents_path(@app) %>" data-media="<%= media_admins_app_reply_contents_path(@app) %>" data-back="<%= params[:qrcode_id].present? ? edit_admins_app_channel_qrcode_path(@app, params[:qrcode_id]) : admins_reply_contents_path(app_id: @app.id) %>">
   <div class="alert alert-danger" data-reply-error hidden role="alert"></div>
@@ -21,7 +21,9 @@
         <div class="d-flex flex-wrap gap-2"><button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button><button type="button" class="btn" data-reply-add="miniprogrampage"><%= render "layouts/admins/icon", name: :plus %>新增小程序卡片</button></div>
       </div><div class="card-footer d-flex flex-wrap gap-2"><button class="btn btn-primary" type="button" data-reply-save><%= render "layouts/admins/icon", name: :save %>保存</button><span class="form-hint mb-0 align-self-center">按当前顺序一次保存全部消息。</span></div>
     </section></div>
-    <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">回复预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section></div>
+    <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">回复预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section>
+      <%= render "admins/shared/notification_variables", fields: @variable_fields %>
+    </div>
   </div>
   <template data-reply-card-template><label class="form-label">目标小程序</label><select class="form-select mb-3" data-content="appid"><option value="">请选择</option><% @targets.each do |target| %><%= tag.option target.display_name, value: target.appid %><% end %></select></template>
 </div>

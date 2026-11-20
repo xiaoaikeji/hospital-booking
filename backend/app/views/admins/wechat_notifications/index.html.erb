@@ -2,6 +2,7 @@
 <% empty = @events.empty? %>
 <% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "微信通知记录", icon: :bell } do %>
+  <%= link_to "通知文案", edit_admins_system_settings_wecom_notification_content_path, class: "btn" %>
   <%= link_to "通用发送记录", admins_notifications_path, class: "btn" %>
   <%= link_to edit_admins_system_settings_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :settings %>通知设置<% end %>
 <% end %>

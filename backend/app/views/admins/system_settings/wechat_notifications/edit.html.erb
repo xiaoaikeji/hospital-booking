@@ -2,6 +2,7 @@
 <%= render "admins/system_settings/navigation", title: "微信通知设置" %>
 <% can_clear = @settings.source == "加密数据库"; revision = @settings.revision %>
 <% history_link = capture do %>
+  <%= link_to edit_admins_system_settings_wecom_notification_content_path, class: "btn" do %><%= render "layouts/admins/icon", name: :edit %>通知文案<% end %>
   <%= link_to admins_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>通知记录<% end %>
 <% end %>
 <%= form_with scope: :notification_settings, url: admins_system_settings_wechat_notifications_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>

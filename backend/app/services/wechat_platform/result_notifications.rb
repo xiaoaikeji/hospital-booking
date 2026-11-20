@@ -31,25 +31,22 @@ module WechatPlatform
 
     def self.record(app, kind, event_key, fields)
       return unless NotificationSettings.new.enabled?(kind)
-      lines = { "应用" => app.display_name, "AppID" => app.appid }.merge(fields).merge("时间" => Time.current.strftime("%F %T"))
-      message = [NotificationSettings::LABELS.fetch(kind)]
-      lines.each do |label, raw|
-        next if raw.blank?
-        value = ActionController::Base.helpers.strip_tags(raw.to_s.gsub(/<br\s*\/?>/i, "\n")).strip
-        message << "#{label}：#{value}" if value.present?
-      end
+      content = NotificationContents.new(kind)
+      variables = NotificationContents.data(app, kind, fields)
+      messages = Notifications::Variables.render(content.messages, fields: NotificationContents.fields(kind), data: variables)
+      return if messages.empty?
       WechatNotificationEvent.transaction do
         event = WechatNotificationEvent.create_or_find_by!(app: app, event_key: event_key) do |row|
-          row.assign_attributes(kind: kind, message: message.join("\n"), status: "pending")
+          row.assign_attributes(kind: kind, message: messages.map { |item| item.dig("content", "text") }.join("\n\n"), status: "pending")
         end
         if event.previously_new_record?
           Notifications.dispatch(event: kind, subject: event,
             target: Notifications::Channels::WecomGroup.target(NotificationSettings.new.key, name: "微信审核结果企微群"),
-            messages: [{ id: "msg_1", type: "text", content: { text: event.message.byteslice(0, 2048).scrub("") } }],
+            messages: messages,
             idempotency_key: event_key)
         end
       end
-    rescue ActiveRecord::ActiveRecordError, IntegrationSettings::ConfigurationError => error
+    rescue Notifications::Error, ActiveRecord::ActiveRecordError, IntegrationSettings::ConfigurationError => error
       Rails.logger.warn("微信通知登记失败 app_id=#{app.id} kind=#{kind} error=#{error.class.name}")
     end
 
@@ -61,9 +58,7 @@ module WechatPlatform
       if task
         if settings.enabled?(event.kind)
           Notifications::Delivery.run(task.id)
-          task.reload
-          event.update!(status: task.uncertain? ? "unknown" : task.status,
-            error_code: task.results.filter_map { |r| r.dig("response", "errcode") }.find { |code| code != 0 })
+          event.notification_delivery_finished!(task.reload)
         else
           task.update!(status: "failed", error_message: "通知类型已关闭，未发送")
           event.update!(status: "skipped")

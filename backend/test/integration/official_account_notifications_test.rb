@@ -108,6 +108,66 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "公众号变量使用本账号身份及渠道，文字应答和后续发送在登记时固定" do
+    a_user = User.create!(platform: "wechat", nickname: "甲粉丝")
+    a_identity = UserApp.create!(app: @a, user: a_user, openid: "fan-openid")
+    a_identity.create_official_account_fan!(subscribed: true, observed_at: 1.hour.ago, qr_scene: "original-source")
+    b_user = User.create!(platform: "wechat", nickname: "乙粉丝")
+    b_identity = UserApp.create!(app: @b, user: b_user, openid: "fan-openid")
+    b_identity.create_official_account_fan!(subscribed: true, observed_at: 1.hour.ago)
+    messages = [ { id: "first", type: "text", content: { text: "您好{name}，欢迎来到{app_name}" } },
+      { id: "rest", type: "text", content: { text: "编号：{user_id}\n渠道：{qrcode_name}" } } ]
+    a_id = @config.save_reply!({ revision: @config.revision, name: "变量回复", messages: messages }, actor: @admin)[:id]
+    qr = code("A 入口")
+    @config.bind_code!(qr, mode: "reply", reply_id: a_id, revision: @config.revision, actor: @admin)
+    b_config = Notifications::AccountConfiguration.new(@b)
+    b_id = b_config.save_reply!({ revision: b_config.revision, name: "B 变量回复", messages: messages }, actor: @admin)[:id]
+    b_qr = OfficialAccountQrcode.create!(app: @b, name: "B 入口", scene: qr.scene, ticket: "b-ticket", url: qr.url)
+    b_config.bind_code!(b_qr, mode: "reply", reply_id: b_id, revision: b_config.revision, actor: @admin)
+    seconds = Time.current.to_i.to_s
+    Sidekiq.testing!(:fake) do
+      push(CreateTime: seconds, EventKey: qr.scene)
+      a_task = Notification.sole
+      assert_equal "您好甲粉丝，欢迎来到wxReplyA", a_task.messages.first.dig("content", "text")
+      assert_includes a_task.messages.last.dig("content", "text"), a_user.user_no
+      assert_includes a_task.messages.last.dig("content", "text"), "A 入口"
+      a_user.update!(nickname: "后来改名")
+      2.times { push(CreateTime: seconds, EventKey: qr.scene) }
+      Notifications::Delivery.run(a_task.id)
+      assert_equal 1, @sent.size
+      assert_equal "wxReplyA", @sent.last.first
+      assert_includes @sent.last.last.dig("text", "content"), "A 入口"
+      push(@b, EventKey: b_qr.scene)
+      b_task = Notification.last
+      assert_equal "您好乙粉丝，欢迎来到wxReplyB", b_task.messages.first.dig("content", "text")
+      assert_includes b_task.messages.last.dig("content", "text"), "B 入口"
+      assert_not_includes b_task.messages.last.dig("content", "text"), a_user.user_no
+      assert_equal "original-source", a_identity.official_account_fan.reload.qr_scene
+    end
+    get edit_admins_app_reply_content_path(@a, a_id)
+    assert_select "[data-insert-variable=name]"
+    assert_select "[data-insert-variable=qrcode_name]"
+    assert_select "[data-insert-variable=balance]", count: 0
+  end
+
+  test "旧的静态回复不自动解释大括号，显式保存后才启用变量" do
+    id = SecureRandom.uuid
+    @config.update!(@config.revision, actor: @admin, request: nil, action: "notification.reply_save") do |data|
+      data["replies"] = { id => { "name" => "旧回复", "messages" => [ { "id" => "legacy", "type" => "text", "content" => { "text" => "原样 {literal}" } } ] } }
+    end
+    qr = code
+    @config.bind_code!(qr, mode: "reply", reply_id: id, revision: @config.revision, actor: @admin)
+    Sidekiq.testing!(:fake) do
+      push(EventKey: qr.scene)
+      assert_equal "原样 {literal}", Notification.sole.messages.first.dig("content", "text")
+    end
+    @config.save_reply!({ id: id, revision: @config.revision, impact_revision: @config.impact_revision(id), scope: "all", name: "旧回复", messages: [ { id: "legacy", type: "text", content: { text: "原样 {{literal}}" } } ] }, actor: @admin)
+    Sidekiq.testing!(:fake) do
+      push(EventKey: qr.scene, CreateTime: (Time.current.to_i + 1).to_s)
+      assert_equal "原样 {literal}", Notification.last.messages.first.dig("content", "text")
+    end
+  end
+
   test "首次与再次关注使用不同绑定，重复关注回调不重复发送" do
     first = create_reply
     again = @config.save_reply!({ name: "再次欢迎", revision: @config.revision, messages: [ { id: "again", type: "text", content: { text: "欢迎再次参加" } } ] }, actor: @admin)[:id]

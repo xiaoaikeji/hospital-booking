@@ -54,7 +54,7 @@ module Notifications
         name = input["name"].to_s.strip
         raise Error, "请填写回复内容名称" unless name.size.between?(1, 60)
         config["replies"] ||= {}
-        config["replies"][id] = { "name" => name, "messages" => messages }
+        config["replies"][id] = { "name" => name, "messages" => messages, "variables_version" => 1 }
         if input["qrcode_id"].present?
           code = OfficialAccountQrcode.where(app: app).find(input["qrcode_id"])
           binding = config.fetch("qrcodes", {}).fetch(code.id.to_s, { "mode" => "reply" })
@@ -152,6 +152,7 @@ module Notifications
         { "id" => id, "type" => row["type"], "content" => content }
       end
       raise Error, "消息标识重复" unless messages.map { |m| m["id"] }.uniq.size == messages.size
+      Variables.validate!(messages, fields: ReplyVariables::FIELDS)
       messages
     end
   end

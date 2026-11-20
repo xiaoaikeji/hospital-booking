@@ -76,6 +76,8 @@ module Notifications
       end
       errors = @row.results.filter_map { |r| "#{r['message_id']}：#{r['error_message']}" if r["error_message"].present? }
       @row.update!(status: status, sent_at: all_sent ? Time.current : nil, error_message: errors.join("；").presence)
+      subject = @row.subject
+      subject.notification_delivery_finished!(@row) if subject.respond_to?(:notification_delivery_finished!)
     end
   end
 end

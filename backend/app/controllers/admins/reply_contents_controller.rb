@@ -45,6 +45,8 @@ module Admins
       @input = { id: params[:id], revision: configuration.revision, impact_revision: params[:id] ? configuration.impact_revision(params[:id]) : nil,
         qrcode_id: params[:qrcode_id], scope: params[:qrcode_id].present? || params[:inline] == "1" ? "only" : "all" }
       @impacts = params[:id] ? configuration.impacts(params[:id]) : []
+      @variable_fields = Notifications::ReplyVariables::FIELDS
+      @variable_examples = Notifications::ReplyVariables.examples(@app)
       @targets = App.wechat_mini_programs.order(:nickname, :id)
       render :edit
     end

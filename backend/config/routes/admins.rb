@@ -92,6 +92,7 @@ namespace :admins do
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
     resource :storage, only: %i[edit update], controller: "storage"
+    resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
     resource :wechat_notifications, only: %i[edit update], controller: "wechat_notifications"
     resource :appearance, only: %i[edit update], controller: "appearance"
   end

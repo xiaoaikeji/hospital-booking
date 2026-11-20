@@ -5,9 +5,9 @@
 <% if @app && @templates.present? %>
   <%= render 'admins/shared/enhanced_select_assets' %>
   <% content_for :head do %><%= javascript_include_tag 'admins/template_messages', defer: true %><% end %>
-  <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.definitions.to_json %>" data-bindings="<%= @config.data.fetch('template_bindings', {}).to_json %>" data-revision="<%= @config.revision %>">
+  <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.for_templates.to_json %>" data-bindings="<%= @config.data.fetch('template_bindings', {}).to_json %>" data-revision="<%= @config.revision %>">
     <div class="alert" data-template-feedback hidden role="status"></div>
-    <% Notifications::EventCatalog.definitions.each do |event, definition| %><section class="card mb-3" data-template-event="<%= event %>">
+    <% Notifications::EventCatalog.for_templates.each do |event, definition| %><section class="card mb-3" data-template-event="<%= event %>">
       <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div><div class="card-body">
         <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, @config.data.dig('template_bindings', event, 'template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true } %>
         <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
