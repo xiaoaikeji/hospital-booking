@@ -1,7 +1,9 @@
 <% content_for :head do %>
   <%= javascript_include_tag "admins/notification_variables", "admins/component_drafts", defer: true %>
   <style>
-    [data-draft-job-slot][aria-pressed="true"] { outline: 2px solid var(--tblr-body-color); outline-offset: 2px; }
+    [data-draft-job-slot][aria-pressed="true"] {
+      box-shadow: inset 0 0 0 2px var(--tblr-body-color);
+    }
   </style>
 <% end %>
 
