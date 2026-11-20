@@ -45,6 +45,40 @@ class PostersTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_admin_session_path
   end
 
+  test "wide banner creation and smaller background replacement fit layout while manual invalid coordinates fail safely" do
+    banner_file = poster_file(width: 2000, height: 100)
+    post admins_posters_path, params: { poster: { name: "活动横幅", background: Rack::Test::UploadedFile.new(banner_file.tempfile.path, banner_file.content_type) } }
+    banner = Poster.last
+    assert_redirected_to edit_admins_poster_path(banner)
+    assert_equal [ 2000, 100 ], [ banner.image_width, banner.image_height ]
+    assert_operator banner.qr_y, :>=, 0
+    assert_operator banner.qr_x + banner.qr_size, :<=, 2000
+    assert_operator banner.qr_y + banner.qr_size, :<=, 100
+
+    tall_file = poster_file(width: 1080, height: 1620)
+    post admins_posters_path, params: { poster: { name: "竖版海报", background: Rack::Test::UploadedFile.new(tall_file.tempfile.path, tall_file.content_type) } }
+    poster = Poster.last
+    assert_redirected_to edit_admins_poster_path(poster)
+    square_file = poster_file(width: 800, height: 800)
+    patch admins_poster_path(poster), params: { poster: {
+      name: poster.name, qr_x: poster.qr_x, qr_y: poster.qr_y, qr_size: poster.qr_size,
+      background: Rack::Test::UploadedFile.new(square_file.tempfile.path, square_file.content_type)
+    } }
+    assert_redirected_to edit_admins_poster_path(poster)
+    assert_equal [ 800, 800, 541, 541, 259 ], poster.reload.attributes.values_at("image_width", "image_height", "qr_x", "qr_y", "qr_size")
+
+    original_blob = poster.background.blob
+    another_file = poster_file(width: 600, height: 600)
+    patch admins_poster_path(poster), params: { poster: {
+      name: poster.name, qr_x: 790, qr_y: 541, qr_size: 259,
+      background: Rack::Test::UploadedFile.new(another_file.tempfile.path, another_file.content_type)
+    } }
+    assert_response :unprocessable_content
+    assert_includes response.body, "二维码必须完整放在底图内"
+    assert_includes response.body, "原图 800 × 800 像素"
+    assert_equal original_blob, poster.reload.background.blob
+  end
+
   test "codes and caches isolate applications paths and query and reject revoked authorization" do
     requests = []
     @stubs.post("/wxa/getwxacode") do |env|
