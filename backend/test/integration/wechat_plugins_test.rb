@@ -138,6 +138,33 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     assert WechatPluginUpdate.exists?(app: @b, version: "1.2")
   end
 
+  test "已确认更新后旧名单不回写或重发，名单追上或人工核实后才恢复" do
+    @omit_version = true
+    plugin = { "appid" => "wxTool", "status" => 2, "version" => "1.0" }
+    @rows[@a.appid] = [plugin]
+    url = admins_app_plugin_path(@a, "wxTool")
+    patch url, params: {user_version: "2.0"}
+    op = WechatPluginUpdate.find_by!(app: @a, plugin_appid: "wxTool")
+    get admins_app_path(@a, tab: "plugins")
+    assert_select "input[name=operation_id][value=?]", op.id
+    patch url, params: {user_version: "2.0"}
+    assert_equal "2.0", op.reload.version
+    assert_equal 1, @writes.size
+    plugin["version"] = "2.0"
+    get admins_app_path(@a, tab: "plugins")
+    assert_select "input[name=user_version]"
+    patch url, params: {user_version: "2.0"}
+    assert_equal 1, @writes.size
+    plugin["version"] = "3.0"
+    args = {operation_id: op.id, confirmed: "1"}
+    post verify_admins_app_plugin_path(@a, "wxTool"), params: args.merge(actual_version: "1.0")
+    assert_equal "2.0", op.reload.version
+    post verify_admins_app_plugin_path(@a, "wxTool"), params: args.merge(actual_version: "3.0")
+    assert_equal "3.0", op.reload.version
+    patch url, params: {user_version: "2.0"}
+    assert_equal 2, @writes.size
+  end
+
   test "读取失效令牌或残缺名单后收起写入口，非超管和非授权小程序不能管理" do
     @read_error = {errcode: 42001}
     get admins_app_path(@a, tab: "plugins")
