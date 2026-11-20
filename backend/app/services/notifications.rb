@@ -5,17 +5,21 @@ module Notifications
   def self.dispatch(event:, subject:, target:, messages:, idempotency_key:, scheduled_at: nil, data: nil)
     return if target.blank?
     raise Error, "请提供事件去重标识" if idempotency_key.blank?
-    identity = target.deep_stringify_keys.slice("channel_key", "app_id", "appid", "user_app_id", "callback_id")
+    target_data = target.deep_stringify_keys
+    identity = target_data.slice("channel_key", "app_id", "appid", "user_app_id", "callback_id")
     key = Digest::SHA256.hexdigest([ event, subject.class.name, subject.id, identity.sort.to_h, idempotency_key ].to_json)
     existing = Notification.find_by(idempotency_key: key)
     return existing if existing
+    wecom = target_data["channel_type"] == "wecom_group"
     if data
-      messages = Variables.render(messages, fields: EventCatalog.fetch(event).fetch("fields"), data: data)
+      messages = Variables.render(messages, fields: EventCatalog.fetch(event).fetch("fields"), data: data,
+        max_text_bytes: wecom ? nil : Channels::WecomGroup::MAX_TEXT_BYTES)
       return if messages.empty?
     end
+    messages = Channels::WecomGroup.split_messages(messages) if wecom
     Notification.create_or_find_by!(idempotency_key: key) do |row|
       row.assign_attributes(event: event, subject: subject, status: "pending", scheduled_at: scheduled_at,
-        payload: { "target" => target.deep_stringify_keys, "messages" => messages.map(&:deep_stringify_keys) })
+        payload: { "target" => target_data, "messages" => messages.map(&:deep_stringify_keys) })
     end
   end
 

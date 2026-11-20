@@ -17,6 +17,35 @@ module Notifications
         { "settings_key" => "notification", "channel_key" => channel_key, "channel_type" => "wecom_group", "sequence_scope" => channel_key, "label" => name }
       end
 
+      def self.split_text(text, max_bytes: MAX_TEXT_BYTES)
+        parts = [ +"" ]
+        text.to_s.each_char do |char|
+          parts << +"" if parts.last.bytesize + char.bytesize > max_bytes && !parts.last.empty?
+          parts.last << char
+        end
+        parts.reject(&:empty?)
+      end
+
+      def self.text_messages(text)
+        split_text(text).map.with_index(1) { |part, i| { "id" => "msg_#{i}", "type" => "text", "content" => { "text" => part } } }
+      end
+
+      # 企微单条文本按 UTF-8 字节限制。超长消息按完整字符顺序拆条，保留原编排顺序和逐条回执。
+      def self.split_messages(messages, max_bytes: MAX_TEXT_BYTES)
+        rows = Array(messages).map(&:deep_stringify_keys)
+        used_ids = rows.filter_map { |row| row["id"].presence }.to_set
+        rows.flat_map do |row|
+          next [ row ] unless row["type"] == "text" && row["content"].is_a?(Hash)
+          text = row.dig("content", "text")
+          next [ row ] unless text.is_a?(String) && text.bytesize > max_bytes
+          base_id = row["id"].presence || "msg"
+          split_text(text, max_bytes: max_bytes).each_with_index.map do |part, index|
+            part_id = next_part_id(base_id, index + 1, used_ids)
+            row.deep_dup.merge("id" => part_id, "content" => row["content"].merge("text" => part))
+          end
+        end
+      end
+
       def self.rotate!(old_key, new_key)
         old_fingerprint = credential_id(old_key)
         new_fingerprint = credential_id(new_key)
@@ -59,7 +88,18 @@ module Notifications
           result
         end
       end
-      private_class_method :with_channels, :channel_for, :encrypted_key
+      def self.next_part_id(base_id, index, used_ids)
+        prefix = base_id.to_s.first(80)
+        candidate = "#{prefix}_#{index}"
+        suffix = 2
+        while used_ids.include?(candidate)
+          candidate = "#{prefix}_#{index}_#{suffix}"
+          suffix += 1
+        end
+        used_ids << candidate
+        candidate
+      end
+      private_class_method :with_channels, :channel_for, :encrypted_key, :next_part_id
 
       def initialize(target)
         @target = target

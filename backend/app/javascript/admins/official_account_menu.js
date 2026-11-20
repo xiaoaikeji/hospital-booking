@@ -154,9 +154,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const show = n.legacy ? ["legacy"] : [n.type, ...(["view", "miniprogram"].includes(n.type) ? ["url"] : [])];
       p.hidden = group || !show.includes(p.dataset.panel);
     });
-    if (n.legacy)
-      el("legacy").textContent =
-        (n.value || n.type) + "。此动作由微信公众平台创建，整套重新发布前需明确替换或删除。";
+    if (editable) el("reuse-text-action").hidden = !(n.legacy && n.type === "text" && n.value);
+    if (n.legacy) {
+      el("legacy").textContent = n.type === "text" && n.value
+        ? n.value + "。可把原文字保存为回复内容，发布后继续使用。"
+        : (n.value || n.type) + "。此动作由微信公众平台创建，整套重新发布前需明确替换或删除。";
+    }
     setValue(el("appid"), n.appid);
     el("page").value = n.pagepath || "";
     el("url").value = n.url || "";
@@ -354,6 +357,13 @@ document.addEventListener("DOMContentLoaded", () => {
     draw();
   };
   if (editable) {
+    el("reuse-text").onclick = () => {
+      replyNode = current();
+      const url = new URL(editor.dataset.newReply, location.href);
+      url.searchParams.set("menu_index", original.indexOf(replyNode));
+      url.searchParams.set("menu_revision", editor.dataset.revision);
+      replyPopup = window.open(url.href, "booking-menu-reply-" + editor.dataset.appId, "width=1100,height=850");
+    };
     el("new-reply").onclick = () => { replyNode = current(); replyPopup = window.open(editor.dataset.newReply, "booking-menu-reply-" + editor.dataset.appId, "width=1100,height=850"); };
     el("edit-reply").onclick = () => {
       const id = current()?.key?.replace(/^reply_/, ""); if (!replyGroups[id]) return;
@@ -361,10 +371,20 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== replyPopup || event.data.type !== "booking.reply.saved" || String(event.data.appId) !== editor.dataset.appId) return;
-      replyNames[event.data.key] = event.data.name; replies.push(event.data.key);
+      replyNames[event.data.key] = event.data.name;
+      if (!replies.includes(event.data.key)) replies.push(event.data.key);
       replyGroups[event.data.id] = { name: event.data.name, messages: event.data.messages || [] };
       options(el("key"), replyNames, event.data.key);
-      if (replyNode) { replyNode.key = event.data.key; changed(); draw(); }
+      if (replyNode) {
+        if (replyNode.legacy && replyNode.type === "text") {
+          replyNode.type = "click";
+          delete replyNode.legacy;
+          delete replyNode.value;
+        }
+        replyNode.key = event.data.key;
+        changed();
+        draw();
+      }
     });
     el("add").onclick = () => {
       if (buttons.length >= 3) return;

@@ -54,7 +54,8 @@
           <div data-panel="article_id" class="mt-3"><div id="menu-article-name" class="mb-2 text-break"></div><button type="button" id="menu-articles" class="btn"><%= render "layouts/admins/icon", name: :search %>选择已发表内容</button></div>
           <div data-panel="click" class="mt-3"><label for="menu-key" class="form-label">回复内容</label><select class="form-select" id="menu-key" data-field="key"></select>
             <% if editable %><div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm" id="menu-new-reply"><%= render "layouts/admins/icon", name: :plus %>新增回复内容</button><button type="button" class="btn btn-sm" id="menu-edit-reply"><%= render "layouts/admins/icon", name: :edit %>编辑回复</button></div><% end %></div>
-          <div data-panel="legacy" class="alert alert-warning mt-3 mb-0 text-break" id="menu-legacy"></div>
+          <div data-panel="legacy"><div class="alert alert-warning mt-3 mb-0 text-break" id="menu-legacy"></div>
+            <% if editable %><span id="menu-reuse-text-action" hidden><button type="button" id="menu-reuse-text" class="btn btn-sm mt-2">沿用原文字</button></span><% end %></div>
           <% if editable %><div class="d-flex flex-wrap gap-2 mt-3">
             <% [[:plus,"新增子菜单","add-child"],[:arrow_left,"前移","move-up"],[:arrow,"后移","move-down"],[:trash,"删除菜单","delete"]].each do |icon,label,id| %>
               <button id="menu-<%= id %>" type="button" class="btn btn-sm <%= "btn-outline-danger" if id=="delete" %>"><%= render "layouts/admins/icon", name: icon %><%= label %></button>

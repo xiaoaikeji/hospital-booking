@@ -183,4 +183,83 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     assert_equal 93000, b_task.result_for("msg_1").fetch("history").sole.dig("response", "errcode")
     assert_not_includes Setting.find_by!(key: "notification").settings.to_json, "local-test-group-b-rotated"
   end
+
+  test "真实拒审理由跨两条企微消息，轮换原机器人 Key 后只补第二条并同步历史状态" do
+    Sidekiq.testing!(:fake) do
+      @reject_second = true
+      @reject_call_number = 2
+      settings = Setting.create!(key: "wechat_notifications")
+      settings.write_value("webhook_key", "local-test-recovery-group")
+      settings.write_value("kinds", [ "rejected" ])
+      settings.save!
+      round = @account.mini_program_audits.create!(operator: @admin, audit_id: "123456",
+        status: "pending", version: "1.2", description: "演示审核", previous_status: "active")
+      round.update!(status: "rejected", rejection_reason: "请补正页面说明。" * 100)
+      event = @account.wechat_notification_events.sole
+      row = Notification.find_by!(subject: event)
+      target = row.payload.fetch("target").deep_dup
+      assert_equal 2, row.messages.size
+      2.times { WechatPlatform::NotificationWorker.new.perform(event.id) }
+      assert_equal [ 0, 93000 ], row.reload.messages.map { |message| row.result_for(message["id"]).dig("response", "errcode") }
+      assert_equal event.message, @calls.join
+      assert @calls.all? { |text| text.valid_encoding? && text.bytesize <= 2048 }
+      assert_equal "failed", event.reload.status
+      get admins_notification_path(row)
+      assert_response :success
+      assert_includes response.body, "invalid webhook url"
+      assert_includes response.body, "93000"
+      assert_equal [ row.messages.last.fetch("id") ], css_select('input[name="message_ids[]"]').map { |input| input["value"] }
+      patch admins_system_settings_wechat_notifications_path, params: { notification_settings: {
+        revision: WechatPlatform::NotificationSettings.new.revision,
+        webhook_key: "local-test-replacement-key", kinds: [ "rejected" ], same_robot: "1"
+      } }
+      assert_redirected_to edit_admins_system_settings_wechat_notifications_path
+      assert_equal target, Notifications::Channels::WecomGroup.target("local-test-replacement-key", name: "微信审核结果企微群")
+      @reject_second = false
+      post retry_failed_admins_notification_path(row), params: { message_ids: [ row.messages.last.fetch("id") ] }
+      assert_redirected_to admins_notification_path(row)
+      2.times { Notifications::DeliveryWorker.new.perform(row.id) }
+      assert_equal [ @calls.first, @calls.second, @calls.second ], @calls
+      assert_equal %w[local-test-recovery-group local-test-recovery-group local-test-replacement-key], @keys
+      assert_equal "sent", event.reload.status
+      assert_equal 93000, row.reload.result_for(row.messages.last.fetch("id")).fetch("history").sole.dig("response", "errcode")
+      assert_nil event.error_code
+      assert_equal "sent", row.reload.status
+      assert_equal target, row.payload.fetch("target")
+      assert_equal @admin.id, Log.where(action: "notification.retry", target_id: row.id, target_type: "Notification").sole.actor_id
+      assert_not_includes Setting.find_by!(key: "notification").settings.to_json, "local-test-replacement-key"
+    end
+  end
+
+  test "自定义多条企微文案替换超长变量后顺序拆条，保留原编排顺序并逐条记录结果" do
+    Sidekiq.testing!(:fake) do
+      settings = Setting.create!(key: "wechat_notifications")
+      settings.write_value("webhook_key", "local-test-recovery-group")
+      settings.write_value("kinds", [ "rejected" ])
+      settings.save!
+      content = WechatPlatform::NotificationContents.new("rejected")
+      content.save!(
+        [
+          { id: "intro", type: "text", content: { text: "{app_name} {version} {result}" } },
+          { id: "detail", type: "text", content: { text: "拒审原因：{reason}" } },
+          { id: "outro", type: "text", content: { text: "请按审核单 {audit_id} 修改后重提" } }
+        ],
+        revision: content.revision, actor: @admin
+      )
+      reason = "请补充门诊挂号页面说明。" * 100
+      round = @account.mini_program_audits.create!(operator: @admin, audit_id: "654321",
+        status: "pending", version: "2.0", description: "多条拆分", previous_status: "active")
+      round.update!(status: "rejected", rejection_reason: reason)
+      event = @account.wechat_notification_events.sole
+      row = Notification.find_by!(subject: event)
+      assert_operator row.messages.size, :>=, 4
+      Notifications::DeliveryWorker.new.perform(row.id)
+      assert_equal "#{@account.display_name} 2.0 审核未通过", @calls.first
+      assert_equal "请按审核单 654321 修改后重提", @calls.last
+      assert_equal "拒审原因：#{reason}", @calls[1..-2].join
+      assert @calls.all? { |text| text.valid_encoding? && text.bytesize <= 2048 }
+      assert_equal [ "sent" ] * row.messages.size, row.reload.messages.map { |m| row.result_for(m["id"]).fetch("status") }
+      assert_equal "sent", event.reload.status
+    end
+  end
 end

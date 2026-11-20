@@ -11,7 +11,7 @@ module Admins
     end
 
     def new
-      @reply = { "name" => "", "messages" => [] }
+      @reply = params.key?(:menu_index) ? existing_menu_text : { "name" => "", "messages" => [] }
       prepare_editor
     end
 
@@ -40,6 +40,20 @@ module Admins
 
     def load_account = @app = App.wechat_official_accounts.find(params[:app_id])
     def configuration = @config ||= Notifications::AccountConfiguration.new(@app)
+
+    def existing_menu_text
+      menu = @app.official_account_menu
+      index = Integer(params[:menu_index].to_s, exception: false)
+      unless menu && menu.revision.to_s == params[:menu_revision] && index && index >= 0
+        raise ActiveRecord::RecordNotFound
+      end
+      nodes = menu.buttons.flat_map { |entry| [ entry, *entry.fetch("sub_button", []) ] }
+      node = nodes[index] if index < nodes.length
+      raise ActiveRecord::RecordNotFound unless node && node["type"] == "text" && node["value"].present?
+      { "name" => node.fetch("name"), "messages" => [
+        { "id" => SecureRandom.uuid, "type" => "text", "content" => { "text" => node.fetch("value") } }
+      ] }
+    end
 
     def prepare_editor
       @input = { id: params[:id], revision: configuration.revision, impact_revision: params[:id] ? configuration.impact_revision(params[:id]) : nil,

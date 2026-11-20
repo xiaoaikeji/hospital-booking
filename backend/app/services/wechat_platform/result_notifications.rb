@@ -37,7 +37,8 @@ module WechatPlatform
         next unless settings.enabled?(kind)
         content = NotificationContents.new(kind)
         variables = NotificationContents.data(app, kind, fields)
-        messages = Notifications::Variables.render(content.messages, fields: NotificationContents.fields(kind), data: variables)
+        messages = Notifications::Variables.render(content.messages, fields: NotificationContents.fields(kind),
+          data: variables, max_text_bytes: nil)
         next if messages.empty?
         event = WechatNotificationEvent.create_or_find_by!(app: app, event_key: event_key) do |row|
           row.assign_attributes(kind: kind, message: messages.map { |item| item.dig("content", "text") }.join("\n\n"), status: "pending")

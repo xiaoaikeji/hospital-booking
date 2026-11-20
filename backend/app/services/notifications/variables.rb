@@ -35,8 +35,11 @@ module Notifications
         end.gsub(/\{\{([A-Za-z_]\w*)\}\}/, '{\1}')
         next if text.strip.empty?
         snapshot = message.deep_dup
-        snapshot["truncated"] = true if text.bytesize > max_text_bytes
-        snapshot["content"]["text"] = text.byteslice(0, max_text_bytes).scrub("")
+        if max_text_bytes && text.bytesize > max_text_bytes
+          snapshot["truncated"] = true
+          text = text.byteslice(0, max_text_bytes).scrub("")
+        end
+        snapshot["content"]["text"] = text
         snapshot
       end
     end
