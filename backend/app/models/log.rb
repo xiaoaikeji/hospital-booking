@@ -1,5 +1,6 @@
 class Log < ApplicationRecord
   OPERATION_EVENTS = {
+    [ "wechat", "wechat.fan_sync" ] => "同步公众号粉丝",
     [ "wechat", "wechat.menu_publish" ] => "发布公众号菜单",
     [ "wechat", "wechat.menu_pull" ] => "读取公众号菜单",
     [ "wechat", "wechat.menu_media" ] => "上传公众号菜单素材",

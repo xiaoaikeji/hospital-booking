@@ -1,0 +1,4 @@
+<div class="d-flex flex-wrap gap-1">
+  <%= link_to admins_official_account_fans_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :users %>粉丝列表<% end %>
+  <%= link_to admins_official_account_menus_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :templates %>自定义菜单<% end %>
+</div>

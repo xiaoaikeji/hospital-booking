@@ -13,11 +13,15 @@ namespace :admins do
   resources :illegal_records, only: :index
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
+  resources :official_account_fans, only: :index
   resources :official_account_links, only: :index
   resources :open_platform_accounts, only: %i[index new create show] do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
   end
   resources :apps do
+    resources :fans, controller: "official_account_fans", only: :show do
+      post :sync, on: :collection
+    end
     resource :official_account_menu, only: [], controller: "official_account_menus" do
       post :publish
       post :pull

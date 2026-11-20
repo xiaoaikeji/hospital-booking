@@ -62,6 +62,7 @@
           (["代码", admins_mini_program_releases_path, :code, "admins/mini_program_releases"] if current_admin.super_admin?),
           (["模板", admins_code_templates_path, :templates, "admins/code_templates"] if current_admin.super_admin?),
           (["公众号关联管理", admins_official_account_links_path, :link, "admins/official_account_links"] if current_admin.super_admin?),
+          (["公众号粉丝", admins_official_account_fans_path, :users, "admins/official_account_fans"] if current_admin.super_admin?),
           (["公众号自定义菜单", admins_official_account_menus_path, :templates, "admins/official_account_menus"] if current_admin.super_admin?),
           (["插件列表", admins_plugins_path, :puzzle, "admins/plugins"] if current_admin.super_admin?),
           (["违规记录", admins_illegal_records_path, :alert, "admins/illegal_records"] if current_admin.super_admin?),

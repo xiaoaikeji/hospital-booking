@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_030100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -200,6 +200,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_020000) do
     t.index ["source_release_id"], name: "index_mini_program_releases_on_source_release_id"
   end
 
+  create_table "official_account_fan_events", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.string "digest", null: false
+    t.string "event", null: false
+    t.datetime "occurred_at", null: false
+    t.text "openid", null: false
+    t.string "qr_scene"
+    t.index ["app_id", "digest"], name: "index_official_account_fan_events_on_app_id_and_digest", unique: true
+    t.index ["app_id"], name: "index_official_account_fan_events_on_app_id"
+  end
+
+  create_table "official_account_fan_syncs", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.string "error"
+    t.integer "fan_count"
+    t.bigint "operator_id", null: false
+    t.string "state", default: "queued", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id"], name: "index_official_account_fan_syncs_on_app_id"
+    t.index ["app_id"], name: "one_active_fan_sync", unique: true, where: "((state)::text = ANY ((ARRAY['queued'::character varying, 'running'::character varying])::text[]))"
+    t.index ["operator_id"], name: "index_official_account_fan_syncs_on_operator_id"
+  end
+
+  create_table "official_account_fans", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "event_at"
+    t.datetime "observed_at", null: false
+    t.string "qr_scene"
+    t.string "scene"
+    t.boolean "subscribed", null: false
+    t.datetime "subscribed_at"
+    t.datetime "unsubscribed_at"
+    t.datetime "updated_at", null: false
+    t.bigint "user_app_id", null: false
+    t.index ["user_app_id"], name: "index_official_account_fans_on_user_app_id", unique: true
+  end
+
   create_table "official_account_menus", force: :cascade do |t|
     t.bigint "app_id", null: false
     t.jsonb "buttons", default: [], null: false
@@ -243,6 +281,39 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_020000) do
     t.datetime "updated_at", null: false
     t.index ["key"], name: "index_settings_on_key", unique: true
     t.check_constraint "jsonb_typeof(settings) = 'object'::text", name: "settings_object_required"
+  end
+
+  create_table "user_apps", force: :cascade do |t|
+    t.string "appid", limit: 100, null: false
+    t.datetime "created_at", null: false
+    t.datetime "last_sign_in_at"
+    t.string "openid", limit: 150, null: false
+    t.string "provider", null: false
+    t.integer "sign_in_count", default: 0, null: false
+    t.string "status", default: "active", null: false
+    t.string "unionid", limit: 150
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["provider", "appid", "openid"], name: "index_user_apps_on_provider_and_appid_and_openid", unique: true
+    t.index ["provider", "unionid"], name: "index_user_apps_on_provider_and_unionid"
+    t.index ["user_id", "provider", "appid"], name: "index_user_apps_on_user_id_and_provider_and_appid", unique: true
+    t.index ["user_id"], name: "index_user_apps_on_user_id"
+    t.check_constraint "(status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])) AND sign_in_count >= 0", name: "valid_user_app"
+  end
+
+  create_table "users", force: :cascade do |t|
+    t.string "avatar_url", limit: 500
+    t.datetime "created_at", null: false
+    t.datetime "last_login_at"
+    t.string "mobile", limit: 30
+    t.datetime "mobile_verified_at"
+    t.string "nickname", limit: 100
+    t.string "platform", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.string "user_no", limit: 8, null: false
+    t.index ["user_no"], name: "index_users_on_user_no", unique: true
+    t.check_constraint "(platform::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])) AND (status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])) AND user_no::text ~ '^[1-9][0-9]{7}$'::text", name: "valid_terminal_user"
   end
 
   create_table "wechat_appeals", force: :cascade do |t|
@@ -338,11 +409,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_020000) do
   add_foreign_key "mini_program_releases", "apps"
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "previous_build_id", on_delete: :nullify
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "source_release_id", on_delete: :nullify
+  add_foreign_key "official_account_fan_events", "apps"
+  add_foreign_key "official_account_fan_syncs", "admins", column: "operator_id"
+  add_foreign_key "official_account_fan_syncs", "apps"
+  add_foreign_key "official_account_fans", "user_apps"
   add_foreign_key "official_account_menus", "apps"
   add_foreign_key "open_platform_accounts", "admins", column: "operator_id"
   add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
   add_foreign_key "open_platform_operations", "apps"
   add_foreign_key "open_platform_operations", "open_platform_accounts"
+  add_foreign_key "user_apps", "apps", column: ["provider", "appid"], primary_key: ["provider", "appid"]
+  add_foreign_key "user_apps", "users"
   add_foreign_key "wechat_appeals", "wechat_violations"
   add_foreign_key "wechat_category_acceptances", "apps", on_delete: :cascade
   add_foreign_key "wechat_link_operations", "apps"

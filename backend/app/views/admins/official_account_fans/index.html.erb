@@ -1,0 +1,62 @@
+<% content_for :title, "公众号粉丝 · Booking 管理后台" %>
+<% empty = @fans.blank? %>
+<% content_for :fill_content, "true" if empty %>
+<% filters = { app_id: @app&.id, q: @query.presence, status: @status }.compact %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "粉丝列表", icon: :users } do %>
+  <% if @app&.platform_authorized? && !@sync&.busy? %>
+    <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#fan-sync"><%= render "layouts/admins/icon", name: :rotate %>同步已有粉丝</button>
+  <% end %>
+<% end %>
+<% if @app %>
+  <section class="card mb-3">
+    <div class="list-group list-group-flush">
+      <div class="list-group-item py-2"><div class="row g-2 align-items-center">
+        <div class="col-12 col-md-2 col-xl-1 text-secondary">公众号</div>
+        <div class="col"><nav class="nav nav-pills" aria-label="公众号">
+          <% @accounts.each do |account| %><%= link_to account.display_name, admins_official_account_fans_path(filters.merge(app_id: account.id)), class: class_names("nav-link", active: @app == account), aria: { current: ("page" if @app == account) } %><% end %>
+        </nav></div>
+      </div></div>
+      <%= render "admins/shared/list_filter_row", label: "关注状态", key: :status, options: { "subscribed" => "关注中", "unsubscribed" => "已取关" }, selected: @status, filter_url: ->(overrides) { admins_official_account_fans_path(filters.merge(overrides).compact) } %>
+    </div>
+  </section>
+  <% if !@app.platform_authorized? %><div class="alert alert-warning">完成平台授权后可同步该公众号的粉丝。<%= link_to "查看平台授权", admins_app_path(@app) %></div><% end %>
+  <% if @sync&.busy? %><div class="alert alert-info">正在同步。<%= link_to "刷新结果", admins_official_account_fans_path(filters.merge(page: params[:page])) %></div>
+  <% elsif @sync&.state == "success" %><p class="text-secondary">上次同步 <%= admin_list_time(@sync.updated_at) %> · 关注中 <%= number_with_delimiter(@sync.fan_count) %> 人</p>
+  <% elsif @sync %><div class="alert alert-warning">上次同步未完成。<%= @sync.error.presence || "请重新同步。" %></div><% end %>
+  <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="粉丝名单">
+    <div class="card-header">
+      <%= form_with url: admins_official_account_fans_path, method: :get, class: "d-flex flex-wrap align-items-center gap-2 w-100", html: { role: "search" } do %>
+        <%= hidden_field_tag :app_id, @app.id %><%= hidden_field_tag :status, @status if @status %>
+        <div class="col-12 col-sm-5 col-lg-3"><%= search_field_tag :q, @query, class: "form-control", placeholder: "用户编号 / 昵称", aria: { label: "搜索粉丝" } %></div>
+        <button class="btn" type="submit"><%= render "layouts/admins/icon", name: :search %>搜索</button>
+        <% if @query.present? || @status %><%= link_to admins_official_account_fans_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %><% end %>
+      <% end %>
+    </div>
+    <% if empty %>
+      <%= render "admins/shared/list_empty", icon: :users, title: (@query.present? || @status ? "未找到匹配的粉丝" : "还没有粉丝"), description: (@query.present? || @status ? "试试其他关键词，或重置筛选。" : "关注回调或同步已有粉丝后，会在这里显示。") %>
+    <% else %>
+      <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+        <thead><tr><th class="list-column-id px-2">ID</th><th class="px-2">用户</th><th class="list-column-status px-2">关注状态</th><th class="d-none d-md-table-cell">关注渠道</th><th class="d-none d-lg-table-cell">进过小程序</th><th class="d-none d-lg-table-cell">关注时间</th><th class="d-none d-xl-table-cell">取关时间</th></tr></thead>
+        <tbody><% @fans.each do |fan| %>
+          <% user = fan.user_app.user %>
+          <tr><td class="text-secondary px-2">#<%= fan.id %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: user.nickname.presence || user.user_no, url: admins_app_fan_path(@app, fan, filters.except(:app_id).merge(page: params[:page]).compact) %>
+              <% if user.nickname.present? %><small class="d-block text-secondary"><%= user.user_no %></small><% end %></td>
+            <td class="px-2"><%= render "status", fan: fan %></td>
+            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: fan.channel.presence || "—" %></td>
+            <td class="d-none d-lg-table-cell"><%= @joined.include?(user.id) ? "是" : "否" %></td>
+            <td class="d-none d-lg-table-cell"><%= admin_list_time(fan.subscribed_at) %></td>
+            <td class="d-none d-xl-table-cell"><%= admin_list_time(fan.unsubscribed_at) %></td>
+          </tr>
+        <% end %></tbody>
+      </table>
+      <%= render "admins/shared/pagination", pagy: @pagy, url: ->(n) { admins_official_account_fans_path(filters.merge(page: n)) } %>
+    <% end %>
+  </section>
+  <% if @app.platform_authorized? && !@sync&.busy? %>
+    <%= form_with url: sync_admins_app_fans_path(@app, filters.except(:app_id).merge(page: params[:page]).compact), id: "fan-sync-form", class: "d-none" do %><% end %>
+    <%= render "admins/shared/confirmation_modal", modal_id: "fan-sync", form_id: "fan-sync-form", title: "同步已有粉丝", context: "#{@app.display_name} · #{@app.appid}", description: "从微信读取本公众号的关注名单。完整同步后更新关注状态，历史记录保留。", color: "primary", confirm_label: "确认同步", confirm_icon: :rotate %>
+  <% end %>
+<% else %>
+  <section class="card flex-fill"><%= render "admins/shared/list_empty", icon: :users, title: "还没有公众号", description: "在应用管理登记微信公众号后，可查看粉丝名单。" %></section>
+<% end %>

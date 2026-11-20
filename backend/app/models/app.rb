@@ -5,6 +5,7 @@ class App < ApplicationRecord
   scope :wechat_mini_programs, -> { wechat_accounts.where(app_type: "mini_program") }
   scope :wechat_official_accounts, -> { wechat_accounts.where(app_type: "official_account") }
   belongs_to :open_platform_account, optional: true
+  after_update :clear_previous_unionids, if: :saved_change_to_open_platform_account_id?
   validates :app_type, inclusion: { in: TYPES.keys }
   validates :app_type, exclusion: { in: ["official_account"], message: "抖音仅支持小程序" }, if: -> { provider == "douyin" }
   def code_capable? = provider == "wechat" && app_type == "mini_program"
@@ -27,4 +28,10 @@ class App < ApplicationRecord
 
   def accessible? = status != "disabled"
   def display_name = nickname.presence || appid
+
+  private
+
+  def clear_previous_unionids
+    UserApp.for_app(self).where.not(unionid: nil).update_all(unionid: nil, updated_at: Time.current)
+  end
 end
