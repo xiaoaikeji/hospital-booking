@@ -20,6 +20,21 @@ class AppsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "密钥解密失败时保留编辑页布局并标记字段" do
+    sign_in Admin.create!(username: "credential_admin", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxDamaged")
+    App.where(id: app.id).update_all("appsecret = 'damaged-ciphertext'")
+
+    get edit_admins_app_path(app)
+
+    assert_response :unprocessable_content
+    assert_select "h1", "编辑应用"
+    assert_select ".badge.bg-danger-lt", "解密失败"
+    assert_select "#app_appsecret[disabled][aria-describedby='appsecret-error']"
+    assert_select "#appsecret-error.invalid-feedback", /核对加密主密钥/
+    assert_not_includes response.body, "damaged-ciphertext"
+  end
+
   test "管理页面及写操作仅向超管开放" do
     app = App.create!(provider: "wechat", appid: "wxA", appsecret: "demo-only")
     %w[operator customer_service].each do |role|

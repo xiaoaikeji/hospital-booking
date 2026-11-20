@@ -1,0 +1,23 @@
+<div id="<%= dom_id(event) %>" class="modal modal-blur fade" tabindex="-1" aria-hidden="true" aria-labelledby="<%= dom_id(event, :title) %>">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="<%= dom_id(event, :title) %>">微信通知 #<%= event.id %></h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <% fields = {
+             "小程序" => link_to(event.app.display_name, admins_app_path(event.app)),
+             "事件" => WechatPlatform::NotificationSettings::LABELS.fetch(event.kind),
+             "状态" => render("status", event: event), "通知时间" => admin_list_time(event.created_at)
+           }
+           fields["企业微信错误码"] = event.error_code.to_s if event.error_code %>
+        <%= render "admins/shared/field_rows", fields: fields %>
+        <h3 class="card-title mt-4">通知内容</h3>
+        <div class="text-break"><%= simple_format(h(event.message)) %></div>
+        <% if event.status == "unknown" %><p class="text-secondary mb-0">请核对群消息，系统已停止重发。</p><% end %>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>关闭</button></div>
+    </div>
+  </div>
+</div>

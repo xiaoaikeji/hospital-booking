@@ -1,7 +1,22 @@
 // Tabler handles the modal; this binding confirms account disabling and marks real submissions busy.
+window.adminForms = {
+  setBusy(form, busy) {
+    if (busy) form.setAttribute("aria-busy", "true");
+    else form.removeAttribute("aria-busy");
+
+    form.querySelectorAll("[data-admin-submit]").forEach((button) => {
+      if (busy ? button.disabled : !button.hasAttribute("data-admin-submitting")) return;
+      button.toggleAttribute("data-admin-submitting", busy);
+      button.disabled = busy;
+      button.querySelector("[data-admin-submit-icon]")?.classList.toggle("d-none", busy);
+      button.querySelector(".spinner-border").classList.toggle("d-none", !busy);
+    });
+  }
+};
+
 document.addEventListener("submit", (event) => {
   const form = event.target.closest("form[data-admin-form]");
-  if (!form) return;
+  if (!form || event.defaultPrevented) return;
 
   if (form.dataset.disableConfirmation && form.dataset.confirmed !== "true" &&
       form.elements.namedItem(form.dataset.disableField || "administrator[enabled]")?.value === (form.dataset.disableValue || "false")) {
@@ -10,12 +25,7 @@ document.addEventListener("submit", (event) => {
     return;
   }
 
-  form.setAttribute("aria-busy", "true");
-  form.querySelectorAll("[data-admin-submit]").forEach((button) => {
-    button.disabled = true;
-    button.querySelector("[data-admin-submit-icon]")?.classList.add("d-none");
-    button.querySelector(".spinner-border").classList.remove("d-none");
-  });
+  window.adminForms.setBusy(form, true);
 });
 
 document.addEventListener("click", (event) => {
@@ -29,12 +39,7 @@ document.addEventListener("click", (event) => {
 // Restore controls when a completed form is brought back from the browser's page cache.
 window.addEventListener("pageshow", () => {
   document.querySelectorAll("form[data-admin-form]").forEach((form) => {
-    form.removeAttribute("aria-busy");
     delete form.dataset.confirmed;
-    form.querySelectorAll("[data-admin-submit]").forEach((button) => {
-      button.disabled = false;
-      button.querySelector("[data-admin-submit-icon]")?.classList.remove("d-none");
-      button.querySelector(".spinner-border").classList.add("d-none");
-    });
+    window.adminForms.setBusy(form, false);
   });
 });

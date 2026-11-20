@@ -1,5 +1,6 @@
 class AppConfiguration
   class Invalid < StandardError; end
+  class DecryptionFailed < Invalid; end
 
   def initialize(app)
     @app = app
@@ -15,7 +16,7 @@ class AppConfiguration
     raise Invalid, "部署凭据格式无效" unless value.is_a?(String)
     [ value, "Rails credentials" ]
   rescue ActiveRecord::Encryption::Errors::Base
-    raise Invalid, "应用密钥解密失败，请核对加密主密钥", cause: nil
+    raise DecryptionFailed, "应用密钥解密失败，请核对加密主密钥", cause: nil
   end
 
   def digest(value)

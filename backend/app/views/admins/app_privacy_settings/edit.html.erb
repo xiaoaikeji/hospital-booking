@@ -9,15 +9,27 @@
     <div class="card-header"><h2 class="card-title"><%= @app.display_name %> · 微信开发版</h2></div>
     <div class="card-body">
       <%= render "admins/shared/field_rows", fields: { "AppID" => @app.appid, "配置来源" => "微信开发版" } %>
+      <% contact_error = @field_error&.message if @field_error&.field == "contact" %>
       <div class="row g-3 mt-2">
         <% WechatPlatform::PrivacySettings::OWNER_FIELDS.each do |key, label| %>
+          <% required = key == "notice_method"
+             error = (@field_error.message if @field_error&.field == key)
+             error_id = error ? "privacy-#{key}-error" : ("privacy-contact-error" if contact_error && !required) %>
           <div class="col-12 col-md-6">
-            <%= label_tag "privacy-#{key}", label, class: "form-label" %>
-            <%= text_field_tag "privacy[owner][#{key}]", @owner[key], id: "privacy-#{key}", required: key == "notice_method", type: key == "contact_email" ? "email" : "text", class: "form-control" %>
+            <div class="d-flex align-items-center gap-1 mb-2">
+              <%= label_tag "privacy-#{key}", label, class: class_names("form-label mb-0", required: required) %>
+              <% if key == "contact_email" %>
+                <%= render "admins/shared/field_help", text: "邮箱、电话、微信号和 QQ 至少填写一种。", label: "查看联系方式要求" %>
+              <% end %>
+            </div>
+            <%= text_field_tag "privacy[owner][#{key}]", @owner[key], id: "privacy-#{key}", required: required,
+                  type: key == "contact_email" ? "email" : "text", placeholder: ("例如在小程序内公告" if required),
+                  class: class_names("form-control", "is-invalid" => error_id.present?), aria: { invalid: (true if error_id), describedby: error_id } %>
+            <%= admin_field_error(error, id: error_id) %>
           </div>
         <% end %>
+        <% if contact_error %><div class="col-12"><%= admin_field_error(contact_error, id: "privacy-contact-error") %></div><% end %>
       </div>
-      <p class="form-hint mt-3 mb-0">请至少填写一种开发者联系方式，并说明指引发生变更时如何通知用户。</p>
     </div>
   </section>
   <section class="card">
@@ -28,7 +40,8 @@
     <% known_keys = @privacy&.entries&.pluck("key") || [] %>
     <div id="privacy-entries" class="list-group list-group-flush">
       <% @entries.each_with_index do |entry, index| %>
-        <%= render "entry", index: index, entry: entry, locked_key: known_keys.include?(entry["key"]), detected: @privacy&.keys&.include?(entry["key"]) %>
+        <%= render "entry", index: index, entry: entry, locked_key: known_keys.include?(entry["key"]), detected: @privacy&.keys&.include?(entry["key"]),
+              field_error: (@field_error if @field_error&.entry_index == index) %>
       <% end %>
     </div>
     <template id="privacy-entry-template"><%= render "entry", index: "NEW_ENTRY", entry: { "enabled" => "1" }, locked_key: false, detected: false %></template>

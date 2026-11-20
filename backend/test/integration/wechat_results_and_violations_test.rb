@@ -157,7 +157,11 @@ class WechatResultsAndViolationsTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[value=?]", @key
     revision = css_select("input[name='notification_settings[revision]']").first["value"]
-    input = { revision: revision, webhook_key: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=new-demo-key", kinds: ["passed"] }
+    input = { revision: revision, webhook_key: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=new-demo-key", kinds: ["passed"], pull_violations: "1" }
+    patch path, params: { notification_settings: input.merge(webhook_key: "invalid!") }
+    assert_response :unprocessable_content
+    assert_select "#notification_settings_webhook_key.is-invalid[aria-describedby='webhook_key-error']"
+    assert_select "#webhook_key-error.invalid-feedback", /有效的机器人 Key/
     patch path, params: { notification_settings: input }
     assert_redirected_to edit
     assert_not_includes @setting.reload.settings.to_s, "new-demo-key"
@@ -168,6 +172,8 @@ class WechatResultsAndViolationsTest < ActionDispatch::IntegrationTest
     patch path, params: { notification_settings: { revision: WechatPlatform::NotificationSettings.new.revision, clear_key: "1" } }
     assert_redirected_to edit
     assert_nil @setting.reload.settings["webhook_key"]
+    assert_equal ["passed"], @setting.settings["kinds"]
+    assert_equal true, @setting.settings["pull_violations"]
     get edit
     assert_select "input[value=?]", "local-deploy-fallback"
     assert_includes response.body, "环境变量"

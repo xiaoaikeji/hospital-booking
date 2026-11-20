@@ -1,2 +1,2 @@
 <%# Use only when the field cannot be understood from its label and placeholder. %>
-<button type="button" class="text-secondary border-0 bg-transparent p-0 d-inline-flex align-items-center" data-bs-toggle="tooltip" data-bs-placement="top" title="<%= text %>" aria-label="<%= label %>"><%= render "layouts/admins/icon", name: :info, icon_class: "icon-sm" %></button>
+<button type="button" class="text-secondary border-0 bg-transparent p-0 d-inline-flex align-items-center" data-bs-toggle="tooltip" data-bs-placement="top" title="<%= text %>" aria-label="<%= label %>" <%= tag.attributes(id: local_assigns[:id]) %>><%= render "layouts/admins/icon", name: :info, icon_class: "icon-sm" %></button>

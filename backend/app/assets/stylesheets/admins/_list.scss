@@ -9,6 +9,10 @@
 .admin-list-table .list-column-time { width: 8.75rem; }
 .admin-list-table .list-column-action { width: 5.625rem; }
 
+@media (min-width: 768px) {
+  .wechat-notification-table .list-column-status { width: 8rem; }
+}
+
 .app-list-card {
   container-type: inline-size;
   .app-platform { width: 6rem; }

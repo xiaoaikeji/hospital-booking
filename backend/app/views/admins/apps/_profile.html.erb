@@ -21,7 +21,11 @@
     <%= form_with url: admins_app_path(@app), method: :get, class: "row g-2 align-items-end" do |f| %>
       <%= hidden_field_tag :tab, "profile" %>
       <% application_list_context.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value %><% end %>
-      <div class="col-12 col-md-6 col-lg-4"><%= f.label :nickname, "名称检测", class: "form-label" %>
+      <div class="col-12 col-md-6 col-lg-4">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :nickname, "名称检测", class: "form-label mb-0" %>
+          <%= render "admins/shared/field_help", text: "正式改名请到微信公众平台办理。", label: "查看微信名称检测说明" %>
+        </div>
         <%= f.text_field :nickname, value: @nickname_query, size: nil, maxlength: 60, class: "form-control", required: true, placeholder: "输入待检测的名称" %>
       </div>
       <div class="col-auto"><%= f.button class: "btn" do %><%= render "layouts/admins/icon", name: :search %>检测名称<% end %></div>
@@ -32,7 +36,6 @@
         「<%= @nickname_query %>」<%= @nickname_check["hit_condition"] ? "命中微信名称规则" : "未命中微信名称规则" %>。<%= @nickname_check["wording"] %>
       </div>
     <% end %>
-    <p class="form-hint mt-2 mb-0">正式改名请到微信公众平台办理。</p>
   </div>
 </section>
 <div class="row g-3">
@@ -46,13 +49,17 @@
           <%= hidden_field_tag :field, field, id: nil %>
           <%= hidden_field_tag :revision, WechatPlatform::AppProfile.revision(@app, field, info), id: nil %>
           <% if field == "signature" %>
-            <%= f.label :signature, "新简介", class: "form-label" %>
+            <div class="d-flex align-items-center gap-1 mb-2">
+              <%= f.label :signature, "新简介", class: "form-label required mb-0" %>
+              <%= render "admins/shared/field_help", text: "4～120 个字符，至少包含 4 个汉字。", label: "查看简介填写要求" %>
+            </div>
             <%= f.text_area :signature, value: signature_value, rows: 2, minlength: 4, maxlength: 120, required: true, class: "form-control" %>
-            <div class="form-hint">4～120 个字符，至少包含 4 个汉字。</div>
           <% else %>
-            <%= f.label :head_image, "新头像", class: "form-label" %>
+            <div class="d-flex align-items-center gap-1 mb-2">
+              <%= f.label :head_image, "新头像", class: "form-label required mb-0" %>
+              <%= render "admins/shared/field_help", text: "选择 2MB 以内的 JPG 或 PNG，使用整张图片。", label: "查看头像上传要求" %>
+            </div>
             <%= f.file_field :head_image, accept: "image/jpeg,image/png", required: true, class: "form-control" %>
-            <div class="form-hint">选择 2MB 以内的 JPG 或 PNG，使用整张图片。</div>
           <% end %>
         </div>
         <div class="card-footer bg-transparent text-end">

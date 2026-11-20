@@ -1,6 +1,7 @@
 <% app = @release.app; round = @release.action_round %>
 <% actions = WechatPlatform::ReleaseActions.new(app, release: @release, round: round) %>
 <% content_for :title, "#{app.display_name} · #{@release.version} · 代码" %>
+<%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "admins/releases", "admins/app_qrcode", defer: true %><% end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "发布详情", icon: :code } do %>
   <%= link_to admins_mini_program_releases_path(@list || {app_id: app.id}), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回代码列表<% end %>

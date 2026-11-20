@@ -10,13 +10,14 @@
   } %>
 </div></section>
 <section class="card mb-3"><div class="card-header"><h2 class="card-title">已绑定应用（<%= @apps.size %>）</h2></div>
-  <% if @apps.any? %><table class="table table-fixed table-vcenter card-table mb-0">
-    <thead><tr><th scope="col">应用</th><th scope="col" class="d-none d-sm-table-cell">应用平台</th>
-      <th scope="col" class="d-none d-md-table-cell">AppID</th><th scope="col">操作</th></tr></thead>
+  <% if @apps.any? %><table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+    <thead><tr><th scope="col" class="list-column-id px-2">ID</th><th scope="col" class="px-2">应用</th><th scope="col" class="d-none d-sm-table-cell">应用平台</th>
+      <th scope="col" class="d-none d-md-table-cell">AppID</th><th scope="col" class="col-4 col-sm-3 col-lg-2 px-2">操作</th></tr></thead>
     <tbody><% @apps.each do |app| %><tr>
-      <td><%= render "admins/shared/list_text", text: app.display_name, url: admins_app_path(app, tab: "open_platform") %></td>
+      <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
+      <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name, url: admins_app_path(app, tab: "open_platform") %></td>
       <td class="d-none d-sm-table-cell"><%= app.platform_label %></td>
-      <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: app.appid %></td><td>
+      <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: app.appid %></td><td class="px-2">
         <% if @pending.key?(app.id) %><%= link_to "核实绑定状态", admins_app_path(app, tab: "open_platform") %>
         <% elsif app.platform_authorized? %>
           <%= form_with url: admins_open_platform_account_binding_path(@account, app), method: :delete, id: "open-unbind-#{app.id}" do %>

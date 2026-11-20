@@ -3,29 +3,27 @@
     <h2 class="card-title" id="experiencer-title">体验者 <span class="text-secondary">（<%= @experiencers.size %>）</span></h2>
   </div>
   <div class="card-body">
-    <%= form_with url: admins_app_experiencers_path(@app, application_context_params), class: "row g-2 align-items-end" do |form| %>
+    <%= form_with url: admins_app_experiencers_path(@app, application_context_params), class: "row g-2 align-items-end", data: { admin_form: true } do |form| %>
       <div class="col-12 col-sm-5 col-lg-3">
-        <%= form.label :wechatid, "体验者微信号", class: "form-label" %>
+        <%= form.label :wechatid, "体验者微信号", class: "form-label required" %>
         <%= form.text_field :wechatid, class: "form-control", maxlength: 64, size: nil, required: true, autocomplete: "off", placeholder: "输入微信号" %>
       </div>
-      <div class="col-auto"><%= form.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>绑定体验者<% end %></div>
+      <div class="col-auto"><%= render "admins/shared/submit_button", label: "绑定体验者", icon: :plus %></div>
     <% end %>
   </div>
   <% if @experiencers.empty? %>
     <%= render "admins/shared/list_empty", icon: :users, title: "暂无体验者" %>
   <% else %>
-    <div class="table-responsive">
-      <table class="table table-vcenter card-table table-hover mb-0">
-        <thead><tr><th scope="col">体验者标识</th><th scope="col" class="w-1">操作</th></tr></thead>
-        <tbody>
-          <% @experiencers.each_with_index do |userstr, index| %>
-            <tr><td class="text-break"><%= userstr %></td><td>
-              <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-<%= index %>-confirmation"><%= render "layouts/admins/icon", name: :close %>解绑</button>
-            </td></tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr><th scope="col">体验者标识</th><th scope="col" class="list-column-action px-2">操作</th></tr></thead>
+      <tbody>
+        <% @experiencers.each_with_index do |userstr, index| %>
+          <tr><td><%= render "admins/shared/list_text", text: userstr %></td><td class="px-2">
+            <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-<%= index %>-confirmation"><%= render "layouts/admins/icon", name: :close %>解绑</button>
+          </td></tr>
+        <% end %>
+      </tbody>
+    </table>
     <% @experiencers.each_with_index do |userstr, index| %>
       <% form_id = "unbind-#{index}" %>
       <%= form_with url: admins_app_experiencers_path(@app, application_context_params), method: :delete, id: form_id, class: "d-none" do %>

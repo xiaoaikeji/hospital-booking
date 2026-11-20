@@ -8,11 +8,11 @@
     </div>
   </div>
   <div class="card-body">
-    <%= form_with url: admins_app_plugins_path(@app, application_context_params), class: "row g-2 align-items-end" do |f| %>
-      <div class="col-12 col-sm-6 col-lg-4"><%= f.label :plugin_appid, "插件 AppID", class: "form-label" %>
+    <%= form_with url: admins_app_plugins_path(@app, application_context_params), class: "row g-2 align-items-end", data: { admin_form: true } do |f| %>
+      <div class="col-12 col-sm-6 col-lg-4"><%= f.label :plugin_appid, "插件 AppID", class: "form-label required" %>
         <%= f.text_field :plugin_appid, value: (draft["id"] if draft["action"] == "apply"), class: "form-control", required: true, maxlength: 64, size: nil, autocomplete: "off" %>
       </div>
-      <div class="col-auto"><%= f.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>申请使用<% end %></div>
+      <div class="col-auto"><%= render "admins/shared/submit_button", label: "申请使用", icon: :plus %></div>
     <% end %>
   </div>
   <%= render "admins/apps/plugin_table", plugins: @plugins, manage: true, draft: draft %>

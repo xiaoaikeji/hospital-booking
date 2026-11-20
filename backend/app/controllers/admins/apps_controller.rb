@@ -51,13 +51,13 @@ module Admins
     end
 
     def edit
-      AppConfiguration.new(@app).credential
-    rescue AppConfiguration::Invalid => error
-      render plain: error.message, status: :unprocessable_content
+      load_form_credential
+      render :edit, status: :unprocessable_content if @credential_unavailable
     end
 
     def new
       @app = App.new(provider: "wechat")
+      load_form_credential
     end
 
     def create
@@ -127,6 +127,16 @@ module Admins
     def load_app = @app = App.find(params[:id])
     def input = params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret, :clear_secret, :revision)
 
+    def load_form_credential
+      config = AppConfiguration.new(@app)
+      @credential_value, @credential_source = config.credential
+      @credential_revision = config.revision([ @credential_value, @credential_source ]) if @app.persisted?
+    rescue AppConfiguration::Invalid => error
+      @credential_source = error.is_a?(AppConfiguration::DecryptionFailed) ? "系统配置（解密失败）" : "部署配置无效"
+      @credential_unavailable = true
+      @app.errors.add(:appsecret, error.message)
+    end
+
     def save_app(action)
       App.transaction(requires_new: true) do
         @app.lock! if @app.persisted?
@@ -147,7 +157,11 @@ module Admins
           ActiveRecord.after_all_transactions_commit { Rails.cache.delete("apps/#{@app.id}/channel_token") }
         end
       end
-      redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已保存", status: :see_other
+      if input[:clear_secret] == "1"
+        redirect_to edit_admins_app_path(@app, helpers.application_context_params), notice: "系统配置已清除", status: :see_other
+      else
+        redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已保存", status: :see_other
+      end
     rescue AppConfiguration::Invalid, WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
       reason = case error
       when ActiveRecord::RecordInvalid then "请核对标出的应用资料"
@@ -156,12 +170,8 @@ module Admins
       end
       audit(action, status: "failed", details: { reason: reason })
       @app.reload if @app.persisted?
-      begin
-        AppConfiguration.new(@app).credential
-      rescue AppConfiguration::Invalid => failure
-        return render plain: failure.message, status: :unprocessable_content
-      end
-      @app.errors.add(:base, reason)
+      load_form_credential
+      @app.errors.add(:base, reason) unless @credential_unavailable
       render(action == "create" ? :new : :edit, status: :unprocessable_content)
     end
 

@@ -71,7 +71,8 @@ class WechatPrivacySettingsTest < ActionDispatch::IntegrationTest
     input[:entries]["0"][:purpose] = ""
     patch admins_app_privacy_setting_path(@a), params: {privacy: input}
     assert_response :unprocessable_content
-    assert_includes response.body, "请填写已勾选声明项的实际用途"
+    assert_select "#privacy-purpose-0.is-invalid[aria-describedby='privacy-purpose-0-error']"
+    assert_select "#privacy-purpose-0-error.invalid-feedback", "请填写已勾选声明项的实际用途"
     @a.app_authorization.update!(refresh_token: nil)
     patch admins_app_privacy_setting_path(@a), params: {privacy: input}
     assert_not response.successful?

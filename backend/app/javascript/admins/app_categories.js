@@ -12,10 +12,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderFiles(items) {
     files.querySelectorAll("[data-bs-toggle=datepicker]").forEach(el => window.tabler.Datepicker.getInstance(el)?.dispose());
+    files.querySelectorAll("[data-bs-toggle=tooltip]").forEach(el => window.tabler.Tooltip.getInstance(el)?.dispose());
     files.replaceChildren();
     items.forEach((item, index) => {
       const field = modal.querySelector("template").content.firstElementChild.cloneNode(true);
-      field.querySelector("legend").textContent = item.name;
+      field.querySelector("[data-certificate-name]").textContent = item.name;
       const upload = field.querySelector("[type=file]");
       upload.name = "certificates[" + index + "]";
       upload.setAttribute("aria-label", item.name);
@@ -36,6 +37,7 @@ document.addEventListener("DOMContentLoaded", () => {
       calendar.dataset.bsBoundInput = "#" + date.id;
       files.append(field);
       window.tabler.Datepicker.getOrCreateInstance(calendar);
+      window.tabler.Tooltip.getOrCreateInstance(field.querySelector("[data-bs-toggle=tooltip]"));
     });
   }
 
@@ -57,8 +59,12 @@ document.addEventListener("DOMContentLoaded", () => {
       group.append(label);
     });
     const remark = modal.querySelector("[data-remark]");
-    remark.textContent = node?.remark || "";
-    remark.hidden = !remark.textContent;
+    const remarkText = node?.remark || "";
+    const trigger = remark.querySelector("button");
+    window.tabler.Tooltip.getInstance(trigger)?.dispose();
+    trigger.title = remarkText;
+    remark.hidden = !remarkText;
+    if (remarkText) window.tabler.Tooltip.getOrCreateInstance(trigger);
     modal.querySelector("[data-urgent]").hidden = choices.length === 0;
     modal.querySelector("[data-urgent] [type=checkbox]").checked = false;
     renderFiles(choices.length === 1 ? choices[0] : []);
@@ -85,8 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
     event.preventDefault();
     const button = form.querySelector("[type=submit]");
     if (button.disabled) return;
-    button.disabled = true;
-    button.querySelector(".spinner-border").classList.remove("d-none");
+    window.adminForms.setBusy(form, true);
     alert.hidden = true;
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form), credentials: "same-origin",
@@ -100,8 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
       alert.hidden = false;
       alert.scrollIntoView({ block: "center" });
     } finally {
-      button.disabled = false;
-      button.querySelector(".spinner-border").classList.add("d-none");
+      window.adminForms.setBusy(form, false);
     }
   });
 });

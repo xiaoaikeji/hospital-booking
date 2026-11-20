@@ -1,7 +1,9 @@
 <% content_for :title, "插件列表 · Booking 管理后台" %>
+<% empty = @load_error.nil? && @plugins.blank? %>
+<% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "插件列表", icon: :puzzle } do %><% end %>
 <% if @apps.any? %>
-  <section class="card mb-3"><div class="card-body py-2">
+  <section class="card mb-3 flex-shrink-0"><div class="card-body py-2">
     <div class="row align-items-baseline g-2"><div class="col-12 col-md-2 col-xl-1 text-secondary">小程序</div>
       <nav class="col nav nav-pills" aria-label="选择小程序"><% @apps.each do |app| %>
         <%= link_to app.display_name, admins_plugins_path(app_id: app.id), class: class_names("nav-link text-break", active: app == @app), title: app.appid, aria: { current: ("page" if app == @app) } %>
@@ -9,7 +11,7 @@
     </div>
   </div></section>
 <% end %>
-<section class="card"><% if @app %>
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="插件记录"><% if @app %>
   <div class="card-header flex-wrap gap-2"><h2 class="card-title"><%= @app.display_name %> 的插件</h2>
     <div class="card-actions"><%= link_to admins_app_path(@app, tab: "plugins"), class: "btn" do %><%= render "layouts/admins/icon", name: :settings %>管理插件<% end %></div>
   </div>

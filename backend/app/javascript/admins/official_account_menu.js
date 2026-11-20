@@ -23,6 +23,7 @@ document.addEventListener("DOMContentLoaded", () => {
     uploading = false;
   let page = 1,
     articleRequest = 0;
+  let fieldError;
   const current = () => (sub === null ? buttons[top] : buttons[top]?.sub_button?.[sub]);
   const siblings = () => (sub === null ? buttons : buttons[top].sub_button);
   const modal = (id) => window.tabler.Modal.getOrCreateInstance(el(id));
@@ -31,6 +32,38 @@ document.addEventListener("DOMContentLoaded", () => {
     el("feedback").hidden = !message;
     if (message) el("feedback").scrollIntoView({ block: "nearest" });
   };
+  function clearFieldError() {
+    if (!fieldError) return;
+    const { styled, control, message } = fieldError;
+    styled.classList.remove("is-invalid");
+    control.removeAttribute("aria-invalid");
+    control.removeAttribute("aria-describedby");
+    message.hidden = true;
+    fieldError = null;
+  }
+  function showFieldError(id, text) {
+    const input = el(id);
+    const styled = input.tomselect?.wrapper || input;
+    const control = input.tomselect?.focus_node || input;
+    const message = el(id + "-error");
+    styled.classList.add("is-invalid");
+    control.setAttribute("aria-invalid", "true");
+    control.setAttribute("aria-describedby", message.id);
+    message.textContent = text;
+    message.hidden = false;
+    fieldError = { styled, control, message };
+    control.focus();
+  }
+  function setHelp(id, text) {
+    const trigger = el(id);
+    const tooltip = window.tabler.Tooltip.getInstance(trigger);
+    if (tooltip) {
+      trigger.dataset.bsOriginalTitle = text;
+      tooltip.setContent({ ".tooltip-inner": text });
+    } else {
+      trigger.title = text;
+    }
+  }
   function button(label, active, onClick) {
     const b = document.createElement("button");
     b.type = "button";
@@ -42,6 +75,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function changed() {
     dirty = true;
     feedback();
+    clearFieldError();
   }
   function options(select, items, value) {
     select.tomselect?.destroy();
@@ -85,6 +119,7 @@ document.addEventListener("DOMContentLoaded", () => {
     draw();
   }
   function draw() {
+    clearFieldError();
     drawBar();
     const n = current();
     el("fields").hidden = !n || preview;
@@ -102,8 +137,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (!n) return;
     el("name").value = n.name;
-    el("name-hint").textContent =
-      sub === null ? "一级菜单最多 4 个汉字或 8 个字母。" : "子菜单最多 8 个汉字或 16 个字母。";
+    setHelp("name-hint", sub === null ? "一级菜单最多 4 个汉字或 8 个字母。" : "子菜单最多 8 个汉字或 16 个字母。");
     const group = Array.isArray(n.sub_button);
     el("type-group").hidden = group;
     const choices = { ...types };
@@ -123,7 +157,7 @@ document.addEventListener("DOMContentLoaded", () => {
     el("url").value = n.url || "";
     el("url-label").textContent = n.type === "miniprogram" ? "备用网址（选填）" : "网址";
     setValue(el("kind"), n.kind || "image");
-    el("media-hint").textContent = mediaHints[n.kind || "image"];
+    setHelp("media-hint", mediaHints[n.kind || "image"]);
     el("media-name").textContent = n.type === "media_id" ? n.label || n.media_id || "" : "";
     const source =
       images.get(n) ||
@@ -187,17 +221,33 @@ document.addEventListener("DOMContentLoaded", () => {
   function validate() {
     for (const [i, parent] of buttons.entries()) {
       for (const [j, n] of [[null, parent], ...(parent.sub_button || []).map((item, k) => [k, item])]) {
-        let error = "";
+        let error, field;
         const width = Array.from(n.name.trim()).reduce((sum, ch) => sum + (ch.codePointAt(0) > 127 ? 2 : 1), 0);
-        if (!width || width > (j === null ? 8 : 16)) error = "请核对菜单名称及长度";
-        else if (n.legacy) error = "请明确替换或删除微信原有动作后再发布";
-        else if (n.type === "view" && !/^https?:\/\//i.test(n.url || "")) error = "请填写有效网址";
-        else if (n.type === "miniprogram" && (!n.appid || !n.pagepath?.trim()))
-          error = "请选择小程序并填写页面路径";
-        else if (["media_id", "article_id"].includes(n.type) && !n[n.type]) error = "请选择素材或已发表内容";
+        if (!width || width > (j === null ? 8 : 16)) {
+          field = "name";
+          error = "请核对菜单名称及长度";
+        } else if (n.legacy) {
+          error = "请明确替换或删除微信原有动作后再发布";
+        } else if (n.type === "view" && !/^https?:\/\//i.test(n.url || "")) {
+          field = "url";
+          error = "请填写有效网址";
+        } else if (n.type === "miniprogram" && !n.appid) {
+          field = "appid";
+          error = "请选择目标小程序";
+        } else if (n.type === "miniprogram" && !n.pagepath?.trim()) {
+          field = "page";
+          error = "请填写页面路径";
+        } else if (["media_id", "article_id"].includes(n.type) && !n[n.type]) {
+          error = "请选择素材或已发表内容";
+        }
         if (error) {
           select(i, j);
-          feedback((n.name || "未命名菜单") + "：" + error);
+          if (field) {
+            feedback();
+            showFieldError(field, error);
+          } else {
+            feedback((n.name || "未命名菜单") + "：" + error);
+          }
           return false;
         }
       }
@@ -313,13 +363,11 @@ document.addEventListener("DOMContentLoaded", () => {
     el("move-down").onclick = () => move(1);
     el("submit").onclick = () => {
       if (!validate()) return;
-      el("publish-confirm-description").textContent = buttons.length
-        ? "将整套菜单发布到微信，覆盖该公众号的现有菜单。"
-        : "将删除该公众号在微信上的全部菜单。";
-      modal("publish-confirm").show();
+      modal(buttons.length ? "publish-confirm" : "clear-confirm").show();
     };
     for (const [id, action] of [
       ["publish", publish],
+      ["clear", publish],
       ["remove", remove],
       ["convert", addChild]
     ]) {

@@ -1,5 +1,15 @@
 module WechatPlatform
   class PrivacySettings
+    class InvalidField < Error
+      attr_reader :field, :entry_index
+
+      def initialize(message, field:, entry_index: nil)
+        super(message)
+        @field = field
+        @entry_index = entry_index
+      end
+    end
+
     OWNER_FIELDS = {
       "contact_email" => "联系邮箱", "contact_phone" => "联系电话", "contact_weixin" => "联系微信号",
       "contact_qq" => "联系 QQ", "notice_method" => "变更通知方式"
@@ -43,10 +53,14 @@ module WechatPlatform
           current = @last_read = snapshot(client.privacy)
           owner = current.owner.merge(input.fetch("owner", {}).slice(*OWNER_FIELDS.keys).transform_values { |v| v.to_s.strip }).compact_blank
           declarations = declaration_values(input.fetch("entries", {}).values)
-          raise Error, "请填写至少一种开发者联系方式" unless owner.values_at(*CONTACT_KEYS).any?(&:present?)
-          raise Error, "请填写隐私指引变更时的通知方式" if owner["notice_method"].blank?
+          unless owner.values_at(*CONTACT_KEYS).any?(&:present?)
+            raise InvalidField.new("请填写至少一种开发者联系方式", field: "contact")
+          end
+          if owner["notice_method"].blank?
+            raise InvalidField.new("请填写隐私指引变更时的通知方式", field: "notice_method")
+          end
           if owner["contact_email"].present? && !URI::MailTo::EMAIL_REGEXP.match?(owner["contact_email"])
-            raise Error, "请检查联系邮箱的格式"
+            raise InvalidField.new("请检查联系邮箱的格式", field: "contact_email")
           end
           unless declarations == current.declared && owner == current.owner.compact_blank
             raise Error, "微信指引已变更，请重新读取后核对" unless input["revision"] == current.revision
@@ -63,13 +77,19 @@ module WechatPlatform
     private
 
     def declaration_values(entries)
-      entries.each_with_object({}) do |row, declared|
+      entries.each_with_index.each_with_object({}) do |(row, index), declared|
         next unless row["enabled"] == "1"
         key = row["key"].to_s.strip
-        raise Error, "请填写微信隐私接口标识" unless key.match?(/\A[A-Za-z][A-Za-z0-9_]*\z/)
-        raise Error, "隐私接口标识有重复，请检查" if declared.key?(key)
+        unless key.match?(/\A[A-Za-z][A-Za-z0-9_]*\z/)
+          raise InvalidField.new("请填写微信隐私接口标识", field: "key", entry_index: index)
+        end
+        if declared.key?(key)
+          raise InvalidField.new("隐私接口标识有重复，请检查", field: "key", entry_index: index)
+        end
         text = row["purpose"].to_s.strip
-        raise Error, "请填写已勾选声明项的实际用途" if text.blank?
+        if text.blank?
+          raise InvalidField.new("请填写已勾选声明项的实际用途", field: "purpose", entry_index: index)
+        end
         declared[key] = text
       end
     end

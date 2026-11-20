@@ -1,6 +1,6 @@
 <% attributes = { class: local_assigns[:multiline] ? "admin-list-text-lines lh-sm" : "d-block text-truncate", title: text, data: { list_text: true, bs_toggle: "tooltip", bs_placement: "top" } } %>
 <% if local_assigns[:url] %>
-  <%= link_to text, url, attributes %>
+  <%= link_to text, url, attributes.merge(local_assigns.slice(:target, :rel)) %>
 <% else %>
   <%= tag.span text, **attributes, tabindex: 0 %>
 <% end %>

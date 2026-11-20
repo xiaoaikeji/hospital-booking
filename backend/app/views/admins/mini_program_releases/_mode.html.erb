@@ -3,6 +3,6 @@
   <div role="alert" class="text-danger mb-2"></div>
   <% unless @release.app.platform_authorized? %><p class="text-secondary">选择仅保存在本轮。后台需恢复此应用的平台授权后才能执行自动发布。</p><% end %>
   <%= hidden_field_tag :expected_mode, @round.auto_publish? ? "1" : "0" %>
-  <label class="form-check mb-3"><%= f.check_box :auto_publish, checked: @round.auto_publish?, class: "form-check-input" %>审核通过后自动发布</label>
+  <label class="form-check form-switch mb-3"><%= f.check_box :auto_publish, checked: @round.auto_publish?, class: "form-check-input" %><span class="form-check-label">审核通过后自动发布</span></label>
   <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "保存发布方式", icon: :save %></div>
 <% end %>

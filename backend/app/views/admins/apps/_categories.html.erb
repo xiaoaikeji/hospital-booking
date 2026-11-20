@@ -36,21 +36,27 @@
   <% if categories.empty? %>
     <%= render "admins/shared/list_empty", icon: :package, title: "暂无服务类目" %>
   <% else %>
-    <div class="table-responsive"><table class="table table-vcenter card-table table-hover mb-0">
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead><tr>
         <th scope="col"><span class="d-none d-sm-inline">一级类目</span><span class="d-sm-none">服务类目</span></th>
-        <th scope="col" class="d-none d-sm-table-cell">二级类目</th><th scope="col">审核状态</th>
-        <th scope="col" class="d-none d-sm-table-cell">审核意见</th><th scope="col">操作</th>
+        <th scope="col" class="d-none d-sm-table-cell">二级类目</th><th scope="col" class="list-column-status px-2">审核状态</th>
+        <th scope="col" class="d-none d-sm-table-cell">审核意见</th><th scope="col" class="list-column-action px-2">操作</th>
       </tr></thead>
       <tbody><% categories.each do |row| %><tr>
-        <td><%= row["first_name"] %><span class="d-block d-sm-none small text-secondary"><%= row["second_name"] %></span></td>
-        <td class="d-none d-sm-table-cell"><%= row["second_name"] %></td>
+        <td>
+          <%= render "admins/shared/list_text", text: row["first_name"] %>
+          <div class="d-sm-none small text-secondary">
+            <%= render "admins/shared/list_text", text: row["second_name"] %>
+            <% if row["audit_reason"].present? %><%= render "admins/shared/list_text", text: row["audit_reason"] %><% end %>
+          </div>
+        </td>
+        <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: row["second_name"] %></td>
         <% label, color = { 1 => ["审核中", "warning"], 2 => ["未通过", "danger"], 3 => ["已通过", "success"] }.fetch(row["audit_status"].to_i, ["未知", "secondary"]) %>
-        <td><span class="badge bg-<%= color %>-lt"><%= label %></span><span class="d-block d-sm-none small text-secondary text-break"><%= row["audit_reason"] %></span></td>
-        <td class="d-none d-sm-table-cell text-break"><%= row["audit_reason"].presence || "—" %></td>
-        <td><% unless pending %><button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#category-remove-<%= row['first'] %>-<%= row['second'] %>-confirm"><%= render "layouts/admins/icon", name: :trash %>删除</button><% end %></td>
+        <td class="px-2"><span class="badge bg-<%= color %>-lt"><%= label %></span></td>
+        <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: row["audit_reason"].presence || "—", multiline: true %></td>
+        <td class="px-2"><% unless pending %><button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#category-remove-<%= row['first'] %>-<%= row['second'] %>-confirm"><%= render "layouts/admins/icon", name: :trash %>删除</button><% end %></td>
       </tr><% end %></tbody>
-    </table></div>
+    </table>
   <% end %>
   <% if (event = @category_page[:last_event]) %><div class="card-footer text-secondary small">最近审核通知 · <%= event.details.values_at("first", "second").join(" / ") %> · <%= event.details["result"] == "3" ? "审核通过" : "审核未通过" %> · <%= admin_list_time(Time.zone.at(event.details.fetch("occurred_at").to_i)) %></div><% end %>
 </section>

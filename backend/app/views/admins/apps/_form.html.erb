@@ -2,9 +2,8 @@
 <% content_for :head do %><meta name="turbo-cache-control" content="no-cache"><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "admins/app_type", defer: true unless @app.persisted? %><% end %>
-<% config = AppConfiguration.new(@app) %>
-<% value, source = config.credential %>
 <% confirm_id = "disable-app" if @app.persisted? && @app.status_in_database != "disabled" %>
+<% can_clear = @credential_source == "加密数据库" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :device_mobile } do %>
   <%= link_to admins_apps_path(application_list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
@@ -44,19 +43,26 @@
   <div class="card-header border-top"><h2 class="card-title">接入凭据</h2></div>
   <div class="card-body"><div class="row g-3">
       <div class="col-12 col-xl-8">
-        <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, value: value, source: source %>
-        <% if @app.persisted? %><%= f.hidden_field :revision, value: config.revision([value, source]) %><% end %>
-        <% if source == "加密数据库" %>
-          <label class="form-check mt-2"><%= f.check_box :clear_secret, class: "form-check-input" %><span class="form-check-label">清除数据库覆盖</span></label>
-        <% end %>
+        <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, value: @credential_value, source: @credential_source, disabled: @credential_unavailable %>
+        <% if @credential_revision %><%= f.hidden_field :revision, value: @credential_revision %><% end %>
       </div>
-
     </div>
   </div>
   <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
     <%= link_to (@app.persisted? ? admins_app_path(@app, application_context_params) : admins_apps_path(application_list_context)), class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
-    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+    <% if @app.persisted? %><%= render "admins/shared/clear_configuration_button", target: "#clear-app-configuration", disabled: !can_clear %><% end %>
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save, disabled: @credential_unavailable %>
   </div></div>
+<% end %>
+<% if can_clear %>
+  <%= form_with model: [:admins, @app], id: "clear-app-configuration-form", class: "d-none" do |f| %>
+    <% application_list_context.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value, id: nil %><% end %>
+    <%= f.hidden_field :revision, value: @credential_revision, id: nil %>
+    <%= f.hidden_field :clear_secret, value: "1", id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "clear-app-configuration", form_id: "clear-app-configuration-form",
+      title: "确认清除系统配置", context: @app.display_name, description: "清除此应用在数据库中的 AppSecret，并按环境变量、Rails credentials 的顺序读取。",
+      color: "warning", confirm_label: "确认清除", confirm_icon: :trash, cancel_icon: :close %>
 <% end %>
 <% if confirm_id %>
   <%= render "admins/shared/confirmation_modal", modal_id: confirm_id, form_id: "app-form", title: "确认停用应用", context: @app.display_name, description: "停用后，此应用下次读取启动配置时将无法进入服务。", color: "warning", confirm_label: "确认停用并保存", confirm_icon: :alert, cancel_icon: :close %>

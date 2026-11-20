@@ -1,13 +1,15 @@
-document.addEventListener("DOMContentLoaded", () => {
+window.initializeAdminSelects = (root = document) => {
   if (!window.TomSelect) return;
 
-  document.querySelectorAll("select[data-enhanced-select]").forEach((select) => {
+  root.querySelectorAll("select[data-enhanced-select]").forEach((select) => {
     if (select.tomselect) return;
 
     const options = { create: false, copyClassesToDropdown: false, dropdownParent: select.hasAttribute("data-inline-dropdown") ? null : (select.closest(".modal-content") || "body") };
     if (select.dataset.enhancedSelect === "single") {
       options.controlInput = null;
-      options.allowEmptyOption = true;
+      options.allowEmptyOption = !select.required && Array.from(select.options).some(
+        (option) => option.value === "" && option.label.trim() !== ""
+      );
     }
 
     const control = new window.TomSelect(select, options).focus_node;
@@ -15,4 +17,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (select.hasAttribute(name)) control.setAttribute(name, select.getAttribute(name));
     });
   });
-});
+};
+
+document.addEventListener("DOMContentLoaded", () => window.initializeAdminSelects());

@@ -106,7 +106,10 @@
   let dialogLoad = 0;
   document.addEventListener("show.bs.modal", () => { generation++; });
   document.addEventListener("visibilitychange", () => { generation++; });
-  dialog?.addEventListener("hide.bs.modal", () => { dialogLoad++; });
+  dialog?.addEventListener("hide.bs.modal", () => {
+    dialogLoad++;
+    dialog.querySelectorAll("select[data-enhanced-select]").forEach(select => select.tomselect?.destroy());
+  });
   document.addEventListener("click", async event => {
     const opener = event.target.closest("[data-release-dialog]");
     if (!opener || !dialog) return;
@@ -120,8 +123,10 @@
       if (res.redirected) throw Error();
       const content = await res.text();
       if (id !== dialogLoad) return;
-      if (res.ok) body.innerHTML = content;
-      else body.textContent = res.status === 409 ? content : "读取失败，请关闭后重试。";
+      if (res.ok) {
+        body.innerHTML = content;
+        window.initializeAdminSelects?.(body);
+      } else body.textContent = res.status === 409 ? content : "读取失败，请关闭后重试。";
     } catch { if (id === dialogLoad) body.textContent = "读取失败，请关闭后重试。"; }
   });
   const list = document.querySelector("#release-list");

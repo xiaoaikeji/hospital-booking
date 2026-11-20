@@ -31,7 +31,11 @@ module AdminsHelper
 
   def admin_field_errors(record, field)
     return if record.errors[field].empty?
-    content_tag(:div, record.errors[field].join("，"), class: "invalid-feedback d-block", id: "#{field}-error")
+    admin_field_error(record.errors[field].join("，"), id: "#{field}-error")
+  end
+
+  def admin_field_error(message, id:)
+    tag.div(message, class: "invalid-feedback d-block", id: id) if message
   end
 
   def log_action_name(action) = LOG_ACTIONS.fetch(action, action)
@@ -57,6 +61,7 @@ module AdminsHelper
     when "默认本地" then [ "默认", "secondary" ]
     when "按地域生成" then [ source, "secondary" ]
     when "系统配置（解密失败）" then [ "解密失败", "danger" ]
+    when "部署配置无效" then [ source, "danger" ]
     else [ "未配置", "danger" ]
     end
   end

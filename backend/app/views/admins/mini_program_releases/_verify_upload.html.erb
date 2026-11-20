@@ -2,7 +2,10 @@
 <%= form_with url: verify_upload_admins_app_release_path(@release.app, @release), method: :patch, data: { release_form: true } do |f| %>
   <div role="alert" class="text-danger"></div>
   <%= f.label :outcome, "微信体验版核实结果", class: "form-label" %>
-  <%= f.select :outcome, [["本次上传已生效", "uploaded"], ["微信未执行本次上传", "not_uploaded"]], {}, class: "form-select mb-3" %>
+  <div class="mb-3">
+    <%= f.select :outcome, [["本次上传已生效", "uploaded"], ["微信未执行本次上传", "not_uploaded"]], {},
+          class: "form-select", data: { enhanced_select: "single" } %>
+  </div>
   <label class="form-check"><%= f.check_box :confirmed, required: true, class: "form-check-input" %>已核对微信后台的模板和版本</label>
   <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "登记核实结果", icon: :check %></div>
 <% end %>

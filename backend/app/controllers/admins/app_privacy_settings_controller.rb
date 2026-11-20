@@ -21,7 +21,11 @@ module Admins
       @revision = input["revision"]
       @entries = input.fetch("entries", {}).values
       @owner = input.fetch("owner", {})
-      flash.now[:alert] = error.message
+      if error.is_a?(WechatPlatform::PrivacySettings::InvalidField)
+        @field_error = error
+      else
+        flash.now[:alert] = error.message
+      end
       render :edit, status: :unprocessable_content
     end
   end

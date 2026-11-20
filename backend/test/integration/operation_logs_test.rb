@@ -82,7 +82,7 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
       assert_select "tbody a[href=?]", detail_path
       get detail_path
       assert_response :success
-      assert_select ".datagrid .badge", text: label
+      assert_select ".admin-detail-fields dd .badge", text: label
     end
   end
 

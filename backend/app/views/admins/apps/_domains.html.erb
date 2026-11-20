@@ -2,14 +2,18 @@
 <% WechatPlatform::AppDomains::FIELDS.each do |kind, fields| %>
   <% info = @domain_settings.fetch(kind); title = WechatPlatform::AppDomains::TITLES.fetch(kind) %>
   <section class="card mb-3" aria-label="<%= title %>" data-domain-editor>
-    <div class="card-header"><h2 class="card-title"><%= title %></h2></div>
+    <div class="card-header gap-2">
+      <h2 class="card-title"><%= title %></h2>
+      <% unless info[:error] %>
+        <%= render "admins/shared/field_help", text: "每行一个域名。留空保留微信现值；移除整类域名时，删除框内内容并勾选清空。", label: "查看#{title}填写说明" %>
+      <% end %>
+    </div>
     <% if info[:error] %><div class="card-body"><div class="alert alert-warning" role="status"><%= info[:error] %></div>
       <%= link_to admins_app_path(@app, application_context_params.merge(tab: "domains")), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %></div>
     <% else %>
       <% form_id = "app-#{kind}-domains"; defaults = WechatPlatform::AppDomains.defaults(kind) %>
       <%= form_with url: (kind == "server" ? admins_app_server_domain_path(@app, application_context_params) : admins_app_business_domain_path(@app, application_context_params)), method: :patch, id: form_id do %>
         <div class="card-body">
-          <p class="form-hint mb-3">每行一个域名。留空保留微信现值；移除整类域名时，删除框内内容并勾选清空。</p>
           <%= hidden_field_tag :revision, info.fetch(:revision), id: "#{kind}-revision" %>
           <% if defaults.any? %><details class="mb-3"><summary>医院默认域名</summary>
             <dl class="mt-2"><% defaults.each do |key, values| %><dt><%= fields.fetch(key).first %></dt><dd class="text-break"><%= safe_join(values, tag.br) %></dd><% end %></dl>

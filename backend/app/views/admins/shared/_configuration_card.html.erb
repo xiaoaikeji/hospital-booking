@@ -1,12 +1,15 @@
 <%# Render as a layout inside a card form/section. The preview uses a non-submitting button. %>
-<div class="card-header"><h2 class="card-title"><%= title %></h2></div>
+<div class="card-header flex-wrap gap-2">
+  <h2 class="card-title"><%= title %></h2>
+  <% if local_assigns[:header_actions] %><div class="card-actions"><%= header_actions %></div><% end %>
+</div>
 <div class="card-body">
   <%= render "admins/shared/form_errors", record: record if local_assigns[:record] %>
   <%= yield %>
 </div>
 <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
   <% if local_assigns[:clear_target] %>
-    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="<%= clear_target %>" <%= tag.attributes(disabled: local_assigns.fetch(:clear_disabled, false)) %>><%= render "layouts/admins/icon", name: :trash %>清除系统配置</button>
+    <%= render "admins/shared/clear_configuration_button", target: clear_target, disabled: local_assigns[:clear_disabled] %>
   <% end %>
   <% if local_assigns.fetch(:preview, false) %>
     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存设置</button>

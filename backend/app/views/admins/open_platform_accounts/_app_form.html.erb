@@ -7,7 +7,7 @@
   <%= javascript_include_tag "admins/open_platform", defer: true %>
 <% end %>
 <%= form_with url: (create_account ? admins_open_platform_accounts_path : admins_open_platform_account_bindings_path(account)),
-      id: form_id, data: { open_platform_confirm: "#{form_id}-confirm" } do |form| %>
+      id: form_id, data: { admin_form: true, open_platform_confirm: "#{form_id}-confirm" } do |form| %>
   <div class="card-body"><div class="row g-3">
     <div class="col-12 col-lg-6">
       <%= form.label :app_id, "微信应用", class: "form-label required" %>
@@ -15,13 +15,13 @@
     </div>
     <% if create_account %><div class="col-12 col-lg-4">
       <%= form.label :name, "账号名称", class: "form-label" %>
-      <%= form.text_field :name, maxlength: 120, value: params[:name], class: "form-control", placeholder: "留空按开放平台 AppID 命名" %>
+      <%= form.text_field :name, maxlength: 120, size: nil, value: params[:name], class: "form-control", placeholder: "留空按开放平台 AppID 命名" %>
     </div><% end %>
   </div></div>
   <div class="card-footer bg-transparent text-end">
-    <%= form.button class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: (create_account ? :plus : :link) %><%= label %><% end %>
+    <%= render "admins/shared/submit_button", label: label, icon: (create_account ? :plus : :link) %>
   </div>
 <% end %>
 <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirm", form_id: form_id, title: "确认#{label}",
       context: (account ? "#{account.name} · #{account.open_appid}" : "目标应用"), description: description,
-      color: "danger", confirm_label: "确认#{create_account ? '新增' : '绑定'}", confirm_icon: :check, cancel_icon: :close %>
+      color: "primary", confirm_label: "确认#{create_account ? '新增' : '绑定'}", confirm_icon: :check, cancel_icon: :close %>

@@ -13,6 +13,6 @@
   <div role="alert" class="text-danger mb-2"></div>
   <%= f.hidden_field :expected_round, value: @revision %>
   <%= f.label :description, "本轮提审说明", class: "form-label" %><%= f.text_area :description, value: @release.audit_description.presence || @release.latest_audit&.description || @release.description, rows: 3, class: "form-control mb-3" %>
-  <label class="form-check mb-3"><%= f.check_box :auto_publish, checked: true, class: "form-check-input" %><span class="form-check-label">审核通过后自动发布</span></label>
+  <label class="form-check form-switch mb-3"><%= f.check_box :auto_publish, checked: true, class: "form-check-input" %><span class="form-check-label">审核通过后自动发布</span></label>
   <div class="btn-list justify-content-end"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "确认提审", icon: :check %></div>
 <% end %>
