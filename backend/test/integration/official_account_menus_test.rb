@@ -113,6 +113,20 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     assert_equal 2, @writes.size
   end
 
+  test "微信返回系统繁忙也先查单，已生效的菜单不再发送" do
+    @error = -1
+    node = { name: "官网", type: "view", url: "https://example.test" }
+    publish([node])
+    assert_response :unprocessable_content
+    assert response.parsed_body["pending"]
+    publish([node])
+    assert_equal 1, @writes.size
+    @remote = [node]
+    pull
+    assert_equal [node.stringify_keys], @a.reload.official_account_menu.buttons
+    assert_nil @a.official_account_menu.pending_buttons
+  end
+
   test "保留历史回复、微信原生文本和账号隔离，错误响应留住上次菜单" do
     @remote = [{name: "客服", type: "click", key: "CONTACT"}, {name: "地址", type: "text", value: "门诊一楼"}]
     pull

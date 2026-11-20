@@ -20,7 +20,8 @@ module WechatPlatform
             row.update!(pending_buttons: normalized, revision: row.revision + 1)
             begin
               api.publish(MenuButtons.wire(normalized))
-            rescue Wechat::BaseClient::Rejected
+            rescue Wechat::BaseClient::Rejected => error
+              raise HttpConnection::Unavailable, "微信系统繁忙，请先核实本次菜单" if error.code == -1
               row.update!(pending_buttons: nil, revision: row.revision - 1)
               raise
             end
