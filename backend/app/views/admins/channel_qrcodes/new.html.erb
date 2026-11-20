@@ -27,8 +27,8 @@
       <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding || {} %>
     </div></div>
   </div>
-  <div class="card-footer d-flex flex-wrap gap-2">
-    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+  <div class="card-footer btn-list justify-content-end">
     <%= link_to list_path, class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
   </div>
 <% end %>

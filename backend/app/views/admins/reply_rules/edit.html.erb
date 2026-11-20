@@ -16,5 +16,5 @@
     </div>
     <button type="button" class="btn" data-add-keyword><%= render "layouts/admins/icon", name: :plus %>新增关键词规则</button>
     <template data-keyword-template><%= render "keyword", rule: {}, index: "NEW_INDEX" %></template>
-  </div><div class="card-footer"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
+  </div><div class="card-footer btn-list justify-content-end"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
 <% end %>

@@ -12,18 +12,17 @@
       <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div><div class="card-body">
         <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, @config.data.dig('template_bindings', event, 'template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true } %>
         <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
-      </div><div class="card-footer"><%= render "admins/shared/submit_button", label: "确认并保存绑定", icon: :save, type: "button", data: { template_save: true } %></div>
+      </div><div class="card-footer btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "确认并保存绑定", icon: :save, type: "button", data: { template_save: true } %></div>
     </section><% end %>
   </div>
 <% else %>
   <section class="card flex-fill" aria-label="微信模板状态">
     <% if @error %>
-      <div class="d-flex flex-fill justify-content-center align-items-center p-4">
-        <div class="alert alert-danger mb-0" role="alert">
-          <%= render "layouts/admins/icon", name: :alert %>
-          <div><h2 class="alert-title">无法读取微信模板</h2><div class="text-break"><%= @error %></div></div>
-        </div>
-      </div>
+      <% retry_link = capture do %>
+        <%= link_to admins_template_messages_path(app_id: @app&.id), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
+      <% end %>
+      <%= render "admins/shared/list_empty", icon: :alert, title: "无法读取微信模板", description: @error,
+            role: "alert", actions: retry_link %>
     <% elsif @app %>
       <%= render "admins/shared/list_empty", icon: :templates, title: "暂无可选微信模板", description: "在微信公众平台添加模板后，刷新本页重新读取。" %>
     <% else %>

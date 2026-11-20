@@ -5,5 +5,5 @@
     <p class="text-secondary"><%= @app.display_name %> · 原二维码继续可扫。</p>
     <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding['mode']), class: 'form-select', id: 'scan-mode', data: { enhanced_select: "single" } %>
     <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding, code_id: @code.id %>
-  </div><div class="card-footer"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
+  </div><div class="card-footer btn-list justify-content-end"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
 <% end %>

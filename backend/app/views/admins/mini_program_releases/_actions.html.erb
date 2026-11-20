@@ -1,5 +1,5 @@
 <% app = release.app; actions = WechatPlatform::ReleaseActions.new(app, release: release, round: release.action_round) %>
-<div class="d-flex flex-wrap gap-1 align-items-center">
+<div class="<%= class_names("d-flex flex-wrap gap-1 align-items-center", "justify-content-end" => local_assigns[:detail]) %>">
   <% unless local_assigns[:detail] %><%= link_to release_detail_url(release), class: "btn btn-sm btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %><% end %>
   <% if actions.trial? %>
     <%= render "admins/apps/qrcode_button", app: app, trial: release, label: "查看体验码" %>

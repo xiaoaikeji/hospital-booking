@@ -20,9 +20,9 @@
         <p class="form-hint">按顺序发送文字。未配置的事件沿用默认文案；保存后只影响新产生的通知。</p>
         <div data-reply-items></div>
         <button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button>
-      </div><div class="card-footer d-flex flex-wrap gap-2">
-        <%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %>
+      </div><div class="card-footer btn-list justify-content-end">
         <% if @content.stored %><button class="btn" type="button" data-bs-toggle="modal" data-bs-target="#restore-notification-content"><%= render "layouts/admins/icon", name: :rotate %>恢复默认文案</button><% end %>
+        <%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %>
       </div>
     </section></div>
     <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">示例预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section>

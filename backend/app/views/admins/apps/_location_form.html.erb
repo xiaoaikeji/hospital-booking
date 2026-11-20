@@ -43,11 +43,13 @@
       </div>
     </template>
   </div></div></div>
-  <div class="card-footer bg-transparent d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div class="card-footer bg-transparent d-flex align-items-center flex-wrap gap-2">
     <%= link_to "微信申请说明", "https://developers.weixin.qq.com/doc/oplatform/openApi/miniprogram-management/privacy-api-management/api_applyprivacyinterface.html", target: "_blank", rel: "noopener noreferrer" %>
-    <% if @location_entries.any? { |entry| entry.blocked_reason.nil? } %>
-      <%= render "admins/shared/submit_button", label: "提交申请", icon: :check %>
-    <% else %><span class="text-secondary">当前没有可申请的接口</span><% end %>
+    <div class="btn-list justify-content-end ms-auto">
+      <% if @location_entries.any? { |entry| entry.blocked_reason.nil? } %>
+        <%= render "admins/shared/submit_button", label: "提交申请", icon: :check %>
+      <% else %><span class="text-secondary">当前没有可申请的接口</span><% end %>
+    </div>
   </div>
 <% end %>
 <%= render "admins/shared/confirmation_modal", form_id: "location-application", modal_id: "location-apply-confirm",

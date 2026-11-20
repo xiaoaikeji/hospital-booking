@@ -61,5 +61,8 @@
       </div>
     </div>
   </div>
-  <div class="card-footer d-flex gap-2"><%= render "admins/shared/submit_button", label: "保存", icon: :save %><%= link_to "返回列表", admins_posters_path, class: "btn" %></div>
+  <div class="card-footer btn-list justify-content-end">
+    <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+  </div>
 <% end %>

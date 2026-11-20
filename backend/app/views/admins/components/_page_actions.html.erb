@@ -39,20 +39,20 @@
   <section class="tab-pane" id="page-actions-edit" role="tabpanel" aria-labelledby="page-actions-tab-edit" tabindex="0">
     <div class="card">
       <div class="card-header"><h2 class="card-title">编辑页底部操作</h2></div>
-      <div class="card-body"><div class="btn-list justify-content-end">
+      <div class="card-footer btn-list justify-content-end">
         <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :close %>取消</button>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存</button>
-      </div></div>
+      </div>
     </div>
   </section>
 
   <section class="tab-pane" id="page-actions-settings" role="tabpanel" aria-labelledby="page-actions-tab-settings" tabindex="0">
     <div class="card">
       <div class="card-header"><h2 class="card-title">配置页底部操作</h2></div>
-      <div class="card-body"><div class="btn-list justify-content-end">
+      <div class="card-footer btn-list justify-content-end">
         <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#page-actions-clear"><%= render "layouts/admins/icon", name: :trash %>清除系统配置</button>
         <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#component-notice"><%= render "layouts/admins/icon", name: :save %>保存设置</button>
-      </div></div>
+      </div>
     </div>
   </section>
 

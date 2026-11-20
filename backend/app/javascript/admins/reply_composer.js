@@ -107,7 +107,7 @@ document.addEventListener("DOMContentLoaded", () => {
     items.replaceChildren();
     reply.messages.forEach((m, i) => {
       const box = node("div", "border rounded p-3 mb-3"); box.dataset.messageIndex = i;
-      const tools = node("div", "d-flex flex-wrap align-items-center gap-2 mb-3");
+      const tools = node("div", "d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3");
       tools.append(node("strong", "me-auto", `第 ${i + 1} 条 · ${m.type === "text" ? "文字" : "小程序卡片"}`));
       [["上移", -1], ["下移", 1], ["删除", 0]].forEach(([label, by]) => {
         const b = node("button", "btn btn-sm", label); b.type = "button";
@@ -140,8 +140,6 @@ document.addEventListener("DOMContentLoaded", () => {
         file.dataset.replyField = "thumb_media_id";
         file.dataset.requiredMessage = "请上传卡片封面";
         label.htmlFor = file.id;
-        const hint = node("div", "form-hint", m.content.thumb_media_id ? "封面已选择" : "请选择 JPG 或 PNG 图片");
-        hint.setAttribute("role", "status");
         file.onchange = async () => {
           const selected = file.files[0];
           if (!selected || busy) return;
@@ -156,7 +154,6 @@ document.addEventListener("DOMContentLoaded", () => {
             if (m.previewUrl) URL.revokeObjectURL(m.previewUrl);
             m.previewUrl = URL.createObjectURL(selected);
             file.required = false;
-            hint.textContent = "封面已选择";
             drawPreview();
           } catch (e) {
             file.value = "";
@@ -166,7 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
             save.disabled = false;
           }
         };
-        box.append(label, file, hint);
+        box.append(label, file);
       }
       box.addEventListener("input", () => { dirty = true; drawPreview(); });
       items.append(box);
