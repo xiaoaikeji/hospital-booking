@@ -31,7 +31,7 @@ module WechatHttpTest
   end
 
   def signed_push(path, xml, tamper: false)
-    message = "0" * 16 + [ xml.bytesize ].pack("N") + xml + @component[:appid]
+    message = "0" * 16 + [ xml.bytesize ].pack("N") + xml.b + @component[:appid].b
     pad = 32 - message.bytesize % 32
     cipher = OpenSSL::Cipher.new("aes-256-cbc").encrypt
     cipher.key = "x" * 32

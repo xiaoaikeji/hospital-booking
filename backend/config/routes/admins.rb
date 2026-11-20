@@ -14,6 +14,7 @@ namespace :admins do
   resources :notifications, only: %i[index show] do
     post :retry_failed, on: :member
   end
+  resources :reply_contents, only: :index
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
   resources :official_account_fans, only: :index
@@ -23,7 +24,13 @@ namespace :admins do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
   end
   resources :apps do
-    resources :channel_qrcodes, only: %i[new create show]
+    resources :reply_contents, only: %i[new create edit update] do
+      post :media, on: :collection
+      get :image, on: :collection
+    end
+    resource :reply_rules, only: %i[edit update]
+
+    resources :channel_qrcodes, only: %i[new create show edit update]
     resources :fans, controller: "official_account_fans", only: :show do
       post :sync, on: :collection
     end

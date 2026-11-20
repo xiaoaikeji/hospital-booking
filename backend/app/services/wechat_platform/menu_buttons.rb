@@ -104,8 +104,9 @@ module WechatPlatform
         field = REFERENCES.fetch(type)
         id = node[field]
         previous = @previous.any? { |old| old["type"] == type && old[field] == id }
+        configured = type == "click" && id.is_a?(String) && id.start_with?("reply_") && Notifications::AccountConfiguration.new(@app).replies.key?(id.delete_prefix("reply_"))
         proof = Rails.application.message_verifier(:official_menu_resource).verified(node["proof"].to_s) unless previous
-        unless id.is_a?(String) && id.present? && (previous || (type != "click" && proof == [@app.id, type, id]))
+        unless id.is_a?(String) && id.present? && (previous || configured || (type != "click" && proof == [@app.id, type, id]))
           raise Error, "「#{name}」请使用本公众号的已有回复、素材或文章"
         end
         item[field] = id

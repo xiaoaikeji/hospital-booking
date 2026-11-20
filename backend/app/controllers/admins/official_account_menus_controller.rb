@@ -9,6 +9,7 @@ module Admins
       @app = params[:app_id].present? ? @accounts.find(params[:app_id]) : @accounts.first
       return unless @app
       @menu = OfficialAccountMenu.find_by(app: @app) || OfficialAccountMenu.new(app: @app)
+      @replies = Notifications::AccountConfiguration.new(@app).replies
       @targets = App.wechat_mini_programs.order(:nickname, :id)
     end
 

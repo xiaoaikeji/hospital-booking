@@ -2,7 +2,7 @@ module Api
   class WechatEventsController < ActionController::API
     rescue_from Wechat::MessageCrypto::Invalid, with: -> { head :forbidden }
     rescue_from Nokogiri::XML::SyntaxError, with: -> { head :bad_request }
-    rescue_from WechatPlatform::Error, with: -> { head :service_unavailable }
+    rescue_from Notifications::Error, WechatPlatform::Error, with: -> { head :service_unavailable }
 
     def create
       platform = WechatPlatform::ComponentToken.new
@@ -25,12 +25,12 @@ module Api
           else
             WechatPlatform::AuditEventWorker.perform_async(auth.app_id)
           end
-        elsif auth.app.app_type == "official_account" && message["MsgType"] == "event" && %w[subscribe unsubscribe].include?(message["Event"])
-          openid, event, seconds = message.values_at("FromUserName", "Event", "CreateTime")
-          return head :bad_request unless openid.present? && openid.length <= 150 && seconds.to_s.match?(/\A[1-9]\d{0,10}\z/)
-          key = message["EventKey"].to_s
-          scene = key.delete_prefix("qrscene_").truncate(255) if key.start_with?("qrscene_")
-          OfficialAccountFanEvent.receive!(auth.app, openid, event, seconds.to_i, scene)
+        elsif auth.app.app_type == "official_account"
+          reply = Notifications::OfficialAccountEvents.receive!(auth.app, message)
+          if reply
+            render xml: Wechat::MessageCrypto.new(platform.config).encrypt(reply)
+            return
+          end
         elsif auth.app.code_capable? && message["MsgType"] == "event" && message["Event"] == "wxa_appeal_record"
           WechatPlatform::IllegalRecordWorker.perform_async(auth.app_id) if WechatPlatform::IllegalRecords.enabled?
         elsif auth.app.code_capable? && message["MsgType"] == "event" && message["Event"] == "wxa_category_audit"

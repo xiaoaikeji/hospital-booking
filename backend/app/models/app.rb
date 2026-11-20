@@ -13,6 +13,7 @@ class App < ApplicationRecord
   def platform_authorized? = provider == "wechat" && app_authorization&.authorized?
 
   STATUSES = { "active" => "正常", "auditing" => "审核中", "disabled" => "已停用" }.freeze
+  has_many :official_account_callbacks, dependent: :restrict_with_error
   has_one :app_authorization, dependent: :restrict_with_error
   has_one :official_account_menu, dependent: :destroy
   has_many :mini_program_releases, dependent: :restrict_with_error
@@ -28,6 +29,13 @@ class App < ApplicationRecord
 
   def accessible? = status != "disabled"
   def display_name = nickname.presence || appid
+
+  before_destroy do
+    if app_type == "official_account" && Setting.find_by(key: "notification")&.settings&.dig("accounts", appid).present?
+      errors.add(:base, "已有公众号通知配置，只能停用")
+      throw :abort
+    end
+  end
 
   private
 

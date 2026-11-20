@@ -5,9 +5,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const buttons = JSON.parse(editor.dataset.buttons);
   const editable = editor.dataset.editable === "true";
   const original = buttons.flatMap((n) => [n, ...(n.sub_button || [])]);
-  const replies = [...new Set(original.filter((n) => n.type === "click").map((n) => n.key))];
+  const replyGroups = JSON.parse(editor.dataset.replies || "{}");
+  const replyNames = Object.fromEntries(Object.entries(replyGroups).map(([id, r]) => ["reply_" + id, r.name]));
+  original.filter(n => n.type === "click").forEach(n => { if (!replyNames[n.key]) replyNames[n.key] = "已有回复 · " + n.key; });
+  const replies = Object.keys(replyNames);
+  let replyPopup, replyNode;
   const types = { view: "跳转网页", miniprogram: "跳转小程序", media_id: "发送素材", article_id: "已发表内容" };
-  if (replies.length) types.click = "已有回复";
+  types.click = "回复内容";
   const mediaHints = {
     image: "JPG、PNG、BMP、GIF，最多 10 MB",
     voice: "MP3、AMR、WAV，最多 2 MB、60 秒",
@@ -111,6 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!n || n.sub_button) return "";
     if (n.legacy) return n.value || "微信原有菜单动作";
     if (n.type === "miniprogram") return [n.appid, n.pagepath].filter(Boolean).join(" · ");
+    if (n.type === "click" && replyGroups[n.key?.replace(/^reply_/, "")]) return replyGroups[n.key.replace(/^reply_/, "")].messages.map(m => m.type === "text" ? m.content.text : "小程序卡片：" + m.content.title).join("\n");
     return n.url || n.label || n.key || n.media_id || n.article_id || "尚未填写";
   }
   function select(i, j) {
@@ -237,6 +242,8 @@ document.addEventListener("DOMContentLoaded", () => {
         } else if (n.type === "miniprogram" && !n.pagepath?.trim()) {
           field = "page";
           error = "请填写页面路径";
+        } else if (n.type === "click" && !n.key) {
+          error = "请选择或新增回复内容";
         } else if (["media_id", "article_id"].includes(n.type) && !n[n.type]) {
           error = "请选择素材或已发表内容";
         }
@@ -341,12 +348,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   enhance(el("appid"));
   enhance(el("kind"));
-  options(el("key"), Object.fromEntries(replies.map((k) => [k, k])), "");
+  options(el("key"), replyNames, "");
   el("preview").onclick = () => {
     preview = !preview;
     draw();
   };
   if (editable) {
+    el("new-reply").onclick = () => { replyNode = current(); replyPopup = window.open(editor.dataset.newReply, "booking-menu-reply-" + editor.dataset.appId, "width=1100,height=850"); };
+    el("edit-reply").onclick = () => {
+      const id = current()?.key?.replace(/^reply_/, ""); if (!replyGroups[id]) return;
+      replyNode = current(); replyPopup = window.open(editor.dataset.editReplyBase + "/" + encodeURIComponent(id) + "/edit?inline=1", "booking-menu-reply-" + editor.dataset.appId, "width=1100,height=850");
+    };
+    window.addEventListener("message", event => {
+      if (event.origin !== location.origin || event.source !== replyPopup || event.data.type !== "booking.reply.saved" || String(event.data.appId) !== editor.dataset.appId) return;
+      replyNames[event.data.key] = event.data.name; replies.push(event.data.key);
+      replyGroups[event.data.id] = { name: event.data.name, messages: event.data.messages || [] };
+      options(el("key"), replyNames, event.data.key);
+      if (replyNode) { replyNode.key = event.data.key; changed(); draw(); }
+    });
     el("add").onclick = () => {
       if (buttons.length >= 3) return;
       buttons.push({ name: "", type: "view" });

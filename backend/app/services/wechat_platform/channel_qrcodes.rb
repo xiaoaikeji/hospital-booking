@@ -26,6 +26,7 @@ module WechatPlatform
             return saved
           end
           row.update!(Wechat::ChannelQrcodeClient.new.create(token, scene))
+          yield row if block_given?
           audit("success", channel_id: row.id)
           row
         end

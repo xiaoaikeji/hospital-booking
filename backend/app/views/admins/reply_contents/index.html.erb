@@ -1,0 +1,14 @@
+<% content_for :title, "回复内容 · Booking 管理后台" %>
+<% content_for :fill_content, "true" if @replies.empty? %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "回复内容", icon: :templates } do %>
+  <% if @app %><%= link_to new_admins_app_reply_content_path(@app), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>新增回复内容<% end %>
+    <%= link_to "自动回复规则", edit_admins_app_reply_rules_path(@app), class: "btn" %><% end %>
+<% end %>
+<%= render "admins/shared/official_account_filter", accounts: @accounts, selected: @app, path: ->(id) { admins_reply_contents_path(app_id: id) } %>
+<section class="card <%= 'flex-fill' if @replies.empty? %>">
+  <% if @replies.empty? %><%= render "admins/shared/list_empty", icon: :templates, title: "暂无回复内容", description: "先选择公众号，新增一组文字和小程序卡片，菜单、渠道码和自动回复均可选用。" %>
+  <% else %><div class="list-group list-group-flush"><% @replies.each do |id, reply| %><div class="list-group-item d-flex align-items-center gap-3">
+    <div class="flex-fill overflow-hidden"><div class="fw-medium text-truncate"><%= reply['name'] %></div><div class="small text-secondary"><%= reply['messages'].size %> 条消息 · <%= Notifications::AccountConfiguration.new(@app).impacts(id).size %> 个入口使用</div></div>
+    <%= link_to edit_admins_app_reply_content_path(@app, id), class: "btn btn-sm btn-primary" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+  </div><% end %></div><% end %>
+</section>

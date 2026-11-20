@@ -20,18 +20,39 @@ module Admins
       return redirect_to list_path, alert: "请先完成本公众号的平台授权" unless @app.platform_authorized?
       @code = OfficialAccountQrcode.new(app: @app)
       @key = service.form_key
+      prepare_binding
     end
 
     def create
       @key = params[:form_key]
       @code = OfficialAccountQrcode.new(app: @app, name: params.dig(:official_account_qrcode, :name))
-      service.create!(@code, @key)
+      prepare_binding
+      revision = params.dig(:reply_binding, :revision) || @reply_config.revision
+      @reply_config.validate_code_binding!(mode: @binding["mode"], reply_id: @binding["reply_id"], revision: revision)
+      service.create!(@code, @key) do |code|
+        @reply_config.bind_code!(code, mode: @binding["mode"], reply_id: @binding["reply_id"], revision: revision, actor: current_admin, request: request)
+      end
       redirect_to admins_channel_qrcodes_path(app_id: @app.id), notice: "渠道二维码已创建", status: :see_other
     rescue ActiveRecord::RecordInvalid
       render :new, status: :unprocessable_content
-    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+    rescue Notifications::Error, WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       flash.now[:alert] = error.message
       render :new, status: :unprocessable_content
+    end
+
+    def edit
+      @code = OfficialAccountQrcode.where(app: @app).find(params[:id])
+      prepare_binding
+    end
+
+    def update
+      @code = OfficialAccountQrcode.where(app: @app).find(params[:id])
+      prepare_binding
+      @reply_config.bind_code!(@code, mode: @binding["mode"], reply_id: @binding["reply_id"], revision: params.dig(:reply_binding, :revision), actor: current_admin, request: request)
+      redirect_to list_path, notice: "渠道码回复已保存", status: :see_other
+    rescue Notifications::Error => error
+      flash.now[:alert] = error.message
+      render :edit, status: :unprocessable_content
     end
 
     def show
@@ -40,6 +61,11 @@ module Admins
     end
 
     private
+
+    def prepare_binding
+      @reply_config = Notifications::AccountConfiguration.new(@app)
+      @binding = params[:reply_binding]&.permit(:mode, :reply_id)&.to_h || (@code&.persisted? ? @reply_config.code_binding(@code.id) : { "mode" => "none" })
+    end
 
     def load_app = @app = App.wechat_official_accounts.find(params[:app_id])
     def service = WechatPlatform::ChannelQrcodes.new(@app, actor: current_admin, request: request)

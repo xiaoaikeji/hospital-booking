@@ -29,7 +29,7 @@
             <td class="px-2"><%= render "admins/shared/list_text", text: code.name %><small class="d-sm-none d-block text-secondary">扫码关注 <%= count %> 人</small></td>
             <td class="d-none d-sm-table-cell"><%= number_with_delimiter(count) %></td>
             <td class="d-none d-md-table-cell"><%= admin_list_time(code.created_at) %></td>
-            <td class="px-2"><%= link_to admins_app_channel_qrcode_path(@app, code, format: :png), class: "btn btn-sm btn-outline-secondary text-nowrap", data: { turbo: false }, download: "#{code.name}.png" do %><%= render "layouts/admins/icon", name: :export %>下载<% end %></td>
+            <td class="px-2"><div class="d-flex flex-wrap gap-1"><%= link_to "配置回复", edit_admins_app_channel_qrcode_path(@app, code), class: "btn btn-sm btn-primary" %><%= link_to admins_app_channel_qrcode_path(@app, code, format: :png), class: "btn btn-sm btn-outline-secondary text-nowrap", data: { turbo: false }, download: "#{code.name}.png" do %><%= render "layouts/admins/icon", name: :export %>下载<% end %></div></td>
           </tr>
         <% end %></tbody>
       </table>

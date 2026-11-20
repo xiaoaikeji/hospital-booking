@@ -1,6 +1,7 @@
 <%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "admins/official_account_menu", defer: true %><% end %>
 <div id="official-menu-editor" data-buttons="<%= @menu.buttons.to_json %>" data-editable="<%= editable %>" data-revision="<%= @menu.revision %>"
+  data-app-id="<%= @app.id %>" data-replies="<%= @replies.to_json %>" data-new-reply="<%= new_admins_app_reply_content_path(@app, inline: 1) %>" data-edit-reply-base="<%= admins_app_reply_contents_path(@app) %>"
   data-publish="<%= publish_admins_app_official_account_menu_path(@app) %>" data-image="<%= image_admins_app_official_account_menu_path(@app) %>" data-media="<%= media_admins_app_official_account_menu_path(@app) %>" data-articles="<%= articles_admins_app_official_account_menu_path(@app) %>">
   <div id="menu-feedback" class="alert alert-danger" role="alert" hidden></div>
   <div class="row g-3 align-items-start">
@@ -51,7 +52,8 @@
             </div>
             <input type="file" class="form-control" id="menu-upload"><div class="mt-2 text-break" id="menu-media-name"></div><img id="menu-image" class="rounded mt-2" width="96" alt="已选择图片" hidden></div>
           <div data-panel="article_id" class="mt-3"><div id="menu-article-name" class="mb-2 text-break"></div><button type="button" id="menu-articles" class="btn"><%= render "layouts/admins/icon", name: :search %>选择已发表内容</button></div>
-          <div data-panel="click" class="mt-3"><label for="menu-key" class="form-label">已有回复</label><select class="form-select" id="menu-key" data-field="key"></select></div>
+          <div data-panel="click" class="mt-3"><label for="menu-key" class="form-label">回复内容</label><select class="form-select" id="menu-key" data-field="key"></select>
+            <% if editable %><div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm" id="menu-new-reply"><%= render "layouts/admins/icon", name: :plus %>新增回复内容</button><button type="button" class="btn btn-sm" id="menu-edit-reply"><%= render "layouts/admins/icon", name: :edit %>编辑回复</button></div><% end %></div>
           <div data-panel="legacy" class="alert alert-warning mt-3 mb-0 text-break" id="menu-legacy"></div>
           <% if editable %><div class="d-flex flex-wrap gap-2 mt-3">
             <% [[:plus,"新增子菜单","add-child"],[:arrow_left,"前移","move-up"],[:arrow,"后移","move-down"],[:trash,"删除菜单","delete"]].each do |icon,label,id| %>

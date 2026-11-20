@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_051000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -223,6 +223,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
     t.check_constraint "attempt_count >= 0", name: "notifications_attempts_valid"
     t.check_constraint "jsonb_typeof(payload) = 'object'::text AND jsonb_typeof(response_data) = 'object'::text", name: "notifications_objects_required"
     t.check_constraint "status::text = ANY (ARRAY['pending'::character varying::text, 'sending'::character varying::text, 'sent'::character varying::text, 'failed'::character varying::text])", name: "notifications_status_valid"
+  end
+
+  create_table "official_account_callbacks", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.string "digest", null: false
+    t.text "message", null: false
+    t.datetime "processed_at", precision: nil
+    t.text "reply_xml"
+    t.string "sender_digest", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "digest"], name: "index_official_account_callbacks_on_app_id_and_digest", unique: true
+    t.index ["app_id", "sender_digest"], name: "index_official_account_callbacks_on_app_id_and_sender_digest"
+    t.index ["app_id"], name: "index_official_account_callbacks_on_app_id"
   end
 
   create_table "official_account_fan_events", force: :cascade do |t|
@@ -446,6 +460,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_050000) do
   add_foreign_key "mini_program_releases", "apps"
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "previous_build_id", on_delete: :nullify
   add_foreign_key "mini_program_releases", "mini_program_releases", column: "source_release_id", on_delete: :nullify
+  add_foreign_key "official_account_callbacks", "apps"
   add_foreign_key "official_account_fan_events", "apps"
   add_foreign_key "official_account_fan_syncs", "admins", column: "operator_id"
   add_foreign_key "official_account_fan_syncs", "apps"
