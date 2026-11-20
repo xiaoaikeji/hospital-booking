@@ -7,7 +7,9 @@ module BackgroundJobOverview
   FAILURE_LIMIT = 20
   RETRY_SCAN_LIMIT = 1000
   Overview = Data.define(:queues, :scheduled, :retries, :dead, :processes, :cron_jobs, :failures, :captured_at)
-  QueueCount = Data.define(:name, :waiting, :busy)
+  QueueCount = Data.define(:name, :waiting, :busy) do
+    def label = I18n.t(name, scope: "background_jobs.queues", default: name)
+  end
   ProcessInfo = Data.define(:hostname, :pid, :busy, :concurrency, :queues, :quiet, :heartbeat_at)
   CronJob = Data.define(:name, :label, :cron, :queue, :enqueued_at, :finished_at, :succeeded, :error_class)
   Failure = Data.define(:job_class, :queue, :state, :failed_at, :retry_count, :error_class)
@@ -17,7 +19,7 @@ module BackgroundJobOverview
       stats = Sidekiq::Stats.new
       waiting = stats.queues
       busy = Sidekiq::WorkSet.new.each_with_object(Hash.new(0)) { |(_pid, _tid, work), counts| counts[work.queue] += 1 }
-      queues = (configured_queues | waiting.keys | busy.keys).map do |name|
+      queues = configured_queues.map do |name|
         QueueCount.new(name: name, waiting: waiting.fetch(name, 0), busy: busy[name])
       end
       # false 禁止 ProcessSet 在读取时顺带清理失联进程。
@@ -54,8 +56,9 @@ module BackgroundJobOverview
 
     def configured_queues
       config = load_yaml("config/sidekiq.yml")
-      queues = config.fetch("queues", []) + config.fetch("capsules", {}).values.flat_map { |capsule| capsule.fetch("queues", []) }
-      (queues.map { |queue| Array(queue).first.to_s } + schedule.values.map { |job| job.fetch("queue", "default") }).uniq
+      queues = Array(config["queues"]) + config.fetch("capsules", {}).to_h.values.flat_map { |capsule| Array(capsule["queues"]) }
+      names = queues.map { |queue| Array(queue).first.to_s } + schedule.values.map { |job| job["queue"].presence || "default" }
+      names.map(&:strip).reject(&:empty?).uniq
     end
 
     # 同类 Worker 被多个配置复用时按队列及参数区分，不能明确匹配就不误记到其他定时任务。

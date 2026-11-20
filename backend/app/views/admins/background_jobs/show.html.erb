@@ -17,7 +17,7 @@
     <div class="card-body">
       <% maximum = [@overview.queues.map { |q| q.waiting + q.busy }.max.to_i, 1].max %>
       <% @overview.queues.each do |queue| %>
-        <div class="mb-3" data-job-queue="<%= queue.name %>"><div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><span class="fw-medium text-break"><%= queue.name %></span><span class="text-secondary small">等待 <%= number_with_delimiter(queue.waiting) %> · 执行 <%= number_with_delimiter(queue.busy) %></span></div><div class="progress" role="img" aria-label="<%= queue.name %>：等待 <%= queue.waiting %>，执行 <%= queue.busy %>"><div class="progress-bar bg-primary" style="width: <%= queue.waiting * 100.0 / maximum %>%"></div><div class="progress-bar bg-success" style="width: <%= queue.busy * 100.0 / maximum %>%"></div></div></div>
+        <div class="mb-3" data-job-queue="<%= queue.name %>"><div class="d-flex flex-wrap justify-content-between gap-2 mb-2"><span class="fw-medium text-break"><%= queue.label %></span><span class="text-secondary small">等待 <%= number_with_delimiter(queue.waiting) %> · 执行 <%= number_with_delimiter(queue.busy) %></span></div><div class="progress" role="img" aria-label="<%= queue.label %>：等待 <%= queue.waiting %>，执行 <%= queue.busy %>"><div class="progress-bar bg-primary" style="width: <%= queue.waiting * 100.0 / maximum %>%"></div><div class="progress-bar bg-success" style="width: <%= queue.busy * 100.0 / maximum %>%"></div></div></div>
       <% end %>
       <% if waiting.zero? && busy.zero? %><p class="text-secondary mb-0" data-jobs-empty>队列为空，当前没有等待或执行中的任务。</p><% end %>
     </div>

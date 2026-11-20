@@ -46,6 +46,50 @@ class BackgroundJobOverviewTest < ActiveSupport::TestCase
     BackgroundJobOverview.define_singleton_method(:schedule, original)
   end
 
+  test "fetch lists only Booking configured queues and ignores extra Redis queues until configured" do
+    work = Struct.new(:queue)
+    fake_stats = Struct.new(:queues, :scheduled_size, :retry_size, :dead_size)
+      .new({ "default" => 4, "ai" => 9, "media" => 3, "notifications" => 2 }, 1, 2, 0)
+    fake_work = [ [ "p1", "t1", work.new("default") ], [ "p1", "t2", work.new("ai") ], [ "p1", "t3", work.new("media") ] ]
+    originals = {
+      stats: Sidekiq::Stats.method(:new),
+      work_set: Sidekiq::WorkSet.method(:new),
+      process_set: Sidekiq::ProcessSet.method(:new),
+      retry_set: Sidekiq::RetrySet.method(:new),
+      dead_set: Sidekiq::DeadSet.method(:new),
+      cron_jobs: BackgroundJobOverview.method(:cron_jobs),
+      schedule: BackgroundJobOverview.method(:schedule)
+    }
+    Sidekiq::Stats.define_singleton_method(:new) { fake_stats }
+    Sidekiq::WorkSet.define_singleton_method(:new) { fake_work }
+    Sidekiq::ProcessSet.define_singleton_method(:new) { |*| [] }
+    Sidekiq::RetrySet.define_singleton_method(:new) { [] }
+    Sidekiq::DeadSet.define_singleton_method(:new) { [] }
+    BackgroundJobOverview.define_singleton_method(:cron_jobs) { [] }
+
+    overview = BackgroundJobOverview.fetch
+    assert_equal [ "default" ], overview.queues.map(&:name)
+    assert_equal [ "默认队列" ], overview.queues.map(&:label)
+    assert_equal [ [ 4, 1 ] ], overview.queues.map { |q| [ q.waiting, q.busy ] }
+
+    expanded_schedule = originals[:schedule].call.merge(
+      "extra_notice" => { "class" => "ExtraNoticeWorker", "cron" => "* * * * *", "queue" => "notifications" }
+    )
+    BackgroundJobOverview.define_singleton_method(:schedule) { expanded_schedule }
+    expanded = BackgroundJobOverview.fetch
+    assert_equal [ "default", "notifications" ], expanded.queues.map(&:name)
+    assert_equal [ "默认队列", "notifications" ], expanded.queues.map(&:label)
+    assert_equal 2, expanded.queues.last.waiting
+  ensure
+    Sidekiq::Stats.define_singleton_method(:new, originals[:stats])
+    Sidekiq::WorkSet.define_singleton_method(:new, originals[:work_set])
+    Sidekiq::ProcessSet.define_singleton_method(:new, originals[:process_set])
+    Sidekiq::RetrySet.define_singleton_method(:new, originals[:retry_set])
+    Sidekiq::DeadSet.define_singleton_method(:new, originals[:dead_set])
+    BackgroundJobOverview.define_singleton_method(:cron_jobs, originals[:cron_jobs])
+    BackgroundJobOverview.define_singleton_method(:schedule, originals[:schedule])
+  end
+
   test "failure projection omits args messages and backtraces including wrapped jobs" do
     job = Sidekiq::JobRecord.new({ "class" => "Sidekiq::ActiveJob::Wrapper", "wrapped" => "ActiveStorage::AnalyzeJob", "queue" => "default",
       "args" => [ { "secret" => "patient-name" } ], "error_message" => "access_token=secret", "error_backtrace" => [ "private" ],

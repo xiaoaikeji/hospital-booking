@@ -1,5 +1,7 @@
 zh-CN:
   background_jobs:
+    queues:
+      default: 默认队列
     cron:
       wechat_mini_program_audit_poll: 小程序审核结果查询
       wechat_illegal_records: 微信违规记录同步

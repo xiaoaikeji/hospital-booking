@@ -21,7 +21,8 @@ class BackgroundJobsTest < ActionDispatch::IntegrationTest
     sign_in Admin.create!(username: "job_super", role: "super_admin")
     get admins_background_jobs_path
     assert_response :success
-    assert_select "[data-job-queue='default']", text: /等待 12 · 执行 2/
+    assert_select "[data-job-queue]", count: 1
+    assert_select "[data-job-queue='default']", text: /默认队列.*等待 12 · 执行 2/
     assert_select "[data-job-cron='notification_delivery']", text: /上次|失败/
     assert_includes response.body, "最近入队尚无完成记录"
     assert_includes response.body, "worker-1"
