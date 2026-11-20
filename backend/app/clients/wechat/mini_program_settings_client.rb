@@ -5,10 +5,8 @@ module Wechat
       @query = { access_token: token }
     end
 
-    def upload_image(file, type)
-      upload = MediaUpload.new(file, as: :wechat_certificate).validate!
-      filename = upload.filename
-      file.rewind
+    def upload_image(file, type, filename)
+      file.tempfile.rewind
       part = Faraday::Multipart::FilePart.new(file.tempfile, type, filename)
       response = HttpConnection.request(@connection, :post, "/cgi-bin/media/upload", query: @query.merge(type: "image"), body: { media: part })
       required(checked(HttpConnection.json(response)), "media_id")

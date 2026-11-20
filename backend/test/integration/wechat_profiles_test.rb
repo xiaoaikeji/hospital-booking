@@ -85,9 +85,11 @@ class WechatProfilesTest < ActionDispatch::IntegrationTest
 
   test "微信头像先验文件再换素材，令牌按应用隔离，修改必须收到明确结果" do
     rev = revision(@a, "head_image")
+    uploaded_bodies = []
     @stubs.post("/cgi-bin/media/upload") do |env|
       assert_equal({"access_token" => @a.appid, "type" => "image"}, env.params)
       assert_includes env.request_headers["Content-Type"], "multipart/form-data"
+      uploaded_bodies << env.body.read
       @writes << :upload
       response_for(@upload_error || {media_id: "private-media"})
     end
@@ -97,13 +99,17 @@ class WechatProfilesTest < ActionDispatch::IntegrationTest
       @writes << :modify
       response_for(@result || {errcode: 0})
     end
-    submit = lambda do |bytes|
-      image = Rack::Test::UploadedFile.new(StringIO.new(bytes), "image/png", original_filename: "private-filename.png")
+    submit = lambda do |bytes, filename: "private-filename.png"|
+      image = Rack::Test::UploadedFile.new(StringIO.new(bytes), "image/png", original_filename: filename)
       patch admins_app_profile_path(@a), params: {field: "head_image", revision: rev, head_image: image}
     end
     png = "\x89PNG\r\n\x1A\n".b + "0" * 80
     submit.call("fake png")
+    assert_equal "文件内容与格式不符", flash[:alert]
+    submit.call(png, filename: "avatar.gif")
+    assert_equal "头像仅支持 JPG、JPEG、PNG 格式", flash[:alert]
     submit.call("x" * (2.megabytes + 1))
+    assert_equal "头像不能超过 2MB", flash[:alert]
     assert_empty @writes
     @upload_error = {errcode: 40007}
     submit.call(png)
@@ -113,8 +119,21 @@ class WechatProfilesTest < ActionDispatch::IntegrationTest
     submit.call(png)
     assert_match(/未确认修改结果/, flash[:alert])
     @result = nil
-    submit.call(png)
+    purposes = []
+    original_new = MediaUpload.method(:new)
+    MediaUpload.define_singleton_method(:new) do |file, as:|
+      purposes << as
+      original_new.call(file, as: as)
+    end
+    begin
+      submit.call(png)
+    ensure
+      MediaUpload.define_singleton_method(:new, original_new)
+    end
     assert_match(/已提交微信/, flash[:notice])
+    assert_equal [ :wechat_avatar ], purposes
+    assert_match(/filename="\d{10}[0-9a-f]{6}\.png"/, uploaded_bodies.last)
+    assert_not_includes uploaded_bodies.last, "private-filename.png"
     assert_equal [:upload, :upload, :modify, :upload, :modify], @writes
     logs = Log.where(action: "wechat.profile_head_image", target_id: @a.id)
     assert_equal 1, logs.where(status: "success").count

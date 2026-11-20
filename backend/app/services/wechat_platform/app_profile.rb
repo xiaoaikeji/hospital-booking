@@ -21,9 +21,9 @@ module WechatPlatform
 
     def update_head_image(file, revision:)
       upload = MediaUpload.new(file, as: :wechat_avatar).validate!
-      type = upload.content_type
+      type, filename = upload.content_type, upload.filename
       change("head_image", revision) do |client, _current|
-        client.modify_head_image(client.upload_image(file, type))
+        client.modify_head_image(client.upload_image(file, type, filename))
       end
     rescue MediaUpload::Invalid => error
       raise Error, error.message

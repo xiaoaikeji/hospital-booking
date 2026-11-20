@@ -42,12 +42,11 @@ module WechatPlatform
           rescue MediaUpload::Invalid => error
             raise Error, "#{item['name']}：#{error.message}"
           end
-          type = upload.content_type
-          [ item.fetch("name"), file, type, expiry(input, n) ]
+          [ item.fetch("name"), file, upload.content_type, upload.filename, expiry(input, n) ]
         end
         # 先校验所有资质，再上传临时素材。临时素材失败不代表类目申请已提交。
-        certificates = files.map do |name, file, type, validity|
-          { key: name, value: client.upload_image(file, type) }.merge(validity)
+        certificates = files.map do |name, file, type, filename, validity|
+          { key: name, value: client.upload_image(file, type, filename) }.merge(validity)
         end
         urgent = files.any? && input[:audit_urgent] == "1"
         dispatch! { client.add(@first, @second, certificates, urgent) }

@@ -18,9 +18,11 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     nodes = [{id: 11, level: 1, name: "公共服务"}, {id: 30, level: 2, father: 11, name: "信息展示"}, {id: 10, level: 1, name: "医疗"}, {id: 20, level: 2, father: 10, name: "医院",
       qualify: {exter_list: [{inner_list: [{name: "机构证明"}]}]}}]
     @stubs.get("/cgi-bin/wxopen/getallcategories") { response_for(categories_list: { categories: nodes }) }
+    @uploaded_bodies = []
     @stubs.post("/cgi-bin/media/upload") do |env|
       @uploads += 1
       assert_includes env.request_headers["Content-Type"], "multipart/form-data"
+      @uploaded_bodies << env.body.read
       response_for(media_id: "secret-media")
     end
   end
@@ -32,10 +34,10 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     css_select('[name=revision]').first&.[]("value")
   end
 
-  def add(rev, bytes: nil)
+  def add(rev, bytes: nil, filename: "机构证明.png")
     params = {revision: rev, first: "10", second: "20", expire_modes: {"0" => "permanent"}, audit_urgent: "1"}
     if bytes
-      file = Rack::Test::UploadedFile.new(StringIO.new(bytes.b), "image/png", original_filename: "机构证明.png")
+      file = Rack::Test::UploadedFile.new(StringIO.new(bytes.b), "image/png", original_filename: filename)
       params[:certificates] = {"0" => file}
     end
     post admins_app_categories_path(@hospital_app), params: params, headers: { "ACCEPT" => "application/json" }
@@ -45,8 +47,16 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     rev = revision
     add(rev)
     assert_response :unprocessable_content
+    assert_equal "机构证明：请选择资质图片", response.parsed_body["error"]
     add(rev, bytes: "wrong")
     assert_response :unprocessable_content
+    assert_equal "机构证明：文件内容与格式不符", response.parsed_body["error"]
+    add(rev, bytes: "\x89PNG\r\n\x1A\n".b + "0" * 80, filename: "机构证明.gif")
+    assert_response :unprocessable_content
+    assert_equal "机构证明：资质图片仅支持 JPG、JPEG、PNG 格式", response.parsed_body["error"]
+    add(rev, bytes: "x" * (2.megabytes + 1))
+    assert_response :unprocessable_content
+    assert_equal "机构证明：资质图片不能超过 2MB", response.parsed_body["error"]
     assert_equal 0, @uploads
     @stubs.post("/cgi-bin/wxopen/addcategory") do |env|
       @writes += 1
@@ -64,8 +74,21 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     add(rev, bytes: png)
     assert_response :unprocessable_content
     assert_includes response.parsed_body["error"], "已经失效"
-    add(rev, bytes: png)
+    purposes = []
+    original_new = MediaUpload.method(:new)
+    MediaUpload.define_singleton_method(:new) do |file, as:|
+      purposes << as
+      original_new.call(file, as: as)
+    end
+    begin
+      add(rev, bytes: png)
+    ensure
+      MediaUpload.define_singleton_method(:new, original_new)
+    end
     assert_response :success
+    assert_equal [ :wechat_certificate ], purposes
+    assert_match(/filename="\d{10}[0-9a-f]{6}\.png"/, @uploaded_bodies.last)
+    assert_not_includes @uploaded_bodies.last, "机构证明.png".b
     add(rev, bytes: png)
     assert_response :unprocessable_content
     assert_equal 2, @writes
