@@ -33,7 +33,8 @@ module Admins
 
     def failed(error)
       if request.format.json?
-        render json: { error: error.message }, status: :unprocessable_content
+        feedback = error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }
+        render json: feedback, status: :unprocessable_content
       else
         redirect_to edit_admins_system_settings_wecom_notification_content_path(event: @kind), alert: error.message, status: :see_other
       end

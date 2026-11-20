@@ -1,10 +1,10 @@
 <% content_for :title, "企微通知文案 · Booking 管理后台" %>
 <% content_for :head do %><%= javascript_include_tag "admins/reply_composer", defer: true %><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "企微通知文案", icon: :bell } do %>
-  <%= link_to edit_admins_system_settings_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :settings %>通知设置<% end %>
+<% history_link = capture do %>
   <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>发送记录<% end %>
 <% end %>
+<%= render "admins/system_settings/navigation", title: "企微通知文案", actions: history_link %>
 <%= form_with url: edit_admins_system_settings_wecom_notification_content_path, method: :get, class: "card card-body mb-3" do %>
   <div class="row align-items-end g-2"><div class="col-12 col-lg-5"><label class="form-label" for="notification-event">通知事件</label>
     <%= select_tag :event, options_for_select(WechatPlatform::NotificationSettings::LABELS.map { |value, label| [label, value] }, @kind), class: "form-select", id: "notification-event", data: { enhanced_select: "single" } %>
@@ -21,7 +21,7 @@
         <div data-reply-items></div>
         <button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button>
       </div><div class="card-footer d-flex flex-wrap gap-2">
-        <button class="btn btn-primary" type="button" data-reply-save><%= render "layouts/admins/icon", name: :save %>保存</button>
+        <%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %>
         <% if @content.stored %><button class="btn" type="button" data-bs-toggle="modal" data-bs-target="#restore-notification-content"><%= render "layouts/admins/icon", name: :rotate %>恢复默认文案</button><% end %>
       </div>
     </section></div>

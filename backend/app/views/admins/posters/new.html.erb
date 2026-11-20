@@ -2,15 +2,14 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "新增海报", icon: :templates } do %>
   <%= link_to "返回列表", admins_posters_path, class: "btn" %>
 <% end %>
-<%= form_with model: @poster, url: admins_posters_path, class: "card" do |f| %>
+<%= form_with model: @poster, url: admins_posters_path, class: "card", data: { admin_form: true } do |f| %>
   <div class="card-header"><h2 class="card-title">上传底图</h2></div>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @poster %>
     <div class="row g-3">
       <div class="col-md-6"><%= f.label :name, "海报名称", class: "form-label required" %><%= f.text_field :name, maxlength: 120, size: nil, required: true, class: admin_field_class(@poster, :name) %><%= admin_field_errors(@poster, :name) %></div>
-      <div class="col-md-6"><%= f.label :background, "海报底图", class: "form-label required" %><%= f.file_field :background, accept: "image/jpeg,image/png,image/webp", required: true, class: admin_field_class(@poster, :background) %><%= admin_field_errors(@poster, :background) %></div>
+      <div class="col-md-6"><%= render "background_field", form: f %></div>
     </div>
-    <p class="form-hint mt-3 mb-0">上传不带二维码的 JPG、PNG 或 WEBP 底图，10MB 以内，最长边 6000 像素，总像素 1800 万以内。上传后选择扫码目标、拖动码的位置，预览并下载 PNG。</p>
   </div>
-  <div class="card-footer"><%= f.submit "保存并设置扫码目标", class: "btn btn-primary" %></div>
+  <div class="card-footer"><%= render "admins/shared/submit_button", label: "保存并设置扫码目标", icon: :save %></div>
 <% end %>

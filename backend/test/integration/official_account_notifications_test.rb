@@ -78,6 +78,34 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "关闭专属回复时隐藏选择器并保留已选内容" do
+    reply_id = create_reply
+    qr = code
+    @config.bind_code!(qr, mode: "reply", reply_id: reply_id, revision: @config.revision, actor: @admin)
+
+    patch admins_app_channel_qrcode_path(@a, qr), params: { reply_binding: { mode: "welcome", revision: @config.revision } }
+    assert_redirected_to admins_channel_qrcodes_path(app_id: @a.id)
+    assert_equal({ "mode" => "welcome", "reply_id" => reply_id }, @config.code_binding(qr.id))
+
+    get edit_admins_app_channel_qrcode_path(@a, qr)
+    assert_select "fieldset[data-reply-picker][disabled] #channel-reply[disabled] option[selected]", text: "活动说明"
+    assert_select "input[data-reply-revision]", count: 1
+  end
+
+  test "回复校验指出具体消息和小程序卡片字段" do
+    post admins_app_reply_contents_path(@a), params: { reply_content: {
+      name: "活动说明", revision: @config.revision, messages: [
+        { id: "text", type: "text", content: { text: "欢迎参加活动" } },
+        { id: "card", type: "miniprogrampage", content: { appid: @mini.appid, pagepath: "pages/activity/index" } }
+      ]
+    } }, as: :json
+
+    assert_response :unprocessable_content
+    assert_equal "title", response.parsed_body["field"]
+    assert_equal 1, response.parsed_body["message_index"]
+    assert_empty @config.replies
+  end
+
   test "文字成功卡片拒绝，补发只发卡片；重复回调不重复排队" do
     id = create_reply
     identity = UserApp.create!(app: @a, user: User.create!(platform: "wechat"), openid: "fan-openid")

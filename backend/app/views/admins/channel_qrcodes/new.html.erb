@@ -9,17 +9,21 @@
       <div class="col-12 col-lg-5">
         <label for="channel-account" class="form-label">公众号</label>
         <input id="channel-account" class="form-control" readonly value="<%= @app.display_name %>">
-        <div class="form-hint">AppID <%= @app.appid %></div>
+        <div class="small text-secondary mt-1">AppID <%= @app.appid %></div>
       </div>
       <div class="col-12 col-lg-5">
-        <%= form.label :name, "渠道码名称", class: "form-label required" %>
-        <%= form.text_field :name, maxlength: 60, size: nil, required: true, placeholder: "例如 门诊大厅海报", class: admin_field_class(@code, :name), aria: { describedby: "channel-name-hint", invalid: @code.errors[:name].any? } %>
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= form.label :name, "渠道码名称", class: "form-label required mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看渠道码命名说明", text: "创建后名称和二维码固定，可长期印在物料上。" %>
+        </div>
+        <% invalid = @code.errors[:name].any? %>
+        <%= form.text_field :name, maxlength: 60, size: nil, required: true, placeholder: "例如 门诊大厅海报", class: admin_field_class(@code, :name),
+              aria: { describedby: ("name-error" if invalid), invalid: (true if invalid) } %>
         <%= admin_field_errors(@code, :name) %>
-        <div class="form-hint" id="channel-name-hint">创建后名称和二维码固定，可长期印在物料上。</div>
       </div>
     </div>
     <div class="row mt-3"><div class="col-12 col-lg-7">
-      <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding&.fetch('mode', 'none')), class: 'form-select mb-3', id: 'scan-mode' %>
+      <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding&.fetch('mode', 'none')), class: 'form-select', id: 'scan-mode', data: { enhanced_select: "single" } %>
       <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding || {} %>
     </div></div>
   </div>

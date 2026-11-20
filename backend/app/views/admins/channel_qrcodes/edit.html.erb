@@ -1,9 +1,9 @@
 <% content_for :title, '配置渠道码回复 · Booking 管理后台' %>
 <%= render layout: 'admins/shared/list_page_header', locals: { title: '配置渠道码回复', icon: :qrcode } do %><%= link_to '返回列表', list_path, class: 'btn' %><% end %>
-<%= form_with url: admins_app_channel_qrcode_path(@app, @code), method: :patch, class: 'card' do %>
+<%= form_with url: admins_app_channel_qrcode_path(@app, @code), method: :patch, class: 'card', data: { admin_form: true } do %>
   <div class="card-header"><h2 class="card-title"><%= @code.name %></h2></div><div class="card-body">
     <p class="text-secondary"><%= @app.display_name %> · 原二维码继续可扫。</p>
-    <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding['mode']), class: 'form-select mb-3', id: 'scan-mode' %>
+    <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding['mode']), class: 'form-select', id: 'scan-mode', data: { enhanced_select: "single" } %>
     <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding, code_id: @code.id %>
   </div><div class="card-footer"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
 <% end %>

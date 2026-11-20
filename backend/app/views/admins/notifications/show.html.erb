@@ -1,9 +1,16 @@
 <% content_for :title, "通知 ##{@notification.id} · Booking 管理后台" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "通知 ##{@notification.id}", icon: :bell } do %>
-  <%= link_to "返回列表", admins_notifications_path, class: "btn" %>
+  <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <div class="card mb-3"><div class="card-body">
-  <%= render "admins/shared/field_rows", fields: { "事件" => @notification.event, "状态" => @notification.status_label, "执行次数" => @notification.attempt_count.to_s, "目标" => @notification.payload.dig("target", "label") || @notification.payload.dig("target", "channel_key"), "渠道标识" => @notification.payload.dig("target", "channel_key") }, full: ["目标"] %>
+  <%= render "admins/shared/field_rows", fields: {
+    "事件" => notification_event_label(@notification.event),
+    "状态" => notification_status_badge(@notification.uncertain? ? "uncertain" : @notification.status, @notification.status_label),
+    "执行次数" => @notification.attempt_count.to_s,
+    "事件标识" => @notification.event,
+    "渠道标识" => @notification.payload.dig("target", "channel_key"),
+    "目标" => @notification.payload.dig("target", "label") || @notification.payload.dig("target", "channel_key")
+  }, full: ["目标"] %>
 </div></div>
 <% if @notification.uncertain? %><div class="alert alert-warning">有消息待核实。请求已发出但没有可靠回执，请先到渠道核对；系统不会自动补发。</div><% end %>
 <% @notification.messages.each_with_index do |message, i| %>
@@ -21,14 +28,23 @@
            end %>
         <div class="mb-3"><%= render 'admins/shared/field_rows', fields: fields %></div>
       <% end %>
-      <dl class="row mb-0"><dt class="col-sm-2">状态</dt><dd class="col-sm-10"><%= result['status'] == 'sending' ? (result['provider_state'] == 'passive_prepared' ? '应答已生成（接收未确认）' : '待核实') : Notification::STATES.fetch(result['status']) %></dd>
-        <dt class="col-sm-2">处理步骤</dt><dd class="col-sm-10"><%= { 'request_started' => '已发起请求', 'channel_accepted' => '渠道已接受', 'channel_rejected' => '渠道明确拒绝', 'validation_failed' => '发送前校验失败', 'awaiting_verification' => '等待核实渠道结果', 'passive_response' => '已生成回调文字应答，微信接收待核实' }.fetch(result['stage'], '等待处理') %></dd>
-        <dt class="col-sm-2">尝试次数</dt><dd class="col-sm-10"><%= result['attempt_count'] %></dd>
-        <% if result['error_message'].present? %><dt class="col-sm-2">原因</dt><dd class="col-sm-10 text-break"><%= result['error_message'] %></dd><% end %>
-      </dl>
+      <% status = result.fetch("status")
+         badge = if status == "sending" && result["provider_state"] == "passive_prepared"
+           notification_status_badge(status, "应答已生成（接收未确认）")
+         elsif status == "sending"
+           notification_status_badge("uncertain", "待核实")
+         else
+           notification_status_badge(status)
+         end
+         stage = { "request_started" => "已发起请求", "channel_accepted" => "渠道已接受", "channel_rejected" => "渠道明确拒绝",
+                   "validation_failed" => "发送前校验失败", "awaiting_verification" => "等待核实渠道结果",
+                   "passive_response" => "已生成回调文字应答，微信接收待核实" }.fetch(result["stage"], "等待处理")
+         fields = { "状态" => badge, "处理步骤" => stage, "尝试次数" => result["attempt_count"].to_s }
+         fields["原因"] = result["error_message"] if result["error_message"].present? %>
+      <%= render "admins/shared/field_rows", fields: fields, full: ["原因"] %>
       <% if result['history'].present? %><details class="mt-2"><summary>之前的尝试</summary><% result['history'].each do |attempt| %><p class="mb-1 mt-2 text-break"><%= attempt['last_attempt_at'] %> · <%= attempt['error_message'] || attempt['stage'] %></p><% end %></details><% end %>
     </div>
-    <% if result['status'] == 'failed' %><div class="card-footer"><%= form_with url: retry_failed_admins_notification_path(@notification) do %>
+    <% if result['status'] == 'failed' %><div class="card-footer"><%= form_with url: retry_failed_admins_notification_path(@notification), data: { admin_form: true } do %>
       <%= hidden_field_tag 'message_ids[]', message['id'] %><%= render "admins/shared/submit_button", label: "仅补发这一条", icon: :rotate %>
     <% end %></div><% end %>
   </section>

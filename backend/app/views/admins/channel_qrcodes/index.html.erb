@@ -21,15 +21,15 @@
     <% if empty %>
       <%= render "admins/shared/list_empty", icon: :qrcode, title: (@query.present? ? "未找到匹配的渠道二维码" : "还没有渠道二维码"), description: ("试试其他关键词，或重置筛选。" if @query.present?) %>
     <% else %>
-      <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
-        <thead><tr><th scope="col" class="list-column-id px-2">ID</th><th scope="col" class="px-2">名称</th><th scope="col" class="col-2 d-none d-sm-table-cell">扫码关注人数</th><th scope="col" class="col-3 d-none d-md-table-cell">创建时间</th><th scope="col" class="col-3 col-sm-2 px-2">操作</th></tr></thead>
+      <table class="table table-fixed table-vcenter card-table table-hover admin-list-table channel-qrcode-table mb-0">
+        <thead><tr><th scope="col" class="list-column-id px-2">ID</th><th scope="col" class="px-2">名称</th><th scope="col" class="col-2 d-none d-sm-table-cell">扫码关注人数</th><th scope="col" class="col-3 d-none d-md-table-cell">创建时间</th><th scope="col" class="list-column-action px-2">操作</th></tr></thead>
         <tbody><% @codes.each do |code| %>
           <% count = @counts.fetch(code.scene, 0) %>
           <tr><td class="text-secondary px-2">#<%= code.id %></td>
             <td class="px-2"><%= render "admins/shared/list_text", text: code.name %><small class="d-sm-none d-block text-secondary">扫码关注 <%= count %> 人</small></td>
             <td class="d-none d-sm-table-cell"><%= number_with_delimiter(count) %></td>
             <td class="d-none d-md-table-cell"><%= admin_list_time(code.created_at) %></td>
-            <td class="px-2"><div class="d-flex flex-wrap gap-1"><%= link_to "配置回复", edit_admins_app_channel_qrcode_path(@app, code), class: "btn btn-sm btn-primary" %><%= link_to admins_app_channel_qrcode_path(@app, code, format: :png), class: "btn btn-sm btn-outline-secondary text-nowrap", data: { turbo: false }, download: "#{code.name}.png" do %><%= render "layouts/admins/icon", name: :export %>下载<% end %></div></td>
+            <td class="px-2"><div class="d-flex flex-wrap gap-1"><%= link_to edit_admins_app_channel_qrcode_path(@app, code), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>配置回复<% end %><%= link_to admins_app_channel_qrcode_path(@app, code, format: :png), class: "btn btn-sm btn-outline-secondary text-nowrap", data: { turbo: false }, download: "#{code.name}.png" do %><%= render "layouts/admins/icon", name: :export %>下载<% end %></div></td>
           </tr>
         <% end %></tbody>
       </table>

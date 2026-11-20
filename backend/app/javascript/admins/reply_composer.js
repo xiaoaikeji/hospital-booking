@@ -5,18 +5,80 @@ document.addEventListener("DOMContentLoaded", () => {
   const items = root.querySelector("[data-reply-items]"), preview = root.querySelector("[data-reply-preview]");
   const error = root.querySelector("[data-reply-error]");
   const scope = document.getElementById("reply-scope");
+  const save = root.querySelector("[data-reply-save]");
   const variables = JSON.parse(root.dataset.variables || "{}");
   const examples = JSON.parse(root.dataset.examples || "{}");
   let busy = false, dirty = false, lastTextArea = null;
   const node = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   function field(parent, title, key, value, multiline = false) {
-    const label = node("label", "form-label", title);
-    const control = node(multiline ? "textarea" : "input", "form-control mb-3");
-    control.id = "reply-" + crypto.randomUUID(); label.htmlFor = control.id;
-    control.value = value || ""; control.dataset.content = key;
-    if (key === "text") control.addEventListener("focus", () => { lastTextArea = control; });
-    if (multiline) control.rows = 3;
-    parent.append(label, control); return control;
+    const group = node("div", "mb-3");
+    const label = node("label", "form-label required", title);
+    const control = node(multiline ? "textarea" : "input", "form-control");
+    control.id = "reply-" + crypto.randomUUID();
+    label.htmlFor = control.id;
+    control.value = value || "";
+    control.required = true;
+    control.dataset.content = key;
+    control.dataset.replyField = key;
+    control.dataset.requiredMessage = "请填写" + title;
+    if (multiline) {
+      control.rows = 3;
+      control.addEventListener("focus", () => { lastTextArea = control; });
+    }
+    group.append(label, control);
+    parent.append(group);
+  }
+
+  function focusNode(control) { return control.tomselect?.focus_node || control; }
+
+  function setFieldError(control, message) {
+    const id = control.id + "-error";
+    let feedback = document.getElementById(id);
+    const decorated = control.tomselect?.wrapper || control;
+    decorated.classList.toggle("is-invalid", Boolean(message));
+    for (const element of new Set([control, focusNode(control)])) {
+      if (message) {
+        element.setAttribute("aria-invalid", "true");
+        element.setAttribute("aria-describedby", id);
+      } else {
+        element.removeAttribute("aria-invalid");
+        element.removeAttribute("aria-describedby");
+      }
+    }
+    if (!message) {
+      feedback?.remove();
+      return;
+    }
+    if (!feedback) {
+      feedback = node("div", "invalid-feedback d-block");
+      feedback.id = id;
+      decorated.after(feedback);
+    }
+    feedback.textContent = message;
+  }
+
+  function validateFields() {
+    let firstInvalid;
+    root.querySelectorAll("[data-reply-field]").forEach(control => {
+      const message = control.required && !control.value.trim() ? control.dataset.requiredMessage : "";
+      setFieldError(control, message);
+      if (message && !firstInvalid) firstInvalid = control;
+    });
+    if (firstInvalid) focusNode(firstInvalid).focus();
+    return !firstInvalid;
+  }
+
+  function showSaveError(error) {
+    const container = Number.isInteger(error.messageIndex)
+      ? items.querySelector('[data-message-index="' + error.messageIndex + '"]')
+      : root;
+    const control = [...(container?.querySelectorAll("[data-reply-field]") || [])].find(el => el.dataset.replyField === error.field);
+    if (!control) {
+      showError(error.message);
+      return;
+    }
+    setFieldError(control, error.message);
+    focusNode(control).focus();
   }
   function read() {
     const name = document.getElementById("reply-name");
@@ -50,34 +112,65 @@ document.addEventListener("DOMContentLoaded", () => {
       [["上移", -1], ["下移", 1], ["删除", 0]].forEach(([label, by]) => {
         const b = node("button", "btn btn-sm", label); b.type = "button";
         b.disabled = busy || (by !== 0 && (i + by < 0 || i + by >= reply.messages.length));
-        b.onclick = () => { dirty = true; read(); if (!by) reply.messages.splice(i, 1); else [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]]; draw(); };
+        b.onclick = () => {
+          if (busy) return;
+          dirty = true;
+          read();
+          if (!by) reply.messages.splice(i, 1);
+          else [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]];
+          draw();
+        };
         tools.append(b);
       }); box.append(tools);
       if (m.type === "text") field(box, "文字内容", "text", m.content.text, true);
       else {
         field(box, "卡片标题", "title", m.content.title);
         box.append(root.querySelector("[data-reply-card-template]").content.cloneNode(true));
-        const miniSelect = box.querySelector("select"); miniSelect.value = m.content.appid || "";
-        miniSelect.id = "mini-" + crypto.randomUUID(); miniSelect.previousElementSibling.htmlFor = miniSelect.id; miniSelect.setAttribute("aria-label", "目标小程序");
+        const miniSelect = box.querySelector("select");
+        miniSelect.value = m.content.appid || "";
+        miniSelect.id = "mini-" + crypto.randomUUID();
+        miniSelect.previousElementSibling.htmlFor = miniSelect.id;
         field(box, "页面路径", "pagepath", m.content.pagepath);
-        const label = node("label", "form-label", "卡片封面（上传到当前公众号）");
-        const file = node("input", "form-control"); file.type = "file"; file.accept = "image/png,image/jpeg";
-        file.id = "cover-" + crypto.randomUUID(); label.htmlFor = file.id;
+        const label = node("label", "form-label required", "卡片封面（上传到当前公众号）");
+        const file = node("input", "form-control");
+        file.type = "file";
+        file.accept = "image/png,image/jpeg";
+        file.id = "cover-" + crypto.randomUUID();
+        file.required = !m.content.thumb_media_id;
+        file.dataset.replyField = "thumb_media_id";
+        file.dataset.requiredMessage = "请上传卡片封面";
+        label.htmlFor = file.id;
         const hint = node("div", "form-hint", m.content.thumb_media_id ? "封面已选择" : "请选择 JPG 或 PNG 图片");
+        hint.setAttribute("role", "status");
         file.onchange = async () => {
-          if (!file.files[0]) return;
-          busy = true; root.querySelector("[data-reply-save]").disabled = true;
+          const selected = file.files[0];
+          if (!selected || busy) return;
+          busy = true;
+          save.disabled = true;
           try {
-            const data = new FormData(); data.append("file", file.files[0]);
+            const data = new FormData();
+            data.append("file", selected);
             const result = await request(root.dataset.media, "POST", data);
-            m.content.thumb_media_id = result.media_id; m.proof = result.proof; if (m.previewUrl) URL.revokeObjectURL(m.previewUrl); m.previewUrl = URL.createObjectURL(file.files[0]); hint.textContent = "封面已选择"; drawPreview();
-          } catch (e) { showError(e.message); }
-          finally { busy = false; root.querySelector("[data-reply-save]").disabled = false; }
+            m.content.thumb_media_id = result.media_id;
+            m.proof = result.proof;
+            if (m.previewUrl) URL.revokeObjectURL(m.previewUrl);
+            m.previewUrl = URL.createObjectURL(selected);
+            file.required = false;
+            hint.textContent = "封面已选择";
+            drawPreview();
+          } catch (e) {
+            file.value = "";
+            setFieldError(file, e.message);
+          } finally {
+            busy = false;
+            save.disabled = false;
+          }
         };
         box.append(label, file, hint);
       }
-      box.addEventListener("input", () => { dirty = true; drawPreview(); }); items.append(box);
-      box.querySelectorAll("select").forEach(select => { if (window.TomSelect) new window.TomSelect(select, { create: false, controlInput: null, dropdownParent: "body" }).focus_node.setAttribute("aria-label", select.getAttribute("aria-label") || "目标小程序"); });
+      box.addEventListener("input", () => { dirty = true; drawPreview(); });
+      items.append(box);
+      window.initializeAdminSelects(box);
     }); drawPreview();
   }
   function showError(text) { error.textContent = text; error.hidden = !text; }
@@ -85,14 +178,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const headers = { Accept: "application/json", "X-CSRF-Token": document.querySelector("meta[name='csrf-token']")?.content || "" };
     if (!(data instanceof FormData)) { headers["Content-Type"] = "application/json"; data = JSON.stringify(data); }
     const response = await fetch(url, { method, headers, body: data });
-    const result = await response.json(); if (!response.ok) throw new Error(result.error || "保存失败，请核对后重试"); return result;
+    const result = await response.json();
+    if (!response.ok) {
+      const failure = new Error(result.error || "保存失败，请核对后重试");
+      failure.field = result.field;
+      failure.messageIndex = result.message_index;
+      throw failure;
+    }
+    return result;
   }
   root.querySelectorAll("[data-reply-add]").forEach(button => { button.onclick = () => {
     if (busy) return; dirty = true; read(); reply.messages.push({ id: crypto.randomUUID(), type: button.dataset.replyAdd, content: {} }); draw();
   }; });
-  function toggleScope() { const impact = root.querySelector("[data-reply-impacts]"); if (impact) impact.hidden = scope.value !== "all"; }
+  function toggleScope() { root.querySelector("[data-reply-impacts]")?.classList.toggle("d-none", scope.value !== "all"); }
   scope?.addEventListener("change", toggleScope); if (scope) toggleScope();
   document.getElementById("reply-name")?.addEventListener("input", () => { dirty = true; drawPreview(); });
+  function clearChangedField(event) {
+    const control = event.target;
+    if (control.matches("[data-reply-field][aria-invalid=true]")) setFieldError(control, "");
+  }
+  root.addEventListener("input", clearChangedField);
+  root.addEventListener("change", clearChangedField);
   root.querySelectorAll("[data-insert-variable]").forEach(button => {
     button.onclick = () => {
       if (busy) return;
@@ -109,15 +215,24 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("restore-content-form")?.addEventListener("submit", () => { dirty = false; });
   window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });
-  root.querySelector("[data-reply-save]").onclick = async () => {
-    if (busy) return; read(); busy = true; showError("");
-    const button = root.querySelector("[data-reply-save]"); button.disabled = true;
+  save.onclick = async () => {
+    if (busy) return;
+    showError("");
+    if (!validateFields()) return;
+    read();
+    busy = true;
+    window.adminForms.setBusy(root, true);
     try {
       const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, name: reply.name, messages: reply.messages } });
       dirty = false;
       if (root.dataset.inline === "true" && window.opener) { window.opener.postMessage({ type: "booking.reply.saved", ...result, appId: new URL(location.href).pathname.split("/")[3] }, location.origin); window.close(); }
       else location.assign(root.dataset.back);
-    } catch (e) { showError(e.message); } finally { busy = false; button.disabled = false; }
+    } catch (e) {
+      showSaveError(e);
+    } finally {
+      busy = false;
+      window.adminForms.setBusy(root, false);
+    }
   };
   draw();
 });

@@ -60,7 +60,8 @@ module Admins
     end
 
     def failed(error)
-      render json: { error: error.message }, status: :unprocessable_content
+      feedback = error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }
+      render json: feedback, status: :unprocessable_content
     end
   end
 end
