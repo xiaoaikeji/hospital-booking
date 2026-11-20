@@ -18,6 +18,7 @@ class App < ApplicationRecord
   has_one :official_account_menu, dependent: :destroy
   has_many :mini_program_releases, dependent: :restrict_with_error
   has_many :mini_program_audits, dependent: :restrict_with_error
+  has_many :links, dependent: :restrict_with_error
   has_many :location_interface_applications, dependent: :restrict_with_error
   has_many :wechat_violations, dependent: :restrict_with_error
   has_many :wechat_notification_events, dependent: :restrict_with_error

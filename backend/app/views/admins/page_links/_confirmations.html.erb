@@ -1,0 +1,20 @@
+<% delete_id = dom_id(link, :delete) %>
+<% impact = link.app_id ? "此操作影响当前小程序。" : "此操作会影响跟随此位置通用配置的小程序。" %>
+<% if restore_shared %><% impact = "删除后，此位置将恢复通用配置。" %><% end %>
+<%= form_with url: admins_page_link_path(link), method: :delete, id: delete_id, class: "d-none" do %>
+  <%= hidden_field_tag :restore_shared, "1", id: nil if restore_shared %>
+<% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "#{delete_id}-confirmation", form_id: delete_id,
+  title: "确认删除#{link.item_label}", context: link.name, description: impact, color: "danger",
+  confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>
+
+<% if link.active? %>
+  <% disable_id = dom_id(link, :disable) %>
+  <% disable_impact = link.app_id ? "停用后，此项从当前小程序隐藏。此位置仍使用专属配置。" : "停用后，跟随此位置通用配置的小程序将隐藏此项。" %>
+  <%= form_with url: status_admins_page_link_path(link), method: :patch, id: disable_id, class: "d-none" do %>
+    <%= hidden_field_tag :status, "disabled", id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "#{disable_id}-confirmation", form_id: disable_id,
+    title: "确认停用#{link.item_label}", context: link.name, description: disable_impact, color: "warning",
+    confirm_label: "确认停用", confirm_icon: :alert, cancel_icon: :close %>
+<% end %>

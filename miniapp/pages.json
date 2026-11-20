@@ -11,7 +11,8 @@
 		{ "path": "pages/ucenter/appointment_detail", "style": { "navigationBarTitleText": "预约详情", "navigationStyle": "custom" } },
 		{ "path": "pages/ucenter/feedback", "style": { "navigationBarTitleText": "意见反馈", "navigationStyle": "custom" } },
 		{ "path": "pages/ucenter/hospital", "style": { "navigationBarTitleText": "医院介绍", "navigationStyle": "custom" } },
-		{ "path": "pages/ucenter/login", "style": { "navigationBarTitleText": "授权登录", "navigationStyle": "custom" } }
+		{ "path": "pages/ucenter/login", "style": { "navigationBarTitleText": "授权登录", "navigationStyle": "custom" } },
+		{ "path": "pages/common/webview", "style": { "navigationBarTitleText": "网页" } }
 	],
 	"tabBar": {
 		"color": "#999999",

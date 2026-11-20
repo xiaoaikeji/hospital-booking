@@ -1,10 +1,10 @@
 <script setup>
 import { onLaunch } from '@dcloudio/uni-app'
 import { loadAppConfiguration } from '@/request/http.js'
-import { appConfiguration } from '@/store/app-configuration.js'
+import { appConfiguration, usingServerPageLinks } from '@/store/app-configuration.js'
 
 onLaunch(() => {
-  loadAppConfiguration(config => { appConfiguration.value = config })
+  usingServerPageLinks.value = loadAppConfiguration(config => { appConfiguration.value = config })
 })
 </script>
 

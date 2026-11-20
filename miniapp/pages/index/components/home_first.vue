@@ -1,11 +1,14 @@
 <script setup>
+import { computed } from 'vue'
 import { doctors } from '@/mock/doctors.js'
 import { bookingMode } from '@/pages/booking/booking-mode.js'
 import { switchFromHomeCard } from '@/utils/guest-tab.js'
 import { openBooking } from '@/utils/booking-navigation.js'
 import { clinics } from '@/mock/clinics.js'
-import { appName } from '@/store/app-configuration.js'
-import { banners, entries } from '../home-first-mock.js'
+import { appName, pageLinks } from '@/store/app-configuration.js'
+import { entries } from '../home-first-mock.js'
+
+const banners = computed(() => pageLinks.value.home_banner)
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
 const capsule = uni.getMenuButtonBoundingClientRect()
@@ -31,11 +34,13 @@ function openEntry(entry) {
       </view>
     </view>
     <view class="home-content">
-      <view class="home-banner">
+      <view v-if="banners.length" class="home-banner">
         <swiper class="banner-swiper" :indicator-dots="banners.length > 1" indicator-active-color="#fff"
           :autoplay="banners.length > 1" :circular="banners.length > 1" :interval="5000">
-          <swiper-item v-for="banner in banners" :key="banner.image">
-            <image class="banner-art" :src="banner.image" mode="scaleToFill" :aria-label="banner.label" />
+          <swiper-item v-for="banner in banners" :key="banner.id">
+            <custom-page-link :link="banner">
+              <image class="banner-art" :src="banner.image_url" mode="scaleToFill" :aria-label="banner.name" />
+            </custom-page-link>
           </swiper-item>
         </swiper>
         <view v-if="banners.length === 1" class="banner-dot" />
@@ -130,8 +135,8 @@ function openEntry(entry) {
   grid-template-columns: 356fr 328fr;
   grid-template-rows: repeat(2, 129rpx);
   gap: 18rpx 22rpx;
-  margin-top: 30rpx;
 }
+.home-banner + .home-entries { margin-top: 30rpx; }
 .entry-card {
   position: relative;
   overflow: hidden;

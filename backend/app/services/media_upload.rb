@@ -8,6 +8,7 @@ class MediaUpload
   PURPOSES = {
     location_picture: { label: "补充图片", formats: IMAGES, limit: 10.megabytes },
     poster_background: { label: "海报底图", formats: IMAGES, limit: 10.megabytes },
+    link_image: { label: "页面配置图片", formats: IMAGES, limit: 10.megabytes },
     wechat_certificate: { label: "资质图片", formats: WECHAT_IMAGES, limit: 2.megabytes },
     wechat_avatar: { label: "头像", formats: WECHAT_IMAGES, limit: 2.megabytes },
     menu_image: { label: "图片素材", formats: WECHAT_IMAGES.merge("gif" => "image/gif", "bmp" => "image/bmp"), limit: 10.megabytes },

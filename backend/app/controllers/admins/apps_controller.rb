@@ -80,6 +80,8 @@ module Admins
         "已有微信授权记录，只能停用"
       elsif @app.mini_program_releases.exists? || @app.mini_program_audits.exists?
         "已有发布或审核记录，只能停用"
+      elsif @app.links.exists?
+        "该应用还有专属页面配置，请先删除专属配置"
       elsif error.is_a?(ActiveRecord::InvalidForeignKey)
         "已有业务记录，只能停用"
       else

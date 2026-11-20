@@ -1,10 +1,10 @@
-// 联调时填写后台域名，例如 https://example.com。留空时使用本地默认配置。
-const API_ORIGIN = ''
+// 在工程根目录的 .env.local 中设置后台地址。留空时可在游客模式预览外观。
+const API_ORIGIN = (import.meta.env.VITE_BOOKING_API_ORIGIN || '').trim().replace(/\/+$/, '')
 
 export function loadAppConfiguration(onSuccess) {
-  if (!API_ORIGIN) return
-  const { appId } = uni.getAccountInfoSync().miniProgram
-  if (!appId || appId === 'touristappid') return
+  if (!API_ORIGIN) return false
+  const { appId } = uni.getAccountInfoSync?.()?.miniProgram ?? {}
+  if (!appId || appId === 'touristappid') return false
 
   uni.request({
     url: API_ORIGIN + '/api/apps/wechat/' + encodeURIComponent(appId) + '/configuration',
@@ -12,4 +12,5 @@ export function loadAppConfiguration(onSuccess) {
       if (statusCode === 200) onSuccess(data)
     },
   })
+  return true
 }

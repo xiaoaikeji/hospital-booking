@@ -1,0 +1,105 @@
+<% content_for :title, "小程序页面配置 · Booking 管理后台" %>
+<% content_for :fill_content, "true" if @links.empty? %>
+<% content_for :head do %><%= javascript_include_tag "admins/page_links", defer: true %><% end %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% context = { app_id: @app&.id, position: @position } %>
+<% item_label = @position == "home_banner" ? "轮播图" : "菜单项" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "小程序页面配置", icon: :device_mobile } do %>
+  <%= link_to new_admins_page_link_path(context), class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增<%= item_label %><% end %>
+<% end %>
+
+<section class="card mb-3 flex-shrink-0" aria-label="页面配置筛选条件">
+  <div class="list-group list-group-flush">
+    <%= form_with url: admins_page_links_path, method: :get, class: "list-group-item py-2" do %>
+      <%= hidden_field_tag :position, @position %>
+      <div class="row g-2 align-items-center">
+        <%= label_tag "page-link-scope", "配置范围", class: "col-12 col-md-2 col-xl-1 text-secondary" %>
+        <div class="col-12 col-md-7 col-xl-5">
+          <%= select_tag :app_id, options_for_select([["通用配置", ""], *@scope_options], @app&.id || ""),
+            id: "page-link-scope", class: "form-select", data: { enhanced_select: "single", page_link_scope: true }, aria: { label: "配置范围" } %>
+          <noscript><button class="btn mt-2" type="submit">切换</button></noscript>
+        </div>
+      </div>
+    <% end %>
+    <%= render "admins/shared/list_filter_row", label: "展示位置", key: :position, options: Link::POSITIONS,
+      selected: @position, include_all: false, filter_url: ->(changes) { admins_page_links_path(context.merge(changes)) } %>
+  </div>
+</section>
+
+<section class="<%= class_names("card page-link-list-card", "flex-fill" => @links.empty?) %>" aria-label="页面配置列表">
+  <div class="card-header flex-shrink-0 d-flex flex-wrap gap-2">
+    <div class="flex-grow-1 min-w-0">
+      <h2 class="card-title d-flex flex-wrap align-items-center gap-2 mb-1">
+        <%= Link::POSITIONS.fetch(@position) %>
+        <% if @app %>
+          <span class="badge <%= @managed ? 'bg-primary-lt' : 'bg-secondary-lt' %>"><%= @managed ? "使用专属配置" : "跟随通用" %></span>
+        <% end %>
+      </h2>
+      <div class="text-secondary">
+        <% if @app.nil? %>
+          正在跟随此位置的微信小程序将在下次启动时读取变更。
+        <% elsif @managed %>
+          <%= @group.effective.any? ? "此位置使用本小程序的专属记录。" : "此位置暂无启用项，小程序将隐藏此区域。" %>
+        <% else %>
+          下方显示通用配置中的启用项。新增专属<%= item_label %>后，此位置将改用本小程序的配置。
+        <% end %>
+        <% if @app && !@app.accessible? %>此小程序已停用，恢复后会读取配置。<% end %>
+      </div>
+    </div>
+    <% if !@managed %>
+      <%= link_to admins_page_links_path(position: @position), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :settings %>维护通用配置<% end %>
+    <% end %>
+  </div>
+  <% if @links.empty? %>
+    <%= render "admins/shared/list_empty", icon: :package, title: (@managed ? "暂无#{item_label}" : "通用配置暂无启用项") %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr>
+        <th scope="col" class="list-column-id px-2">ID</th>
+        <th scope="col" class="px-2">名称</th>
+        <th scope="col" class="page-link-type px-2">点击行为</th>
+        <th scope="col" class="page-link-order px-2">排序</th>
+        <th scope="col" class="list-column-status px-2">状态</th>
+        <% if @managed %><th scope="col" class="page-link-actions px-2">操作</th><% end %>
+      </tr></thead>
+      <tbody>
+        <% @links.each do |link| %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{link.id}" %></td>
+            <td class="px-2">
+              <div class="d-flex align-items-center gap-2">
+                <% if link.image.attached? %>
+                  <%= render "admins/shared/image_thumbnail", image: { asset: image_admins_page_link_path(link), title: link.name }, modal_id: dom_id(link, :image), size: "avatar-sm" %>
+                <% end %>
+                <div class="flex-fill overflow-hidden">
+                  <%= render "admins/shared/list_text", text: link.name %>
+                  <div class="page-link-type-compact small text-secondary"><%= Link::TYPES.fetch(link.link_type) %></div>
+                </div>
+              </div>
+            </td>
+            <td class="page-link-type px-2"><%= Link::TYPES.fetch(link.link_type) %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: link.sort_order.to_s %></td>
+            <td class="px-2"><span class="badge <%= link.active? ? 'bg-success-lt' : 'bg-secondary-lt' %>"><%= Link::STATUSES.fetch(link.status) %></span></td>
+            <% if @managed %>
+              <td class="page-link-action-cell px-2"><div class="d-flex flex-wrap gap-1">
+                <%= link_to edit_admins_page_link_path(link), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+                <% if link.active? %>
+                  <button type="button" class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(link, :disable) %>-confirmation"><%= render "layouts/admins/icon", name: :alert %>停用</button>
+                <% else %>
+                  <%= button_to status_admins_page_link_path(link), method: :patch, params: { status: "active" }, class: "btn btn-sm btn-outline-success text-nowrap" do %><%= render "layouts/admins/icon", name: :check %>启用<% end %>
+                <% end %>
+                <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(link, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
+              </div></td>
+            <% end %>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_page_links_path(context.merge(page: page)) } %>
+  <% end %>
+</section>
+
+<% @links.each do |link| %>
+  <% if link.image.attached? %><%= render "admins/shared/image_modal", image: { asset: image_admins_page_link_path(link), title: link.name }, modal_id: dom_id(link, :image) %><% end %>
+  <%= render "confirmations", link: link, restore_shared: @app.present? && @group.records.one? if @managed %>
+<% end %>

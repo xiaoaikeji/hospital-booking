@@ -34,6 +34,10 @@ namespace :admins do
   resources :open_platform_accounts, only: %i[index new create show] do
     resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
   end
+  resources :page_links, only: %i[index new create edit update destroy] do
+    patch :status, on: :member
+    get :image, on: :member
+  end
   resources :apps do
     resource :template_message, only: :update, controller: "template_messages"
     resources :reply_contents, only: %i[new create edit update] do

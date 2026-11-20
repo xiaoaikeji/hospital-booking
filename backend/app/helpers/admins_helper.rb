@@ -17,6 +17,7 @@ module AdminsHelper
     if current_admin.super_admin?
       groups << [ "应用管理", :device_mobile, [
         [ "应用列表", admins_apps_path, %w[admins/apps admins/app_privacy_settings] ],
+        [ "小程序页面配置", admins_page_links_path, "admins/page_links" ],
         [ "代码发布", admins_mini_program_releases_path, %w[admins/mini_program_releases admins/wechat_releases] ],
         [ "代码模板", admins_code_templates_path, "admins/code_templates" ],
         [ "插件列表", admins_plugins_path, "admins/plugins" ],

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_060000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -98,6 +98,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_060000) do
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
+  end
+
+  create_table "links", force: :cascade do |t|
+    t.bigint "app_id"
+    t.datetime "created_at", null: false
+    t.string "link_type", default: "none", null: false
+    t.string "name", null: false
+    t.jsonb "params", default: {}, null: false
+    t.string "position", null: false
+    t.integer "sort_order", default: 0, null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.text "url"
+    t.index ["app_id", "position", "status", "sort_order", "id"], name: "index_links_on_app_position_status_and_order"
+    t.check_constraint "jsonb_typeof(params) = 'object'::text", name: "links_params_object"
+    t.check_constraint "link_type::text = ANY (ARRAY['none'::character varying, 'page'::character varying, 'tab'::character varying, 'webview'::character varying, 'miniprogram'::character varying, 'contact'::character varying]::text[])", name: "links_type_valid"
+    t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])", name: "links_status_valid"
   end
 
   create_table "location_interface_applications", force: :cascade do |t|
@@ -469,6 +486,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_060000) do
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
   add_foreign_key "apps", "open_platform_accounts"
+  add_foreign_key "links", "apps", on_delete: :restrict
   add_foreign_key "location_interface_applications", "admins", column: "operator_id"
   add_foreign_key "location_interface_applications", "apps"
   add_foreign_key "mini_program_audits", "admins", column: "operator_id"
