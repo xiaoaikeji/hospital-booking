@@ -31,6 +31,22 @@ class WechatAuthorizationTest < ActionDispatch::IntegrationTest
     get query.fetch("redirect_uri") + "&auth_code=demo-auth-code"
   end
 
+  test "没有扫码完成的授权不阻止删除空应用，删除后回跳失效" do
+    Rails.cache.write("wechat/component/wxPlatform/token", "demo-platform-token")
+    @stubs.post("/cgi-bin/component/api_create_preauthcode") { response_for(pre_auth_code: "demo-preauth") }
+    post admins_app_authorization_path(@target)
+    callback = Rack::Utils.parse_query(URI(response.location).query).fetch("redirect_uri")
+    auth = @target.reload.app_authorization
+    assert_not auth.used?
+    assert_difference("App.count", -1) { delete admins_app_path(@target) }
+    assert_redirected_to admins_apps_path
+    assert_not AppAuthorization.exists?(auth.id)
+    assert Log.exists?(action: "app.destroy", target_id: @target.id, status: "success")
+    get callback + "&auth_code=expired-with-app"
+    assert_not App.exists?(@target.id)
+    assert_includes flash[:alert], "授权请求已失效"
+  end
+
   test "票据验签、授权回跳归属、刷新轮换、取消授权和历史保护" do
     path = "/api/wechat/component/events"
     ticket = "<xml><AppId>wxPlatform</AppId><InfoType>component_verify_ticket</InfoType><ComponentVerifyTicket>demo-ticket</ComponentVerifyTicket></xml>"

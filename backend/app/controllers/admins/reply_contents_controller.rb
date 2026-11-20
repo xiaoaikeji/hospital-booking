@@ -24,14 +24,14 @@ module Admins
     def update = save_reply
 
     def media
-      render json: WechatPlatform::OfficialAccountMenus.new(@app, actor: current_admin, request: request).upload!(params[:file], "image")
+      render json: WechatPlatform::OfficialAccountMenus.new(@app, actor: current_admin, request: request).upload_card_cover!(params[:file])
     end
 
     def image
       id = params[:media_id].to_s
       own = configuration.replies.values.any? { |reply| reply["messages"].any? { |m| m["type"] == "miniprogrampage" && m.dig("content", "thumb_media_id") == id } }
       proof = Rails.application.message_verifier(:official_menu_resource).verified(params[:proof].to_s)
-      raise ActiveRecord::RecordNotFound unless own || proof == [ @app.id, "media_id", id ]
+      raise ActiveRecord::RecordNotFound unless own || proof == [ @app.id, "card_cover", id ]
       bytes, mime = WechatPlatform::AuthorizerToken.with_token(@app) { |token| Wechat::OfficialAccountMenuClient.new(token).image(id) }
       send_data bytes, type: mime, disposition: "inline"
     end

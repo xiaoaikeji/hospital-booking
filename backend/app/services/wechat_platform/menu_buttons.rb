@@ -41,7 +41,8 @@ module WechatPlatform
         if node.key?("sub_button")
           subs = node["sub_button"]
           subs = subs["list"] if subs.is_a?(Hash)
-          next { "name" => node["name"], "sub_button" => from_wechat(subs, depth + 1) }
+          raise HttpConnection::Unavailable, "微信返回的菜单结构不完整" unless subs.nil? || subs.is_a?(Array)
+          next { "name" => node["name"], "sub_button" => from_wechat(subs, depth + 1) } if subs&.any?
         end
         item = node.slice("name", "type", "url", "appid", "pagepath", "key", "media_id", "article_id")
         case item["type"]

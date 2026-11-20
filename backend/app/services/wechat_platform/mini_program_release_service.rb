@@ -32,35 +32,45 @@ module WechatPlatform
       end
     end
 
-    def verify_upload!(release, not_uploaded: false)
+    def verify_upload!(release, outcome: "uploaded")
       operation("resolve", release) do
         unless release.reload.status == "upload_unknown" && @app.mini_program_releases.maximum(:id) == release.id
           raise Error, "只能核实最近一次结果待定的上传"
         end
         info = client.version_info
         experience = info["exp_info"]
-        matches = experience && experience["exp_version"] == release.version && experience["exp_desc"] == release.description
-        if not_uploaded
-          raise Error, "微信体验版与本次上传相符，请核实成功结果" if matches
-          prior = release.previous_build || @app.mini_program_releases.where(status: "uploaded").order(id: :desc).first
-          previous_matches = prior && experience.present? && experience["exp_version"] == prior.version && experience["exp_desc"] == prior.description
-          known_empty = !prior && experience.blank? && (info.key?("exp_info") || info.key?("release_info"))
-          unless previous_matches || known_empty
-            raise Error, "微信体验版无法匹配上一次上传，请继续核实"
-          end
-          App.transaction do
-            release.update!(status: "upload_failed", current_build: false)
-            prior.update!(current_build: true) if experience.present?
-            log!(release_id: release.id, result: "人工核实未上传")
-          end
-          next
-        end
-        unless matches
-          raise Error, "微信体验版与本记录不一致，请继续核实"
-        end
         App.transaction do
-          release.update!(status: "uploaded", current_build: true)
-          log!(release_id: release.id, result: "已人工核实微信体验版模板与版本")
+          case outcome
+          when "uploaded"
+            raise Error, "微信体验版与本记录不一致，请继续核实" unless experience_matches?(experience, release)
+            verify_distinct_experience!(release)
+            release.update!(status: "uploaded", current_build: true)
+            log!(release_id: release.id, result: "人工核实本次上传已生效")
+          when "not_uploaded"
+            if experience_matches?(experience, release)
+              verify_distinct_experience!(release)
+              raise Error, "微信体验版与本次上传相符，请核实成功结果"
+            end
+            prior = release.previous_build || @app.mini_program_releases.where(status: "uploaded").order(id: :desc).first
+            previous_matches = experience_matches?(experience, prior)
+            known_empty = !prior && experience.blank? && (info.key?("exp_info") || info.key?("release_info"))
+            unless previous_matches || known_empty
+              raise Error, "微信体验版无法匹配上一次上传，请继续核实或保留微信当前体验版"
+            end
+            verify_distinct_experience!(prior) if previous_matches
+            release.update!(status: "upload_failed", current_build: false)
+            prior.update!(current_build: true) if previous_matches
+            log!(release_id: release.id, result: "人工核实未上传")
+          when "keep_remote"
+            unless experience.is_a?(Hash) && experience["exp_version"].is_a?(String) && experience["exp_version"].present?
+              raise Error, "微信未返回当前体验版的版本号，请重新核实"
+            end
+            @app.mini_program_releases.where(current_build: true).update_all(current_build: false)
+            release.update!(status: "closed", current_build: false)
+            log!(release_id: release.id, result: "关闭待核实记录，保留微信当前体验版", remote_version: experience["exp_version"])
+          else
+            raise Error, "请选择核实结果"
+          end
         end
       end
     end
@@ -252,10 +262,10 @@ module WechatPlatform
         api = client
         info = api.version_info
         marker = online_marker(info)
-        raise Error, "该审核单尚未通过，请核实" unless remote_result(api, audit.audit_id).fetch(:status) == "passed"
-        latest = api.latest_audit
-        verify_submission!(audit, latest)
-        raise Error, "微信最新通过单与本轮不符，请核实" unless latest.fetch("auditid") == audit.audit_id
+        unless audit.audit_id.present? && remote_result(api, audit.audit_id).fetch(:status) == "passed"
+          raise Error, "该审核单尚未通过，请核实"
+        end
+        verify_release_audit!(audit, api.latest_audit)
         if audit.publication == "failed" && audit.prior_online_marker.present? && audit.prior_online_marker != marker &&
             info.dig("release_info", "release_version") == audit.version
           next mark_published!(audit)
@@ -332,6 +342,25 @@ module WechatPlatform
       commit_upload!(api, snapshot(release).merge(restored_for_id: release.id))
     end
 
+    def experience_matches?(experience, release)
+      release && experience.is_a?(Hash) && experience["exp_version"] == release.version && experience["exp_desc"] == release.description
+    end
+
+    def verify_distinct_experience!(release)
+      snapshot = release.slice(*MiniProgramRelease::SNAPSHOT_FIELDS)
+      candidates = @app.mini_program_releases.where(version: release.version, description: release.description).where.not(id: release.id)
+      if candidates.any? { |candidate| candidate.slice(*MiniProgramRelease::SNAPSHOT_FIELDS) != snapshot }
+        raise Error, "多份代码使用相同版本和说明，无法确认微信当前模板。请核对后选择保留微信当前体验版"
+      end
+    end
+
+    def verify_release_audit!(audit, latest)
+      unless audit.audit_id.present? && latest && latest["auditid"] == audit.audit_id
+        raise Error, "微信最新审核单与本轮不符，请核实"
+      end
+      raise Error, "微信审核版本与本轮不符或缺失，请核实" unless latest["user_version"] == audit.version
+    end
+
     def verify_submission!(audit, latest)
       raise Error, "微信审核版本与本轮不符或缺失，请核实" unless latest && latest["user_version"] == audit.version
       submitted = Integer(latest["submit_audit_time"].to_s, 10, exception: false)
@@ -369,9 +398,8 @@ module WechatPlatform
     def reconcile_publication!(api, audit, confirmed: false)
       info = api.version_info
       same_version = info.dig("release_info", "release_version") == audit.version
-      latest = api.latest_audit
-      verify_submission!(audit, latest)
-      if same_version && (confirmed || online_marker(info) != audit.prior_online_marker) && latest.fetch("auditid") == audit.audit_id
+      verify_release_audit!(audit, api.latest_audit)
+      if same_version && (confirmed || online_marker(info) != audit.prior_online_marker)
         mark_published!(audit)
       else
         raise Error, "线上版本尚不能确认本轮发布结果，请核实后再操作"

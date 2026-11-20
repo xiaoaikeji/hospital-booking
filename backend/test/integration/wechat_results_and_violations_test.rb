@@ -135,6 +135,29 @@ class WechatResultsAndViolationsTest < ActionDispatch::IntegrationTest
     assert_empty @b.wechat_notification_events
   end
 
+  test "通知登记实际发生 SQL 错误，审核、违规和失败追踪仍落库" do
+    Setting.create!(key: "notification")
+    Setting.connection.execute("ALTER TABLE settings ADD CONSTRAINT test_notification_write CHECK (key <> 'notification') NOT VALID")
+    @a.update!(status: "auditing", violations_synced_at: 1.day.ago)
+    audit = @a.mini_program_audits.create!(operator: @admin, audit_id: "3010", status: "pending", version: "1.1",
+      previous_status: "active", description: "示例")
+    @stubs.post("/wxa/get_auditstatus") { response_for(auditid: "3010", status: 0) }
+    WechatPlatform::MiniProgramReleaseService.new(@a, actor: @admin).sync!(audit)
+    assert_equal "passed", audit.reload.status
+    assert_equal "active", @a.reload.status
+
+    now = Time.current.change(usec: 0)
+    @violations[@a.appid] << { illegal_record_id: "notice-sql-error", create_time: now.to_i, illegal_reason: "违规" }
+    WechatPlatform::IllegalRecords.sync(@a, now: now)
+    violation = @a.wechat_violations.find_by!(record_number: "notice-sql-error")
+    assert_equal "违规", violation.reload.reason
+    assert_equal now, @a.reload.violations_synced_at
+    assert_empty WechatNotificationEvent.all
+    failure_logs = Log.where(source: "system", action: "notification.registration_failed", status: "failed", target_type: "App", target_id: @a.id).order(:id)
+    assert_equal ["audit:#{audit.id}:passed", "violation:#{violation.id}"], failure_logs.map { |log| log.details["event_reference"] }
+    assert failure_logs.all? { |log| log.details["error"].start_with?("ActiveRecord::") }
+  end
+
   test "企微超时或明确拒绝均不重发，关闭通知后不发送已排队消息" do
     %w[unknown failed skipped].each_with_index do |expected, index|
       @timeout = index.zero?
@@ -206,5 +229,59 @@ class WechatResultsAndViolationsTest < ActionDispatch::IntegrationTest
         assert_response :forbidden
       end
     end
+  end
+
+  test "企微密文损坏仍可替换和清除，清除后回退到可用配置" do
+    @previous_env["WECOM_WEBHOOK_KEY"] = ENV["WECOM_WEBHOOK_KEY"]
+    ENV["WECOM_WEBHOOK_KEY"] = "audit-safe-fallback"
+    edit = edit_admins_system_settings_wechat_notifications_path
+    path = admins_system_settings_wechat_notifications_path
+    corrupt = { "ciphertext" => "invalid-channels-ciphertext" }
+    2.times do |index|
+      @setting.reload
+      @setting.update!(settings: @setting.settings.merge("webhook_key" => corrupt))
+      get edit
+      assert_response :success
+      assert_predicate WechatPlatform::NotificationSettings.new, :key_unreadable?
+      assert_select "span[title='系统配置（解密失败）']", "解密失败"
+      assert_select "form#clear-notification-configuration-form"
+      assert_not_includes response.body, corrupt["ciphertext"]
+      revision = css_select("input[name='notification_settings[revision]']").first["value"]
+      input = index.zero? ? { webhook_key: "audit-replacement-key", kinds: ["passed"] } : { clear_key: "1" }
+      patch path, params: { notification_settings: input.merge(revision: revision) }
+      assert_redirected_to edit
+      assert_equal(index.zero? ? "audit-replacement-key" : "audit-safe-fallback", WechatPlatform::NotificationSettings.new.key)
+    end
+    logs = Log.where(action: "wechat.notification_settings").pluck(:details).to_json
+    %w[audit-replacement-key audit-safe-fallback invalid-channels-ciphertext].each { |key| assert_not_includes logs, key }
+  end
+
+  test "旧企微 Key 被轮换后，普通改回和清除回退都在设置页拒绝" do
+    @previous_env["WECOM_WEBHOOK_KEY"] = ENV["WECOM_WEBHOOK_KEY"]
+    ENV["WECOM_WEBHOOK_KEY"] = @key
+    path = admins_system_settings_wechat_notifications_path
+    channel = Notifications::Channels::WecomGroup.target(@key)
+    input = { kinds: ["passed"] }
+    patch path, params: { notification_settings: input.merge(revision: WechatPlatform::NotificationSettings.new.revision,
+      webhook_key: "audit-rotated-key", same_robot: "1") }
+    assert_redirected_to edit_admins_system_settings_wechat_notifications_path
+    assert_equal channel, Notifications::Channels::WecomGroup.target("audit-rotated-key")
+    [{ webhook_key: @key }, { clear_key: "1" }].each do |change|
+      patch path, params: { notification_settings: input.merge(change).merge(revision: WechatPlatform::NotificationSettings.new.revision) }
+      assert_response :unprocessable_content
+      assert_includes response.body, "生效的机器人 Key 已轮换"
+      assert_equal "audit-rotated-key", WechatPlatform::NotificationSettings.new.key
+    end
+    ENV["WECOM_WEBHOOK_KEY"] = "audit-rotated-key"
+    patch path, params: { notification_settings: input.merge(revision: WechatPlatform::NotificationSettings.new.revision,
+      webhook_key: "audit-third-key", same_robot: "1") }
+    assert_redirected_to edit_admins_system_settings_wechat_notifications_path
+    assert_equal channel, Notifications::Channels::WecomGroup.target("audit-third-key")
+    patch path, params: { notification_settings: { revision: WechatPlatform::NotificationSettings.new.revision, clear_key: "1" } }
+    assert_response :unprocessable_content
+    assert_includes response.body, "生效的机器人 Key 已轮换"
+    assert_equal "audit-third-key", WechatPlatform::NotificationSettings.new.key
+    logs = Log.where(action: "wechat.notification_settings").pluck(:details).to_json
+    [@key, "audit-rotated-key", "audit-third-key"].each { |key| assert_not_includes logs, key }
   end
 end

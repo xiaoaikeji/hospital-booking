@@ -1,6 +1,6 @@
 <% content_for :title, "微信通知设置 · Booking 管理后台" %>
 <%= render "admins/system_settings/navigation", title: "微信通知设置" %>
-<% can_clear = @settings.source == "加密数据库"; revision = @settings.revision %>
+<% can_clear = @settings.stored_key?; revision = @settings.revision %>
 <% history_link = capture do %>
   <%= link_to edit_admins_wecom_notification_content_path, class: "btn" do %><%= render "layouts/admins/icon", name: :edit %>通知文案<% end %>
   <%= link_to admins_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>通知记录<% end %>
@@ -20,7 +20,8 @@
       <div class="col-lg-8">
         <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :webhook_key, label: "企业微信群机器人 Key",
               source: @settings.source, value: @input&.fetch(:webhook_key, nil) || @settings.key,
-              placeholder: "请输入 Key 或完整 Webhook 地址", help: ("可填写机器人 Key 或完整 Webhook 地址。留空保留当前来源。" if @settings.key.present?) %>
+              placeholder: "请输入 Key 或完整 Webhook 地址",
+              help: (@settings.key_unreadable? ? "请重新填写机器人 Key 或清除系统配置。" : ("可填写机器人 Key 或完整 Webhook 地址。留空保留当前来源。" if @settings.key.present?)) %>
       </div>
       <% if @settings.key.present? %>
         <div class="col-12">

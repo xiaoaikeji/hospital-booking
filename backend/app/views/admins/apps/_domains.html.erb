@@ -1,6 +1,7 @@
 <% content_for :head do %><%= javascript_include_tag "admins/app_domains", defer: true %><% end %>
 <% WechatPlatform::AppDomains::FIELDS.each do |kind, fields| %>
   <% info = @domain_settings.fetch(kind); title = WechatPlatform::AppDomains::TITLES.fetch(kind) %>
+  <% draft = (@domain_draft if @domain_draft&.fetch(:kind) == kind) %>
   <section class="card mb-3" aria-label="<%= title %>" data-domain-editor>
     <div class="card-header gap-2">
       <h2 class="card-title"><%= title %></h2>
@@ -21,13 +22,17 @@
           </details><% end %>
           <div class="row g-3"><% fields.each do |field, (label, scheme)| %>
             <% current = info.fetch(:domains).fetch(field); area_id = "domain-#{field}" %>
+            <% invalid = draft&.fetch(:field) == field; error_id = ("#{area_id}-error" if invalid) %>
+            <% text = draft ? draft.fetch(:texts).fetch(field, current.join("\n")) : current.join("\n") %>
             <div class="<%= kind == 'server' ? 'col-12 col-lg-6' : 'col-12' %>">
               <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
                 <%= label_tag area_id, label, class: "form-label mb-0" %>
                 <% if defaults[field] %><button type="button" class="btn btn-sm" data-fill-domain="<%= area_id %>" data-value="<%= defaults[field].join("\n") %>"><%= render "layouts/admins/icon", name: :edit %>填入默认值</button><% end %>
               </div>
-              <%= text_area_tag "domains[#{field}]", current.join("\n"), id: area_id, rows: 3, spellcheck: false, autocomplete: "off", placeholder: "#{scheme}://", class: "form-control font-monospace" %>
-              <% if current.any? %><label class="form-check mt-1"><%= check_box_tag "clear[]", field, false, class: "form-check-input", id: "clear-#{field}" %><span class="form-check-label">清空<%= label %></span></label><% end %>
+              <%= text_area_tag "domains[#{field}]", text, id: area_id, rows: 3, spellcheck: false, autocomplete: "off", placeholder: "#{scheme}://",
+                    class: class_names("form-control font-monospace", "is-invalid" => invalid), aria: { describedby: error_id, invalid: (true if invalid) } %>
+              <%= admin_field_error(draft[:message], id: error_id) if invalid %>
+              <% if current.any? %><label class="form-check mt-1"><%= check_box_tag "clear[]", field, draft&.fetch(:clear)&.include?(field), class: "form-check-input", id: "clear-#{field}" %><span class="form-check-label">清空<%= label %></span></label><% end %>
             </div>
           <% end %></div>
         </div>

@@ -23,7 +23,11 @@ class NotificationTemplateMessagesTest < ActionDispatch::IntegrationTest
     @sent = []
     @stubs.get("/cgi-bin/template/get_all_private_template") do |env|
       @reads += 1
-      response_for(template_list: [ { template_id: "tpl-#{env.params['access_token']}", title: "活动开始提醒", content: "活动名称：{{thing1.DATA}}\n开始时间：{{time2.DATA}}" } ])
+      if @template_error
+        response_for(errcode: 48001)
+      else
+        response_for(template_list: [ { template_id: "tpl-#{env.params['access_token']}", title: "活动开始提醒", content: "活动名称：{{thing1.DATA}}\n开始时间：{{time2.DATA}}" } ])
+      end
     end
     @stubs.post("/cgi-bin/message/template/send") do |env|
       @sent << [ env.params["access_token"], JSON.parse(env.body) ]
@@ -31,6 +35,33 @@ class NotificationTemplateMessagesTest < ActionDispatch::IntegrationTest
     end
   end
   teardown { remove_wechat_stubs }
+
+  test "即使微信模板不可读，解除当前事件也保留其他事件和账号的绑定" do
+    Notifications::EventCatalog.register("activity_reminder", label: "另一活动", fields: {
+      "activity_name" => { label: "活动名称", type: "text" }, "starts_at" => { label: "开始时间", type: "time" }
+    })
+    [@a, @b].each do |app|
+      config = Notifications::AccountConfiguration.new(app)
+      %w[activity_start activity_reminder].each do |event|
+        patch admins_app_template_message_path(app), params: { template_binding: { event: event,
+          template_id: "tpl-#{app.appid}", revision: config.revision, mapping: { thing1: "activity_name", time2: "starts_at" } } }, as: :json
+        assert_response :success
+      end
+    end
+    @template_error = true
+    get admins_template_messages_path(app_id: @a.id)
+    assert_response :success
+    assert_select "[data-template-event='activity_start'] [data-template-unbind]:not(.d-none)"
+    assert_select "[data-template-event='activity_start'] [data-template-choice]", count: 0
+    revision = css_select("#unbind-template-activity_start input[name='template_binding[revision]']").sole["value"]
+    delete admins_app_template_message_path(@a), params: { template_binding: { event: "activity_start", revision: revision } }
+    assert_redirected_to admins_template_messages_path(app_id: @a.id)
+    assert_equal ["activity_reminder"], @config.data.fetch("template_bindings").keys
+    assert_includes Notifications::AccountConfiguration.new(@b).data.fetch("template_bindings"), "activity_start"
+    assert Log.exists?(action: "notification.template_unbind", target_id: @a.id, status: "success")
+  ensure
+    Notifications::EventCatalog.definitions.delete("activity_reminder")
+  end
 
   test "读出微信字段并建议配置一次，两次活动复用相同绑定和真实数据" do
     get admins_template_messages_path(app_id: @a.id)

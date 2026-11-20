@@ -139,4 +139,18 @@ class AppsTest < ActionDispatch::IntegrationTest
   ensure
     ENV.delete(key)
   end
+
+  test "有真实用户或公众号通知配置时保留记录并分别提示原因" do
+    sign_in Admin.create!(username: "deletion_admin", role: "super_admin")
+    mini = App.create!(provider: "wechat", appid: "wxUsedMini")
+    user_app = UserApp.create!(app: mini, user: User.create!(platform: "wechat"), openid: "local-deletion-fan")
+    account = App.create!(provider: "wechat", app_type: "official_account", appid: "wxConfiguredOA")
+    Setting.create!(key: "notification", settings: { accounts: { account.appid => { "keywords" => [] } } })
+    delete admins_app_path(mini)
+    assert_includes flash[:alert], "已有用户身份记录"
+    assert UserApp.exists?(user_app.id)
+    delete admins_app_path(account)
+    assert_includes flash[:alert], "已有公众号通知配置"
+    assert App.exists?(account.id)
+  end
 end

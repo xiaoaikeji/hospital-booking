@@ -4,6 +4,7 @@
 <%= javascript_include_tag "admins/poster_editor", defer: true %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "编辑海报", icon: :templates } do %>
   <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+  <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delete-poster-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
 <% end %>
 <%= form_with model: @poster, url: admins_poster_path(@poster), class: "card", html: { id: "poster-editor" }, data: { admin_form: true, background: background_admins_poster_path(@poster), code_url: admins_poster_code_path } do |f| %>
   <div class="card-header"><h2 class="card-title">底图与扫码目标</h2></div>
@@ -45,7 +46,7 @@
         </div>
         <p class="form-hint">拖动码框调整位置，拖右下角调整大小，也可输入原图像素。PNG 与预览使用同一位置及原图分辨率。</p>
         <div class="d-flex gap-2 flex-wrap">
-          <button type="button" class="btn btn-primary" data-poster-preview>预览海报</button>
+          <button type="button" class="btn btn-primary" data-poster-preview disabled>预览海报</button>
           <button type="button" class="btn btn-outline-secondary" data-poster-download disabled><%= render "layouts/admins/icon", name: :export %>下载 PNG</button>
         </div>
         <p class="text-secondary mt-2 mb-0" data-poster-status role="status" aria-live="polite">选择扫码目标后预览。</p>
@@ -53,8 +54,8 @@
       <div class="col-lg-7">
         <div class="poster-stage bg-secondary-lt p-3 rounded">
           <div class="poster-surface" data-poster-surface>
-            <canvas aria-label="海报原图预览" data-poster-canvas></canvas>
-            <div class="poster-code-box" data-poster-box role="img" aria-label="拖动调整二维码位置"><span data-poster-placeholder>码的位置</span><span class="poster-code-handle"></span></div>
+            <canvas aria-label="海报原图预览" data-poster-canvas hidden></canvas>
+            <div class="poster-code-box" data-poster-box role="img" aria-label="拖动调整二维码位置" hidden><span data-poster-placeholder>码的位置</span><span class="poster-code-handle"></span></div>
           </div>
         </div>
         <div class="form-hint mt-2">原图 <%= @poster.image_width %> × <%= @poster.image_height %> 像素 · 预览按可用空间缩放</div>
@@ -66,3 +67,7 @@
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
   </div>
 <% end %>
+<%= form_with url: admins_poster_path(@poster), method: :delete, id: "delete-poster-form", class: "d-none" do %><% end %>
+<%= render "admins/shared/confirmation_modal", form_id: "delete-poster-form", modal_id: "delete-poster-confirmation",
+      title: "确认删除海报", context: @poster.name, description: "删除后无法再从后台编辑或下载这张海报。",
+      color: "danger", confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>

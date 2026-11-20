@@ -72,6 +72,24 @@ class WechatDomainsTest < ActionDispatch::IntegrationTest
     assert_equal ["business"], @writes
   end
 
+  test "域名校验失败显示字段错误，保留整份原表单供重新提交" do
+    rev = revision("server")
+    endpoint = admins_app_server_domain_path(@target)
+    input = { requestdomain: "https://api.example.org/new", uploaddomain: "", wsrequestdomain: "wss://draft.example.org" }
+    patch endpoint, params: { revision: rev, domains: input, clear: ["uploaddomain"] }
+    assert_response :unprocessable_content
+    assert_select "#domain-requestdomain.is-invalid[aria-describedby='domain-requestdomain-error']", text: input[:requestdomain]
+    assert_select "#domain-requestdomain-error.invalid-feedback", /不能包含路径/
+    assert_select "#domain-wsrequestdomain", text: input[:wsrequestdomain]
+    assert_select "#clear-uploaddomain[checked]"
+    assert_select "#server-revision[value=?]", rev
+    assert_empty @writes
+    patch endpoint, params: { revision: rev, domains: input.merge(requestdomain: "https://api.example.org"), clear: ["uploaddomain"] }
+    assert_redirected_to admins_app_path(@target, tab: "domains")
+    assert_equal ["server"], @writes
+    assert_empty @live.dig("server", "uploaddomain")
+  end
+
   test "读取失败仅影响对应表单；无授权、其他应用类型以及运营和客服不能写微信" do
     @live["server"] = { "errcode" => 48001 }
     get admins_app_path(@target, tab: "domains")

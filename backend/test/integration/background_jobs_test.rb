@@ -15,6 +15,30 @@ class BackgroundJobsTest < ActionDispatch::IntegrationTest
       failures: empty ? [] : [ BackgroundJobOverview::Failure.new(job_class: "Notifications::DeliveryWorker", queue: "default", state: "retry", failed_at: now, retry_count: 2, error_class: "Net::ReadTimeout") ])
   end
 
+  test "仅顶栏管理菜单复用同一角色范围" do
+    admin = Admin.create!(username: "topnav_admin", role: "super_admin", appearance_overrides: { navbar_position: "horizontal" })
+    sign_in admin
+    get admins_root_path
+    assert_response :success
+    assert_select "header .admin-header__management" do
+      %w[page_links plugins illegal_records wechat_platform open_platform_accounts official_account_links official_account_fans
+        official_account_menus channel_qrcodes posters reply_contents template_messages notifications background_jobs].each do |route|
+        assert_select "a[href='/admins/#{route}']"
+      end
+      assert_select "a[href=?]", edit_admins_wecom_notification_content_path
+    end
+    %w[operator customer_service].each do |role|
+      sign_in Admin.create!(username: "topnav_#{role}", role: role, appearance_overrides: { navbar_position: "horizontal" })
+      get admins_root_path
+      assert_select "header .admin-header__management" do
+        assert_select "a[href=?]", admins_operation_logs_path
+        assert_select "a[href=?]", admins_background_jobs_path, count: 0
+        assert_select "a[href=?]", admins_page_links_path, count: 0
+        assert_select "a[href=?]", admins_posters_path, count: 0
+      end
+    end
+  end
+
   test "snapshot distinguishes queued from completed and shows processes queues and safe failure details read only" do
     data = snapshot
     BackgroundJobOverview.define_singleton_method(:fetch) { data }

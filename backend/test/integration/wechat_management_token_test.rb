@@ -20,6 +20,56 @@ class WechatManagementTokenTest < ActionDispatch::IntegrationTest
 
   teardown { remove_wechat_stubs }
 
+  test "查额度、查版本和截图只清本次过期的令牌，保留其他应用及并发新令牌" do
+    quota_tokens, version_tokens, screenshot_tokens = [], [], []
+    @stubs.get("/wxa/queryquota") do |env|
+      quota_tokens << env.params.fetch("access_token")
+      response_for(quota_tokens.last == "cached-A" ? { errcode: 42001 } : { rest: 12 })
+    end
+    @stubs.post("/wxa/getversioninfo") do |env|
+      version_tokens << env.params.fetch("access_token")
+      response_for(version_tokens.last == "cached-A" ? { errcode: 40014 } : { release_info: { release_version: "2.1" } })
+    end
+    image = File.binread(file_fixture("storage.png"))
+    @stubs.post("/cgi-bin/material/get_material") do |env|
+      screenshot_tokens << env.params.fetch("access_token")
+      if screenshot_tokens.last == "cached-A"
+        cache_token(@target, "concurrently-refreshed-A")
+        response_for(errcode: 40001)
+      else
+        [200, { "Content-Type" => "image/png" }, image]
+      end
+    end
+    quota = admins_mini_program_releases_path(app_id: @target.id, quota: "1")
+    version = admins_app_path(@target, tab: "releases", verify_version: "1")
+    [quota, version].each do |url|
+      cache_token(@target, "cached-A")
+      get url
+      assert_response :success
+      assert_nil cached_token(@target)
+      get url
+      assert_response :success
+      assert_equal "fresh-A", cached_token(@target)
+    end
+    assert_equal ["cached-A", "fresh-A"], quota_tokens
+    assert_equal ["cached-A", "fresh-A"], version_tokens
+
+    operator = Admin.find_by!(username: "token_admin")
+    audit = @target.mini_program_audits.create!(operator: operator, audit_id: "408", version: "2.1", description: "审退版",
+      status: "rejected", previous_status: "active", rejection_screenshots: ["fixture-screenshot"])
+    cache_token(@target, "cached-A")
+    path = screenshot_admins_app_audit_path(@target, audit, index: 0)
+    get path
+    assert_response :service_unavailable
+    assert_equal "concurrently-refreshed-A", cached_token(@target)
+    get path
+    assert_response :success
+    assert_equal image, response.body.b
+    assert_equal ["cached-A", "concurrently-refreshed-A"], screenshot_tokens
+    assert_equal [@target.appid, @target.appid], @refreshes
+    assert_equal "cached-B", cached_token(@other)
+  end
+
   test "域名页分别读取两组，第一组令牌过期后第二组使用新令牌，刷新后都可以编辑" do
     calls = []
     Wechat::MiniProgramDomainClient::PATHS.each do |kind, path|

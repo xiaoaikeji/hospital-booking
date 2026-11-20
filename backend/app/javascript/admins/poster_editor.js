@@ -10,9 +10,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const fields = ["qr_x", "qr_y", "qr_size"].map((name) => form.elements[`poster[${name}]`]);
   const field = (name) => form.elements[`poster[${name}]`];
   const kind = field("target_kind"), app = field("app_id"), channel = field("official_account_qrcode_id");
+  const backgroundInput = field("background");
   const appOptions = Array.from(app.options).map((option) => option.cloneNode(true));
   const codeOptions = Array.from(channel.options).map((option) => option.cloneNode(true));
   let background, code, generation = 0, drag;
+  const needsSave = () => backgroundInput.files.length > 0;
+  const canPreview = () => Boolean(background) && !needsSave();
   const message = (text, failed = false) => {
     status.textContent = text;
     status.classList.toggle("text-danger", failed);
@@ -25,20 +28,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     select.value = options.some((option) => option.value === value) ? value : "";
     window.initializeAdminSelects(form);
   }
-  function targetsChanged(source) {
+  function invalidatePreview(text) {
     generation += 1;
     code = null;
-    download.disabled = true;
-    preview.disabled = false;
+    drag = null;
+    preview.disabled = !canPreview();
     preview.textContent = "预览海报";
+    message(needsSave() ? "已选择新底图，请先保存，完成图片方向校正后再预览。" : text);
+    render();
+  }
+  function targetsChanged(source) {
     if (source === kind) replaceOptions(app, appOptions.filter((option) => !option.value || option.dataset.appType === kind.value));
     if (source === kind || source === app) replaceOptions(channel, codeOptions.filter((option) => !option.value || option.dataset.appId === app.value));
     form.querySelectorAll("[data-target-kind]").forEach((area) => { area.hidden = area.dataset.targetKind !== kind.value; });
-    message("扫码目标已更新，请预览海报。");
-    render();
+    invalidatePreview("扫码目标已更新，请预览海报。");
   }
   function render() {
-    if (!background) return;
+    canvas.hidden = !canPreview();
+    download.disabled = true;
+    marker.hidden = true;
+    if (canvas.hidden) return;
     let box;
     try {
       box = layout.box(canvas, fields.map((input) => input.value));
@@ -58,16 +67,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   form.querySelectorAll("[data-code-input]").forEach((input) => input.addEventListener(input.tagName === "SELECT" ? "change" : "input", () => targetsChanged(input)));
   fields.forEach((input) => input.addEventListener("input", render));
-  field("background").addEventListener("change", () => {
-    if (!field("background").files.length) return;
-    generation += 1; code = null; render(); preview.disabled = true;
-    message("已选择新底图，请先保存，完成图片方向校正后再预览。");
-  });
+  backgroundInput.addEventListener("change", () => invalidatePreview("请预览海报。"));
   const point = (event) => {
     const rect = canvas.getBoundingClientRect();
     return { x: (event.clientX - rect.left) * canvas.width / rect.width, y: (event.clientY - rect.top) * canvas.height / rect.height };
   };
   marker.addEventListener("pointerdown", (event) => {
+    if (!canPreview()) return;
     const box = layout.box(canvas, fields.map((input) => input.value));
     drag = { point: point(event), box, resize: event.target.classList.contains("poster-code-handle") };
     marker.setPointerCapture(event.pointerId);
@@ -87,6 +93,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
   ["pointerup", "pointercancel", "lostpointercapture"].forEach((type) => marker.addEventListener(type, () => { drag = null; }));
   preview.addEventListener("click", async () => {
+    if (!canPreview()) return;
     const current = ++generation;
     preview.disabled = true;
     message("正在获取扫码图片…");
@@ -108,13 +115,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       message(`${error.message} 已保留填写内容，可重试。`, true);
       preview.textContent = "重试预览";
     } finally {
-      if (generation === current) preview.disabled = false;
+      if (generation === current) preview.disabled = !canPreview();
     }
   });
   download.addEventListener("click", () => {
-    if (!code || download.disabled) return;
+    if (!canPreview() || !code || download.disabled) return;
+    const current = generation;
     render();
+    if (download.disabled) return;
     canvas.toBlob((blob) => {
+      if (generation !== current || !canPreview()) return;
       if (!blob) { message("PNG 生成失败，请重试。", true); return; }
       const url = URL.createObjectURL(blob), link = document.createElement("a");
       link.href = url;
@@ -128,6 +138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     background = await layout.image(form.dataset.background);
     canvas.width = background.naturalWidth;
     canvas.height = background.naturalHeight;
+    preview.disabled = !canPreview();
     render();
   } catch (error) { message(error.message, true); }
 });

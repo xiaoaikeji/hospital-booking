@@ -6,3 +6,11 @@
     display: none;
   }
 }
+
+html:is([data-bs-navbar-position="combined"], [data-bs-navbar-position="vertical"]) .admin-header__management {
+  display: none;
+}
+
+.app-admins .admin-header__management .dropdown-menu-scrollable {
+  max-height: min(65dvh, 30rem);
+}

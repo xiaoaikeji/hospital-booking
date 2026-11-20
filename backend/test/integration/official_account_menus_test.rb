@@ -163,6 +163,30 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "读回带空子列表的叶子后再次发布，链接、点击和素材原样传回微信" do
+    @remote = [
+      { name: "官网", type: "view", url: "https://example.test", sub_button: [] },
+      { name: "服务", sub_button: { list: [
+        { name: "客服", type: "click", key: "CONTACT", sub_button: { list: [] } },
+        { name: "图片", type: "img", value: "image-from-wechat", sub_button: [] }
+      ] } }
+    ]
+    pull
+    expected = [
+      { "name" => "官网", "type" => "view", "url" => "https://example.test" },
+      { "name" => "服务", "sub_button" => [
+        { "name" => "客服", "type" => "click", "key" => "CONTACT" },
+        { "name" => "图片", "type" => "media_id", "media_id" => "image-from-wechat" }
+      ] }
+    ]
+    assert_redirected_to admins_official_account_menus_path(app_id: @a.id)
+    buttons = @a.reload.official_account_menu.buttons
+    assert_equal expected, WechatPlatform::MenuButtons.wire(buttons)
+    publish(buttons)
+    assert_response :success
+    assert_equal expected, @writes.sole.last
+  end
+
   test "层级、名称、小程序和网址不合法时微信写入为零" do
     node = {type: "view", name: "官网", url: "https://example.test/"}
     [[node]*4, [{name: "更多", sub_button: [node]*6}], [{name: "更多", sub_button: [{name: "嵌套", sub_button:[node]}]}],

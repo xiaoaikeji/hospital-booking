@@ -33,7 +33,7 @@ module Admins
 
     def verify_upload
       raise ActionController::BadRequest unless params[:confirmed] == "1"
-      service.verify_upload!(@release, not_uploaded: params[:outcome] == "not_uploaded")
+      service.verify_upload!(@release, outcome: params[:outcome])
       back("微信体验版已核实")
     end
 

@@ -40,8 +40,7 @@ module Admins
       if @tab == "releases"
         @audit_history, @audits = pagy(history, limit: 10)
         if params[:verify_version] == "1" && @app.platform_authorized?
-          token = WechatPlatform::AuthorizerToken.fetch(@app)
-          @version_info = Wechat::MiniProgramCodeClient.new(token).version_info
+          @version_info = WechatPlatform::AuthorizerToken.with_token(@app) { |token| Wechat::MiniProgramCodeClient.new(token).version_info }
         end
       else
         @audits = history.limit(3)
@@ -76,17 +75,9 @@ module Admins
       end
       redirect_to admins_apps_path(helpers.application_list_context), notice: "应用已删除", status: :see_other
     rescue ActiveRecord::ActiveRecordError => error
-      message = if @app.app_authorization
-        "已有微信授权记录，只能停用"
-      elsif @app.mini_program_releases.exists? || @app.mini_program_audits.exists?
-        "已有发布或审核记录，只能停用"
-      elsif @app.links.exists?
-        "该应用还有专属页面配置，请先删除专属配置"
-      elsif error.is_a?(ActiveRecord::InvalidForeignKey)
-        "已有业务记录，只能停用"
-      else
-        "删除失败"
-      end
+      message = @app.errors[:base].first
+      message ||= error.record.errors[:base].first if error.is_a?(ActiveRecord::RecordNotDestroyed) && error.record
+      message ||= error.is_a?(ActiveRecord::InvalidForeignKey) ? "已有业务引用记录，只能停用" : "删除失败，请重试"
       audit("destroy", status: "failed", details: { reason: message })
       redirect_to admins_app_path(@app, helpers.application_context_params), alert: message
     end

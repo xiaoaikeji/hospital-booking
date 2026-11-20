@@ -39,6 +39,30 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     post admins_app_channel_qrcodes_path(app), params: {form_key: key, official_account_qrcode: {name: name}}
   end
 
+  test "带回复组和旧配置版本的原表单重放找回同一个已建渠道码" do
+    config = Notifications::AccountConfiguration.new(@a)
+    reply = config.save_reply!({ name: "活动回复", revision: config.revision,
+      messages: [{ id: "welcome", type: "text", content: { text: "欢迎" } }] }, actor: @admin)
+    key = form
+    revision = css_select("input[name='reply_binding[revision]']").sole["value"]
+    assert_select "#scan-mode option[value='reply']"
+    assert_select "#channel-reply option[value=?]", reply[:id]
+    original = { form_key: key, official_account_qrcode: { name: "原表单渠道" },
+      reply_binding: { revision: revision, mode: "reply", reply_id: reply[:id] } }
+    path = admins_app_channel_qrcodes_path(@a)
+    post path, params: original
+    assert_redirected_to admins_channel_qrcodes_path(app_id: @a.id)
+    code = OfficialAccountQrcode.where(app: @a).sole
+    assert_not_equal revision, config.revision
+    assert_no_difference(["OfficialAccountQrcode.count", "Log.where(action: 'wechat.channel_qrcode_create', status: 'success').count"]) do
+      post path, params: original
+      assert_redirected_to admins_channel_qrcodes_path(app_id: @a.id)
+    end
+    assert_equal [[@a.appid, code.scene]], @calls
+    assert_equal({ "mode" => "reply", "reply_id" => reply[:id] }, config.code_binding(code.id))
+    assert_empty @b.official_account_callbacks
+  end
+
   test "失败留在新增页保留输入，同表单只生成一个永久码，中文下载在撤销授权后仍可用" do
     key = form
     submit(key, "   ")

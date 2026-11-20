@@ -35,6 +35,13 @@ module Notifications
       end
     end
 
+    def unbind!(event:, revision:, actor:, request: nil)
+      raise Error, "该事件不能绑定微信模板消息" unless EventCatalog.for_templates.key?(event)
+      @config.update!(revision, actor: actor, request: request, action: "notification.template_unbind") do |data|
+        data.fetch("template_bindings", {}).delete(event)
+      end
+    end
+
     # 收件人、计划时间、真实数据和跳转由业务提供。只读已确认绑定，不再访问模板列表或重新猜字段。
     def deliver(event:, subject:, recipients:, data:, idempotency_key:, scheduled_at: nil, jump: {})
       definition = EventCatalog.for_templates.fetch(event) { raise Error, "该事件不能绑定微信模板消息" }

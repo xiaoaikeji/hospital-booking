@@ -23,6 +23,22 @@
           </div>
         </div>
       </div>
+      <div class="nav-item dropdown admin-header__management">
+        <button type="button" class="nav-link dropdown-toggle px-2" id="top-management-menu" data-bs-toggle="dropdown" aria-expanded="false" aria-label="管理">
+          <%= render "layouts/admins/icon", name: :settings %><span class="d-none d-lg-inline ms-1">管理</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end dropdown-menu-scrollable" aria-labelledby="top-management-menu">
+          <% groups = management_navigation_groups %>
+          <% groups += [["系统设置", :settings, system_settings_pages]] if settings_path %>
+          <% groups.each do |label, _icon, links| %>
+            <div class="dropdown-header"><%= label %></div>
+            <% links.each do |title, path, controllers| %>
+              <% active = Array(controllers).include?(controller_path) %>
+              <%= link_to title, path, class: class_names("dropdown-item", active: active), aria: { current: ("page" if active) } %>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
       <div class="nav-item dropdown">
         <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown" aria-expanded="false" aria-label="打开管理员菜单">
           <span class="avatar avatar-sm bg-primary-lt"><%= current_admin.display_name.first %></span>

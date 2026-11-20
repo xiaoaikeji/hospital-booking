@@ -46,10 +46,15 @@ module Notifications
       values = ReplyVariables.values(@app, @message) if selected.any? { |id| groups[id]&.fetch("variables_version", nil) == 1 }
       xml = nil
       @callback.transaction do
+        skipped = []
         messages = selected.each_with_index.flat_map do |id, index|
           group = groups[id]
           next [] unless group
-          if group["send_interval"] && (selected.take(index).include?(id) || interval_active?(id, group["send_interval"]))
+          minutes = group["send_interval"]
+          repeated = selected.take(index).include?(id)
+          if minutes && (repeated || interval_active?(id, minutes))
+            reason = repeated ? "本次互动已匹配同一回复组" : "同一粉丝在 #{minutes} 分钟发送间隔内已触发此回复"
+            skipped << { reply_name: group["name"], reason: reason }
             next []
           end
           content = group.fetch("messages").deep_dup
@@ -71,6 +76,10 @@ module Notifications
               "provider_state" => "passive_prepared", "stage" => "passive_response", "attempt_count" => 1,
               "last_attempt_at" => Time.current.iso8601 } ] })
           end
+        end
+        if skipped.any?
+          Log.record!(source: "webhook", category: "notification", action: "notification.reply_interval_skipped",
+            target: @app, status: "skipped", details: { event: event_name, callback_id: @callback.id, replies: skipped })
         end
         @callback.update!(reply_xml: xml, processed_at: Time.current)
       end

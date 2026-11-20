@@ -28,8 +28,8 @@ module Admins
       @code = OfficialAccountQrcode.new(app: @app, name: params.dig(:official_account_qrcode, :name))
       prepare_binding
       revision = params.dig(:reply_binding, :revision) || @reply_config.revision
-      @reply_config.validate_code_binding!(mode: @binding["mode"], reply_id: @binding["reply_id"], revision: revision)
-      service.create!(@code, @key) do |code|
+      validate = -> { @reply_config.validate_code_binding!(mode: @binding["mode"], reply_id: @binding["reply_id"], revision: revision) }
+      service.create!(@code, @key, validate: validate) do |code|
         @reply_config.bind_code!(code, mode: @binding["mode"], reply_id: @binding["reply_id"], revision: revision, actor: current_admin, request: request)
       end
       redirect_to admins_channel_qrcodes_path(app_id: @app.id), notice: "渠道二维码已创建", status: :see_other

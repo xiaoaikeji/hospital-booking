@@ -30,7 +30,7 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
   teardown { remove_wechat_stubs }
 
   def create_reply(name = "活动说明")
-    proof = WechatPlatform::MenuButtons.proof(@a, "media_id", "cover-a")
+    proof = WechatPlatform::MenuButtons.proof(@a, "card_cover", "cover-a")
     @config.save_reply!({ name: name, revision: @config.revision, messages: [
       { id: "text", type: "text", content: { text: "到了请去二楼签到" } },
       { id: "card", type: "miniprogrampage", proof: proof, content: { title: "活动入口", appid: @mini.appid, pagepath: "pages/activity/index", thumb_media_id: "cover-a" } }
@@ -74,8 +74,17 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
         original = push(Event: "CLICK", EventKey: key)
         assert_equal 2, Notification.sole.messages.size
         travel 1.minute
-        assert_no_difference("Notification.count") { push(EventKey: qr.scene) }
-        assert_equal "success", response.body
+        assert_difference("Log.where(action: 'notification.reply_interval_skipped').count", 1) do
+          assert_no_difference("Notification.count") do
+            skipped = push(EventKey: qr.scene)
+            assert_equal "success", response.body
+            push(**skipped)
+          end
+        end
+        get admins_notifications_path(view: "interval_skips")
+        assert_response :success
+        assert_select "td", /同一粉丝在 5 分钟发送间隔内/
+        assert_not_includes response.body, "fan-openid"
         welcome = create_reply("欢迎")
         @config.save_rules!({ revision: @config.revision, follow_first: welcome }, actor: @admin)
         @config.bind_code!(qr, mode: "both", reply_id: reply_id, revision: @config.revision, actor: @admin)
@@ -137,6 +146,31 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     assert_select "input[data-reply-revision]", count: 1
   end
 
+  test "渠道码弹窗更新共享文案不改停发绑定，切换新组需先保存" do
+    original, replacement = [create_reply, create_reply("新组")]
+    qr = code
+    @config.bind_code!(qr, mode: "reply", reply_id: original, revision: @config.revision, actor: @admin)
+    @config.bind_code!(qr, mode: "none", reply_id: nil, revision: @config.revision, actor: @admin)
+    get edit_admins_app_channel_qrcode_path(@a, qr)
+    assert_select "[data-reply-picker][data-saved-reply-id=?]", original
+    [original, replacement].each do |id|
+      group = @config.reply(id)
+      patch admins_app_reply_content_path(@a, id), params: { reply_content: {
+        name: "修改后的#{group['name']}", messages: group["messages"], revision: @config.revision,
+        impact_revision: @config.impact_revision(id), scope: (id == original ? "all" : "only"), qrcode_id: qr.id
+      } }, as: :json
+      if id == original
+        assert_response :success
+        assert_equal "修改后的活动说明", @config.reply(id)["name"]
+      else
+        assert_response :unprocessable_content
+        assert_includes response.parsed_body["error"], "先在渠道码页面保存"
+      end
+    end
+    assert_equal({ "mode" => "none", "reply_id" => original }, @config.code_binding(qr.id))
+    assert_no_difference("Notification.count") { push(EventKey: qr.scene) }
+  end
+
   test "回复校验指出具体消息和小程序卡片字段" do
     post admins_app_reply_contents_path(@a), params: { reply_content: {
       name: "活动说明", revision: @config.revision, messages: [
@@ -149,6 +183,34 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     assert_equal "title", response.parsed_body["field"]
     assert_equal 1, response.parsed_body["message_index"]
     assert_empty @config.replies
+  end
+
+  test "小程序卡片封面允许真实 JPEG 别名，拦截改名文件并按封面动作记录" do
+    uploads = []
+    @stubs.post("/cgi-bin/material/add_material") do |env|
+      uploads << env.params.fetch("access_token")
+      response_for(media_id: "cover-a")
+    end
+    get new_admins_app_reply_content_path(@a)
+    assert_select "[data-cover-types='image/jpeg,image/png'][data-cover-hint*='2 MB']"
+    path = media_admins_app_reply_contents_path(@a)
+    jpeg = File.binread(Rails.root.join("app/assets/images/admins/components/staff-1.jpg"))
+    upload = ->(bytes, type, name) {
+      post path, params: { file: Rack::Test::UploadedFile.new(StringIO.new(bytes), type, original_filename: name) }
+    }
+    upload.call(jpeg, "image/jpg", "cover.jpg")
+    assert_response :success
+    proof = Rails.application.message_verifier(:official_menu_resource).verified(response.parsed_body.fetch("proof"))
+    assert_equal [@a.id, "card_cover", "cover-a"], proof
+    upload.call("GIF89a", "image/gif", "cover.gif")
+    assert_response :unprocessable_content
+    assert_includes response.parsed_body["error"], "卡片封面仅支持"
+    upload.call(File.binread(file_fixture("storage.png")), "image/jpg", "cover.jpg")
+    assert_response :unprocessable_content
+    assert_includes response.parsed_body["error"], "文件内容与格式不符"
+    assert_equal [@a.appid], uploads
+    assert_equal %w[success failed failed], Log.where(action: "wechat.reply_card_cover_upload", target_id: @a.id).order(:id).pluck(:status)
+    assert_not Log.exists?(action: "wechat.menu_media")
   end
 
   test "文字成功卡片拒绝，补发只发卡片；重复回调不重复排队" do

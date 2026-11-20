@@ -229,6 +229,8 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
       assert_equal event.message, @calls.join
       assert @calls.all? { |text| text.valid_encoding? && text.bytesize <= 2048 }
       assert_equal "failed", event.reload.status
+      get admins_wechat_notifications_path(app_id: @account.id)
+      assert_select ".modal-footer a[href=?]", admins_notification_path(row), "查看发送任务"
       get admins_notification_path(row)
       assert_response :success
       assert_includes response.body, "invalid webhook url"

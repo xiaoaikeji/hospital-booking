@@ -138,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const label = node("label", "form-label required", "卡片封面（上传到当前公众号）");
         const file = node("input", "form-control");
         file.type = "file";
-        file.accept = "image/png,image/jpeg";
+        file.accept = root.dataset.coverTypes;
         file.id = "cover-" + newId();
         file.required = !m.content.thumb_media_id;
         file.dataset.replyField = "thumb_media_id";
@@ -167,7 +167,10 @@ document.addEventListener("DOMContentLoaded", () => {
             save.disabled = false;
           }
         };
-        box.append(label, file);
+        const hint = node("div", "form-hint", root.dataset.coverHint);
+        hint.id = file.id + "-hint";
+        file.setAttribute("aria-describedby", hint.id);
+        box.append(label, file, hint);
       }
       box.addEventListener("input", () => { dirty = true; drawPreview(); });
       items.append(box);

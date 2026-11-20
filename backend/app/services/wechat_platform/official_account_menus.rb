@@ -5,7 +5,7 @@ module WechatPlatform
     end
 
     def publish!(buttons, revision, clear:)
-      action("publish") do
+      action("menu_publish") do
         locked(revision) do |row|
           raise Error, "上次发布结果待核实，请先从微信读取" unless row.pending_buttons.nil?
           normalized = MenuButtons.new(@app, row.buttons).normalize(buttons)
@@ -21,7 +21,7 @@ module WechatPlatform
             end
             row.transaction do
               row.update!(buttons: normalized, pending_buttons: nil)
-              log("publish", count: normalized.size)
+              log("menu_publish", count: normalized.size)
             end
           end
         end
@@ -29,7 +29,7 @@ module WechatPlatform
     end
 
     def pull!(revision, accept: false)
-      action("pull") do
+      action("menu_pull") do
         locked(revision) do |row|
           remote = client(&:current)
           prior = row.buttons + Array(row.pending_buttons)
@@ -37,11 +37,11 @@ module WechatPlatform
           row.transaction do
             if !row.pending_buttons.nil? && MenuButtons.wire(buttons) != MenuButtons.wire(row.pending_buttons) && !(accept && row.observed_buttons == buttons)
               row.update!(observed_buttons: buttons, revision: row.revision + 1)
-              log("pull", result: "mismatch")
+              log("menu_pull", result: "mismatch")
               next :mismatch
             end
             row.update!(buttons: buttons, pending_buttons: nil, observed_buttons: nil, revision: row.revision + 1)
-            log("pull", count: buttons.size)
+            log("menu_pull", count: buttons.size)
             :ok
           end
         end
@@ -62,18 +62,26 @@ module WechatPlatform
     end
 
     def upload!(file, kind)
-      action("media") do
-        purpose = { "image" => :menu_image, "voice" => :menu_voice, "video" => :menu_video }[kind]
+      purpose = { "image" => :menu_image, "voice" => :menu_voice, "video" => :menu_video }[kind]
+      upload_media!(file, kind, purpose, "menu_media", "media_id")
+    end
+
+    def upload_card_cover!(file)
+      upload_media!(file, "image", :reply_card_cover, "reply_card_cover_upload", "card_cover")
+    end
+
+    private
+
+    def upload_media!(file, kind, purpose, event, proof_type)
+      action(event) do
         raise Error, "请选择图片、音频或视频文件" unless purpose
         upload = MediaUpload.new(file, as: purpose).validate!
         mime, filename = upload.content_type, upload.filename
         id = client { |api| api.upload(file, kind, mime, filename) }
-        log("media", kind: kind)
-        { media_id: id, kind: kind, label: File.basename(file.original_filename), proof: MenuButtons.proof(@app, "media_id", id) }
+        log(event, kind: kind)
+        { media_id: id, kind: kind, label: File.basename(file.original_filename), proof: MenuButtons.proof(@app, proof_type, id) }
       end
     end
-
-    private
 
     def client
       raise Error, "请先完成该公众号的平台授权" unless @app.reload.platform_authorized?
@@ -99,6 +107,7 @@ module WechatPlatform
     def action(name)
       yield
     rescue MediaUpload::Invalid => error
+      log(name, status: "failed", reason: error.class.name)
       raise Error, error.message
     rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => e
       log(name, status: "failed", reason: e.class.name, code: (e.code if e.respond_to?(:code)))
@@ -106,7 +115,7 @@ module WechatPlatform
     end
 
     def log(name, status: "success", **details)
-      Log.record!(category: "wechat", action: "wechat.menu_#{name}", actor: @actor, target: @app, request: @request, status: status, details: details.compact)
+      WechatPlatform.log!(@app, name, actor: @actor, request: @request, status: status, details: details.compact)
     end
   end
 end
