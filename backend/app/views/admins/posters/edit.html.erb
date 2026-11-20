@@ -1,0 +1,50 @@
+<% content_for :title, "编辑海报 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<%= javascript_include_tag "admins/poster_layout", defer: true %>
+<%= javascript_include_tag "admins/poster_editor", defer: true %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "编辑海报", icon: :templates } do %>
+  <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+<% end %>
+<%= form_with model: @poster, url: admins_poster_path(@poster), class: "card", html: { id: "poster-editor" }, data: { background: background_admins_poster_path(@poster), code_url: admins_poster_code_path } do |f| %>
+  <div class="card-header"><h2 class="card-title">底图与扫码目标</h2></div>
+  <div class="card-body">
+    <%= render "admins/shared/form_errors", record: @poster %>
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="mb-3"><%= f.label :name, "海报名称", class: "form-label required" %><%= f.text_field :name, required: true, maxlength: 120, size: nil, class: admin_field_class(@poster, :name) %><%= admin_field_errors(@poster, :name) %></div>
+        <div class="mb-3"><%= f.label :background, "替换海报底图", class: "form-label" %><%= f.file_field :background, accept: "image/jpeg,image/png,image/webp", class: admin_field_class(@poster, :background) %><%= admin_field_errors(@poster, :background) %><div class="form-hint">JPG、PNG、WEBP，10MB 以内。替换后先保存，再调整位置。</div></div>
+        <div class="mb-3"><%= f.label :target_kind, "扫码目标", class: "form-label required" %><%= f.select :target_kind, Poster::TARGETS.invert, { include_blank: "请选择扫码目标" }, class: "form-select", data: { enhanced_select: "single", code_input: true } %></div>
+        <div class="mb-3"><%= f.label :app_id, "微信应用", class: "form-label required" %><%= f.select :app_id, @apps.map { |a| ["#{a.display_name}（#{App::TYPES[a.app_type]}）", a.id, { "data-app-type": a.app_type }] }, { include_blank: "请选择微信应用" }, class: "form-select", data: { enhanced_select: "search", code_input: true } %></div>
+        <div data-target-kind="official_account" class="mb-3">
+          <%= f.label :official_account_qrcode_id, "已有公众号渠道码", class: "form-label" %><%= f.select :official_account_qrcode_id, @codes.map { |c| ["#{c.app.display_name} / #{c.name}", c.id, { "data-app-id": c.app_id }] }, { include_blank: "请选择该公众号的渠道码" }, class: "form-select", data: { enhanced_select: "search", code_input: true } %>
+          <div class="form-hint">扫码关注公众号；报名可通过该渠道码已配置的回复引导。</div>
+        </div>
+        <div data-target-kind="mini_program">
+          <div class="mb-3"><%= f.label :page_path, "小程序页面路径", class: "form-label" %><%= f.text_field :page_path, placeholder: "pages/registration/index", class: "form-control", data: { code_input: true } %><div class="form-hint">扫码打开小程序页面。填写已发布页面，不带开头 /。</div></div>
+          <div class="mb-3"><%= f.label :page_query, "页面参数", class: "form-label" %><%= f.text_field :page_query, placeholder: "event_id=clinic", class: "form-control", data: { code_input: true } %><div class="form-hint">由使用方提供，如 event_id=clinic；无需开头 ?，页面与参数合计最多 128 字节。</div></div>
+        </div>
+        <div class="row g-2 mb-3">
+          <% { qr_x: "距左（像素）", qr_y: "距上（像素）", qr_size: "边长（像素）" }.each do |field, label| %>
+            <div class="col-4"><%= f.label field, label, class: "form-label" %><%= f.number_field field, min: (field == :qr_size ? 1 : 0), max: 6000, step: 1, class: admin_field_class(@poster, field), data: { layout_input: true } %><%= admin_field_errors(@poster, field) %></div>
+          <% end %>
+        </div>
+        <p class="form-hint">拖动码框调整位置，拖右下角调整大小，也可输入原图像素。PNG 与预览使用同一位置及原图分辨率。</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="btn btn-primary" data-poster-preview>预览海报</button>
+          <button type="button" class="btn" data-poster-download disabled><%= render "layouts/admins/icon", name: :export %>下载 PNG</button>
+        </div>
+        <p class="text-secondary mt-2 mb-0" data-poster-status role="status" aria-live="polite">选择扫码目标后预览。</p>
+      </div>
+      <div class="col-lg-7">
+        <div class="poster-stage bg-secondary-lt p-3 rounded">
+          <div class="poster-surface" data-poster-surface>
+            <canvas aria-label="海报原图预览" data-poster-canvas></canvas>
+            <div class="poster-code-box" data-poster-box role="img" aria-label="拖动调整二维码位置"><span data-poster-placeholder>码的位置</span><span class="poster-code-handle"></span></div>
+          </div>
+        </div>
+        <div class="form-hint mt-2">原图 <%= @poster.image_width %> × <%= @poster.image_height %> 像素 · 预览按可用空间缩放</div>
+      </div>
+    </div>
+  </div>
+  <div class="card-footer d-flex gap-2"><%= f.submit "保存", class: "btn btn-primary" %><%= link_to "返回列表", admins_posters_path, class: "btn" %></div>
+<% end %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_051000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_060000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -324,6 +324,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_051000) do
     t.check_constraint "action::text = 'create'::text AND open_platform_account_id IS NULL OR (action::text = ANY (ARRAY['bind'::character varying, 'unbind'::character varying]::text[])) AND open_platform_account_id IS NOT NULL", name: "valid_open_platform_operation"
   end
 
+  create_table "posters", force: :cascade do |t|
+    t.bigint "app_id"
+    t.datetime "created_at", null: false
+    t.integer "image_height", null: false
+    t.integer "image_width", null: false
+    t.string "name", null: false
+    t.bigint "official_account_qrcode_id"
+    t.string "page_path"
+    t.string "page_query"
+    t.integer "qr_size", null: false
+    t.integer "qr_x", null: false
+    t.integer "qr_y", null: false
+    t.string "target_kind"
+    t.datetime "updated_at", null: false
+    t.index ["app_id"], name: "index_posters_on_app_id"
+    t.index ["official_account_qrcode_id"], name: "index_posters_on_official_account_qrcode_id"
+  end
+
   create_table "settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", limit: 255
@@ -471,6 +489,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_051000) do
   add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
   add_foreign_key "open_platform_operations", "apps"
   add_foreign_key "open_platform_operations", "open_platform_accounts"
+  add_foreign_key "posters", "apps"
+  add_foreign_key "posters", "official_account_qrcodes"
   add_foreign_key "user_apps", "apps", column: ["provider", "appid"], primary_key: ["provider", "appid"]
   add_foreign_key "user_apps", "users"
   add_foreign_key "wechat_appeals", "wechat_violations"

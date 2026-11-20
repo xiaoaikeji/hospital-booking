@@ -1,0 +1,18 @@
+<% content_for :title, "通用海报 · Booking 管理后台" %>
+<% content_for :fill_content, "true" if @posters.empty? %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "通用海报", icon: :templates } do %>
+  <%= link_to new_admins_poster_path, class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>新增海报<% end %>
+<% end %>
+<section class="<%= class_names('card', 'flex-fill' => @posters.empty?) %>">
+  <% if @posters.empty? %>
+    <%= render "admins/shared/list_empty", icon: :templates, title: "还没有海报", description: "上传义诊、活动或签到底图，选择扫码目标，预览并下载 PNG。" %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table admin-list-table mb-0">
+      <thead><tr><th class="list-column-id">ID</th><th>海报</th><th class="d-none d-md-table-cell">扫码目标</th><th class="d-none d-lg-table-cell">更新时间</th><th class="list-column-action">操作</th></tr></thead>
+      <tbody><% @posters.each do |poster| %>
+        <tr><td class="text-secondary">#<%= poster.id %></td><td><div class="d-flex align-items-center gap-2"><img src="<%= background_admins_poster_path(poster) %>" class="avatar rounded object-contain" alt=""><div class="overflow-hidden"><%= render "admins/shared/list_text", text: poster.name %><div class="text-secondary small"><%= poster.image_width %> × <%= poster.image_height %></div></div></div></td><td class="d-none d-md-table-cell"><%= Poster::TARGETS[poster.target_kind] || "尚未设置" %><div class="text-secondary small"><%= poster.app&.display_name %></div></td><td class="d-none d-lg-table-cell"><%= admin_list_time(poster.updated_at) %></td><td><%= link_to "编辑", edit_admins_poster_path(poster), class: "btn btn-sm btn-primary" %></td></tr>
+      <% end %></tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(n) { admins_posters_path(page: n) } %>
+  <% end %>
+</section>
