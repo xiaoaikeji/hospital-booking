@@ -46,9 +46,11 @@ class NotificationContentsTest < ActionDispatch::IntegrationTest
     patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: old_revision, messages: input([ "别覆盖" ]) } }, as: :json
     assert_response :unprocessable_content
     assert_equal stored, content.messages
-    patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, messages: input([ "{balance}" ]) } }, as: :json
+    patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, messages: input([ "审核通知", "{balance}" ]) } }, as: :json
     assert_response :unprocessable_content
     assert_includes response.parsed_body["error"], "{balance}"
+    assert_equal "text", response.parsed_body["field"]
+    assert_equal 1, response.parsed_body["message_index"]
     save_content([ "违规：{record_number}" ], kind: "violation")
     patch admins_system_settings_wecom_notification_content_path(event: "rejected"), params: { notification_content: { revision: content.revision, restore: "1" } }
     assert_redirected_to edit_admins_system_settings_wecom_notification_content_path(event: "rejected")

@@ -1,0 +1,10 @@
+<% replacing = @poster.persisted? %>
+<% invalid = @poster.errors[:background].any? %>
+<div class="d-flex align-items-center gap-1 mb-2">
+  <%= form.label :background, replacing ? "替换海报底图" : "海报底图", class: class_names("form-label mb-0", required: !replacing) %>
+  <%= render "admins/shared/field_help", label: "查看海报底图要求",
+        text: "上传不带二维码的 JPG、PNG 或 WebP，最多 10 MB，最长边 6000 像素，总像素不超过 1800 万。#{"替换后先保存，再调整位置。" if replacing}" %>
+</div>
+<%= form.file_field :background, accept: "image/jpeg,image/png,image/webp", required: !replacing,
+      class: admin_field_class(@poster, :background), aria: { invalid: (true if invalid), describedby: ("background-error" if invalid) } %>
+<%= admin_field_errors(@poster, :background) %>

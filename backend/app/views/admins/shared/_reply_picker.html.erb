@@ -1,8 +1,16 @@
-<% content_for :head do %><%= javascript_include_tag 'admins/reply_picker', defer: true %><% end %>
-<%= render 'admins/shared/enhanced_select_assets' %>
-<div data-reply-picker data-app-id="<%= @app.id %>" data-new="<%= new_admins_app_reply_content_path(@app, inline: 1) %>" data-edit-base="<%= admins_app_reply_contents_path(@app) %>" data-code-id="<%= local_assigns[:code_id] %>">
-  <label class="form-label" for="channel-reply">回复内容</label>
-  <%= select_tag 'reply_binding[reply_id]', options_for_select(config.replies.map { |id, r| [r['name'], id] }, binding['reply_id']), include_blank: '请选择回复内容', class: 'form-select', id: 'channel-reply', data: { reply_choice: true } %>
-  <%= hidden_field_tag 'reply_binding[revision]', config.revision, data: { reply_revision: true } %>
-  <div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm" data-reply-new><%= render 'layouts/admins/icon', name: :plus %>新增回复内容</button><button type="button" class="btn btn-sm" data-reply-edit><%= render 'layouts/admins/icon', name: :edit %>编辑回复</button></div>
-</div>
+<% content_for :head do %><%= javascript_include_tag "admins/reply_picker", defer: true %><% end %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% active = binding["mode"].in?(%w[reply both]) %>
+<%= hidden_field_tag "reply_binding[revision]", config.revision, data: { reply_revision: true } %>
+<%= tag.fieldset class: class_names("mt-3", "d-none" => !active), disabled: !active,
+      data: { reply_picker: true, app_id: @app.id, new: new_admins_app_reply_content_path(@app, inline: 1),
+              edit_base: admins_app_reply_contents_path(@app), code_id: local_assigns[:code_id] } do %>
+  <label class="form-label required" for="channel-reply">回复内容</label>
+  <%= select_tag "reply_binding[reply_id]", options_for_select(config.replies.map { |id, r| [r["name"], id] }, binding["reply_id"]),
+        include_blank: "请选择回复内容", required: true, disabled: !active, class: "form-select", id: "channel-reply",
+        data: { reply_choice: true, enhanced_select: "search" } %>
+  <div class="d-flex flex-wrap gap-2 mt-2">
+    <button type="button" class="btn btn-sm" data-reply-new><%= render "layouts/admins/icon", name: :plus %>新增回复内容</button>
+    <button type="button" class="btn btn-sm btn-outline-primary" data-reply-edit <%= "disabled" if binding["reply_id"].blank? %>><%= render "layouts/admins/icon", name: :edit %>编辑回复</button>
+  </div>
+<% end %>

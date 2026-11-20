@@ -1,8 +1,9 @@
 <% content_for :title, '微信模板消息 · Booking 管理后台' %>
+<% available = @app && @templates.present? %>
+<% content_for :fill_content, "true" unless available %>
 <%= render layout: 'admins/shared/list_page_header', locals: { title: '微信模板消息', icon: :templates } do %><%= link_to '回复内容', admins_reply_contents_path(app_id: @app&.id), class: 'btn' %><% end %>
 <%= render 'admins/shared/official_account_filter', accounts: @accounts, selected: @app, path: ->(id) { admins_template_messages_path(app_id: id) } %>
-<% if @error %><div class="alert alert-warning"><%= @error %></div><% end %>
-<% if @app && @templates.present? %>
+<% if available %>
   <%= render 'admins/shared/enhanced_select_assets' %>
   <% content_for :head do %><%= javascript_include_tag 'admins/template_messages', defer: true %><% end %>
   <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.for_templates.to_json %>" data-bindings="<%= @config.data.fetch('template_bindings', {}).to_json %>" data-revision="<%= @config.revision %>">
@@ -11,7 +12,22 @@
       <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div><div class="card-body">
         <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, @config.data.dig('template_bindings', event, 'template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true } %>
         <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
-      </div><div class="card-footer"><button class="btn btn-primary" type="button" data-template-save><%= render 'layouts/admins/icon', name: :save %>确认并保存绑定</button></div>
+      </div><div class="card-footer"><%= render "admins/shared/submit_button", label: "确认并保存绑定", icon: :save, type: "button", data: { template_save: true } %></div>
     </section><% end %>
   </div>
-<% else %><section class="card"><%= render 'admins/shared/list_empty', icon: :templates, title: '暂无可选微信模板', description: '完成本公众号授权，并在微信公众平台添加模板后重新读取。' %></section><% end %>
+<% else %>
+  <section class="card flex-fill" aria-label="微信模板状态">
+    <% if @error %>
+      <div class="d-flex flex-fill justify-content-center align-items-center p-4">
+        <div class="alert alert-danger mb-0" role="alert">
+          <%= render "layouts/admins/icon", name: :alert %>
+          <div><h2 class="alert-title">无法读取微信模板</h2><div class="text-break"><%= @error %></div></div>
+        </div>
+      </div>
+    <% elsif @app %>
+      <%= render "admins/shared/list_empty", icon: :templates, title: "暂无可选微信模板", description: "在微信公众平台添加模板后，刷新本页重新读取。" %>
+    <% else %>
+      <%= render "admins/shared/list_empty", icon: :device_mobile, title: "还没有公众号", description: "登记并授权微信公众号后，即可读取该公众号的微信模板。" %>
+    <% end %>
+  </section>
+<% end %>

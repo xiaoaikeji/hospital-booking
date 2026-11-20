@@ -39,10 +39,18 @@ class Notification < ApplicationRecord
   def partially_skipped?
     results.size == messages.size && results.to_set { |r| r["stage"] } == Set["channel_accepted", "disabled"]
   end
+  def delivery_outcome
+    return "skipped" if disabled?
+    return "partially_skipped" if partially_skipped?
+    return "unknown" if uncertain?
+    status
+  end
+
   def status_label
-    return "已跳过" if disabled?
-    return "部分已跳过" if partially_skipped?
-    return "待核实" if uncertain?
+    outcome = delivery_outcome
+    return "已跳过" if outcome == "skipped"
+    return "部分已跳过" if outcome == "partially_skipped"
+    return "待核实" if outcome == "unknown"
     return "应答已生成" if status == "sending" && passive_prepared?
     STATES.fetch(status)
   end

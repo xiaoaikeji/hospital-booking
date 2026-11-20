@@ -18,14 +18,14 @@
   <% if empty %>
     <%= render "admins/shared/list_empty", icon: :link, title: (@q.present? ? "未找到匹配的公众号" : "暂无公众号"), description: ("试试其他关键词，或重置筛选。" if @q.present?) %>
   <% else %>
-    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table official-account-links-table mb-0">
       <thead><tr>
         <th scope="col" class="list-column-id px-2">ID</th>
         <th scope="col" class="px-2">公众号</th>
         <th scope="col" class="d-none d-md-table-cell">AppID</th>
         <th scope="col" class="list-column-status px-2">平台授权</th>
         <th scope="col" class="list-column-status px-2 d-none d-sm-table-cell">运行状态</th>
-        <th scope="col" class="col-4 col-sm-3 col-lg-2 px-2">操作</th>
+        <th scope="col" class="list-column-action px-2">操作</th>
       </tr></thead>
       <tbody><% @apps.each do |app| %>
         <tr>

@@ -9,8 +9,17 @@
 .admin-list-table .list-column-time { width: 8.75rem; }
 .admin-list-table .list-column-action { width: 5.625rem; }
 
+.official-account-links-table .list-column-action { width: 7.5rem; }
+.channel-qrcode-table .list-column-action { width: 7rem; }
+
 @media (min-width: 768px) {
-  .wechat-notification-table .list-column-status { width: 8rem; }
+  .wechat-notification-table .list-column-status,
+  .notification-delivery-table .list-column-status { width: 8rem; }
+  .reply-contents-table .list-column-id { width: 10rem; }
+}
+
+@media (min-width: 1200px) {
+  .channel-qrcode-table .list-column-action { width: 12rem; }
 }
 
 .app-list-card {

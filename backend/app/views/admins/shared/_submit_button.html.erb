@@ -1,5 +1,6 @@
-<button type="submit" class="<%= local_assigns.fetch(:button_class, "btn btn-primary") %>" data-admin-submit <%= tag.attributes(disabled: local_assigns[:disabled]) %>>
+<%= tag.button type: local_assigns.fetch(:type, "submit"), class: local_assigns.fetch(:button_class, "btn btn-primary"),
+      disabled: local_assigns[:disabled], data: { admin_submit: true }.merge(local_assigns.fetch(:data, {})) do %>
   <span class="spinner-border spinner-border-sm me-2 d-none" aria-hidden="true"></span>
   <% if local_assigns[:icon] %><span data-admin-submit-icon><%= render "layouts/admins/icon", name: icon %></span><% end %>
   <%= label %>
-</button>
+<% end %>

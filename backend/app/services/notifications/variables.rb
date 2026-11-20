@@ -5,11 +5,16 @@ module Notifications
     def self.names(text) = text.to_s.scan(TOKEN).flatten.uniq
 
     def self.validate!(messages, fields:)
-      Array(messages).each do |message|
+      Array(messages).each_with_index do |message, index|
         next unless message["type"] == "text"
-        raise Error, "文字不能包含空字符" if message.dig("content", "text").to_s.include?("\u0000")
-        unknown = names(message.dig("content", "text")) - fields.keys
-        raise Error, "不可用的变量：#{unknown.map { |key| "{#{key}}" }.join('、')}" if unknown.any?
+        text = message.dig("content", "text").to_s
+        if text.include?("\u0000")
+          raise FieldError.new("文字不能包含空字符", field: "text", message_index: index)
+        end
+        unknown = names(text) - fields.keys
+        if unknown.any?
+          raise FieldError.new("不可用的变量：#{unknown.map { |key| "{#{key}}" }.join('、')}", field: "text", message_index: index)
+        end
       end
     end
 

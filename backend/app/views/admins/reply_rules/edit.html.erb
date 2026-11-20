@@ -2,13 +2,19 @@
 <%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "admins/reply_rules", defer: true %><% end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "自动回复规则", icon: :templates } do %><%= link_to "返回回复内容", admins_reply_contents_path(app_id: @app.id), class: "btn" %><% end %>
-<%= form_with url: admins_app_reply_rules_path(@app), method: :patch, scope: :reply_rules, class: "card", data: { reply_rules: true } do |form| %>
+<%= form_with url: admins_app_reply_rules_path(@app), method: :patch, scope: :reply_rules, class: "card", data: { reply_rules: true, admin_form: true } do |form| %>
   <div class="card-header"><h2 class="card-title"><%= @app.display_name %></h2></div><div class="card-body">
     <%= form.hidden_field :revision, value: @data['revision'] || @config.revision %>
-    <div class="row g-3 mb-4"><% [['follow_first', '首次关注'], ['follow_again', '再次关注']].each do |key, label| %><div class="col-12 col-md-6"><%= form.label key, label, class: 'form-label' %><%= form.select key, @config.replies.map { |id, r| [r['name'], id] }, { include_blank: '不回复', selected: @data[key] }, class: 'form-select' %></div><% end %></div>
-    <h3>文字关键词</h3><p class="form-hint">按顺序匹配第一条规则。多个关键词用逗号分隔。</p>
-    <div data-keyword-rows><% @data.fetch('keywords', []).each do |rule| %><%= render 'keyword', rule: rule %><% end %></div>
+    <div class="row g-3 mb-4"><% [['follow_first', '首次关注'], ['follow_again', '再次关注']].each do |key, label| %><div class="col-12 col-md-6"><%= form.label key, label, class: 'form-label' %><%= form.select key, @config.replies.map { |id, r| [r['name'], id] }, { include_blank: '不回复', selected: @data[key] }, class: 'form-select', data: { enhanced_select: "single" } %></div><% end %></div>
+    <div class="d-flex align-items-center gap-1 mb-3">
+      <h3 class="mb-0">文字关键词</h3>
+      <%= render "admins/shared/field_help", label: "查看关键词匹配说明", text: "按顺序匹配第一条规则。多个关键词用逗号分隔。" %>
+    </div>
+    <% rules = @data.fetch("keywords", []) %>
+    <div data-keyword-rows data-next-index="<%= rules.size %>">
+      <% rules.each_with_index do |rule, index| %><%= render "keyword", rule: rule, index: index %><% end %>
+    </div>
     <button type="button" class="btn" data-add-keyword><%= render "layouts/admins/icon", name: :plus %>新增关键词规则</button>
-    <template data-keyword-template><%= render 'keyword', rule: {} %></template>
+    <template data-keyword-template><%= render "keyword", rule: {}, index: "NEW_INDEX" %></template>
   </div><div class="card-footer"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
 <% end %>

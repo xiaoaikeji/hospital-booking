@@ -52,7 +52,7 @@ module Notifications
         id = SecureRandom.uuid if !id || only
         messages = normalize_messages(input["messages"], previous)
         name = input["name"].to_s.strip
-        raise Error, "请填写回复内容名称" unless name.size.between?(1, 60)
+        raise FieldError.new("请填写回复内容名称", field: "name") unless name.size.between?(1, 60)
         config["replies"] ||= {}
         config["replies"][id] = { "name" => name, "messages" => messages, "variables_version" => 1 }
         if input["qrcode_id"].present?
@@ -96,8 +96,10 @@ module Notifications
       update!(revision, actor: actor, request: request, action: "notification.code_bind") do |config|
         raise Error, "扫码配置无效" unless MODES.key?(mode)
         require_reply!(config, reply_id) if mode.in?(%w[reply both])
-        config["qrcodes"] ||= {}
-        config["qrcodes"][code.id.to_s] = { "mode" => mode, "reply_id" => reply_id.presence }
+        bindings = config["qrcodes"] ||= {}
+        key = code.id.to_s
+        saved_reply = reply_id.nil? ? bindings.dig(key, "reply_id") : reply_id.presence
+        bindings[key] = { "mode" => mode, "reply_id" => saved_reply }
       end
     end
 
@@ -129,21 +131,32 @@ module Notifications
 
     def normalize_messages(rows, previous)
       raise Error, "请新增 1～8 条消息" unless rows.is_a?(Array) && rows.size.between?(1, 8)
-      messages = rows.map do |row|
+      messages = rows.each_with_index.map do |row, index|
         raise Error, "消息格式无效" unless row.is_a?(Hash) && row["content"].is_a?(Hash)
         content = row["content"]
         case row["type"]
         when "text"
           text = content["text"].to_s.gsub("\r\n", "\n")
-          raise Error, "文字应为 1～2048 字节" unless text.bytesize.between?(1, 2048) && text.strip.present?
+          unless text.bytesize.between?(1, 2048) && text.strip.present?
+            raise FieldError.new("文字应为 1～2048 字节", field: "text", message_index: index)
+          end
           content = { "text" => text }
         when "miniprogrampage"
-          raise Error, "请选择当前机构的小程序" unless App.wechat_mini_programs.exists?(appid: content["appid"])
-          raise Error, "请填写卡片标题和页面路径" unless content["title"].to_s.strip.size.between?(1, 60) && content["pagepath"].to_s.strip.size.between?(1, 255)
+          unless App.wechat_mini_programs.exists?(appid: content["appid"])
+            raise FieldError.new("请选择当前机构的小程序", field: "appid", message_index: index)
+          end
+          unless content["title"].to_s.strip.size.between?(1, 60)
+            raise FieldError.new("请填写 1～60 字的卡片标题", field: "title", message_index: index)
+          end
+          unless content["pagepath"].to_s.strip.size.between?(1, 255)
+            raise FieldError.new("请填写 1～255 字的页面路径", field: "pagepath", message_index: index)
+          end
           media = content["thumb_media_id"]
           old = Array(previous&.fetch("messages", nil)).any? { |m| m["type"] == "miniprogrampage" && m.dig("content", "thumb_media_id") == media }
           proof = Rails.application.message_verifier(:official_menu_resource).verified(row["proof"].to_s)
-          raise Error, "请向本公众号上传卡片封面" unless media.present? && (old || proof == [ app.id, "media_id", media ])
+          unless media.present? && (old || proof == [ app.id, "media_id", media ])
+            raise FieldError.new("请向本公众号上传卡片封面", field: "thumb_media_id", message_index: index)
+          end
           content = content.slice("title", "appid", "pagepath", "thumb_media_id")
         else raise Error, "仅支持文字和小程序卡片"
         end

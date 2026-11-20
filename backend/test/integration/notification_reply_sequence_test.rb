@@ -126,12 +126,12 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
       get edit_admins_app_reply_content_path(@a, reply_id, qrcode_id: code.id)
       assert_response :success
       assert_select "#reply-scope option[value=only][selected]", text: "仅改这个码"
-      assert_select "[data-reply-impacts][hidden]", count: 1
+      assert_select "[data-reply-impacts].d-none", count: 1
 
       get edit_admins_app_reply_content_path(@a, reply_id)
       assert_response :success
       assert_select "#reply-scope option[value=all][selected]", text: "更新全部"
-      assert_select "[data-reply-impacts]:not([hidden])", count: 1
+      assert_select "[data-reply-impacts]:not(.d-none)", count: 1
 
       patch admins_app_reply_content_path(@a, reply_id), params: { reply_content: { name: "活动说明（东门）", scope: "only",
         revision: @config.revision, qrcode_id: code.id, messages: contents + [ { id: "east", type: "text", content: { text: "请走东门" } } ] } }, as: :json

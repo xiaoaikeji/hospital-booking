@@ -31,17 +31,21 @@
       <%= render "admins/shared/list_empty", icon: :users, title: (@query.present? || @status ? "未找到匹配的粉丝" : "还没有粉丝"), description: (@query.present? || @status ? "试试其他关键词，或重置筛选。" : "关注回调或同步已有粉丝后，会在这里显示。") %>
     <% else %>
       <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
-        <thead><tr><th class="list-column-id px-2">ID</th><th class="px-2">用户</th><th class="list-column-status px-2">关注状态</th><th class="d-none d-md-table-cell">关注渠道</th><th class="d-none d-lg-table-cell">进过小程序</th><th class="d-none d-lg-table-cell">关注时间</th><th class="d-none d-xl-table-cell">取关时间</th></tr></thead>
+        <thead><tr><th class="list-column-id px-2">ID</th><th class="px-2">用户</th><th class="list-column-status px-2">关注状态</th><th class="d-none d-md-table-cell">关注渠道</th><th class="d-none d-lg-table-cell">进过小程序</th><th class="d-none d-lg-table-cell">关注时间</th><th class="d-none d-xl-table-cell">取关时间</th><th class="list-column-action px-2">操作</th></tr></thead>
         <tbody><% @fans.each do |fan| %>
-          <% user = fan.user_app.user %>
+          <% user = fan.user_app.user
+             detail_path = admins_app_fan_path(@app, fan, filters.except(:app_id).merge(page: params[:page]).compact) %>
           <tr><td class="text-secondary px-2">#<%= fan.id %></td>
-            <td class="px-2"><%= render "admins/shared/list_text", text: user.nickname.presence || user.user_no, url: admins_app_fan_path(@app, fan, filters.except(:app_id).merge(page: params[:page]).compact) %>
+            <td class="px-2"><%= render "admins/shared/list_text", text: user.nickname.presence || user.user_no, url: detail_path %>
               <% if user.nickname.present? %><small class="d-block text-secondary"><%= user.user_no %></small><% end %></td>
             <td class="px-2"><%= render "status", fan: fan %></td>
             <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: fan.channel(@channels).presence || "—" %></td>
             <td class="d-none d-lg-table-cell"><%= @joined.include?(user.id) ? "是" : "否" %></td>
             <td class="d-none d-lg-table-cell"><%= admin_list_time(fan.subscribed_at) %></td>
             <td class="d-none d-xl-table-cell"><%= admin_list_time(fan.unsubscribed_at) %></td>
+            <td class="px-2">
+              <%= link_to detail_path, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
+            </td>
           </tr>
         <% end %></tbody>
       </table>
