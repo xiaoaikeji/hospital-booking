@@ -35,10 +35,12 @@ class Notification < ApplicationRecord
   def result_for(id) = results.find { |r| r["message_id"] == id } || { "status" => "pending", "attempt_count" => 0 }
   def uncertain? = results.any? { |r| r["status"] == "sending" && r["provider_state"] != "passive_prepared" }
   def passive_prepared? = results.any? { |r| r["provider_state"] == "passive_prepared" }
+  def disabled? = messages.all? { |m| result_for(m["id"])["stage"] == "disabled" }
   def status_label
+    return "已跳过" if disabled?
     return "待核实" if uncertain?
     return "应答已生成" if status == "sending" && passive_prepared?
     STATES.fetch(status)
   end
-  def retryable_ids = results.select { |r| r["status"] == "failed" }.map { |r| r["message_id"] }
+  def retryable_ids = results.select { |r| r["status"] == "failed" && r["stage"] != "disabled" }.map { |r| r["message_id"] }
 end

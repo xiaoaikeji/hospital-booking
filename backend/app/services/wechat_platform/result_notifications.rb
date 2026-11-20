@@ -30,18 +30,21 @@ module WechatPlatform
     end
 
     def self.record(app, kind, event_key, fields)
-      return unless NotificationSettings.new.enabled?(kind)
-      content = NotificationContents.new(kind)
-      variables = NotificationContents.data(app, kind, fields)
-      messages = Notifications::Variables.render(content.messages, fields: NotificationContents.fields(kind), data: variables)
-      return if messages.empty?
       WechatNotificationEvent.transaction do
+        # Keep the selected robot and its credential registration in the same snapshot as settings edits.
+        Setting.connection.execute("SELECT pg_advisory_xact_lock(71020012)")
+        settings = NotificationSettings.new
+        next unless settings.enabled?(kind)
+        content = NotificationContents.new(kind)
+        variables = NotificationContents.data(app, kind, fields)
+        messages = Notifications::Variables.render(content.messages, fields: NotificationContents.fields(kind), data: variables)
+        next if messages.empty?
         event = WechatNotificationEvent.create_or_find_by!(app: app, event_key: event_key) do |row|
           row.assign_attributes(kind: kind, message: messages.map { |item| item.dig("content", "text") }.join("\n\n"), status: "pending")
         end
         if event.previously_new_record?
           Notifications.dispatch(event: kind, subject: event,
-            target: Notifications::Channels::WecomGroup.target(NotificationSettings.new.key, name: "微信审核结果企微群"),
+            target: Notifications::Channels::WecomGroup.target(settings.key, name: "微信审核结果企微群"),
             messages: messages,
             idempotency_key: event_key)
         end
@@ -53,18 +56,9 @@ module WechatPlatform
     def self.deliver(id)
       event = WechatNotificationEvent.find_by(id: id)
       return unless event&.status == "pending"
-      settings = NotificationSettings.new
       task = Notification.find_by(subject: event)
-      if task
-        if settings.enabled?(event.kind)
-          Notifications::Delivery.run(task.id)
-          event.notification_delivery_finished!(task.reload)
-        else
-          task.update!(status: "failed", error_message: "通知类型已关闭，未发送")
-          event.update!(status: "skipped")
-        end
-        return
-      end
+      return Notifications::Delivery.run(task.id) if task
+      settings = NotificationSettings.new
       # 升级前任务没有目标快照，保留旧记录和原有发送约定，不推断历史目标。
       status = settings.enabled?(event.kind) ? "sending" : "skipped"
       claimed = WechatNotificationEvent.where(id: id, status: "pending").update_all(status: status, updated_at: Time.current)

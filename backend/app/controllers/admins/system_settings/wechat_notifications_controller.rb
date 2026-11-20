@@ -8,7 +8,7 @@ module Admins
 
     def update
       @settings = WechatPlatform::NotificationSettings.new
-      input = params.require(:notification_settings).permit(:revision, :webhook_key, :clear_key, :pull_violations, kinds: [])
+      input = params.require(:notification_settings).permit(:revision, :webhook_key, :same_robot, :clear_key, :pull_violations, kinds: [])
       clearing = input[:clear_key] == "1"
       if @settings.save(input, actor: current_admin, request: request)
         redirect_to edit_admins_system_settings_wechat_notifications_path, status: :see_other,

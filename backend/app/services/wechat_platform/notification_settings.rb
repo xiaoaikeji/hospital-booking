@@ -47,8 +47,15 @@ module WechatPlatform
           raise Error, "通知类型无效" unless (chosen - LABELS.keys).empty?
           pull_enabled = input[:pull_violations] == "1"
           if input[:webhook_key].present? && input[:webhook_key].strip != current.key
-            row.write_value("webhook_key", normalize_key(input[:webhook_key]))
-            changed << "webhook_key"
+            replacement = normalize_key(input[:webhook_key])
+            if replacement != current.key
+              if current.key.present? && input[:same_robot] == "1"
+                Notifications::Channels::WecomGroup.rotate!(current.key, replacement)
+                changed << "same_robot"
+              end
+              row.write_value("webhook_key", replacement)
+              changed << "webhook_key"
+            end
           end
           changed << "kinds" if chosen != current.kinds.sort
           changed << "pull_violations" if pull_enabled != current.pull
@@ -60,8 +67,8 @@ module WechatPlatform
           details: { fields: changed })
       end
       true
-    rescue Error, IntegrationSettings::ConfigurationError, ActiveRecord::RecordInvalid => e
-      message = e.is_a?(Error) ? e.message : "通知设置未保存，请核对部署配置"
+    rescue Error, Notifications::Error, IntegrationSettings::ConfigurationError, ActiveRecord::RecordInvalid => e
+      message = (e.is_a?(Error) || e.is_a?(Notifications::Error)) ? e.message : "通知设置未保存，请核对部署配置"
       errors.add(e.is_a?(InvalidKey) ? :webhook_key : :base, message)
       Log.record!(action: "wechat.notification_settings", category: "wechat", actor: actor, request: request, status: "failed",
         details: { reason: message })

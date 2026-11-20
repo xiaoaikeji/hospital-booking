@@ -22,6 +22,14 @@
               source: @settings.source, value: @input&.fetch(:webhook_key, nil) || @settings.key,
               placeholder: "请输入 Key 或完整 Webhook 地址", help: ("可填写机器人 Key 或完整 Webhook 地址。留空保留当前来源。" if @settings.key.present?) %>
       </div>
+      <% if @settings.key.present? %>
+        <div class="col-12">
+          <label class="form-check mb-0"><%= f.check_box :same_robot, checked: @input&.fetch(:same_robot, nil) == "1", class: "form-check-input" %>
+            <span class="form-check-label">为原群机器人轮换 Key</span>
+          </label>
+          <div class="form-hint">勾选后，原群的待发和补发任务使用新 Key。更换通知群时请保留未勾选。</div>
+        </div>
+      <% end %>
       <fieldset class="col-12">
         <legend class="form-label">发送到企业微信群的事件</legend>
         <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-2">

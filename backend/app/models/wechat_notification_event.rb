@@ -10,8 +10,15 @@ class WechatNotificationEvent < ApplicationRecord
   def notification_deliverable? = WechatPlatform::NotificationSettings.new.enabled?(kind)
 
   def notification_delivery_finished!(task)
-    update!(status: task.uncertain? ? "unknown" : task.status,
-      error_code: task.results.filter_map { |result| result.dig("response", "errcode") }.find { |code| code != 0 })
+    state = if task.disabled?
+      "skipped"
+    elsif task.uncertain?
+      "unknown"
+    else
+      task.status
+    end
+    error_code = task.results.filter_map { |result| result.dig("response", "errcode") }.find(&:nonzero?)
+    update!(status: state, error_code: error_code)
   end
 
   after_create_commit do

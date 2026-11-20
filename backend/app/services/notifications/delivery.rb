@@ -17,15 +17,24 @@ module Notifications
     end
 
     def run
-      return unless @row.status == "pending" && (!@row.scheduled_at || @row.scheduled_at <= Time.current)
-      if @row.subject.respond_to?(:notification_deliverable?) && !@row.subject.notification_deliverable?
-        @row.update!(status: "failed", error_message: "本次通知已关闭，未发送")
-        return
-      end
-      @row.update!(status: "sending", attempt_count: @row.attempt_count + 1, last_attempt_at: Time.current, job_id: @job_id)
+      return if @row.scheduled_at&.future?
+      interrupted = @row.status == "sending" && !@row.response_data.key?("finished_at")
+      return unless @row.status == "pending" || interrupted
+
+      deliverable = !@row.subject.respond_to?(:notification_deliverable?) || @row.subject.notification_deliverable?
+      @row.update!(status: "sending", attempt_count: @row.attempt_count + 1, last_attempt_at: Time.current,
+        job_id: @job_id, response_data: @row.response_data.except("finished_at"))
       @row.messages.each do |message|
         result = @row.result_for(message["id"])
+        if result["status"] == "sending" && result["stage"] == "request_started"
+          save_result(message, result.merge("stage" => "awaiting_verification", "provider_state" => "unknown",
+            "error_message" => "发送进程中断，请到渠道核实该条消息"))
+        end
         next unless result["status"] == "pending"
+        unless deliverable
+          save_result(message, result.merge("status" => "failed", "stage" => "disabled", "error_message" => "此事件通知已关闭"))
+          next
+        end
         # 在外部调用前单独提交。进程中断留下 sending，永不当成未发送重试。
         save_result(message, result.merge("status" => "sending", "attempt_count" => result["attempt_count"].to_i + 1,
           "last_attempt_at" => Time.current.iso8601, "stage" => "request_started", "response" => nil, "error_message" => nil, "provider_state" => nil, "sent_at" => nil))
@@ -75,9 +84,12 @@ module Notifications
         "sending"
       end
       errors = @row.results.filter_map { |r| "#{r['message_id']}：#{r['error_message']}" if r["error_message"].present? }
-      @row.update!(status: status, sent_at: all_sent ? Time.current : nil, error_message: errors.join("；").presence)
-      subject = @row.subject
-      subject.notification_delivery_finished!(@row) if subject.respond_to?(:notification_delivery_finished!)
+      @row.transaction do
+        @row.update!(status: status, sent_at: all_sent ? Time.current : nil, error_message: errors.join("；").presence,
+          response_data: @row.response_data.merge("finished_at" => Time.current.iso8601))
+        subject = @row.subject
+        subject.notification_delivery_finished!(@row) if subject.respond_to?(:notification_delivery_finished!)
+      end
     end
   end
 end
