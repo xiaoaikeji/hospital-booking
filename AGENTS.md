@@ -14,6 +14,12 @@ Rails 服务端和管理后台在 `backend/`，Rails 命令在该目录执行。
 
 新文档按读者归入这两个目录。运行时加载的代码、图片和字体留在对应工程。提交标题和正文使用英文，标题沿用 `type: short description`。
 
+## 后台组件与草稿
+
+后台界面优先复用 `backend/app/views/admins/shared/` 的组件和项目已引入的 Tabler 样式。新布局先查 [后台样式规范](dev-docs/backend/admin-ui.md)，可在 Tabler 官网或本地模板找到对应示例。
+
+待评审的组件集中在 [后台组件草稿](dev-docs/backend/admin-ui/drafts.md)，预览入口为 `/admins/components?tab=drafts`。草稿用示例数据在预览页验证交互，经用户确认后再提炼到 `admins/shared/` 并接入指定正式页面。涉及后台通知、任务监控或 Dashboard 时，先看该草稿和对应的开发约定。
+
 ## 小程序命名
 
 各业务的默认名称用「小艾＋业务名＋小程序」，例如「小艾预约挂号小程序」「小艾电竞护航小程序」。`manifest.json` 的工程名称使用该默认值，首页在 `pages.json` 的 `navigationBarTitleText` 留空。首页自定义标题及其他展示应用名称的位置共用后台配置的小程序名称。后台尚未接入、读取失败或名称为空时，统一显示当前业务的默认名称。

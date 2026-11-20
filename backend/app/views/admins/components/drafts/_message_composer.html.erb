@@ -1,0 +1,72 @@
+<% fields = Notifications::ReplyVariables::FIELDS.slice("name", "app_name", "qrcode_name") %>
+<% messages = ["您好，周末活动开始啦。", "需要调整预约时，请回复「取消预约」。"] %>
+<section class="col-12" id="draft-message-composer" aria-labelledby="draft-message-title" data-draft-message-composer
+         data-fields="<%= fields.to_json %>" data-examples="<%= fields.transform_values { |field| field.fetch('example') }.to_json %>">
+  <div class="row row-cards">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-header"><h2 class="card-title" id="draft-message-title">通知文案编辑</h2></div>
+        <div class="accordion accordion-flush" id="draft-message-items">
+          <% messages.each_with_index do |message, index| %>
+            <div class="accordion-item" data-draft-message>
+              <h3 class="accordion-header">
+                <button type="button" class="accordion-button<%= ' collapsed' unless index.zero? %>" id="draft-message-heading-<%= index %>"
+                        data-bs-toggle="collapse" data-bs-target="#draft-message-panel-<%= index %>"
+                        aria-expanded="<%= index.zero? %>" aria-controls="draft-message-panel-<%= index %>">
+                  第 <%= index + 1 %> 条 · 文字
+                  <span class="accordion-button-toggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg>
+                  </span>
+                </button>
+              </h3>
+              <div class="accordion-collapse collapse<%= ' show' if index.zero? %>" id="draft-message-panel-<%= index %>"
+                   data-bs-parent="#draft-message-items" aria-labelledby="draft-message-heading-<%= index %>">
+                <div class="accordion-body">
+                  <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                    <label class="form-label mb-0" for="draft-message-text-<%= index %>">文字内容</label>
+                    <button type="button" class="btn btn-sm" data-bs-toggle="offcanvas" data-bs-target="#draft-variable-drawer"
+                            aria-controls="draft-variable-drawer" data-draft-variable-opener>
+                      <%= render "layouts/admins/icon", name: :plus %>插入变量
+                    </button>
+                  </div>
+                  <textarea class="form-control" id="draft-message-text-<%= index %>" rows="3"><%= message %></textarea>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">示例预览</h3></div>
+        <div class="card-body bg-body-tertiary d-grid gap-2" aria-live="polite">
+          <% messages.each do |message| %>
+            <div class="bg-body border rounded p-3 text-break" style="white-space: pre-wrap" data-draft-message-preview><%= message %></div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="draft-variable-drawer" aria-labelledby="draft-variable-title">
+    <div class="offcanvas-header">
+      <h3 class="offcanvas-title" id="draft-variable-title">插入变量</h3>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭变量抽屉"></button>
+    </div>
+    <div class="offcanvas-body">
+      <ul class="list-group list-group-flush">
+        <% fields.each do |key, field| %>
+          <li class="list-group-item d-flex gap-2 flex-wrap justify-content-between align-items-center px-0">
+            <div>
+              <div class="fw-medium"><%= field.fetch("label") %></div>
+              <% if field["hint"] %><div class="small text-secondary"><%= field["hint"] %></div><% end %>
+            </div>
+            <button type="button" class="btn btn-sm btn-ghost text-primary font-monospace text-break"
+                    data-bs-dismiss="offcanvas" data-draft-variable="<%= key %>">{<%= key %>}</button>
+          </li>
+        <% end %>
+      </ul>
+    </div>
+  </div>
+</section>

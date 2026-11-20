@@ -10,7 +10,8 @@ module Admins
         "containers" => "导航与容器",
         "actions" => "操作与确认"
       },
-      "页面示例" => { "page_actions" => "页面操作", "list_examples" => "列表规范" }
+      "页面示例" => { "page_actions" => "页面操作", "list_examples" => "列表规范" },
+      "组件草稿" => { "drafts" => "通知与任务监控" }
     }.freeze
 
     def index

@@ -1,0 +1,13 @@
+<% content_for :head do %>
+  <%= javascript_include_tag "admins/notification_variables", "admins/component_drafts", defer: true %>
+  <style>
+    [data-draft-job-slot][aria-pressed="true"] { outline: 2px solid var(--tblr-body-color); outline-offset: 2px; }
+  </style>
+<% end %>
+
+<div class="row row-cards">
+  <%= render "admins/components/drafts/message_composer" %>
+  <%= render "admins/components/drafts/keyword_order" %>
+  <%= render "admins/components/drafts/job_monitor" %>
+  <%= render "admins/components/drafts/account_actions" %>
+</div>
