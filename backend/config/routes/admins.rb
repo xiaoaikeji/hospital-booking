@@ -29,7 +29,9 @@ namespace :admins do
     resources :mini_program_links, only: %i[create destroy], controller: "app_mini_program_links" do
       post :verify, on: :collection
     end
-    resources :plugins, only: %i[create update destroy], controller: "app_plugins"
+    resources :plugins, only: %i[create update destroy], controller: "app_plugins" do
+      post :verify, on: :member
+    end
     resource :profile, only: :update, controller: "app_profiles"
     resources :location_interface_applications, only: :create, controller: "app_location_interface_applications" do
       post :verify, on: :member

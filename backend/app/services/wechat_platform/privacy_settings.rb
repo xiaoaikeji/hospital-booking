@@ -38,8 +38,8 @@ module WechatPlatform
 
     def apply!(input, actor:, request:)
       raise Error, "需要超级管理员权限" unless actor&.super_admin?
-      @app.with_lock do
-        with_client do |client|
+      with_client do |client|
+        @app.with_lock do
           current = @last_read = snapshot(client.privacy)
           owner = current.owner.merge(input.fetch("owner", {}).slice(*OWNER_FIELDS.keys).transform_values { |v| v.to_s.strip }).compact_blank
           declarations = declaration_values(input.fetch("entries", {}).values)
@@ -76,11 +76,7 @@ module WechatPlatform
 
     def with_client
       raise Error, "请选择已完成平台授权的微信小程序" unless @app.code_capable? && @app.platform_authorized?
-      token = AuthorizerToken.fetch(@app)
-      yield Wechat::MiniProgramSettingsClient.new(token)
-    rescue Wechat::BaseClient::Rejected => error
-      AuthorizerToken.expire(@app, token) if token && error.invalid_token?
-      raise
+      AuthorizerToken.with_token(@app) { |token| yield Wechat::MiniProgramSettingsClient.new(token) }
     end
 
     def snapshot(data)

@@ -1,15 +1,15 @@
 <% content_for :head do %><%= javascript_include_tag "admins/app_categories", defer: true %><% end %>
 <div class="modal fade" id="category-modal" tabindex="-1" aria-labelledby="category-title" data-tree="<%= @category_page[:options].to_json %>">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+  <div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content">
     <div class="modal-header"><h2 class="modal-title" id="category-title">新增服务类目</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button></div>
     <%= form_with url: admins_app_categories_path(@app, application_context_params), multipart: true, class: "modal-body" do |form| %>
       <div role="alert" class="alert alert-warning" hidden><span></span> <%= link_to "核实上次操作", admins_app_path(@app, application_context_params.merge(tab: "categories")), hidden: true, class: "alert-link" %></div>
       <%= form.hidden_field :revision, value: @category_page[:revision] %>
       <div class="row g-3 mb-3">
         <div class="col-md-6"><%= form.label :first, "一级类目", class: "form-label required" %>
-          <%= form.select :first, @category_page[:options].map { |n| [n["name"], n["id"]] }, { include_blank: "请选择" }, class: "form-select", data: { enhanced_select: "search" }, required: true %></div>
+          <%= form.select :first, @category_page[:options].map { |n| [n["name"], n["id"]] }, { include_blank: "请选择" }, class: "form-select", data: { enhanced_select: "search", inline_dropdown: true }, required: true %></div>
         <div class="col-md-6"><%= form.label :second, "二级类目", class: "form-label required" %>
-          <%= form.select :second, [], { include_blank: "请选择" }, class: "form-select", data: { enhanced_select: "search" }, required: true, disabled: true %></div>
+          <%= form.select :second, [], { include_blank: "请选择" }, class: "form-select", data: { enhanced_select: "search", inline_dropdown: true }, required: true, disabled: true %></div>
       </div>
       <p class="form-hint" data-remark hidden></p>
       <fieldset class="mb-3" data-plans hidden><legend class="form-label required">资质方案</legend><div></div></fieldset>
@@ -22,7 +22,7 @@
       <input type="file" class="form-control" required accept="image/png,image/jpeg">
       <div class="form-hint">2MB 以内的 JPG 或 PNG 图片 <a href="#" hidden target="_blank" rel="noopener noreferrer">查看示例</a></div>
       <label class="form-check mt-2"><input type="checkbox" value="permanent" class="form-check-input"><span>长期有效</span></label>
-      <div data-expiry><%= render "admins/shared/date_field", id: "category-file-expiry", prefix: "有效期至", clearable: false, required: true %></div>
+      <div data-expiry><%= render "admins/shared/date_field", id: "category-file-expiry", prefix: "有效期至", inline: true, clearable: false, required: true %></div>
     </fieldset></template>
   </div></div>
 </div>

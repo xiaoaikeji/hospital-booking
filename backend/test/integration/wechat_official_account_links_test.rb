@@ -71,6 +71,31 @@ class WechatOfficialAccountLinksTest < ActionDispatch::IntegrationTest
     assert Log.exists?(source: "admin", action: "wechat.link_delete", target_id: @official.id, status: "success")
   end
 
+  test "第二次申请被拒及微信侧解绑后仍可再选目标，历史操作不会重回待核实" do
+    @stubs.post("/cgi-bin/wxopen/wxamplink") { @writes += 1; response_for(errcode: 0) }
+    2.times do
+      link(page_revision)
+      op = WechatLinkOperation.find_by!(app: @official, mini_program_id: @mini.id)
+      assert_equal "accepted", op.state
+      @rows.reject! { |row| row[:appid] == @mini.appid }
+      @rows << {appid: @mini.appid, status: 2}
+      page_revision
+      assert_equal "applied", op.reload.state
+      @rows.last[:status] = 3
+      page_revision
+      assert_select "option[value=?]", @mini.id
+      assert_select "h2", text: "待核实操作", count: 0
+    end
+    link(page_revision)
+    @rows.last[:status] = 1
+    page_revision
+    @rows.pop
+    page_revision
+    assert_select "option[value=?]", @mini.id
+    assert_select "h2", text: "待核实操作", count: 0
+    assert_equal 3, @writes
+  end
+
   test "不确定的申请永久保留，管理员显式复查远端后才允许再试；注销授权仍能查本地历史" do
     rev = page_revision
     @stubs.post("/cgi-bin/wxopen/wxamplink") { @writes += 1; raise Faraday::TimeoutError }

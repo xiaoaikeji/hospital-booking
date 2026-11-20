@@ -17,6 +17,7 @@ class Log < ApplicationRecord
     [ "wechat", "wechat.plugin_apply" ] => "申请使用插件",
     [ "wechat", "wechat.plugin_update" ] => "更新插件版本",
     [ "wechat", "wechat.plugin_unbind" ] => "解除插件",
+    [ "wechat", "wechat.plugin_verify" ] => "核实插件版本",
     [ "wechat", "wechat.profile_signature" ] => "修改小程序简介",
     [ "wechat", "wechat.profile_head_image" ] => "修改小程序头像",
     [ "wechat", "wechat.location_apply" ] => "申请地理位置接口",

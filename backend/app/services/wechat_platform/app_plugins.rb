@@ -4,12 +4,34 @@ module WechatPlatform
       @app, @client = app, client
     end
 
-    def list = with_token { |token| @client.list(token) }
+    def list
+      updates = WechatPluginUpdate.where(app: @app).index_by(&:plugin_appid)
+      rows = with_token { |token| @client.list(token) }
+      rows.each do |row|
+        op = updates[row["appid"]]
+        next unless op
+        if op.confirmed?
+          latest = row["version"].presence || op.version
+          if latest != op.version
+            WechatPluginUpdate.where(id: op.id, confirmed: true, version: op.version).update_all(version: latest, updated_at: Time.current)
+          end
+          row["confirmed_version"] = latest
+        elsif row["version"] == op.version
+          WechatPluginUpdate.where(id: op.id, confirmed: false).update_all(confirmed: true, updated_at: Time.current)
+        else
+          row["pending_update"] = op
+        end
+      end
+      rows
+    end
+
+    def self.update_allowed?(plugin) = plugin && plugin["status"].to_i == 2 && !plugin["pending_update"]
 
     def apply(id)
       change(id) do |token, plugin|
         raise Error, "该插件已申请或已通过，请核对名单" if plugin && [1, 2].include?(plugin["status"].to_i)
         @client.apply(token, id)
+        WechatPluginUpdate.where(app: @app, plugin_appid: id).delete_all
       end
     end
 
@@ -17,8 +39,42 @@ module WechatPlatform
       raise Error, "请填写不超过 32 个字符的插件版本号" unless version.present? && version.length <= 32
       change(id) do |token, plugin|
         raise Error, "当前小程序没有此插件，请刷新名单" unless plugin
-        raise Error, "该插件已是目标版本" if plugin["version"] == version
-        @client.update(token, id, version)
+        updates = WechatPluginUpdate.where(app: @app, plugin_appid: id)
+        pending = updates.first
+        if pending && !pending.confirmed?
+          raise Error, "上次更新至 #{pending.version} 的结果待核实" unless plugin["version"] == pending.version
+          pending.update!(confirmed: true)
+        end
+        raise Error, "仅申请通过的插件可以更新版本" unless self.class.update_allowed?(plugin)
+        actual = plugin["version"].presence || pending&.version
+        raise Error, "该插件已是目标版本" if actual == version
+        intent = WechatPluginUpdate.transaction do
+          pending&.destroy!
+          updates.create!(version: version)
+        end
+        begin
+          @client.update(token, id, version)
+        rescue Wechat::BaseClient::Rejected => error
+          unless error.code == -1
+            actual.present? ? intent.update!(confirmed: true, version: actual) : intent.destroy!
+          end
+          raise
+        end
+        intent.update!(confirmed: true)
+      end
+    end
+
+    def verify(id, operation_id, confirmed, actual_version)
+      change(id) do |_token, plugin|
+        op = WechatPluginUpdate.find_by(app: @app, plugin_appid: id, id: operation_id)
+        raise Error, "请刷新并核实本次插件更新" unless op && !op.confirmed? && confirmed == "1"
+        unless actual_version.present? && actual_version.length <= 32
+          raise Error, "请填写已在微信公众平台核实的实际版本"
+        end
+        if !plugin || (plugin["version"].present? && actual_version != plugin["version"])
+          raise Error, "与微信当前插件名单不符，请刷新"
+        end
+        op.update!(confirmed: true, version: actual_version)
       end
     end
 
@@ -26,6 +82,7 @@ module WechatPlatform
       change(id) do |token, plugin|
         raise Error, "当前小程序没有此插件，请刷新名单" unless plugin
         @client.unbind(token, id)
+        WechatPluginUpdate.where(app: @app, plugin_appid: id).delete_all
       end
     end
 

@@ -8,11 +8,15 @@ module WechatPlatform
     end
 
     def page
+      outstanding = acceptances.to_a
       data = with_client(&:category_settings)
-      used = data.fetch("categories").map { |row| "#{row['first']}-#{row['second']}" }
+      used = data.fetch("categories").map { |row| [row["first"].to_i, row["second"].to_i] }
+      observed, waiting = outstanding.partition { |entry| used.include?([entry.first_category, entry.second_category]) }
+      acceptances.where(id: observed.map(&:id)).delete_all if observed.any?
+      used = (used + waiting.map { |entry| [entry.first_category, entry.second_category] }).map { |ids| ids.join("-") }
       last_event = Log.where(target_type: "App", target_id: @app.id, source: "system", action: "wechat.category_audit")
         .order(Arel.sql("(details ->> 'occurred_at')::bigint DESC"), id: :desc).first
-      result = { settings: data, options: [], blocked: quota_blocker(data), revision: revision(data), pending: unresolved, last_event: last_event }
+      result = { settings: data, waiting: waiting, options: [], blocked: quota_blocker(data), revision: revision(data), pending: unresolved, last_event: last_event }
       begin
         result[:options] = CategoryCatalog.for(@app) { with_client(&:catalog) }.options(added: used)
       rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
@@ -27,6 +31,7 @@ module WechatPlatform
       mutate("category_add", input) do |data, client|
         raise Error, quota_blocker(data) if quota_blocker(data)
         raise Error, "本应用已设置此类目，请刷新" if configured?(data)
+        raise Error, "微信已受理该类目，正在等待列表更新" if acceptance.exists?
         category = CategoryCatalog.for(@app) { client.catalog }.find(@first, @second) || raise(Error, "请选择有效的一级和二级分类")
         plans = category["plans"]
         index = plans.size == 1 ? 0 : Integer(input[:plan].to_s, 10, exception: false)
@@ -59,6 +64,17 @@ module WechatPlatform
     def verify!(input)
       require_admin!
       locked do
+        if input[:acceptance_id].present?
+          entry = acceptances.find_by(id: input[:acceptance_id])
+          raise Error, "请核实当前待更新类目" unless entry && input[:confirmed] == "1"
+          @first, @second = entry.first_category, entry.second_category
+          raise Error, "微信列表中已存在该类目，请刷新查看" if configured?(with_client(&:category_settings))
+          WechatCategoryAcceptance.transaction do
+            entry.destroy!
+            record("category_verify", "success", acceptance_id: entry.id, outcome: "rejected_or_removed")
+          end
+          next
+        end
         previous = unresolved
         unless previous && previous.id.to_s == input[:operation_id] && input[:confirmed] == "1"
           raise Error, "请核实当前待确认的类目操作"
@@ -67,7 +83,10 @@ module WechatPlatform
         applied = configured?(with_client(&:category_settings)) == (previous.action == "wechat.category_add")
         expected = applied ? "applied" : "not_applied"
         raise Error, "登记结果与微信当前类目列表不一致，请核实后再试" unless input[:outcome] == expected
-        record("category_verify", "success", operation_id: previous.id, outcome: expected)
+        WechatCategoryAcceptance.transaction do
+          acceptance.delete_all if applied && previous.action == "wechat.category_delete"
+          record("category_verify", "success", operation_id: previous.id, outcome: expected)
+        end
       end
     rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       record("category_verify", "failed", reason: error.message) if @actor&.super_admin?
@@ -109,7 +128,14 @@ module WechatPlatform
       rescue HttpConnection::Unavailable
         raise Error, "微信暂未确认类目操作，请回服务类目页核实"
       end
-      record(@action, "success", operation_id: intent.id)
+      WechatCategoryAcceptance.transaction do
+        if @action == "category_add"
+          acceptance.first_or_create!
+        else
+          acceptance.delete_all
+        end
+        record(@action, "success", operation_id: intent.id)
+      end
     rescue ActiveRecord::ActiveRecordError
       raise Error, "类目操作未能完整登记，请刷新并核实微信当前类目"
     end
@@ -146,6 +172,9 @@ module WechatPlatform
     rescue Date::Error
       raise Error, "请填写有效日期"
     end
+
+    def acceptances = WechatCategoryAcceptance.where(app_id: @app.id)
+    def acceptance = acceptances.where(first_category: @first, second_category: @second)
 
     def history
       Log.where(target_type: "App", target_id: @app.id, category: "wechat", action: EVENTS)

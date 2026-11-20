@@ -29,7 +29,8 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
         else
           case body.fetch("action")
           when "apply"  then rows << { "appid" => body.fetch("plugin_appid"), "status" => 1 }
-          when "update" then rows.find { |r| r["appid"] == body["plugin_appid"] }["version"] = body.fetch("user_version")
+          when "update"
+            rows.find { |r| r["appid"] == body["plugin_appid"] }["version"] = body.fetch("user_version") unless @omit_version
           when "unbind" then rows.reject! { |r| r["appid"] == body["plugin_appid"] }
           end
           raise Faraday::TimeoutError if @write_timeout
@@ -71,6 +72,7 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     patch admins_app_plugin_path(@b, "wxTool"), params: {user_version: "1.2"}
     delete admins_app_plugin_path(@b, "wxTool")
     assert_equal 1, @writes.size
+    @rows.fetch(@a.appid).first["status"] = 2
     @reject_write = true
     patch admins_app_plugin_path(@a, "wxTool"), params: {user_version: "1.2"}
     follow_redirect!
@@ -87,6 +89,53 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     assert_empty @rows.fetch(@a.appid)
     assert_equal %w[wechat.plugin_apply wechat.plugin_update wechat.plugin_unbind],
       Log.where(actor_type: "Admin", actor_id: @admin.id, target_type: "App", target_id: @a.id, status: "success").order(:id).pluck(:action)
+  end
+
+  test "申请中、已拒绝、已超时和未知状态不显示更新且阻止直接提交" do
+    [1, 3, 4, nil].each do |status|
+      @rows[@a.appid] = [{ "appid" => "wxTool", "status" => status }]
+      get admins_app_path(@a, tab: "plugins")
+      assert_select "input[name=user_version]", count: 0
+      patch admins_app_plugin_path(@a, "wxTool"), params: { user_version: "1.2" }
+      assert_match(/仅申请通过/, flash[:alert])
+    end
+    assert_empty @writes
+  end
+
+  test "插件名单无版本时超时阻止重复更新，按应用核实实际版本，成功后也不会重发" do
+    @omit_version = @write_timeout = true
+    [@a, @b].each { |app| @rows[app.appid] = [{ "appid" => "wxTool", "status" => 2 }] }
+    update = ->(app, version) { patch admins_app_plugin_path(app, "wxTool"), params: { user_version: version } }
+    verify = ->(app, op, value) { post verify_admins_app_plugin_path(app, "wxTool"), params: { operation_id: op.id, confirmed: "1", actual_version: value } }
+    2.times { update.call(@a, "1.2") }
+    assert_equal 1, @writes.size
+    op = WechatPluginUpdate.find_by!(app: @a, plugin_appid: "wxTool")
+    get admins_app_path(@a, tab: "plugins")
+    assert_select "input[name=user_version]", count: 0
+    assert_select "input[name=operation_id][value=?]", op.id
+    verify.call(@b, op, "1.2")
+    assert_not op.reload.confirmed?
+    saved = @rows.fetch(@a.appid).pop
+    get admins_app_path(@a, tab: "plugins")
+    @rows.fetch(@a.appid) << saved
+    update.call(@a, "1.2")
+    assert_equal 1, @writes.size
+    verify.call(@a, op, "1.2")
+    assert op.reload.confirmed?
+    update.call(@a, "1.2")
+    assert_equal 1, @writes.size
+    update.call(@a, "1.3")
+    newest = WechatPluginUpdate.find_by!(app: @a)
+    verify.call(@a, op, "1.2")
+    assert_not newest.reload.confirmed?
+    verify.call(@a, newest, "1.2")
+    @write_timeout = false
+    2.times { update.call(@a, "1.3") }
+    update.call(@b, "1.2")
+    assert_equal [@a.appid, @a.appid, @a.appid, @b.appid], @writes.map(&:first)
+    delete admins_app_plugin_path(@a, "wxTool")
+    assert_not WechatPluginUpdate.exists?(app: @a)
+    assert WechatPluginUpdate.exists?(app: @b, version: "1.2")
   end
 
   test "读取失效令牌或残缺名单后收起写入口，非超管和非授权小程序不能管理" do

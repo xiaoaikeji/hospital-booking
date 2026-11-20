@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let node;
 
   function renderFiles(items) {
+    files.querySelectorAll("[data-bs-toggle=datepicker]").forEach(el => window.tabler.Datepicker.getInstance(el)?.dispose());
     files.replaceChildren();
     items.forEach((item, index) => {
       const field = modal.querySelector("template").content.firstElementChild.cloneNode(true);
@@ -30,7 +31,11 @@ document.addEventListener("DOMContentLoaded", () => {
       permanent.addEventListener("change", () => {
         expiry.hidden = date.disabled = permanent.checked;
       });
+      const calendar = expiry.querySelector("[data-bs-toggle=datepicker]");
+      calendar.id = date.id + "-calendar";
+      calendar.dataset.bsBoundInput = "#" + date.id;
       files.append(field);
+      window.tabler.Datepicker.getOrCreateInstance(calendar);
     });
   }
 

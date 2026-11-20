@@ -39,8 +39,8 @@ module WechatPlatform
     end
 
     def replace!(kind, texts:, clear:, expected:)
-      @app.with_lock do
-        with_client do |client|
+      with_client do |client|
+        @app.with_lock do
           current = read(client, kind)
           raise Error, "微信域名已变化，请重新核对当前值" unless expected == revision(kind, current)
           updated = replacement(kind, current, texts, clear)

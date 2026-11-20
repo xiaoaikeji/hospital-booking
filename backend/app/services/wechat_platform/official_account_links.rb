@@ -79,7 +79,7 @@ module WechatPlatform
       op = WechatLinkOperation.where(app: @app).find_by(id: input[:operation_id]) || raise(Error, "未找到本公众号的待核实操作")
       locked(op.mini_appid) do
         op.reload
-        rows = with_client { |client| read(client).fetch(:rows) }
+        rows = with_client { |client| read(client, observe: false).fetch(:rows) }
         remote = status(rows, op.mini_appid)
         unless %w[started accepted].include?(op.state) && op.lock_version.to_s == input[:version] && input[:confirmed] == "1"
           raise Error, "请刷新后核实当前操作"
@@ -105,8 +105,16 @@ module WechatPlatform
       raise Error, "需要超级管理员权限" unless @actor&.super_admin?
     end
 
-    def read(client)
+    def read(client, observe: true)
+      # Record only transitions returned after the operation was accepted.
+      # Compare the version so a late response cannot settle a newer attempt.
+      accepted = observe ? WechatLinkOperation.where(app: @app, state: "accepted").to_a : []
       snapshot = { rows: client.list, at: Time.current }
+      statuses = snapshot[:rows].to_h { |row| row.values_at("appid", "status") }
+      accepted.each do |op|
+        next unless op.observed?(statuses[op.mini_appid])
+        WechatLinkOperation.where(id: op.id, lock_version: op.lock_version, state: "accepted").update_all(state: "applied", updated_at: Time.current)
+      end
       Rails.cache.write(cache_key, snapshot, expires_in: 7.days)
       snapshot
     end

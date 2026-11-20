@@ -9,6 +9,13 @@ module Admins
       change("update", params[:id], "微信已确认插件版本更新", version: version) { |id| service.update(id, version) }
     end
 
+    def verify
+      version = params[:actual_version].to_s.strip
+      change("verify", params[:id], "已登记插件当前版本", version: version) do |id|
+        service.verify(id, params[:operation_id], params[:confirmed], version)
+      end
+    end
+
     def destroy
       change("unbind", params[:id], "微信已确认解除插件") { |id| service.unbind(id) }
     end

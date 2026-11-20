@@ -11,12 +11,22 @@
       <td class="text-break" data-label="AppID"><%= plugin.fetch("appid") %></td>
       <% status = plugin["status"].to_s.to_i %>
       <td data-label="状态"><span class="badge bg-<%= {1=>"warning",2=>"success",3=>"danger"}.fetch(status, "secondary") %>-lt"><%= Wechat::MiniProgramPluginClient::STATUS_LABELS.fetch(status, "未知") %></span></td>
-      <td data-label="版本"><%= plugin["version"].presence || "—" %></td>
+      <td data-label="版本"><%= plugin["version"].presence || ("#{plugin["confirmed_version"]}（核实值）" if plugin["confirmed_version"]) || "—" %></td>
       <% if manage %><td class="plugin-actions"><div class="d-flex flex-wrap gap-2 align-items-center">
+        <% if (op = plugin["pending_update"]) %>
+          <p class="mb-1 text-warning">更新至 <%= op.version %> 的结果待核实。</p>
+          <%= form_with url: verify_admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), class: "d-flex flex-wrap align-items-center gap-1" do |form| %>
+            <%= form.hidden_field :operation_id, value: op.id %>
+            <%= form.text_field :actual_version, id: nil, maxlength: 32, required: true, placeholder: "实际版本", value: plugin["version"], class: "form-control form-control-sm w-auto", aria: { label: "微信当前实际版本" } %>
+            <label class="form-check mb-0"><%= form.check_box :confirmed, class: "form-check-input", required: true %><span>已在微信公众平台核实本次结果</span></label>
+            <%= form.button class: "btn btn-sm" do %><%= render "layouts/admins/icon", name: :check %>登记核实结果<% end %>
+          <% end %>
+        <% elsif WechatPlatform::AppPlugins.update_allowed?(plugin) %>
         <%= form_with url: admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), method: :patch, class: "d-flex gap-1 align-items-center" do |f| %>
           <%= f.text_field :user_version, id: nil, value: (draft["version"] if draft["action"] == "update" && draft["id"] == plugin["appid"]),
             placeholder: "版本号", size: 8, maxlength: 32, required: true, class: "form-control form-control-sm w-auto", aria: { label: "#{plugin['appid']} 的目标版本" } %>
           <%= f.button class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>更新<% end %>
+        <% end %>
         <% end %>
         <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#unbind-plugin-<%= index %>-confirm"><%= render "layouts/admins/icon", name: :close %>解除</button>
       </div></td><% end %>

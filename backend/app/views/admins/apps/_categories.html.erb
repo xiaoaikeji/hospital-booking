@@ -21,6 +21,16 @@
       <% end %>
     </div>
   <% elsif @category_page[:blocked] %><p class="text-warning px-3 pt-3 mb-0" role="status"><%= @category_page[:blocked] %></p><% end %>
+  <% @category_page[:waiting].each do |entry| %>
+    <div class="card-body border-top">
+      <p>类目 <%= entry.first_category %> / <%= entry.second_category %> 已受理，等待微信列表更新。</p>
+      <%= form_with url: verify_admins_app_categories_path(@app, application_context_params), class: "d-flex flex-wrap align-items-center gap-2" do |form| %>
+        <%= form.hidden_field :acceptance_id, value: entry.id %>
+        <label class="form-check mb-0"><%= form.check_box :confirmed, class: "form-check-input", required: true %><span>已在微信公众平台确认本次申请被拒或该类目已移除</span></label>
+        <%= render "admins/shared/submit_button", label: "登记核实结果", icon: :check %>
+      <% end %>
+    </div>
+  <% end %>
   <% quota = [("本月剩余 #{settings['quota']} 次" if settings['quota']), ("最多 #{settings['category_limit']} 个类目" if settings['category_limit'])].compact %>
   <% if quota.any? %><p class="text-secondary small px-3 py-2 mb-0"><%= quota.join(" · ") %></p><% end %>
   <% if categories.empty? %>

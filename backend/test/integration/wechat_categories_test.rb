@@ -129,6 +129,39 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "微信已受理但未同步，重开或直接重复申请均不再提交，同院其他小程序仍可申请" do
+    other = App.create!(provider: "wechat", appid: "wxCategoryOther")
+    auth = other.create_app_authorization!(refresh_token: "other-only")
+    Rails.cache.write("apps/#{other.id}/channel_token", { value: "category-other", revision: auth.updated_at.to_f })
+    calls = []
+    @stubs.post("/cgi-bin/wxopen/addcategory") { |env| calls << env.params.fetch("access_token"); response_for(errcode: 0) }
+    apply = ->(app, revision) { post admins_app_categories_path(app), params: {revision: revision, first: 11, second: 30}, as: :json }
+    apply.call(@hospital_app, revision)
+    assert_response :success
+    updated = revision
+    modal = css_select("#category-modal").sole
+    assert_not_includes modal["data-tree"], "信息展示"
+    assert_select "p", text: /11 \/ 30 已受理/
+    apply.call(@hospital_app, updated)
+    assert_response :unprocessable_content
+    assert_match(/已受理/, response.parsed_body["error"])
+    apply.call(other, WechatPlatform::AppCategories.new(other).page[:revision])
+    assert_response :success
+    assert_equal %w[category-test category-other], calls
+    @rows << {"first"=>11, "second"=>30, "audit_status"=>1}
+    revision
+    assert_not WechatCategoryAcceptance.exists?(app: @hospital_app)
+    @rows.clear
+    apply.call(@hospital_app, revision)
+    assert_response :success
+    acceptance = WechatCategoryAcceptance.find_by!(app: @hospital_app)
+    post verify_admins_app_categories_path(other), params: {acceptance_id: acceptance.id, confirmed: "1"}
+    assert WechatCategoryAcceptance.exists?(id: acceptance.id)
+    post verify_admins_app_categories_path(@hospital_app), params: {acceptance_id: acceptance.id, confirmed: "1"}
+    assert_not WechatCategoryAcceptance.exists?(id: acceptance.id)
+    assert WechatCategoryAcceptance.exists?(app: other)
+  end
+
   test "类目回调校验授权应用并去重，不改变代码审核和应用运行状态" do
     now = Time.current.to_i
     xml = "<xml><ToUserName>gh_category</ToUserName><MsgType>event</MsgType><Event>wxa_category_audit</Event><first>10</first><second>20</second><ret>3</ret><CreateTime>#{now}</CreateTime></xml>"

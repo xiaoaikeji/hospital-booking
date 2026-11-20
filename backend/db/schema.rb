@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_20_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -259,6 +259,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
     t.index ["wechat_violation_id"], name: "index_wechat_appeals_on_wechat_violation_id"
   end
 
+  create_table "wechat_category_acceptances", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "first_category", null: false
+    t.integer "second_category", null: false
+    t.datetime "updated_at", null: false
+    t.index ["app_id", "first_category", "second_category"], name: "idx_on_app_id_first_category_second_category_0d40974d54", unique: true
+    t.index ["app_id"], name: "index_wechat_category_acceptances_on_app_id"
+  end
+
   create_table "wechat_link_operations", force: :cascade do |t|
     t.string "action", null: false
     t.bigint "app_id", null: false
@@ -286,6 +296,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
     t.index ["app_id", "event_key"], name: "index_wechat_notification_events_on_app_id_and_event_key", unique: true
     t.index ["app_id"], name: "index_wechat_notification_events_on_app_id"
     t.index ["status", "id"], name: "index_wechat_notification_events_on_status_and_id"
+  end
+
+  create_table "wechat_plugin_updates", force: :cascade do |t|
+    t.bigint "app_id", null: false
+    t.boolean "confirmed", default: false, null: false
+    t.datetime "created_at", null: false
+    t.string "plugin_appid", null: false
+    t.datetime "updated_at", null: false
+    t.string "version", null: false
+    t.index ["app_id", "plugin_appid"], name: "index_wechat_plugin_updates_on_app_id_and_plugin_appid", unique: true
+    t.index ["app_id"], name: "index_wechat_plugin_updates_on_app_id"
   end
 
   create_table "wechat_violations", force: :cascade do |t|
@@ -323,8 +344,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_010000) do
   add_foreign_key "open_platform_operations", "apps"
   add_foreign_key "open_platform_operations", "open_platform_accounts"
   add_foreign_key "wechat_appeals", "wechat_violations"
+  add_foreign_key "wechat_category_acceptances", "apps", on_delete: :cascade
   add_foreign_key "wechat_link_operations", "apps"
   add_foreign_key "wechat_link_operations", "apps", column: "mini_program_id"
   add_foreign_key "wechat_notification_events", "apps"
+  add_foreign_key "wechat_plugin_updates", "apps", on_delete: :cascade
   add_foreign_key "wechat_violations", "apps"
 end
