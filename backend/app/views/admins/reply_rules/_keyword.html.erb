@@ -1,6 +1,19 @@
 <div class="row g-2 mb-3" data-keyword-row>
-  <div class="col-12 col-md-4"><label class="form-label">关键词</label><%= text_field_tag 'reply_rules[keywords][][words]', rule['words'], class: 'form-control', maxlength: 500, placeholder: '签到,活动' %></div>
-  <div class="col-5 col-md-2"><label class="form-label">匹配方式</label><%= select_tag 'reply_rules[keywords][][match]', options_for_select([['精确匹配', 'exact'], ['包含匹配', 'contain']], rule['match']), class: 'form-select' %></div>
-  <div class="col-7 col-md-4"><label class="form-label">回复内容</label><%= select_tag 'reply_rules[keywords][][reply_id]', options_for_select(@config.replies.map { |id, r| [r['name'], id] }, rule['reply_id']), include_blank: '请选择', class: 'form-select' %></div>
-  <div class="col-12 col-md-2 d-flex align-items-end"><button type="button" class="btn btn-outline-danger" data-remove-keyword>删除</button></div>
+  <div class="col-12 col-md-4">
+    <%= label_tag "keyword-#{index}-words", "关键词", class: "form-label" %>
+    <%= text_field_tag "reply_rules[keywords][][words]", rule["words"], id: "keyword-#{index}-words", class: "form-control", maxlength: 500, size: nil, placeholder: "签到,活动" %>
+  </div>
+  <div class="col-5 col-md-2">
+    <%= label_tag "keyword-#{index}-match", "匹配方式", class: "form-label" %>
+    <%= select_tag "reply_rules[keywords][][match]", options_for_select([["精确匹配", "exact"], ["包含匹配", "contain"]], rule["match"]),
+          id: "keyword-#{index}-match", class: "form-select", data: { enhanced_select: "single" } %>
+  </div>
+  <div class="col-7 col-md-4">
+    <%= label_tag "keyword-#{index}-reply", "回复内容", class: "form-label" %>
+    <%= select_tag "reply_rules[keywords][][reply_id]", options_for_select(@config.replies.map { |id, r| [r["name"], id] }, rule["reply_id"]),
+          id: "keyword-#{index}-reply", include_blank: "请选择", class: "form-select", data: { enhanced_select: "single" } %>
+  </div>
+  <div class="col-12 col-md-2 d-flex align-items-end">
+    <button type="button" class="btn btn-outline-danger" data-remove-keyword><%= render "layouts/admins/icon", name: :trash %>删除</button>
+  </div>
 </div>

@@ -2,6 +2,16 @@
 module Notifications
   class Error < StandardError; end
 
+  class FieldError < Error
+    def initialize(message, field:, message_index: nil)
+      super(message)
+      @field = field
+      @message_index = message_index
+    end
+
+    def feedback = { error: message, field: @field, message_index: @message_index }.compact
+  end
+
   def self.dispatch(event:, subject:, target:, messages:, idempotency_key:, scheduled_at: nil, data: nil)
     return if target.blank?
     raise Error, "请提供事件去重标识" if idempotency_key.blank?

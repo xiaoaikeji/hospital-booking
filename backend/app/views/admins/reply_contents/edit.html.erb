@@ -11,19 +11,36 @@
   <div class="row g-3 align-items-start">
     <div class="col-12 col-lg-8"><section class="card">
       <div class="card-header"><h2 class="card-title"><%= @app.display_name %></h2></div><div class="card-body">
-        <label class="form-label required" for="reply-name">内容名称</label><input id="reply-name" class="form-control mb-3" maxlength="60" value="<%= @reply['name'] %>" placeholder="例如 活动说明" required>
+        <label class="form-label required" for="reply-name">内容名称</label><div class="mb-3"><input id="reply-name" class="form-control" maxlength="60" value="<%= @reply['name'] %>" placeholder="例如 活动说明" required data-reply-field="name" data-required-message="请填写回复内容名称"></div>
         <% if params[:id] %>
           <label class="form-label" for="reply-scope">修改范围</label>
           <select id="reply-scope" class="form-select mb-3" data-enhanced-select="single"><option value="only" <%= 'selected' if @input[:scope] == 'only' %>><%= params[:qrcode_id].present? ? '仅改这个码' : '复制为新的回复内容' %></option><option value="all" <%= 'selected' if @input[:scope] == 'all' %>>更新全部</option></select>
-          <div data-reply-impacts class="alert alert-warning d-block"><strong>更新全部将影响以下入口</strong><ul class="mb-0"><% @impacts.each do |item| %><li><%= item %></li><% end %><% if @impacts.empty? %><li>暂无已绑定入口</li><% end %></ul></div>
+          <div data-reply-impacts class="<%= class_names("alert alert-warning", "d-none" => @input[:scope] != "all") %>">
+            <div>
+              <strong>更新全部将影响以下入口</strong>
+              <ul class="mb-0">
+                <% @impacts.each do |item| %><li><%= item %></li><% end %>
+                <% if @impacts.empty? %><li>暂无已绑定入口</li><% end %>
+              </ul>
+            </div>
+          </div>
         <% end %>
         <div data-reply-items></div>
-        <div class="d-flex flex-wrap gap-2"><button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button><button type="button" class="btn" data-reply-add="miniprogrampage"><%= render "layouts/admins/icon", name: :plus %>新增小程序卡片</button></div>
-      </div><div class="card-footer d-flex flex-wrap gap-2"><button class="btn btn-primary" type="button" data-reply-save><%= render "layouts/admins/icon", name: :save %>保存</button><span class="form-hint mb-0 align-self-center">按当前顺序一次保存全部消息。</span></div>
+        <div class="btn-list justify-content-end"><button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button><button type="button" class="btn" data-reply-add="miniprogrampage"><%= render "layouts/admins/icon", name: :plus %>新增小程序卡片</button></div>
+      </div><div class="card-footer btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %></div>
     </section></div>
     <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">回复预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section>
       <%= render "admins/shared/notification_variables", fields: @variable_fields %>
     </div>
   </div>
-  <template data-reply-card-template><label class="form-label">目标小程序</label><select class="form-select mb-3" data-content="appid"><option value="">请选择</option><% @targets.each do |target| %><%= tag.option target.display_name, value: target.appid %><% end %></select></template>
+  <template data-reply-card-template>
+    <div class="mb-3">
+      <label class="form-label required">目标小程序</label>
+      <select class="form-select" data-content="appid" data-reply-field="appid" data-required-message="请选择目标小程序"
+              data-enhanced-select="search" aria-required="true" required>
+        <option value="">请选择目标小程序</option>
+        <% @targets.each do |target| %><%= tag.option target.display_name, value: target.appid %><% end %>
+      </select>
+    </div>
+  </template>
 </div>

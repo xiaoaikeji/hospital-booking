@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let node;
 
   function renderFiles(items) {
-    files.querySelectorAll("[data-bs-toggle=datepicker]").forEach(el => window.tabler.Datepicker.getInstance(el)?.dispose());
+    files.querySelectorAll("[data-admin-date-input]").forEach(input => window.tabler.Datepicker.getInstance(input)?.dispose());
     files.querySelectorAll("[data-bs-toggle=tooltip]").forEach(el => window.tabler.Tooltip.getInstance(el)?.dispose());
     files.replaceChildren();
     items.forEach((item, index) => {
@@ -30,13 +30,10 @@ document.addEventListener("DOMContentLoaded", () => {
       date.name = "expire_times[" + index + "]";
       expiry.querySelector("label").htmlFor = date.id;
       permanent.addEventListener("change", () => {
+        if (permanent.checked) window.tabler.Datepicker.getInstance(date)?.hide();
         expiry.hidden = date.disabled = permanent.checked;
       });
-      const calendar = expiry.querySelector("[data-bs-toggle=datepicker]");
-      calendar.id = date.id + "-calendar";
-      calendar.dataset.bsBoundInput = "#" + date.id;
       files.append(field);
-      window.tabler.Datepicker.getOrCreateInstance(calendar);
       window.tabler.Tooltip.getOrCreateInstance(field.querySelector("[data-bs-toggle=tooltip]"));
     });
   }

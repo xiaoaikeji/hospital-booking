@@ -91,12 +91,15 @@ module WechatPlatform
 
     def normalize(rows)
       raise Notifications::Error, "请新增 1～8 条文字消息" unless rows.is_a?(Array) && rows.size.between?(1, 8)
-      messages = rows.map do |raw|
+      messages = rows.each_with_index.map do |raw, index|
         raise Notifications::Error, "消息格式无效" unless raw.is_a?(Hash)
         item = raw.deep_stringify_keys
         raise Notifications::Error, "消息格式无效" unless item["content"].is_a?(Hash)
         text = item.dig("content", "text").to_s.gsub("\r\n", "\n")
-        raise Notifications::Error, "企微通知仅支持文字，每条 1～2048 字节" unless item["type"] == "text" && text.strip.present? && text.bytesize <= 2048
+        raise Notifications::Error, "企微通知仅支持文字" unless item["type"] == "text"
+        unless text.strip.present? && text.bytesize <= 2048
+          raise Notifications::FieldError.new("文字应为 1～2048 字节", field: "text", message_index: index)
+        end
         id = item["id"].presence || SecureRandom.uuid
         raise Notifications::Error, "消息标识无效" unless id.is_a?(String) && id.match?(/\A[A-Za-z0-9:_-]{1,100}\z/)
         { "id" => id, "type" => "text", "content" => { "text" => text } }

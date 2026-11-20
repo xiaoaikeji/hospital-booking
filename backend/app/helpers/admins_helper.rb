@@ -54,6 +54,20 @@ module AdminsHelper
     tag.span(App::STATUSES.fetch(status), class: "badge bg-#{color}-lt")
   end
 
+  def notification_event_label(event)
+    Notifications::EventCatalog.definitions.dig(event, "label") || {
+      "official_account.keyword" => "关键词回复",
+      "official_account.subscribe" => "关注回复",
+      "official_account.scan" => "扫码回复",
+      "official_account.click" => "菜单回复"
+    }.fetch(event, "其他事件")
+  end
+
+  def notification_status_badge(status, label = Notification::STATES.fetch(status))
+    color = { "pending" => "secondary", "sending" => "info", "sent" => "success", "failed" => "danger", "uncertain" => "warning" }.fetch(status)
+    tag.span(label, class: "badge bg-#{color}-lt")
+  end
+
   def configuration_source(source)
     case source
     when "系统配置", "加密数据库" then [ source, "success" ]

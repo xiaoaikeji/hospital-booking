@@ -9,6 +9,6 @@
   <% end %>
   <% if @bindable.any? %><%= render "app_form", account: nil %>
   <% else %><%= render "admins/shared/list_empty", icon: :device_mobile, title: "暂无可用的微信应用", description: "请选择已完成平台授权、未绑定账号且没有待核实操作的应用。" %>
-    <div class="card-footer"><%= link_to "应用管理", admins_apps_path(provider: "wechat"), class: "btn" %></div>
+    <div class="card-footer btn-list justify-content-end"><%= link_to "应用管理", admins_apps_path(provider: "wechat"), class: "btn" %></div>
   <% end %>
 </section>

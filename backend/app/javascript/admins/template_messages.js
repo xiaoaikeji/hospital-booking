@@ -29,14 +29,20 @@ document.addEventListener("DOMContentLoaded", () => {
         .replace(/\{\{\s*(\w+)\.DATA\s*\}\}/g, (_, key) => definition.fields[mapping[key]]?.example || ""); preview.style.whiteSpace = "pre-wrap";
     }
     choice.onchange = draw; enhance(choice); draw();
-    section.querySelector("[data-template-save]").onclick = async (e) => {
-      e.target.disabled = true; feedback.hidden = true;
+    const save = section.querySelector("[data-template-save]");
+    save.onclick = async () => {
+      if (save.disabled) return;
+      window.adminForms.setBusy(root, true);
+      feedback.hidden = true;
       try {
         const response = await fetch(root.dataset.url, { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-Token": document.querySelector("meta[name='csrf-token']")?.content || "" }, body: JSON.stringify({ template_binding: { event, template_id: choice.value, mapping, revision } }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || "绑定未保存"); revision = result.revision;
         feedback.className = "alert alert-success"; feedback.textContent = "绑定已保存，同类事件将复用此配置。";
       } catch (error) { feedback.className = "alert alert-danger"; feedback.textContent = error.message; }
-      finally { feedback.hidden = false; e.target.disabled = false; }
+      finally {
+        feedback.hidden = false;
+        window.adminForms.setBusy(root, false);
+      }
     };
   });
 });

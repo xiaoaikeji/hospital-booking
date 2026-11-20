@@ -1,4 +1,6 @@
-<div class="page-header mt-0 mb-3"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :settings, icon_class: "w-5 h-5" %></span><%= title %></h1></div>
+<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :settings } do %>
+  <%= local_assigns[:actions] %>
+<% end %>
 <% pages = system_settings_pages %>
 <% if pages.any? %>
   <nav class="nav nav-tabs mb-3" aria-label="系统设置">

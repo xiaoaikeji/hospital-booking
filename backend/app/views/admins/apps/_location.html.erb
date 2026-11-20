@@ -40,7 +40,9 @@
           <%= hidden_field_tag :observed_review, entry.review.to_json, id: nil %>
           <label class="form-check"><%= check_box_tag :confirmed, "1", false, required: true, class: "form-check-input", id: nil %>
             <span class="form-check-label"><%= entry.name %> · <%= outcome %></span></label>
-          <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :check %>登记核实结果</button>
+          <div class="btn-list justify-content-end">
+            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :check %>登记核实结果</button>
+          </div>
         <% end %>
         <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm", title: "登记核实结果",
             context: "#{@app.display_name} · #{entry.name}", description: "#{outcome}。确认后按微信最新状态开放相应操作。",

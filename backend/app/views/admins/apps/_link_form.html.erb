@@ -1,14 +1,25 @@
-<div class="card-footer">
 <% if page[:candidates].any? %>
-  <%= form_with url: admins_app_mini_program_links_path(@app, context), class: "row g-3 align-items-end", id: "official-link-create" do |f| %>
+  <%= form_with url: admins_app_mini_program_links_path(@app, context), id: "official-link-create" do |f| %>
     <%= f.hidden_field :revision, value: page[:revision] %>
-    <div class="col-12 col-lg-5"><%= f.label :mini_program_id, "本院小程序", class: "form-label required" %>
-      <%= f.select :mini_program_id, page[:candidates].map { |t| ["#{t.display_name}（#{t.appid}）", t.id] }, {include_blank: "请选择小程序"}, class: "form-select", required: true, data: {enhanced_select: "search"} %></div>
-    <div class="col-auto"><label class="form-check"><%= f.check_box :notify_users, checked: true, class: "form-check-input" %>通知公众号粉丝</label>
-      <label class="form-check mb-0"><%= f.check_box :show_profile, checked: true, class: "form-check-input" %>展示在公众号主页</label></div>
-    <div class="col-auto"><button type="button" class="btn btn-primary" data-bs-target="#official-link-confirm" data-bs-toggle="modal"><%= render "layouts/admins/icon", name: :plus %>发起关联</button></div>
+    <div class="card-body border-top">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-lg-5">
+          <%= f.label :mini_program_id, "本院小程序", class: "form-label required" %>
+          <%= f.select :mini_program_id, page[:candidates].map { |t| ["#{t.display_name}（#{t.appid}）", t.id] },
+                { include_blank: "请选择小程序" }, class: "form-select", required: true, data: { enhanced_select: "search" } %>
+        </div>
+        <div class="col-auto">
+          <label class="form-check"><%= f.check_box :notify_users, checked: true, class: "form-check-input" %>通知公众号粉丝</label>
+          <label class="form-check mb-0"><%= f.check_box :show_profile, checked: true, class: "form-check-input" %>展示在公众号主页</label>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer btn-list justify-content-end">
+      <button type="button" class="btn btn-primary" data-bs-target="#official-link-confirm" data-bs-toggle="modal"><%= render "layouts/admins/icon", name: :plus %>发起关联</button>
+    </div>
   <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "official-link-confirm", form_id: "official-link-create", title: "发起关联", context: @app.display_name, description: "向选定的小程序管理员发送关联申请。", color: "primary", confirm_label: "确认发起关联", confirm_icon: :check %>
   <% content_for :head do %><%= javascript_include_tag "admins/official_account_links", defer: true %><% end %>
-<% else %><span class="text-secondary">暂无可新增关联的本院微信小程序。</span><% end %>
-</div>
+<% else %>
+  <div class="card-footer text-secondary">暂无可新增关联的本院微信小程序。</div>
+<% end %>
