@@ -1,32 +1,40 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { ref, watch } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { configurationStatus, pageLinks } from '@/store/app-configuration.js'
 import { checkAppAccess } from '@/utils/app-access.js'
+import { effectiveWebviewUrl } from '@/utils/page-link.js'
 
 const id = ref('')
+const openUrl = ref('')
 const webviewFailed = ref(false)
-const page = computed(() => {
-  if (configurationStatus.value !== 'ready') return null
-  return Object.values(pageLinks.value).flat().find(link =>
-    String(link.id) === id.value && link.link_type === 'webview' && link.url)
+
+watch([configurationStatus, pageLinks, id], ([status, links, id]) => {
+  const url = effectiveWebviewUrl({ status, links, id, openUrl: openUrl.value })
+  if (url === openUrl.value) return
+  webviewFailed.value = false
+  openUrl.value = url
 })
 
-onLoad(options => { id.value = options.id ?? '' })
-
-function retry() {
-  webviewFailed.value = false
+onLoad(options => {
+  // 每次直达先发起读取，避免用其他页面缓存的配置提前打开网页。
   checkAppAccess()
+  id.value = options.id ?? ''
+})
+
+async function retry() {
+  await checkAppAccess()
+  if (configurationStatus.value === 'ready') webviewFailed.value = false
 }
 </script>
 
 <template>
-  <web-view v-if="page && !webviewFailed" :src="page.url" @error="webviewFailed = true" />
+  <web-view v-if="openUrl && !webviewFailed" :src="openUrl" @error="webviewFailed = true" />
   <custom-service-paused v-else-if="configurationStatus === 'disabled'" />
   <view v-else class="webview-status">
     <text v-if="configurationStatus === 'loading'">正在读取网页配置…</text>
-    <template v-else-if="configurationStatus === 'error' || (page && webviewFailed)">
-      <text>{{ page ? '暂时无法加载网页' : '暂时无法读取网页配置' }}</text>
+    <template v-else-if="configurationStatus === 'error' || webviewFailed">
+      <text>{{ webviewFailed ? '暂时无法加载网页' : '暂时无法读取网页配置' }}</text>
       <button class="webview-retry" @tap="retry">重试</button>
     </template>
     <text v-else>网页暂不可用</text>

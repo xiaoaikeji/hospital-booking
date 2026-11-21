@@ -2,6 +2,14 @@ function showNavigationError(error) {
   if (!error?.errMsg?.includes('cancel')) uni.showToast({ title: '暂时无法打开', icon: 'none' })
 }
 
+export function effectiveWebviewUrl({ id, status, links, openUrl }) {
+  if (status === 'loading' || status === 'error') return openUrl
+  if (status !== 'ready') return ''
+
+  const link = Object.values(links).flat().find(item => String(item.id) === id && item.link_type === 'webview')
+  return link?.url || ''
+}
+
 export function openPageLink(link) {
   const { link_type: type, url, params } = link
   const fail = showNavigationError
