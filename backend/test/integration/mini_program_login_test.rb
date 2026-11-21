@@ -103,6 +103,16 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     assert_equal user_b.user_no, me(@b, b)["user_no"]
   end
 
+  test "credentials changed during the WeChat exchange cannot issue a device session" do
+    @during_login = -> { @a.update!(appsecret: SecureRandom.hex) }
+    post api_mini_program_session_path(@a.appid), params: { code: SecureRandom.hex }, as: :json
+    assert_response :service_unavailable
+    assert_empty UserApp.for_app(@a)
+    @during_login = nil
+    token = login(@a)
+    assert_equal response.parsed_body.fetch("user_no"), me(@a, token).fetch("user_no")
+  end
+
   test "expiry and cleanup preserve other devices and their new sessions" do
     first = login(@a)
     travel 1.day
@@ -139,12 +149,19 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     token = login(@a)
     assert_equal false, me(@a, token)["booking_phone_required"]
     Setting.create!(key: "appointment", settings: { require_mobile_auth: true })
+    user = UserApp.for_app(@a).sole.user
+    user.update!(mobile: "10000000002")
     assert_equal true, me(@a, token)["booking_phone_required"]
+    assert_nil user.verified_mobile
+    refute user.account_profile.key?("mobile")
     other = login(@b)
     bind(@a, token, mobile: "10000000009", user_no: me(@b, other)["user_no"])
     assert_response :success
     assert_equal @phone, response.parsed_body["mobile"]
     assert_equal false, response.parsed_body["booking_phone_required"]
+    assert_equal false, me(@a, login(@a))["booking_phone_required"]
+    assert_equal @phone, user.reload.verified_mobile
+    refute user.account_profile.key?("booking_phone_required")
     assert_predicate UserApp.for_app(@a).sole.user.mobile_verified_at, :present?
     assert_nil me(@b, other)["mobile"]
     @watermark = @b.appid
@@ -278,7 +295,7 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
   def login(app, **params)
     post api_mini_program_session_path(app.appid), params: { code: SecureRandom.hex, **params }, as: :json
     assert_response :created
-    assert_equal %w[expires_at logout_token token], response.parsed_body.keys.sort
+    assert_equal %w[expires_at logout_token token user_no], response.parsed_body.keys.sort
     response.parsed_body.fetch("token")
   end
 

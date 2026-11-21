@@ -3,6 +3,7 @@ module Wechat
     class Rejected < StandardError
       attr_reader :code
       def invalid_token? = [ 40001, 40014, 42001 ].include?(code)
+      def invalid_code? = [ 40029, 40163 ].include?(code)
 
       def initialize(code)
         @code = code

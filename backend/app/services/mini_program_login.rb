@@ -2,26 +2,28 @@ class MiniProgramLogin
   class Disabled < StandardError; end
   class AccountDisabled < StandardError; end
   class IdentityConflict < StandardError; end
+  class SharingChanged < StandardError; end
 
-  def initialize(app)
+  def initialize(app, provider: Wechat::MiniProgramLoginClient.new)
     @app = app
+    @provider = provider
   end
 
   def call(code, context: {}, ip: nil)
-    secret = Wechat::AccessToken.credential!(@app)
     original_group = MiniProgramLoginSettings.trusted_group(@app.appid)
-    openid, unionid = Wechat::MiniProgramLoginClient.new.identity(@app.appid, secret, code)
+    confirmed = @provider.identity(@app, code)
+    openid, unionid = confirmed.openid, confirmed.unionid
     attempts = 0
     begin
       attempts += 1
       UserApp.transaction(requires_new: true) do
         @app.lock!("FOR SHARE")
         raise Disabled unless @app.accessible?
-        raise Wechat::Error, "应用凭据已变更，请重新登录" unless Wechat::AccessToken.credential!(@app) == secret
+        @provider.check_credentials!(@app, confirmed)
 
         peers = unionid && MiniProgramLoginSettings.trusted_group(@app.appid, lock: "FOR SHARE")
         if unionid && original_group != peers
-          raise Wechat::Error, "应用的用户共享设置已变更，请重新登录"
+          raise SharingChanged, "应用的用户共享设置已变更，请重新登录"
         end
         lock_unionid!(unionid) if peers
         bindings = UserApp.for_app(@app)
@@ -40,7 +42,7 @@ class MiniProgramLogin
         if ip || context.present?
           ActiveRecord.after_all_transactions_commit { MiniProgramVisit.record(identity, context, ip: ip) }
         end
-        session
+        session.merge(user_no: user.user_no)
       end
     rescue ActiveRecord::RecordNotUnique
       # The losing first login (or a colliding public user number) rolls back its whole transaction.

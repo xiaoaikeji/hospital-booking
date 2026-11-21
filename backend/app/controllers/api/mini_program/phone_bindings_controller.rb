@@ -2,11 +2,7 @@ module Api
   module MiniProgram
     class PhoneBindingsController < BaseController
       def create
-        code = wechat_code
-        return unless code
-        mobile = Wechat::AccessToken.with_token(@app) do |token|
-          Wechat::MiniProgramLoginClient.new.phone_number(@app.appid, token, code)
-        end
+        mobile = Wechat::MiniProgramLoginClient.new.phone_number(@app, params[:code])
 
         # Logout, expiry or disablement during the exchange must take effect before writing.
         UserApp.transaction do
@@ -14,7 +10,7 @@ module Api
           raise MiniProgramLogin::Disabled unless @app.accessible?
           require_session(lock: true)
           return if performed?
-          @user.update!(mobile: mobile, mobile_verified_at: Time.current)
+          @user.verify_mobile!(mobile)
         end
         render_profile
       end

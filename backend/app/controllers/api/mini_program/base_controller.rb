@@ -12,11 +12,14 @@ module Api
       rescue_from MiniProgramLogin::IdentityConflict do
         render_error(:conflict, "identity_conflict", "微信身份关联冲突，请联系医院")
       end
-      rescue_from Wechat::Error, HttpConnection::Unavailable do |error|
+      rescue_from Wechat::MiniProgramLoginClient::MissingCode do |error|
+        render_error(:bad_request, "code_invalid", error.message)
+      end
+      rescue_from MiniProgramLogin::SharingChanged, Wechat::Error, HttpConnection::Unavailable do |error|
         render_error(:service_unavailable, "wechat_unavailable", error.message)
       end
       rescue_from Wechat::BaseClient::Rejected do |error|
-        if [ 40029, 40163 ].include?(error.code)
+        if error.invalid_code?
           render_error(:unprocessable_content, "code_invalid", "微信凭证已失效，请重试")
         else
           render_error(:bad_gateway, "wechat_rejected", error.message)
@@ -54,23 +57,12 @@ module Api
         MiniProgramLogin.check_account!(@identity, @user)
       end
 
-      def wechat_code
-        code = params[:code]
-        return code if code.is_a?(String) && code.bytesize.between?(1, 512) && !code.match?(/[[:space:][:cntrl:]]/)
-        render_error(:bad_request, "code_invalid", "缺少有效微信凭证")
-        nil
-      end
-
       def render_profile
-        profile = @user.slice(:user_no, :nickname, :avatar_url)
-        profile.merge!(@user.login_profile.slice("device_model", "operating_system", "region"))
-        profile[:mobile] = @user.mobile if @user.mobile_verified_at?
-        profile[:booking_phone_required] = profile[:mobile].blank? && MiniProgramLoginSettings.new("appointment").phone_required?
-        render json: profile
+        render json: @user.account_profile.merge(booking_phone_required: Appointments::PhoneVerification.required_for?(@user))
       end
 
       def visit_context
-        params.permit(:launch_scene, :channel_scene, :scene, :device_model, :operating_system, :device_platform).to_h
+        params.permit(:launch_scene, :channel_scene, :scene, :entry_id, :device_model, :operating_system, :device_platform).to_h
       end
 
       def render_error(status, code, message)
