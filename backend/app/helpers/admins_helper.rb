@@ -6,6 +6,7 @@ module AdminsHelper
 
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
+      [ "预约设置", edit_admins_system_settings_appointment_path, "admins/system_settings/appointment" ],
       [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ],
       [ "企微通知设置", edit_admins_system_settings_wecom_notifications_path, "admins/system_settings/wecom_notifications" ]
     ]
@@ -17,6 +18,7 @@ module AdminsHelper
     if current_admin.super_admin?
       groups << [ "应用管理", :device_mobile, [
         [ "应用列表", admins_apps_path, "admins/apps" ],
+        [ "小程序用户共享", edit_admins_user_sharing_path, "admins/user_sharing" ],
         [ "小程序页面配置", admins_page_links_path, "admins/page_links" ],
         [ "插件列表", admins_plugins_path, "admins/plugins" ],
       ] ]

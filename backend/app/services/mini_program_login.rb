@@ -9,6 +9,7 @@ class MiniProgramLogin
 
   def call(code, scene: nil)
     secret = Wechat::AccessToken.credential!(@app)
+    original_group = MiniProgramLoginSettings.trusted_group(@app.appid)
     openid, unionid = Wechat::MiniProgramLoginClient.new.identity(@app.appid, secret, code)
     attempts = 0
     begin
@@ -18,7 +19,10 @@ class MiniProgramLogin
         raise Disabled unless @app.accessible?
         raise Wechat::Error, "应用凭据已变更，请重新登录" unless Wechat::AccessToken.credential!(@app) == secret
 
-        peers = unionid && trusted_appids
+        peers = unionid && MiniProgramLoginSettings.trusted_group(@app.appid, lock: "FOR SHARE")
+        if unionid && original_group != peers
+          raise Wechat::Error, "应用的用户共享设置已变更，请重新登录"
+        end
         lock_unionid!(unionid) if peers
         bindings = UserApp.for_app(@app)
         identity = bindings.lock.find_by(openid: openid)
@@ -30,10 +34,11 @@ class MiniProgramLogin
         user = identity.user.lock!
         self.class.check_account!(identity, user)
         now = Time.current
-        identity.update!(unionid: identity.unionid.presence || unionid, last_sign_in_at: now, sign_in_count: identity.sign_in_count + 1)
+        identity.update!(unionid: unionid || identity.unionid, last_sign_in_at: now, sign_in_count: identity.sign_in_count + 1)
         user.update!(last_login_at: now)
-        self.class.record_scene(identity, scene)
-        MiniProgramSession.issue!(identity)
+        session = MiniProgramSession.issue!(identity)
+        ActiveRecord.after_all_transactions_commit { self.class.record_scene(identity, scene) } if scene.present?
+        session
       end
     rescue ActiveRecord::RecordNotUnique
       # The losing first login (or a colliding public user number) rolls back its whole transaction.
@@ -47,20 +52,18 @@ class MiniProgramLogin
   end
 
   def self.record_scene(identity, scene)
-    return unless scene.is_a?(String) && scene.present? && scene.length <= 128 && !scene.match?(/[[:cntrl:]]/)
-    Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: identity.user,
-      target: identity, details: { scene: scene })
+    return true unless scene.is_a?(String) && scene.present? && scene.length <= 128 && !scene.match?(/[[:cntrl:]]/)
+    Log.transaction(requires_new: true) do
+      Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: identity.user,
+        target: identity, details: { scene: scene })
+    end
+    true
+  rescue StandardError => error
+    Rails.logger.warn("Mini program entry log failed (#{error.class.name})")
+    false
   end
 
   private
-
-  # Each group is confirmed by the hospital against its current WeChat Open Platform account.
-  def trusted_appids
-    groups = Setting.find_by(key: "wechat")&.settings&.fetch("unionid_app_groups", nil)
-    return unless groups.is_a?(Array) && groups.all? { |group| group.is_a?(Array) && group.all?(String) }
-    return unless groups.flatten.uniq.size == groups.flatten.size
-    groups.find { |group| group.include?(@app.appid) }
-  end
 
   def lock_unionid!(unionid)
     # A new binding in either app must see the other transaction's committed identity.

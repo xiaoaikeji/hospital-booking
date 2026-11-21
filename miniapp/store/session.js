@@ -82,6 +82,10 @@ export function signOut() {
   return client.signOut()
 }
 
+export function retryRevocations() {
+  if (!demoMode) client.retryRevocations().catch(() => {})
+}
+
 export function noteEntry(options) {
   if (demoMode) return
   const scene = options?.query?.scene || options?.scene

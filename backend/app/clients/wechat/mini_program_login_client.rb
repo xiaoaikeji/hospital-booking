@@ -17,7 +17,8 @@ module Wechat
         raise HttpConnection::Unavailable, "微信未返回本应用的手机号"
       end
       number, country = info.values_at("purePhoneNumber", "countryCode")
-      unless number.is_a?(String) && country.is_a?(String) && country.match?(/\A[1-9]\d{0,2}\z/) &&
+      country = country.to_s.strip
+      unless number.is_a?(String) && country.match?(/\A[1-9]\d{0,2}\z/) &&
           number.match?(/\A\d{4,14}\z/) && (country + number).length <= 15
         raise HttpConnection::Unavailable, "微信未返回有效手机号"
       end

@@ -1,6 +1,11 @@
 // One instance per backend and AppID. A missing saved session is an intentional guest.
 export function createSessionClient({ saved, save, send, loginCode, changed }) {
-  let current = saved?.token ? saved : null
+  function credential({ token, expires_at, logout_token }) {
+    return { token, expires_at, logout_token }
+  }
+  let current = saved?.token ? credential(saved) : null
+  const revocations = new Set(Array.isArray(saved?.revocations) ? saved.revocations : [])
+  const revoking = new Map()
   let generation = 0
   let pending
 
@@ -8,8 +13,27 @@ export function createSessionClient({ saved, save, send, loginCode, changed }) {
     if (start !== generation) throw new Error('已退出登录')
   }
 
+  // One write records both the guest state and the DELETE still owed to the server.
+  function persist() {
+    save(revocations.size ? { ...current, revocations: [...revocations] } : current)
+  }
+
   function revoke(token) {
-    return send('session', { method: 'DELETE', token })
+    if (revoking.has(token)) return revoking.get(token)
+    const operation = send('session', { method: 'DELETE', token }).then(() => {
+      revocations.delete(token)
+      persist()
+    }).finally(() => { revoking.delete(token) })
+    revoking.set(token, operation)
+    return operation
+  }
+
+  async function retryRevocations() {
+    await Promise.all([...revocations].map(async token => {
+      // Reconnection can arrive before a disconnected request has reported its failure.
+      if (revoking.has(token)) await revoking.get(token).catch(() => {})
+      if (revocations.has(token)) await revoke(token)
+    }))
   }
 
   function exchange(scene) {
@@ -23,11 +47,14 @@ export function createSessionClient({ saved, save, send, loginCode, changed }) {
       if (!result?.token || !(Date.parse(result.expires_at) > Date.now())) throw new Error('登录响应无效，请重试')
       if (start !== generation) {
         // Logout ran while Rails was issuing this otherwise orphaned credential.
-        await revoke(result.token).catch(() => {})
+        const retired = result.logout_token || result.token
+        revocations.add(retired)
+        persist()
+        await revoke(retired).catch(() => {})
         assertCurrent(start)
       }
-      current = { token: result.token, expires_at: result.expires_at }
-      save(current)
+      current = credential(result)
+      persist()
       changed(true)
       return current.token
     })().finally(() => { if (pending === operation) pending = null })
@@ -75,10 +102,11 @@ export function createSessionClient({ saved, save, send, loginCode, changed }) {
     const previous = current
     current = null
     pending = null
-    save(null)
+    if (previous) revocations.add(previous.logout_token || previous.token)
+    persist()
     changed(false)
-    return previous ? revoke(previous.token) : Promise.resolve()
+    return retryRevocations()
   }
 
-  return { signIn, request, signOut }
+  return { signIn, request, signOut, retryRevocations }
 }

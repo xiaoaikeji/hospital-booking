@@ -137,3 +137,42 @@ test('local expiry renews before sending and network errors keep the Booking ses
   assert.equal(await client.request('me'), 'renewed')
   assert.equal(state.codes, 1)
 })
+
+test('offline logout survives restart as a guest and revokes only the retired credential on reconnect', async () => {
+  const offline = device(async () => { throw new Error('offline') }, { ...credential('private-access'), logout_token: 'logout-proof' })
+  await assert.rejects(offline.client.signOut(), /offline/)
+  assert.equal(offline.state.saved?.token, undefined)
+  assert.deepEqual(offline.state.saved, { revocations: ['logout-proof'] })
+  const revoked = []
+  const restart = device(async (path, { method, token }) => {
+    assert.equal(path, 'session')
+    assert.equal(method, 'DELETE')
+    revoked.push(token)
+  }, offline.state.saved)
+  await assert.rejects(restart.client.request('me'), /请先登录/)
+  await Promise.all([restart.client.retryRevocations(), restart.client.retryRevocations()])
+  assert.deepEqual(revoked, ['logout-proof'])
+  assert.equal(restart.state.codes, 0)
+  assert.equal(restart.state.saved, null)
+})
+
+test('a reconnect during a failed logout finishes revocation without touching a new login', async () => {
+  const delayed = deferred()
+  const retired = []
+  const { client, state } = device(async (path, { method, token }) => {
+    if (method === 'DELETE') {
+      retired.push(token)
+      if (retired.length === 1) { await delayed.promise; throw new Error('offline') }
+    } else if (path === 'session') return credential('new-device-session')
+    else return token
+  })
+  const offline = assert.rejects(client.signOut(), /offline/)
+  await client.signIn()
+  const reconnected = client.retryRevocations()
+  delayed.resolve()
+  await Promise.all([offline, reconnected])
+  assert.deepEqual(retired, ['previous', 'previous'])
+  assert.equal(state.saved.token, 'new-device-session')
+  assert.equal(state.saved.revocations, undefined)
+  assert.equal(await client.request('me'), 'new-device-session')
+})

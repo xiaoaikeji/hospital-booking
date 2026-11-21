@@ -1,9 +1,14 @@
 <script setup>
-import { onShow } from '@dcloudio/uni-app'
+import { onLaunch, onShow } from '@dcloudio/uni-app'
 import { checkAppAccess } from '@/utils/app-access.js'
-import { noteEntry } from '@/store/session.js'
+import { noteEntry, retryRevocations } from '@/store/session.js'
+
+onLaunch(() => {
+  uni.onNetworkStatusChange(({ isConnected }) => { if (isConnected) retryRevocations() })
+})
 
 onShow(options => {
+  retryRevocations()
   checkAppAccess()
   noteEntry(options)
 })

@@ -1,0 +1,26 @@
+<% content_for :title, "小程序用户共享 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "小程序用户共享", icon: :device_mobile } do %>
+  <%= link_to "应用列表", admins_apps_path, class: "btn" %>
+<% end %>
+<% if @settings.apps.empty? %>
+  <div class="card"><%= render "admins/shared/list_empty", icon: :device_mobile, title: "暂无微信小程序" %></div>
+<% else %>
+  <%= form_with scope: :sharing, url: admins_user_sharing_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
+    <%= f.hidden_field :revision, value: @settings.revision %>
+    <%= render layout: "admins/shared/configuration_card", locals: { title: "微信开放平台分组", record: @settings } do %>
+      <p class="text-secondary">请先在微信开放平台核实归属。同一开放平台账号下的小程序可选同一组，通过 UnionID 共享用户。移出原组的应用在用户下次登录时重新取得 UnionID。</p>
+      <% choices = [["独立登录", "0"]] + @settings.group_slots.map { |number| ["共享组 #{number}", number.to_s] } %>
+      <div class="row g-3">
+        <% @settings.apps.each do |app| %>
+          <div class="col-md-6 col-xl-4">
+            <%= label_tag dom_id(app, :group), app.display_name, class: "form-label mb-1" %>
+            <% if app.nickname.present? %><div class="text-secondary small mb-1"><%= app.appid %></div><% end %>
+            <%= select_tag "sharing[memberships][#{app.appid}]", options_for_select(choices, @settings.group_number(app.appid) || "0"),
+                  id: dom_id(app, :group), class: "form-select", data: { enhanced_select: "single" }, aria: { label: "#{app.display_name} 的共享组" } %>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>

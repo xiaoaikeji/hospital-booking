@@ -45,6 +45,7 @@ class App < ApplicationRecord
   def deletion_blocker
     return "已有微信授权记录，只能停用" if app_authorization&.recorded?
     return "已有用户身份记录，只能停用" if UserApp.for_app(self).exists?
+    return "请先在小程序用户共享中移除此应用" if code_capable? && MiniProgramLoginSettings.trusted_group(appid)
     return "已有开放平台绑定历史，只能停用" if open_platform_account_id?
     return "该应用还有专属页面配置，请先删除专属配置" if links.exists?
     if app_type == "official_account" && Setting.find_by(key: "notification")&.settings&.dig("accounts", appid).present?

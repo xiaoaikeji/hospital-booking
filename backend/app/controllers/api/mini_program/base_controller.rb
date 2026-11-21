@@ -64,8 +64,7 @@ module Api
       def render_profile
         profile = @user.slice(:user_no, :nickname, :avatar_url)
         profile[:mobile] = @user.mobile if @user.mobile_verified_at?
-        required = Setting.find_by(key: "appointment")&.settings&.fetch("require_mobile_auth", false)
-        profile[:booking_phone_required] = ActiveModel::Type::Boolean.new.cast(required) == true && profile[:mobile].blank?
+        profile[:booking_phone_required] = profile[:mobile].blank? && MiniProgramLoginSettings.new("appointment").phone_required?
         render json: profile
       end
 

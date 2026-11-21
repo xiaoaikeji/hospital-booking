@@ -15,10 +15,12 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     end
     @openid = "fixture-openid"
     @phone = "10000000001"
+    @country = "86"
     @exchanges = []
     @tokens = []
     @stubs.get("/sns/jscode2session") do |env|
       @exchanges << env.params.slice("appid", "secret", "grant_type")
+      @during_login&.call
       assert_predicate env.params["js_code"], :present?
       response_for(openid: @openid, unionid: @unionid, session_key: "unused-test-value")
     end
@@ -33,7 +35,7 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
       @during_exchange&.call
       raise Faraday::TimeoutError if @timeout
       @phone_error ? response_for(errcode: @phone_error) : response_for(phone_info: {
-        purePhoneNumber: @phone, countryCode: "86", watermark: { appid: @watermark || @a.appid }
+        purePhoneNumber: @phone, countryCode: @country, watermark: { appid: @watermark || @a.appid }
       })
     end
   end
@@ -162,6 +164,63 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     assert_equal [ @a.appid ], @tokens
   end
 
+  test "WeChat numeric country codes bind the same verified number as string codes" do
+    token = login(@a)
+    @country = 86
+    bind(@a, token)
+    assert_response :success
+    assert_equal @phone, response.parsed_body.fetch("mobile")
+    @country, @phone = 1, "2025550100"
+    bind(@a, token)
+    assert_response :success
+    assert_equal "+12025550100", response.parsed_body.fetch("mobile")
+    @country = 86.5
+    bind(@a, token)
+    assert_response :service_unavailable
+    assert_equal "+12025550100", me(@a, token)["mobile"]
+  end
+
+  test "a failed entry log leaves the committed login usable" do
+    Log.connection.add_check_constraint(:logs, "action <> 'mini_program.entry'", name: "reject_test_entry", validate: false)
+    token = login(@a, scene: "clinic-share")
+    assert_equal UserApp.for_app(@a).sole.user.user_no, me(@a, token)["user_no"]
+    post api_mini_program_entry_scenes_path(@a.appid), headers: bearer(token), params: { scene: "clinic-share" }, as: :json
+    assert_response :service_unavailable
+    assert_equal 0, Log.where(action: "mini_program.entry").count
+  end
+
+  test "a logout receipt can only revoke the issuing device under its own application" do
+    phone = login(@a)
+    receipt = response.parsed_body.fetch("logout_token")
+    computer = login(@a)
+    get api_mini_program_me_path(@a.appid), headers: bearer(receipt)
+    assert_response :unauthorized
+    delete api_mini_program_session_path(@b.appid), headers: bearer(receipt)
+    assert_response :no_content
+    me(@a, phone)
+    2.times do
+      delete api_mini_program_session_path(@a.appid), headers: bearer(receipt)
+      assert_response :no_content
+    end
+    get api_mini_program_me_path(@a.appid), headers: bearer(phone)
+    assert_response :unauthorized
+    me(@a, computer)
+  end
+
+  test "an exchange crossing a sharing change cannot restore a UnionID from the previous platform" do
+    group = Setting.create!(key: "wechat", settings: { "unionid_app_groups" => [ [ @a.appid, @b.appid ] ] })
+    @unionid = "fixture-before-transfer"
+    original = login(@a)
+    @during_login = -> { group.update!(settings: { "unionid_app_groups" => [] }) }
+    post api_mini_program_session_path(@a.appid), params: { code: SecureRandom.hex }, as: :json
+    assert_response :service_unavailable
+    assert_equal 1, UserApp.for_app(@a).sole.sessions.size
+    @during_login = nil
+    @unionid = "fixture-after-transfer"
+    assert_equal me(@a, original)["user_no"], me(@a, login(@a))["user_no"]
+    assert_equal @unionid, UserApp.for_app(@a).sole.unionid
+  end
+
   test "explicit WeChat rejection evicts only the token used, including during secret rotation" do
     a, b = [ @a, @b ].map { |app| login(app) }
     @watermark = @b.appid
@@ -219,7 +278,7 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
   def login(app, **params)
     post api_mini_program_session_path(app.appid), params: { code: SecureRandom.hex, **params }, as: :json
     assert_response :created
-    assert_equal %w[expires_at token], response.parsed_body.keys.sort
+    assert_equal %w[expires_at logout_token token], response.parsed_body.keys.sort
     response.parsed_body.fetch("token")
   end
 

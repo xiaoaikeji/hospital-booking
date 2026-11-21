@@ -9,6 +9,7 @@ namespace :admins do
   resource :background_jobs, only: :show
   resource :account, only: %i[edit update]
   resources :plugins, only: :index
+  resource :user_sharing, only: %i[edit update], controller: "user_sharing"
   resources :notifications, only: %i[index show] do
     post :retry_failed, on: :member
   end
@@ -52,6 +53,7 @@ namespace :admins do
   resources :administrators, only: %i[index new create edit update]
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
+    resource :appointment, only: %i[edit update], controller: "appointment"
     resource :storage, only: %i[edit update], controller: "storage"
     resource :wecom_notifications, only: %i[edit update], controller: "wecom_notifications"
     resource :appearance, only: %i[edit update], controller: "appearance"

@@ -2,8 +2,7 @@ module Api
   module MiniProgram
     class EntryScenesController < BaseController
       def create
-        MiniProgramLogin.record_scene(@identity, params[:scene])
-        head :no_content
+        head MiniProgramLogin.record_scene(@identity, params[:scene]) ? :no_content : :service_unavailable
       end
     end
   end

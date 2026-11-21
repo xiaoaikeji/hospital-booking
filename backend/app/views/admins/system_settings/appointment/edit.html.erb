@@ -1,0 +1,12 @@
+<% content_for :title, "预约设置 · Booking 管理后台" %>
+<%= render "admins/system_settings/navigation", title: "预约设置" %>
+<%= form_with scope: :appointment, url: admins_system_settings_appointment_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
+  <%= f.hidden_field :revision, value: @settings.revision %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "账号手机号", record: @settings } do %>
+    <label class="form-check form-switch">
+      <%= f.check_box :require_mobile_auth, checked: @settings.phone_required?, class: "form-check-input" %>
+      <span class="form-check-label">首次确认预约时必须验证账号手机号</span>
+    </label>
+    <p class="form-hint mb-0">本次预约联系电话可以填写家属号码。</p>
+  <% end %>
+<% end %>

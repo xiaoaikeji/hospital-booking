@@ -55,6 +55,7 @@ class Log < ApplicationRecord
     [ "wechat", "wechat.delete" ] => "删除发布记录",
     [ "wechat", "wechat.resolve" ] => "核实微信结果",
     [ "app", "app.create" ] => "新增应用",
+    [ "app", "app.user_sharing" ] => "修改小程序用户共享",
     [ "app", "app.update" ] => "修改应用资料、密钥或状态",
     [ "app", "app.destroy" ] => "删除应用",
     [ "app", "link.create" ] => "新增小程序页面配置",
@@ -71,6 +72,7 @@ class Log < ApplicationRecord
     [ "security", "storage_settings.update" ] => "修改存储配置",
     [ "security", "storage_settings.refresh" ] => "刷新存储客户端",
     [ "settings", "appearance.update" ] => "修改默认外观",
+    [ "settings", "appointment.phone_policy" ] => "修改预约手机号验证设置",
     [ "settings", "personal_appearance.update" ] => "修改个人外观"
   }.freeze
 

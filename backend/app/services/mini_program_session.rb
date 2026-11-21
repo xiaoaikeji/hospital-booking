@@ -8,9 +8,11 @@ class MiniProgramSession
       now = Time.current
       token = "#{identity.id}.#{SecureRandom.urlsafe_base64(32)}"
       expires_at = (now + TTL).change(usec: 0)
+      digest = Digest::SHA256.hexdigest(token)
       live = identity.sessions.select { |_digest, expiry| expiry > now.to_i }
-      identity.update!(sessions: live.merge(Digest::SHA256.hexdigest(token) => expires_at.to_i))
-      { token: token, expires_at: expires_at }
+      identity.update!(sessions: live.merge(digest => expires_at.to_i))
+      receipt = logout_verifier.generate([ identity.id, digest ], expires_at: expires_at)
+      { token: token, expires_at: expires_at, logout_token: "logout.#{receipt}" }
     end
   end
 
@@ -19,7 +21,10 @@ class MiniProgramSession
     @bindings = UserApp.for_app(app)
     @id = match[1].to_i if match && match[1].to_i <= 2**63 - 1
     @digest = Digest::SHA256.hexdigest(token) if @id
+    @logout_receipt = token.delete_prefix("logout.") if token&.start_with?("logout.")
   end
+
+  def self.logout_verifier = Rails.application.message_verifier("mini_program_session_logout")
 
   def self.prune_expired!
     cutoff = Time.current.to_i
@@ -39,12 +44,14 @@ class MiniProgramSession
   end
 
   def revoke!
-    return unless @id
+    # Only DELETE accepts a logout receipt. An offline guest can surrender it without retaining access to the profile.
+    id, digest = @logout_receipt ? self.class.logout_verifier.verified(@logout_receipt) : [ @id, @digest ]
+    return unless id
     UserApp.transaction do
-      binding = @bindings.lock.find_by(id: @id)
-      next unless binding&.sessions&.key?(@digest)
+      binding = @bindings.lock.find_by(id: id)
+      next unless binding&.sessions&.key?(digest)
       now = Time.current.to_i
-      binding.update!(sessions: binding.sessions.reject { |digest, expiry| digest == @digest || expiry <= now })
+      binding.update!(sessions: binding.sessions.reject { |stored, expiry| stored == digest || expiry <= now })
     end
   end
 end

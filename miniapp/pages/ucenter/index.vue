@@ -45,7 +45,7 @@ function confirmLogout() {
     confirmColor: '#63a9d9',
     success: ({ confirm }) => {
       if (!confirm) return
-      signOut().catch(() => uni.showToast({ title: '已退出本机，服务端注销未确认', icon: 'none' }))
+      signOut().catch(() => uni.showToast({ title: '已退出，将在联网后补办注销', icon: 'none' }))
       uni.switchTab({ url: '/pages/index/index' })
     },
   })
