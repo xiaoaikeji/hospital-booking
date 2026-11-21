@@ -1,32 +1,51 @@
-# 小艾预约挂号系统
+<h1 align="center">
+  <img src="backend/public/icon.svg" width="44" height="44" align="absmiddle" alt="">
+  小艾预约挂号系统
+</h1>
 
-面向单家医院或诊所的预约挂号项目。管理员通过 Rails 后台管理应用和配置，就诊人通过微信小程序浏览医生和门诊排班。项目仍在开发中，小程序的预约流程目前使用本地示例数据。
+<p align="center">供单家医院或诊所自部署的微信预约挂号小程序与管理后台。</p>
 
-[功能概览](#功能概览) · [快速开始](#快速开始) · [项目目录](#项目目录) · [许可](#许可)
+<p align="center">
+  <img src="https://img.shields.io/badge/Rails-8.1-CC342D" alt="Rails 8.1">
+  <img src="https://img.shields.io/badge/Tabler-1.7-066FD1" alt="Tabler 1.7">
+  <img src="https://img.shields.io/badge/uni--app-Vue_3-317859" alt="uni-app · Vue 3">
+</p>
+
+<p align="center">
+  <a href="#功能概览">功能概览</a> ·
+  <a href="#快速开始">快速开始</a> ·
+  <a href="docs/setup/部署与配置.md">部署指南</a> ·
+  <a href="docs/">使用文档</a>
+</p>
 
 ## 功能概览
 
-| 模块 | 可以做什么 |
+小程序使用示例排班，可按医生或日期选择时段，体验模拟预约和支付。预约记录保存在本机。
+
+| 模块 | 主要功能 |
 | --- | --- |
-| 后台管理 | 超级管理员可维护管理员账号、配置存储和默认外观、查看全部后台操作日志。运营和客服可查看自己的操作日志。 |
-| 应用管理 | 一家机构可管理多个小程序。超级管理员可为微信小程序配置平台授权、选择代码模板、上传体验版、提交审核和发布版本。后台代小程序上传、提审及发布需要配置微信第三方平台，并取得目标小程序授权。 |
-| 通知与公众号运营 | 超级管理员可编排回复内容，由菜单、渠道码、关注及关键词共用，配置微信模板消息绑定，查看逐条发送记录并仅补发明确失败的消息。见[使用与接入说明](docs/notifications.md)。 |
-| 就诊小程序 | 可按日期或医生查看排班、选择时段并填写预约信息。当前提交仅校验表单，实际挂号和预约记录仍待接入。 |
+| 门诊预约 | 选时段、查预约 |
+| 应用管理 | 管理小程序和公众号 |
+| [页面配置](docs/setup/本地运行.md#联调页面配置) | 设置轮播和菜单 |
+| [公众号](docs/setup/通知使用.md) | 菜单、渠道码与回复 |
+| [消息通知](docs/notifications.md) | 模板消息与补发 |
+| [通用海报](docs/posters.md) | 制作带码海报 |
+| 后台管理 | 账号权限与日志 |
+| [任务监控](docs/background-jobs.md) | 查看队列和失败任务 |
+
+超级管理员可维护应用和系统设置、查看全部操作日志。运营和客服可查看自己的操作记录。
 
 ## 快速开始
 
 ### 管理后台
 
-准备 Ruby 3.4.12、Bundler、PostgreSQL、Redis 和 ImageMagick。启动 PostgreSQL 和 Redis 后，从仓库根目录安装后端依赖。
+准备 Ruby 3.4.12、Bundler、PostgreSQL、Redis 和 ImageMagick。启动 PostgreSQL 和 Redis，按本地运行指南配置数据库连接。[数据库配置示例](docs/setup/本地运行.md#管理后台)
+
+首次安装时，从仓库根目录运行以下命令。`credentials:edit` 打开编辑器后，保存并退出，再继续初始化。
 
 ```sh
 cd backend
 bundle install
-```
-
-按[本地运行指南](docs/setup/本地运行.md#管理后台)配置数据库连接和初始账号。首次新建环境时，在同一终端依次运行下列命令，编辑加密凭据时保存并退出。
-
-```sh
 bin/rails credentials:edit
 bin/rails db:prepare
 bin/rails settings:encryption_keys
@@ -35,20 +54,21 @@ bin/rails dartsass:build
 bin/dev
 ```
 
-在另一个终端进入 `backend/`，运行 `bin/jobs` 启动后台任务。使用初始化时创建的管理员账号登录[本机管理后台](http://localhost:3000/admins/sign_in)。
+在另一个终端进入 `backend/`，运行 `bin/jobs` 启动后台任务。用刚创建的管理员账号登录。[本机后台](http://localhost:3000/admins/sign_in)
 
 ### 微信小程序
 
-1. 安装 HBuilderX 和微信开发者工具，用 HBuilderX 打开仓库的 `miniapp/` 目录。
-2. 选择「运行 → 运行到小程序模拟器 → 微信开发者工具」，进入首页后可打开「预约挂号」查看医生和排班。
-3. 需要真机预览时，在 `miniapp/manifest.json` 的 `mp-weixin.appid` 填入自己的小程序 AppID。首次连接开发者工具的设置见[小程序运行指南](docs/setup/本地运行.md#微信小程序)。
+1. 用 HBuilderX 打开 `miniapp/`，选择「运行 → 运行到小程序模拟器 → 微信开发者工具」。
+2. 预览示例排班时，进入首页的「预约挂号」。要读取后台配置的轮播和菜单，请在后台登记并启用小程序 AppID，在工程中填写同一个 AppID 和后端地址，再重新编译。[小程序联调步骤](docs/setup/本地运行.md#联调页面配置)
 
 ## 项目目录
 
-- [backend/](backend/) 包含 Rails 服务端、Tabler 管理页面和后台任务。
-- [miniapp/](miniapp/) 包含使用 uni-app 和 Vue 3 编写的微信小程序。
-- [docs/](docs/) 提供运行和部署说明。生产环境、Redis 和腾讯云 COS 配置见[后端部署与配置](docs/setup/部署与配置.md)。
+| 目录 | 内容 |
+| --- | --- |
+| [`backend/`](backend/) | 后台与 API |
+| [`miniapp/`](miniapp/) | 微信小程序源码 |
+| [`docs/`](docs/) | 安装与使用指南 |
 
 ## 许可
 
-仓库目前尚未声明项目整体的许可证。随后台分发的第三方组件保留各自的版权与许可声明，包括 [Tabler（MIT）](backend/vendor/licenses/tabler/LICENSE)、[Tom Select（Apache 2.0）](backend/vendor/licenses/tabler/tom-select-LICENSE) 和 [Vanilla Calendar Pro（MIT）](backend/vendor/licenses/tabler/vanilla-calendar-pro-LICENSE)。
+项目整体的许可证尚未声明。随附组件的许可可分别查阅 [Tabler（MIT）](backend/vendor/licenses/tabler/LICENSE)、[Tom Select（Apache 2.0）](backend/vendor/licenses/tabler/tom-select-LICENSE) 和 [Vanilla Calendar Pro（MIT）](backend/vendor/licenses/tabler/vanilla-calendar-pro-LICENSE)。
