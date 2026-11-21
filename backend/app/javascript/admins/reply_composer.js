@@ -9,7 +9,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const save = root.querySelector("[data-reply-save]");
   const variables = JSON.parse(root.dataset.variables || "{}");
   const examples = JSON.parse(root.dataset.examples || "{}");
-  let busy = false, dirty = false, lastTextArea = null;
+  const variableDrawer = root.querySelector("[data-notification-variables]");
+  const accordionToggle = root.querySelector("[data-reply-accordion-toggle]");
+  let busy = false, dirty = false, variableTarget = null, expandedMessage = reply.messages[0];
   interval.addEventListener("input", () => { dirty = true; });
   const newId = () => crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");
   const node = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
@@ -24,15 +26,42 @@ document.addEventListener("DOMContentLoaded", () => {
     control.dataset.content = key;
     control.dataset.replyField = key;
     control.dataset.requiredMessage = "请填写" + title;
-    if (multiline) {
-      control.rows = 3;
-      control.addEventListener("focus", () => { lastTextArea = control; });
+    if (multiline) control.rows = Math.min(8, Math.max(3, control.value.split("\n").length));
+    if (multiline && Object.keys(variables).length) {
+      const header = node("div", "d-flex justify-content-between align-items-center gap-2 mb-2");
+      label.classList.add("mb-0");
+      const insert = node("button", "btn btn-sm", "插入变量");
+      insert.type = "button";
+      insert.dataset.bsToggle = "offcanvas";
+      insert.dataset.bsTarget = "#" + variableDrawer.id;
+      insert.setAttribute("aria-controls", variableDrawer.id);
+      insert.addEventListener("click", () => { variableTarget = control; });
+      header.append(label, insert);
+      group.append(header);
+    } else {
+      group.append(label);
     }
-    group.append(label, control);
+    group.append(control);
     parent.append(group);
   }
 
   function focusNode(control) { return control.tomselect?.focus_node || control; }
+
+  function focusField(control) {
+    const panel = control.closest(".accordion-collapse");
+    if (!panel || panel.classList.contains("show")) {
+      focusNode(control).focus();
+      return;
+    }
+    const transitioning = items.querySelector(".collapsing");
+    if (transitioning) {
+      const opening = document.getElementById(transitioning.getAttribute("aria-labelledby")).getAttribute("aria-expanded") === "true";
+      transitioning.addEventListener(opening ? "shown.bs.collapse" : "hidden.bs.collapse", () => focusField(control), { once: true });
+      return;
+    }
+    panel.addEventListener("shown.bs.collapse", () => focusNode(control).focus(), { once: true });
+    window.tabler.Collapse.getOrCreateInstance(panel, { toggle: false }).show();
+  }
 
   function setFieldError(control, message) {
     const id = control.id + "-error";
@@ -68,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
       setFieldError(control, message);
       if (message && !firstInvalid) firstInvalid = control;
     });
-    if (firstInvalid) focusNode(firstInvalid).focus();
+    if (firstInvalid) focusField(firstInvalid);
     return !firstInvalid;
   }
 
@@ -82,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     setFieldError(control, error.message);
-    focusNode(control).focus();
+    focusField(control);
   }
   function read() {
     const name = document.getElementById("reply-name");
@@ -108,34 +137,67 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function draw() {
     items.querySelectorAll("select").forEach(select => select.tomselect?.destroy());
+    items.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(help => window.tabler.Tooltip.getInstance(help)?.dispose());
     items.replaceChildren();
+    items.hidden = reply.messages.length === 0;
     reply.messages.forEach((m, i) => {
-      const box = node("div", "border rounded p-3 mb-3"); box.dataset.messageIndex = i;
-      const tools = node("div", "d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3");
-      tools.append(node("strong", "me-auto", `第 ${i + 1} 条 · ${m.type === "text" ? "文字" : "小程序卡片"}`));
+      const box = node("div", "accordion-item");
+      box.dataset.messageIndex = i;
+      const expanded = m === expandedMessage;
+      const panel = node("div", "accordion-collapse collapse" + (expanded ? " show" : ""));
+      panel.id = `${items.id}-panel-${i}`;
+      panel.dataset.bsParent = "#" + items.id;
+      const header = node("div", "row g-0 align-items-center");
+      const labelColumn = node("div", "col-12 col-sm");
+      const heading = node("h3", "accordion-header");
+      const toggle = node("button", "accordion-button" + (expanded ? "" : " collapsed"),
+        `第 ${i + 1} 条 · ${m.type === "text" ? "文字" : "小程序卡片"}`);
+      toggle.type = "button";
+      toggle.id = `${items.id}-heading-${i}`;
+      toggle.dataset.bsToggle = "collapse";
+      toggle.dataset.bsTarget = "#" + panel.id;
+      toggle.setAttribute("aria-controls", panel.id);
+      toggle.setAttribute("aria-expanded", String(expanded));
+      panel.setAttribute("aria-labelledby", toggle.id);
+      toggle.append(accordionToggle.content.cloneNode(true));
+      heading.append(toggle);
+      labelColumn.append(heading);
+      const toolColumn = node("div", "col-12 col-sm-auto px-3 pb-2 pb-sm-0");
+      const tools = node("div", "btn-list justify-content-end");
       [["上移", -1], ["下移", 1], ["删除", 0]].forEach(([label, by]) => {
-        const b = node("button", "btn btn-sm", label); b.type = "button";
+        const b = node("button", "btn btn-sm" + (by ? "" : " btn-outline-danger"), label); b.type = "button";
+        b.setAttribute("aria-label", `${label}第 ${i + 1} 条`);
         b.disabled = busy || (by !== 0 && (i + by < 0 || i + by >= reply.messages.length));
         b.onclick = () => {
           if (busy) return;
           dirty = true;
           read();
-          if (!by) reply.messages.splice(i, 1);
-          else [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]];
+          if (!by) {
+            reply.messages.splice(i, 1);
+            if (expandedMessage === m) expandedMessage = reply.messages[Math.min(i, reply.messages.length - 1)];
+            if (m.previewUrl) URL.revokeObjectURL(m.previewUrl);
+          } else {
+            [reply.messages[i], reply.messages[i + by]] = [reply.messages[i + by], reply.messages[i]];
+          }
           draw();
         };
         tools.append(b);
-      }); box.append(tools);
-      if (m.type === "text") field(box, "文字内容", "text", m.content.text, true);
+      });
+      toolColumn.append(tools);
+      header.append(labelColumn, toolColumn);
+      const body = node("div", "accordion-body");
+      if (m.type === "text") field(body, "文字内容", "text", m.content.text, true);
       else {
-        field(box, "卡片标题", "title", m.content.title);
-        box.append(root.querySelector("[data-reply-card-template]").content.cloneNode(true));
-        const miniSelect = box.querySelector("select");
+        field(body, "卡片标题", "title", m.content.title);
+        body.append(root.querySelector("[data-reply-card-template]").content.cloneNode(true));
+        const miniSelect = body.querySelector("select");
         miniSelect.value = m.content.appid || "";
         miniSelect.id = "mini-" + newId();
         miniSelect.previousElementSibling.htmlFor = miniSelect.id;
-        field(box, "页面路径", "pagepath", m.content.pagepath);
-        const label = node("label", "form-label required", "卡片封面（上传到当前公众号）");
+        field(body, "页面路径", "pagepath", m.content.pagepath);
+        const label = node("label", "form-label required mb-0", "卡片封面（上传到当前公众号）");
+        const coverHeader = node("div", "d-flex flex-wrap align-items-center gap-1 mb-2");
+        coverHeader.append(label, root.querySelector("[data-reply-cover-help]").content.cloneNode(true));
         const file = node("input", "form-control");
         file.type = "file";
         file.accept = root.dataset.coverTypes;
@@ -167,14 +229,16 @@ document.addEventListener("DOMContentLoaded", () => {
             save.disabled = false;
           }
         };
-        const hint = node("div", "form-hint", root.dataset.coverHint);
-        hint.id = file.id + "-hint";
-        file.setAttribute("aria-describedby", hint.id);
-        box.append(label, file, hint);
+        body.append(coverHeader, file);
       }
+      panel.append(body);
+      box.append(header, panel);
+      panel.addEventListener("show.bs.collapse", () => { expandedMessage = m; });
+      panel.addEventListener("hide.bs.collapse", () => { if (expandedMessage === m) expandedMessage = null; });
       box.addEventListener("input", () => { dirty = true; drawPreview(); });
       items.append(box);
       window.initializeAdminSelects(box);
+      box.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(help => window.tabler.Tooltip.getOrCreateInstance(help));
     }); drawPreview();
   }
   function showError(text) { error.textContent = text; error.hidden = !text; }
@@ -192,7 +256,12 @@ document.addEventListener("DOMContentLoaded", () => {
     return result;
   }
   root.querySelectorAll("[data-reply-add]").forEach(button => { button.onclick = () => {
-    if (busy) return; dirty = true; read(); reply.messages.push({ id: newId(), type: button.dataset.replyAdd, content: {} }); draw();
+    if (busy) return;
+    dirty = true;
+    read();
+    expandedMessage = { id: newId(), type: button.dataset.replyAdd, content: {} };
+    reply.messages.push(expandedMessage);
+    draw();
   }; });
   function toggleScope() { root.querySelector("[data-reply-impacts]")?.classList.toggle("d-none", scope.value !== "all"); }
   scope?.addEventListener("change", toggleScope); if (scope) toggleScope();
@@ -203,19 +272,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   root.addEventListener("input", clearChangedField);
   root.addEventListener("change", clearChangedField);
-  root.querySelectorAll("[data-insert-variable]").forEach(button => {
+  variableDrawer.querySelectorAll("[data-insert-variable]").forEach(button => {
     button.onclick = () => {
-      if (busy) return;
-      if (!lastTextArea || !document.contains(lastTextArea)) lastTextArea = items.querySelector('[data-content="text"]');
-      if (!lastTextArea) {
-        root.querySelector('[data-reply-add="text"]').click();
-        lastTextArea = items.querySelector('[data-content="text"]');
-      }
-      if (!lastTextArea) return;
+      if (busy || !variableTarget?.isConnected) return;
       const token = "{" + button.dataset.insertVariable + "}";
-      lastTextArea.setRangeText(token, lastTextArea.selectionStart, lastTextArea.selectionEnd, "end");
-      lastTextArea.dispatchEvent(new Event("input", { bubbles: true })); lastTextArea.focus();
+      variableTarget.setRangeText(token, variableTarget.selectionStart, variableTarget.selectionEnd, "end");
+      variableTarget.dispatchEvent(new Event("input", { bubbles: true }));
     };
+  });
+  variableDrawer.addEventListener("hidden.bs.offcanvas", () => {
+    const target = variableTarget;
+    variableTarget = null;
+    if (target?.isConnected) requestAnimationFrame(() => target.focus());
   });
   document.getElementById("restore-content-form")?.addEventListener("submit", () => { dirty = false; });
   window.addEventListener("beforeunload", event => { if (dirty) { event.preventDefault(); event.returnValue = ""; } });

@@ -192,7 +192,8 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
       response_for(media_id: "cover-a")
     end
     get new_admins_app_reply_content_path(@a)
-    assert_select "[data-cover-types='image/jpeg,image/png'][data-cover-hint*='2 MB']"
+    assert_select "[data-cover-types='image/jpeg,image/png']"
+    assert_select "template[data-reply-cover-help] button[aria-label='查看卡片封面要求'][title*='2 MB']"
     path = media_admins_app_reply_contents_path(@a)
     jpeg = File.binread(Rails.root.join("app/assets/images/admins/components/staff-1.jpg"))
     upload = ->(bytes, type, name) {
@@ -347,5 +348,23 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     cross = Notifications::AccountConfiguration.new(@b)
     assert_raises(Notifications::Error) { cross.save_rules!({ revision: cross.revision, follow_first: id }, actor: @admin) }
     assert_raises(Notifications::Error) { cross.save_reply!({ revision: cross.revision, name: "串号卡片", messages: @config.reply(id)["messages"] }, actor: @admin) }
+  end
+
+  test "提交的关键词顺序决定重叠规则的第一条回复" do
+    replies = %w[取消指引 预约说明].map do |name|
+      @config.save_reply!({ name: name, revision: @config.revision,
+        messages: [{ id: "text", type: "text", content: { text: name } }] }, actor: @admin).fetch(:id)
+    end
+    exact = { words: "取消预约", match: "exact", reply_id: replies.first }
+    contain = { words: "预约", match: "contain", reply_id: replies.last }
+
+    Sidekiq.testing!(:fake) do
+      [[exact, contain], [contain, exact]].each_with_index do |rules, index|
+        patch admins_app_reply_rules_path(@a), params: { reply_rules: { revision: @config.revision, keywords: rules } }
+        assert_redirected_to edit_admins_app_reply_rules_path(@a)
+        push(MsgType: "text", Content: "取消预约", MsgId: (100 + index).to_s)
+        assert_equal %w[取消指引 预约说明][index], Notification.order(:id).last.messages.sole.dig("content", "text")
+      end
+    end
   end
 end

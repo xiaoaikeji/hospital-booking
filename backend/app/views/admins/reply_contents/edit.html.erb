@@ -6,7 +6,7 @@
 <% end %>
 <% cover = MediaUpload::PURPOSES.fetch(:reply_card_cover) %>
 <div data-reply-editor data-variables="<%= @variable_fields.to_json %>" data-examples="<%= @variable_examples.to_json %>" data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-inline="<%= params[:inline] == '1' %>"
-     data-cover-types="<%= cover[:formats].values.uniq.join(',') %>" data-cover-hint="JPG 或 PNG，大小不超过 <%= cover[:limit] / 1.megabyte %> MB。"
+     data-cover-types="<%= cover[:formats].values.uniq.join(',') %>"
      data-save="<%= params[:id] ? admins_app_reply_content_path(@app, params[:id]) : admins_app_reply_contents_path(@app) %>"
      data-image="<%= image_admins_app_reply_contents_path(@app) %>" data-media="<%= media_admins_app_reply_contents_path(@app) %>" data-back="<%= params[:qrcode_id].present? ? edit_admins_app_channel_qrcode_path(@app, params[:qrcode_id]) : admins_reply_contents_path(app_id: @app.id) %>">
   <div class="alert alert-danger" data-reply-error hidden role="alert"></div>
@@ -28,14 +28,16 @@
             </div>
           </div>
         <% end %>
-        <div data-reply-items></div>
+        <%= render "admins/shared/notification_message_items" %>
         <div class="btn-list justify-content-end"><button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button><button type="button" class="btn" data-reply-add="miniprogrampage"><%= render "layouts/admins/icon", name: :plus %>新增小程序卡片</button></div>
       </div><div class="card-footer btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %></div>
     </section></div>
-    <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">回复预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section>
-      <%= render "admins/shared/notification_variables", fields: @variable_fields %>
-    </div>
+    <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">回复预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section></div>
   </div>
+  <%= render "admins/shared/notification_variables", fields: @variable_fields, drawer_id: "reply-variable-drawer" %>
+  <template data-reply-cover-help>
+    <%= render "admins/shared/field_help", label: "查看卡片封面要求", text: "JPG 或 PNG，大小不超过 #{cover[:limit] / 1.megabyte} MB。" %>
+  </template>
   <template data-reply-card-template>
     <div class="mb-3">
       <label class="form-label required">目标小程序</label>

@@ -1,8 +1,31 @@
-<div class="d-flex flex-wrap gap-1">
-  <%= link_to admins_official_account_fans_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :users %>粉丝列表<% end %>
-  <%= link_to admins_official_account_menus_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :templates %>自定义菜单<% end %>
-  <%= link_to admins_channel_qrcodes_path(app_id: app.id), class: "btn btn-sm btn-outline-primary" do %><%= render "layouts/admins/icon", name: :qrcode %>渠道二维码<% end %>
-  <%= link_to admins_reply_contents_path(app_id: app.id), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :templates %>回复内容<% end %>
-  <%= link_to edit_admins_app_reply_rules_path(app), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :settings %>自动回复规则<% end %>
-  <%= link_to admins_template_messages_path(app_id: app.id), class: 'btn btn-sm btn-outline-primary' do %><%= render 'layouts/admins/icon', name: :templates %>微信模板消息<% end %>
-</div>
+<% groups = {
+  "粉丝与渠道" => [
+    ["粉丝列表", admins_official_account_fans_path(app_id: app.id), :users],
+    ["渠道二维码", admins_channel_qrcodes_path(app_id: app.id), :qrcode]
+  ],
+  "菜单与回复" => [
+    ["自定义菜单", admins_official_account_menus_path(app_id: app.id), :templates],
+    ["回复内容", admins_reply_contents_path(app_id: app.id), :templates],
+    ["自动回复规则", edit_admins_app_reply_rules_path(app), :settings]
+  ],
+  "模板通知" => [["微信模板消息", admins_template_messages_path(app_id: app.id), :templates]]
+} %>
+<section class="card mb-3" aria-labelledby="official-account-actions-title">
+  <div class="card-header"><h2 class="card-title" id="official-account-actions-title">公众号运营</h2></div>
+  <div class="card-body">
+    <div class="row g-3">
+      <% groups.each do |label, entries| %>
+        <nav class="col-12 col-md-4" aria-label="<%= label %>">
+          <h3 class="h4 mb-2"><%= label %></h3>
+          <div class="list-group">
+            <% entries.each do |name, path, icon| %>
+              <%= link_to path, class: "list-group-item list-group-item-action d-flex align-items-center gap-2" do %>
+                <span class="text-secondary d-inline-flex"><%= render "layouts/admins/icon", name: icon %></span><%= name %>
+              <% end %>
+            <% end %>
+          </div>
+        </nav>
+      <% end %>
+    </div>
+  </div>
+</section>

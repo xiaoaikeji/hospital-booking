@@ -1,14 +1,36 @@
 <% content_for :head do %><%= javascript_include_tag "admins/notification_variables", defer: true %><% end %>
-<section class="card mt-3" aria-label="可用变量" data-notification-variables>
-  <div class="card-header"><h2 class="card-title">可用变量</h2></div>
-  <% if fields.empty? %><div class="card-body text-secondary">没有可用变量</div><% else %>
-    <div class="card-body py-2 small text-secondary">点击变量插入文字。预览使用示例值，发送时替换为本次真实数据。</div>
-    <table class="table table-fixed card-table table-vcenter mb-0"><tbody>
-      <% fields.each do |key, field| %><tr>
-        <td class="text-break" style="width: 43%"><button type="button" class="btn btn-link p-0 text-start text-break font-monospace" data-insert-variable="<%= key %>" <%= "disabled" if local_assigns[:readonly] %> style="white-space: normal"><code class="text-break" style="white-space: normal">{<%= key %>}</code></button></td>
-        <td class="text-break"><%= field['label'] %><% if field['hint'] %><div class="small text-secondary"><%= field['hint'] %></div><% end %></td>
-      </tr><% end %>
-    </tbody></table>
-    <div class="card-footer small text-secondary">变量仅用于文字。要原样显示大括号，请写成 <code>{{变量名}}</code>。</div>
+<% drawer_id = local_assigns[:drawer_id] %>
+<% options = capture do %>
+  <% if fields.empty? %>
+    <p class="text-secondary mb-0">没有可用变量</p>
+  <% else %>
+    <ul class="list-group list-group-flush" aria-label="可用变量">
+      <% fields.each do |key, field| %>
+        <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2 px-0">
+          <div class="text-break">
+            <div class="fw-medium"><%= field.fetch("label") %></div>
+            <% if field["hint"] %><div class="small text-secondary"><%= field["hint"] %></div><% end %>
+          </div>
+          <%= tag.button "{#{key}}", type: "button", class: "btn btn-sm btn-ghost text-primary font-monospace text-wrap text-break",
+            disabled: local_assigns[:readonly], data: { insert_variable: key, bs_dismiss: ("offcanvas" if drawer_id) } %>
+        </li>
+      <% end %>
+    </ul>
+    <p class="small text-secondary mb-0 mt-3">要原样显示大括号，请写成 <code>{{变量名}}</code>。</p>
   <% end %>
-</section>
+<% end %>
+
+<% if drawer_id %>
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="<%= drawer_id %>" aria-labelledby="<%= drawer_id %>-title" data-notification-variables>
+    <div class="offcanvas-header">
+      <h2 class="offcanvas-title" id="<%= drawer_id %>-title">插入变量</h2>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭变量抽屉"></button>
+    </div>
+    <div class="offcanvas-body"><%= options %></div>
+  </div>
+<% else %>
+  <section class="card mt-3" aria-label="可用变量" data-notification-variables>
+    <div class="card-header"><h2 class="card-title">可用变量</h2></div>
+    <div class="card-body"><%= options %></div>
+  </section>
+<% end %>
