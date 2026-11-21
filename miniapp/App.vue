@@ -1,8 +1,12 @@
 <script setup>
 import { onShow } from '@dcloudio/uni-app'
 import { checkAppAccess } from '@/utils/app-access.js'
+import { noteEntry } from '@/store/session.js'
 
-onShow(checkAppAccess)
+onShow(options => {
+  checkAppAccess()
+  noteEntry(options)
+})
 </script>
 
 <style lang="scss">

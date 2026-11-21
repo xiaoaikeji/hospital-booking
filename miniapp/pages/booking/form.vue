@@ -1,10 +1,10 @@
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { findDoctor } from '@/mock/doctors.js'
 import { getBookingSchedule } from '@/mock/booking-schedule.js'
 import { createAppointment, listPatients, newAppointmentNo } from '@/mock/appointments.js'
-import { session } from '@/mock/session.js'
+import { bindPhone, demoMode, readProfile } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
 import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
@@ -16,6 +16,8 @@ const date = ref('')
 const slot = ref('')
 const picking = ref(false)
 const phone = ref('')
+const needsBinding = ref(false)
+const binding = ref(false)
 const name = ref('')
 const sex = ref('')
 const age = ref('')
@@ -36,11 +38,12 @@ onLoad(async options => {
   withDepartment.value = options.department === '1'
   schedule.value = getBookingSchedule()
   date.value = schedule.value.find(day => day.date === options.date)?.date || schedule.value[0].date
-  phone.value = session.value.phone
   try {
-    patients.value = listPatients(session.value.phone)
-  } catch {
-    notify('暂时无法读取常用就诊人')
+    const user = await readProfile()
+    if (!phone.value && user?.mobile) phone.value = user.mobile
+    if (demoMode && user) patients.value = listPatients(user.user_no)
+  } catch (error) {
+    notify(error.message || '暂时无法读取本人资料')
   }
 })
 
@@ -90,20 +93,30 @@ function notify(title) {
   uni.showToast({ title, icon: 'none' })
 }
 
-function phoneFailed() {
-  notify('获取失败，请联系管理员')
+function phoneDenied() {
+  needsBinding.value = false
+  notify('已取消授权，预约内容已保留')
 }
 
-function setPhone(result) {
-  if (result.phone) phone.value = result.phone
-  else notify('已授权，暂未开通预约电话读取')
+async function verifyPhone(result) {
+  if (binding.value) return
+  binding.value = true
+  try {
+    const user = await bindPhone(result)
+    if (!phone.value) phone.value = user.mobile
+    needsBinding.value = false
+    notify('账号手机号已验证')
+  } catch (error) {
+    notify(error.message || '手机号验证失败，请重试')
+  } finally {
+    binding.value = false
+  }
 }
 
 async function confirmBooking() {
-  if (submitting.value || openedDetail) return
+  if (submitting.value || binding.value || openedDetail) return
   if (!createdNo.value) {
     if (!slot.value) return notify('请选择时段')
-    if (!phone.value) return notify('请获取预约电话')
     if (!name.value.trim()) return notify('请输入就诊人姓名')
     if (!sex.value) return notify('请选择性别')
     if (!/^\d{1,3}$/.test(age.value) || +age.value < 1 || +age.value > 200) return notify('请输入1至200之间的年龄')
@@ -112,9 +125,20 @@ async function confirmBooking() {
   uni.hideKeyboard()
   try {
     if (!createdNo.value) {
+      const user = await readProfile()
+      if (!user) return notify('请先登录')
+      if (user.booking_phone_required) {
+        needsBinding.value = true
+        await nextTick()
+        uni.pageScrollTo({ selector: '#phone-binding', duration: 180 })
+        return
+      }
+      const contact = phone.value.trim().replace(/[ -]/g, '')
+      if (!/^\+?\d{6,15}$/.test(contact)) return notify('请输入有效的本次联系电话')
+      if (!demoMode) return notify('医院预约受理尚未开放')
       requestNo ||= newAppointmentNo()
-      const record = createAppointment(session.value?.phone, requestNo, {
-        doctorId: doctor.value.id, date: date.value, slot: slot.value, phone: phone.value,
+      const record = createAppointment(user.user_no, requestNo, {
+        doctorId: doctor.value.id, date: date.value, slot: slot.value, phone: contact,
         name: name.value, sex: sex.value, age: age.value, symptoms: symptoms.value,
         patientId: patientId.value, savePatient: savePatient.value,
       })
@@ -143,9 +167,9 @@ async function confirmBooking() {
         <view class="row time-row" aria-role="button" @tap="selectTime">
           <view>预约时段<text class="required">*</text></view><text>{{ slot || '请选择时段' }}</text>
         </view>
-        <custom-phone-authorization label="获取预约电话" @authorized="setPhone" @failed="phoneFailed">
-          <view class="row phone-row"><view>预约电话<text class="required">*</text></view><text>{{ phone || '获取手机号' }}</text></view>
-        </custom-phone-authorization>
+        <view class="row phone-row"><view>本次联系电话<text class="required">*</text></view>
+          <input v-model="phone" aria-label="本次联系电话" :maxlength="21" placeholder="请输入就诊联系电话" />
+        </view>
         <view v-if="withDepartment" class="row"><text>科室</text><text>{{ doctor.department }}</text></view>
         <view class="row last"><text>挂号费</text><text>¥{{ doctor.fee }}</text></view>
       </view>
@@ -164,7 +188,7 @@ async function confirmBooking() {
         <view class="row"><view>年龄<text class="required">*</text></view>
           <input v-model="age" :disabled="!!patientId" type="number" :maxlength="3" aria-label="就诊人年龄" placeholder="请输入就诊人年龄" />
         </view>
-        <checkbox-group v-if="!patientId" class="save-patient" @change="savePatient = !!$event.detail.value.length">
+        <checkbox-group v-if="demoMode && !patientId" class="save-patient" @change="savePatient = !!$event.detail.value.length">
           <label><checkbox value="save" :checked="savePatient" color="#5ba7e5" />保存为常用就诊人</label>
         </checkbox-group>
         <view class="symptoms">症状描述
@@ -172,8 +196,14 @@ async function confirmBooking() {
           <textarea v-else v-model="symptoms" class="description" placeholder="请输入" aria-label="症状描述" :maxlength="-1" />
         </view>
       </view>
-      <view class="demo-note">本地模拟预约，请使用虚构就诊资料</view>
-      <button class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '提交中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
+      <view class="demo-note">{{ demoMode ? '本地模拟预约，请使用虚构就诊资料' : '正式预约受理尚未开放' }}</view>
+      <view v-if="needsBinding" id="phone-binding">
+        <view class="binding-note">医院要求先验证账号手机号。本次联系电话可填写家属号码。</view>
+        <custom-phone-authorization label="验证账号手机号" @authorized="verifyPhone" @denied="phoneDenied" @failed="notify('手机号授权失败，请重试')">
+          <view class="submit bind-button">{{ binding ? '验证中…' : '验证账号手机号' }}</view>
+        </custom-phone-authorization>
+      </view>
+      <button v-else class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
       <SlotPicker v-if="picking" :schedule="schedule" :doctor-id="doctor.id" :date="date" :selected-slot="slot"
         @confirm="setTime" @cancel="picking = false" />
       <PatientPicker v-if="choosingPatient" :patients="patients" :selected="patientId"
@@ -198,6 +228,8 @@ async function confirmBooking() {
 .save-patient { margin-top: 18rpx; color: #666; font-size: 24rpx; }
 .save-patient checkbox { transform: scale(.8); }
 .demo-note { margin: 24rpx 0 10rpx; color: #777; font-size: 22rpx; text-align: center; }
+.binding-note { margin: 16rpx 0; color: #536777; font-size: 25rpx; }
+.bind-button { text-align: center; }
 input { flex: 1; min-width: 0; margin-left: 20rpx; height: 68rpx; text-align: right; font-size: 28rpx; }
 .sex, .sex label { display: flex; align-items: center; }
 .sex { gap: 24rpx; }

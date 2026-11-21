@@ -1,39 +1,28 @@
 <script setup>
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
-import { startDemoSession } from '@/mock/session.js'
-import { leaveLogin, resumeBooking } from '@/utils/booking-navigation.js'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { demoMode, signIn } from '@/store/session.js'
+import { resumeBooking } from '@/utils/booking-navigation.js'
 
 const feedback = ref('')
+const busy = ref(false)
 let target = {}
 let leaving = false
 onLoad(options => { target = options })
+onUnload(() => { leaving = true })
 
-function authorize(result) {
-  if (leaving) return
-  if (!result.phone) {
-    feedback.value = '已同意手机号授权。手机号验证和登录服务尚未开通。'
-    return
-  }
+async function login() {
+  if (busy.value || leaving) return
+  busy.value = true
+  feedback.value = ''
   try {
-    startDemoSession(result.phone)
-  } catch {
-    feedback.value = '体验登录失败，请重试。'
-    return
+    await signIn()
+    if (!leaving) resumeBooking(target)
+  } catch (error) {
+    feedback.value = error.message || '登录失败，请重试'
+  } finally {
+    busy.value = false
   }
-  leaving = true
-  resumeBooking(target)
-}
-
-function authorizationFailed() {
-  if (leaving) return
-  feedback.value = '暂时无法完成手机号授权，请重试。'
-}
-
-function authorizationCanceled() {
-  if (leaving) return
-  leaving = true
-  leaveLogin()
 }
 </script>
 
@@ -43,11 +32,9 @@ function authorizationCanceled() {
     <view class="login-content">
       <image class="hospital-logo" src="/static/ucenter/hospital-logo.jpg" mode="aspectFit" aria-label="医院标志" />
       <view class="permission">
-        <text class="permission-title">微信手机号授权</text>
-        <text class="permission-note">申请获取你在微信中选择的手机号，用于预约服务。</text>
-        <custom-phone-authorization label="授权手机号" @authorized="authorize" @denied="authorizationCanceled" @failed="authorizationFailed">
-          <view class="login-button">授权手机号</view>
-        </custom-phone-authorization>
+        <text class="permission-title">{{ demoMode ? '预约体验' : '微信账号登录' }}</text>
+        <text class="permission-note">登录后可查看本人资料，继续预约。</text>
+        <button class="login-button" :disabled="busy" @tap="login">{{ busy ? '登录中…' : demoMode ? '体验登录' : '微信登录' }}</button>
         <text v-if="feedback" class="permission-result" role="status">{{ feedback }}</text>
       </view>
     </view>
@@ -62,5 +49,6 @@ function authorizationCanceled() {
 .permission-title { color: #333; font-size: 29rpx; line-height: 44rpx; }
 .permission-note { margin-top: 19rpx; color: #999; font-size: 24rpx; line-height: 36rpx; }
 .login-button { width: 100%; height: 70rpx; margin-top: 84rpx; border-radius: 35rpx; background: #5ba6e7; color: #fff; font-size: 27rpx; line-height: 70rpx; }
+.login-button::after { border: 0; }
 .permission-result { display: block; margin-top: 24rpx; color: #536777; font-size: 26rpx; line-height: 38rpx; }
 </style>

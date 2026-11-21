@@ -1,4 +1,4 @@
-import { configurationStatus, refreshAppConfiguration } from '@/store/app-configuration.js'
+import { configurationStatus, refreshAppConfiguration, markAppDisabled } from '@/store/app-configuration.js'
 
 export const PAUSED_PAGE = 'pages/common/service_paused'
 const HOME_PAGE = 'pages/index/index'
@@ -28,6 +28,11 @@ function showAccessPage() {
 export function checkAppAccess() {
   showAccessPage()
   return refreshAppConfiguration().then(showAccessPage)
+}
+
+export function pauseApp() {
+  markAppDisabled()
+  showAccessPage()
 }
 
 export async function canUseApp() {

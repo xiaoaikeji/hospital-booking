@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { listAppointments, nextChangeAt } from '@/mock/appointments.js'
-import { session } from '@/mock/session.js'
+import { demoMode, profile, readProfile, signedIn } from '@/store/session.js'
 
 export function useAppointmentRecords() {
   const records = ref([])
@@ -15,13 +15,14 @@ export function useAppointmentRecords() {
     const next = records.value.reduce((earliest, record) => Math.min(earliest, nextChangeAt(record, now.value)), Infinity)
     if (Number.isFinite(next)) timer = setTimeout(updateClock, next - now.value)
   }
-  function refresh() {
+  async function refresh() {
     try {
-      records.value = listAppointments(session.value?.phone)
+      const user = signedIn.value ? await readProfile() : null
+      records.value = demoMode && user ? listAppointments(user.user_no) : []
       error.value = ''
-    } catch {
+    } catch (failure) {
       records.value = []
-      error.value = '读取预约记录失败，点此重试'
+      error.value = (failure.message || '读取预约记录失败') + '，点此重试'
     }
     updateClock()
   }
@@ -31,6 +32,6 @@ export function useAppointmentRecords() {
   onShow(refresh)
   onHide(stop)
   onUnload(stop)
-  const visibleRecords = computed(() => records.value.filter(item => item.owner === session.value?.phone))
+  const visibleRecords = computed(() => records.value.filter(item => item.owner === profile.value?.user_no))
   return { records: visibleRecords, now, error, refresh }
 }

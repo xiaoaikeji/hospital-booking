@@ -1,14 +1,18 @@
 // 在工程根目录的 .env.local 中设置后台地址。留空时可在游客模式预览外观。
-const API_ORIGIN = (import.meta.env?.VITE_BOOKING_API_ORIGIN || '').trim().replace(/\/+$/, '')
+export const API_ORIGIN = (import.meta.env?.VITE_BOOKING_API_ORIGIN || '').trim().replace(/\/+$/, '')
 
 export function wechatAppId() {
   const { appId } = uni.getAccountInfoSync?.()?.miniProgram ?? {}
   return appId && appId !== 'touristappid' ? appId : ''
 }
 
+export function disabledResponse(appId, { statusCode, data }) {
+  return statusCode === 403 && data?.provider === 'wechat' && data.appid === appId && data.status === 'disabled'
+}
+
 export function configurationResult(appId, { statusCode, data }) {
   if (data?.provider === 'wechat' && data.appid === appId) {
-    if (statusCode === 403 && data.status === 'disabled') return { status: 'disabled' }
+    if (disabledResponse(appId, { statusCode, data })) return { status: 'disabled' }
     const { home_banner, profile_menu } = data.links ?? {}
     if (statusCode === 200 && ['active', 'auditing'].includes(data.status)
         && Array.isArray(home_banner) && Array.isArray(profile_menu)) {
@@ -16,6 +20,25 @@ export function configurationResult(appId, { statusCode, data }) {
     }
   }
   return { status: 'error' }
+}
+
+export async function requestApp(appId, path, { method = 'GET', data, token } = {}) {
+  if (!appId || !API_ORIGIN) throw new Error('请先配置当前小程序的后台地址')
+  let response
+  try {
+    response = await uni.request({
+      url: API_ORIGIN + '/api/apps/wechat/' + encodeURIComponent(appId) + '/' + path,
+      method, data, timeout: 15000, header: token ? { Authorization: 'Bearer ' + token } : {},
+    })
+  } catch {
+    throw new Error('网络连接失败，请重试')
+  }
+  if (response.statusCode >= 200 && response.statusCode < 300) return response.data
+  const error = new Error(response.data?.message || '服务暂不可用，请重试')
+  error.statusCode = response.statusCode
+  error.code = response.data?.code
+  error.appDisabled = disabledResponse(appId, response)
+  throw error
 }
 
 export async function loadAppConfiguration() {

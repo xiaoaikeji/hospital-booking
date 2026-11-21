@@ -5,7 +5,7 @@
   "versionCode": "100",
   "vueVersion": "3",
   "mp-weixin": {
-    "appid": "",
+    "appid": "wxf6184c23a8a255bb",
     "usingComponents": true,
     "lazyCodeLoading": "requiredComponents"
   }

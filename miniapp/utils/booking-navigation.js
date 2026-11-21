@@ -1,4 +1,4 @@
-import { session } from '@/mock/session.js'
+import { signedIn } from '@/store/session.js'
 import { canUseApp } from '@/utils/app-access.js'
 
 const destinations = {
@@ -19,14 +19,14 @@ function destinationUrl(target, { id, date, clinic, department } = {}, requireLo
 }
 
 export function openBooking(target, params) {
-  uni.navigateTo({ url: destinationUrl(target, params, !session.value) })
+  uni.navigateTo({ url: destinationUrl(target, params, !signedIn.value) })
 }
 
 // 编译模式或分享链接也可能直接打开二级页。
 export async function canOpenBooking(target, params) {
   const page = getCurrentPages().slice(-1)[0]
   if (!await canUseApp() || getCurrentPages().slice(-1)[0] !== page) return false
-  if (session.value) return true
+  if (signedIn.value) return true
   uni.redirectTo({ url: destinationUrl(target, params, true) })
   return false
 }

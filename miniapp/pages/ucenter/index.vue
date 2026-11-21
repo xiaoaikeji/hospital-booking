@@ -1,14 +1,39 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { onShow, onTabItemTap } from '@dcloudio/uni-app'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
-import { endDemoSession, session } from '@/mock/session.js'
+import { bindPhone, profile, readProfile, signedIn, signOut } from '@/store/session.js'
 import { pageLinks } from '@/store/app-configuration.js'
 
-onShow(() => handleTabShow('/pages/ucenter/index'))
+const feedback = ref('')
+const binding = ref(false)
+async function load() {
+  feedback.value = ''
+  if (!signedIn.value) return
+  try { await readProfile() }
+  catch (error) { feedback.value = error.message || '资料读取失败，请重试' }
+}
+
+onShow(() => {
+  handleTabShow('/pages/ucenter/index')
+  load()
+})
 onTabItemTap(() => requestTabLogin('/pages/ucenter/index'))
 
 const services = computed(() => pageLinks.value.profile_menu)
+
+async function verifyPhone(result) {
+  if (binding.value) return
+  binding.value = true
+  try {
+    await bindPhone(result)
+    feedback.value = ''
+  } catch (error) {
+    feedback.value = error.message || '手机号验证失败，请重试'
+  } finally {
+    binding.value = false
+  }
+}
 
 function confirmLogout() {
   uni.showModal({
@@ -20,7 +45,7 @@ function confirmLogout() {
     confirmColor: '#63a9d9',
     success: ({ confirm }) => {
       if (!confirm) return
-      endDemoSession()
+      signOut().catch(() => uni.showToast({ title: '已退出本机，服务端注销未确认', icon: 'none' }))
       uni.switchTab({ url: '/pages/index/index' })
     },
   })
@@ -31,10 +56,21 @@ function confirmLogout() {
   <view class="profile-page">
     <custom-page-header />
     <view class="user-heading">
-      <image class="user-avatar" src="/static/ucenter/wechat-avatar.svg" mode="aspectFit" />
-      <text>微信用户</text>
+      <image class="user-avatar" :src="profile?.avatar_url || '/static/ucenter/wechat-avatar.svg'" mode="aspectFit" />
+      <view>
+        <text>{{ profile?.nickname || '微信用户' }}</text>
+        <view v-if="profile" class="user-detail">
+          <text v-if="profile.user_no !== 'demo'">用户编号 {{ profile.user_no }}</text>
+          <text v-if="profile.mobile">账号手机号 {{ profile.mobile }}</text>
+          <custom-phone-authorization v-else label="绑定账号手机号" @authorized="verifyPhone"
+            @denied="feedback = '已取消手机号授权'" @failed="feedback = '手机号授权失败，请重试'">
+            <text>{{ binding ? '验证中…' : '绑定账号手机号' }}</text>
+          </custom-phone-authorization>
+        </view>
+        <view v-if="feedback && signedIn" class="user-detail" aria-role="button" @tap="load">{{ feedback }}</view>
+      </view>
     </view>
-    <view v-if="services.length || session" class="services-panel">
+    <view v-if="services.length || signedIn" class="services-panel">
       <view class="services-title">就医服务</view>
       <view class="service-list">
         <custom-page-link v-for="service in services" :key="service.id" :link="service">
@@ -44,7 +80,7 @@ function confirmLogout() {
             <text>{{ service.name }}</text>
           </view>
         </custom-page-link>
-        <view v-if="session" class="service logout" aria-role="button" @tap="confirmLogout">
+        <view v-if="signedIn" class="service logout" aria-role="button" @tap="confirmLogout">
           <view class="service-icon logout-icon"><view class="door" /><view class="arrow" /></view>
           <text>退出登录</text>
         </view>
@@ -57,6 +93,7 @@ function confirmLogout() {
 .profile-page { min-height: 100vh; background: linear-gradient(180deg,#97bee0 0%,#f4f4f6 78%); color: #111; }
 .user-heading { display: flex; align-items: center; gap: 20rpx; margin: 38rpx 60rpx 0; color: #fff; font-size: 46rpx; }
 .user-avatar { width: 120rpx; height: 120rpx; }
+.user-detail { display: flex; flex-direction: column; gap: 4rpx; margin-top: 6rpx; color: #283f56; font-size: 25rpx; line-height: 40rpx; }
 .services-panel { margin: 78rpx 32rpx 0; min-height: 326rpx; border-radius: 18rpx; background: #fff; padding: 30rpx 0 32rpx; box-sizing: border-box; }
 .services-title { display: flex; align-items: center; gap: 12rpx; font-size: 32rpx; line-height: 48rpx; }
 .services-title::before { content: ''; width: 8rpx; height: 30rpx; border-radius: 6rpx; background: #709af1; }

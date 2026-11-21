@@ -33,6 +33,19 @@ function form(doctorId) {
     name: '测试甲', sex: '女', age: '32', symptoms: '', savePatient: true }
 }
 
+test('a family contact belongs to this appointment and cannot identify the owner or another order', () => {
+  const user = { user_no: 'demo', mobile: '10000000001' }
+  const familyNumber = '10000000002'
+  const first = createAppointment(user.user_no, newAppointmentNo(), { ...form(1), phone: familyNumber })
+  const second = createAppointment(user.user_no, newAppointmentNo(), { ...form(1), phone: user.mobile })
+  assert.equal(first.phone, familyNumber)
+  assert.equal(second.phone, user.mobile)
+  assert.equal(user.mobile, '10000000001')
+  assert.deepEqual(listAppointments(familyNumber), [])
+  assert.deepEqual(listPatients(user.mobile), [])
+  assert.equal(listAppointments(user.user_no).length, 2)
+})
+
 test('retrying a successful submission keeps one appointment, one saved patient and one held seat', () => {
   const draft = form(1)
   const day = getBookingSchedule()[1]

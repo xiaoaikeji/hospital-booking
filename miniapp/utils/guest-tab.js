@@ -1,4 +1,4 @@
-import { session } from '@/mock/session.js'
+import { signedIn } from '@/store/session.js'
 import { canUseApp } from '@/utils/app-access.js'
 
 let activeTab = ''
@@ -21,12 +21,12 @@ export function handleTabShow(url) {
 }
 
 export function requestTabLogin(url) {
-  if (session.value || openingLogin || publicEntry === url) return
+  if (signedIn.value || openingLogin || publicEntry === url) return
   clearTimeout(loginTimer)
   loginTimer = setTimeout(async () => {
     if (!await canUseApp()) return
     const pages = getCurrentPages()
-    if (session.value || openingLogin || '/' + pages[pages.length - 1]?.route !== url) return
+    if (signedIn.value || openingLogin || '/' + pages[pages.length - 1]?.route !== url) return
     openingLogin = true
     uni.navigateTo({ url: '/pages/ucenter/login', complete: () => { openingLogin = false } })
   }, 0)

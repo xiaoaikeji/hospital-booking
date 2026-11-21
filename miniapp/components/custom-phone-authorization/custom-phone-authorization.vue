@@ -1,12 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { appName } from '@/store/app-configuration.js'
-import { wechatAppId } from '@/request/http.js'
+import { demoMode } from '@/store/session.js'
 import { phoneAuthorizationOutcome } from '@/utils/phone-authorization.js'
 
 defineProps({ label: { type: String, required: true } })
 const emit = defineEmits(['authorized', 'denied', 'failed'])
-const demo = !wechatAppId()
 const showDemo = ref(false)
 const demoPhone = '10000000000'
 
@@ -18,8 +17,7 @@ function chooseDemo(allow) {
 
 function receivePhone(event) {
   const outcome = phoneAuthorizationOutcome(event?.detail)
-  // 微信授权码等服务端换号接入后再消费，当前只向页面报告授权结果。
-  if (outcome === 'authorized') emit('authorized', {})
+  if (outcome === 'authorized') emit('authorized', { code: event.detail.code })
   else emit(outcome)
 }
 </script>
@@ -28,7 +26,7 @@ function receivePhone(event) {
   <view>
     <view class="phone-trigger">
       <slot />
-      <button v-if="demo" class="phone-hit" :aria-label="label" @tap="showDemo = true" />
+      <button v-if="demoMode" class="phone-hit" :aria-label="label" @tap="showDemo = true" />
       <button v-else class="phone-hit" :aria-label="label" open-type="getPhoneNumber" @getphonenumber="receivePhone" />
     </view>
     <view v-if="showDemo" class="phone-mask">
@@ -36,7 +34,7 @@ function receivePhone(event) {
       <view class="phone-sheet" aria-role="dialog" aria-label="体验手机号授权">
         <view class="app-name"><image class="app-logo" src="/static/ucenter/hospital-logo.jpg" />{{ appName }}</view>
         <view class="request">申请获取并验证你的手机号</view>
-        <view class="purpose">本地模拟登录或注册</view>
+        <view class="purpose">用于体验账号的手机号验证</view>
         <button class="phone-choice" @tap="chooseDemo(true)">100****0000<text class="demo-label">体验号码</text></button>
         <button class="phone-refuse" @tap="chooseDemo(false)">不允许</button>
       </view>

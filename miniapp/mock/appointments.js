@@ -10,7 +10,12 @@ const REFUND_DELAY = 6500
 export const demoResults = { paymentApproved: true, refundApproved: true }
 
 function readLedger() {
-  return uni.getStorageSync(STORAGE_KEY) || { appointments: [], patients: [] }
+  const ledger = uni.getStorageSync(STORAGE_KEY) || { appointments: [], patients: [] }
+  // Earlier tourist previews keyed the one demo account by its fixture phone number.
+  for (const row of [...ledger.appointments, ...ledger.patients]) {
+    if (row.owner === '10000000000') row.owner = 'demo'
+  }
+  return ledger
 }
 
 export function listAppointments(owner) {
@@ -113,7 +118,7 @@ export function createAppointment(owner, no, draft) {
   if (!name.trim() || !['男', '女'].includes(sex) || !Number.isInteger(+age) || +age < 1 || +age > 200) {
     throw new Error('请核对就诊人信息')
   }
-  if (!draft.phone) throw new Error('请获取预约电话')
+  if (!draft.phone) throw new Error('请输入本次联系电话')
   const patient = { name: name.trim(), sex, age: +age }
   const [startsAt, endsAt] = slotBoundaries(day.date, draft.slot)
   const record = {

@@ -7,6 +7,7 @@ let firstVisit = true
 import { computed, ref } from 'vue'
 import { onUnload } from '@dcloudio/uni-app'
 import { bookingStatus, statusLabels } from '@/mock/appointments.js'
+import { demoMode, signedIn } from '@/store/session.js'
 import { useAppointmentRecords } from './appointment-records.js'
 
 const { records, now, error, refresh } = useAppointmentRecords()
@@ -50,7 +51,7 @@ onUnload(() => clearTimeout(timer))
     </view>
     <view v-else class="empty-card">
       <image class="empty-illustration" src="/static/ucenter/empty-appointments.jpg" mode="aspectFit" />
-      <text class="empty-message">暂无预约记录</text>
+      <text class="empty-message">{{ !demoMode && signedIn ? '医院预约记录尚未开放' : '暂无预约记录' }}</text>
     </view>
   </view>
 </template>

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { allowedActions, bookingStatus, statusLabels, updateAppointment } from '@/mock/appointments.js'
-import { session } from '@/mock/session.js'
+import { demoMode, profile } from '@/store/session.js'
 import { useAppointmentRecords } from './appointment-records.js'
 
 const { records, now, error, refresh } = useAppointmentRecords()
@@ -36,10 +36,10 @@ const dialogs = {
 const prompt = computed(() => dialogs[dialog.value])
 function confirmAction() {
   const action = dialog.value
-  if (!action) return
+  if (!action || !demoMode) return
   dialog.value = ''
   try {
-    updateAppointment(session.value?.phone, no.value, action)
+    updateAppointment(profile.value?.user_no, no.value, action)
     if (action === 'pay') showResult.value = true
   } catch (err) {
     uni.showToast({ title: err.message || '操作失败，请重试', icon: 'none' })
@@ -69,6 +69,7 @@ function viewRecords() {
         <view class="row"><text>预约医生</text>{{ item.doctor }}</view>
         <view class="row"><text>科室</text>{{ item.department }}</view>
         <view class="row"><text>就诊人</text>{{ item.patient.name }}</view>
+        <view class="row"><text>本次联系电话</text>{{ item.phone }}</view>
         <view class="row"><text>预约日期</text>{{ item.date }}</view>
         <view class="row"><text>预约时段</text>{{ item.slot }}</view>
         <view class="row"><text>挂号费</text>¥{{ item.fee }}</view>

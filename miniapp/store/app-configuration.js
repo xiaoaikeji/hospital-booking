@@ -6,12 +6,21 @@ import { loadAppConfiguration } from '@/request/http.js'
 const appConfiguration = ref(null)
 export const configurationStatus = ref('loading')
 let pending
+let revision = 0
+
+export function markAppDisabled() {
+  revision++
+  appConfiguration.value = null
+  configurationStatus.value = 'disabled'
+}
 
 export function refreshAppConfiguration() {
   if (pending) return pending
   if (configurationStatus.value !== 'disabled') configurationStatus.value = 'loading'
 
+  const started = revision
   pending = loadAppConfiguration().then(({ status, config }) => {
+    if (started !== revision) return
     if (status === 'ready') appConfiguration.value = config
     if (status === 'disabled') appConfiguration.value = null
     // 停用已由服务端确认，后续读取失败时仍等待明确恢复。
