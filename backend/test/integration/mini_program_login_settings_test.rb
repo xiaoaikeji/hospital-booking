@@ -66,21 +66,48 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     assert_equal [ [ a.appid ], [ b.appid, c.appid ] ], row.reload.settings.fetch("unionid_app_groups")
   end
 
-  test "operators and customer service cannot open, see or submit either setting" do
+  test "the map key is encrypted, replaceable and clearable with a field-only audit" do
+    path = edit_admins_system_settings_map_path
+    revision = edit_revision(path)
+    first, second = SecureRandom.hex, SecureRandom.hex
+    patch admins_system_settings_map_path, params: { map: { ak: first, revision: revision } }
+    assert_redirected_to path
+    row = Setting.find_by!(key: "baidu_map")
+    assert_predicate row.settings.fetch("ak").fetch("ciphertext"), :present?
+    refute_includes row.settings.to_json, first
+    newer = edit_revision(path)
+    assert_select "input[name='map[ak]'][value=?]", first
+    patch admins_system_settings_map_path, params: { map: { ak: second, revision: revision } }
+    assert_response :unprocessable_content
+    patch admins_system_settings_map_path, params: { map: { ak: second, revision: newer } }
+    assert_redirected_to path
+    assert_equal second, MapSettings.new.key
+    patch admins_system_settings_map_path, params: { map: { clear_key: "1", revision: MapSettings.new.revision } }
+    assert_redirected_to path
+    refute row.reload.settings.key?("ak")
+    Log.where(action: "map_settings.update").each do |event|
+      assert_equal %w[ak], event.details.fetch("fields")
+      [ first, second ].each { |key| refute_includes event.details.to_json, key }
+    end
+  end
+
+  test "operators and customer service cannot open, see or submit login and map settings" do
     %w[operator customer_service].each do |role|
       sign_in Admin.create!(username: role, role: role)
       get admins_root_path
-      [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path ].each do |path|
+      [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path, edit_admins_system_settings_map_path ].each do |path|
         assert_select "#sidebar-menu a[href=?]", path, count: 0
       end
       assert_no_difference [ "Setting.count", "Log.where(action: %w[appointment.phone_policy app.user_sharing]).count" ] do
-        [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path ].each do |path|
+        [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path, edit_admins_system_settings_map_path ].each do |path|
           get path
           assert_response :forbidden
         end
         patch admins_system_settings_appointment_path, params: { appointment: { require_mobile_auth: "1" } }
         assert_response :forbidden
         save_groups("ignored", { "unknown" => "1" })
+        assert_response :forbidden
+        patch admins_system_settings_map_path, params: { map: { ak: SecureRandom.hex } }
         assert_response :forbidden
       end
     end
@@ -91,7 +118,7 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
   def edit_revision(path)
     get path
     assert_response :success
-    css_select("form input[name$='[revision]']").to_a.sole["value"]
+    css_select("form.card input[name$='[revision]']").to_a.sole["value"]
   end
 
   def save_groups(revision, memberships)

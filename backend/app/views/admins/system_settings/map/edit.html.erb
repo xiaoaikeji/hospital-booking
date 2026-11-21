@@ -1,0 +1,21 @@
+<% content_for :title, "地图服务 · Booking 管理后台" %>
+<%= render "admins/system_settings/navigation", title: "地图服务" %>
+<%= form_with scope: :map, url: admins_system_settings_map_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
+  <%= f.hidden_field :revision, value: @settings.revision %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "百度地图 IP 归属地", record: @settings,
+        clear_target: "#clear-map-key", clear_disabled: !@settings.stored? } do %>
+    <div class="col-lg-8">
+      <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :ak, label: "服务端 AK",
+            source: @settings.source, value: @settings.key, help: "使用已开通普通 IP 定位的服务端 AK。后台任务会补查尚空的地区。" %>
+    </div>
+  <% end %>
+<% end %>
+<% if @settings.stored? %>
+  <%= form_with scope: :map, url: admins_system_settings_map_path, method: :patch, id: "clear-map-form", class: "d-none" do |f| %>
+    <%= f.hidden_field :revision, value: @settings.revision, id: nil %>
+    <%= f.hidden_field :clear_key, value: "1", id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "clear-map-key", form_id: "clear-map-form",
+        title: "清除地图服务配置", context: "百度地图服务端 AK", description: "清除后按环境变量和 Rails credentials 读取。",
+        color: "warning", confirm_label: "确认清除", confirm_icon: :trash, cancel_icon: :close %>
+<% end %>

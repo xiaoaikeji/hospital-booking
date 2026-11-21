@@ -4,3 +4,6 @@ notification_delivery:
 mini_program_sessions_cleanup:
   cron: "15 4 * * * Asia/Shanghai"
   class: "MiniProgramSessionsCleanupWorker"
+user_ip_location:
+  cron: "*/5 * * * *"
+  class: "UserIpLocationWorker"

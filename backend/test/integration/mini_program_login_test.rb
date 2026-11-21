@@ -49,7 +49,7 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     binding = UserApp.for_app(@a).sole
     assert_equal [ Digest::SHA256.hexdigest(phone), Digest::SHA256.hexdigest(computer) ].sort, binding.sessions.keys.sort
     assert_in_delta 30.days.to_i, binding.sessions.values.first - Time.current.to_i, 2
-    assert_equal "clinic-share", Log.find_by!(target_type: "UserApp", target_id: binding.id).details["scene"]
+    assert_equal "clinic-share", Log.find_by!(target_type: "UserApp", target_id: binding.id).details["channel_scene"]
     assert_equal({ "appid" => @a.appid, "secret" => @a.appsecret, "grant_type" => "authorization_code" }, @exchanges.first)
     assert_empty @tokens
     Rails.cache.clear # This fixture installs a private MemoryStore.

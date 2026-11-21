@@ -5,3 +5,4 @@ zh-CN:
     cron:
       notification_delivery: 通知投递检查
       mini_program_sessions_cleanup: 清理过期的小程序会话
+      user_ip_location: 补查用户 IP 归属地

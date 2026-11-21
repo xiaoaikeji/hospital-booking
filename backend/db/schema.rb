@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -379,6 +379,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
   create_table "user_apps", force: :cascade do |t|
     t.string "appid", limit: 100, null: false
     t.datetime "created_at", null: false
+    t.jsonb "first_entry", default: {}, null: false
     t.datetime "last_sign_in_at"
     t.string "openid", limit: 150, null: false
     t.string "provider", null: false
@@ -393,6 +394,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
     t.index ["user_id", "provider", "appid"], name: "index_user_apps_on_user_id_and_provider_and_appid", unique: true
     t.index ["user_id"], name: "index_user_apps_on_user_id"
     t.check_constraint "(status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])) AND sign_in_count >= 0", name: "valid_user_app"
+    t.check_constraint "jsonb_typeof(first_entry) = 'object'::text", name: "user_app_first_entry_object"
     t.check_constraint "jsonb_typeof(sessions) = 'object'::text", name: "user_app_sessions_object"
   end
 
@@ -400,6 +402,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
     t.string "avatar_url", limit: 500
     t.datetime "created_at", null: false
     t.datetime "last_login_at"
+    t.jsonb "login_profile", default: {}, null: false
     t.string "mobile", limit: 30
     t.datetime "mobile_verified_at"
     t.string "nickname", limit: 100
@@ -407,8 +410,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
     t.string "status", default: "active", null: false
     t.datetime "updated_at", null: false
     t.string "user_no", limit: 8, null: false
+    t.index ["id"], name: "users_pending_ip_location", where: "((login_profile ? 'first_ip'::text) AND (NOT (login_profile ? 'region'::text)))"
     t.index ["user_no"], name: "index_users_on_user_no", unique: true
     t.check_constraint "(platform::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])) AND (status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])) AND user_no::text ~ '^[1-9][0-9]{7}$'::text", name: "valid_terminal_user"
+    t.check_constraint "jsonb_typeof(login_profile) = 'object'::text", name: "user_login_profile_object"
   end
 
   create_table "wechat_appeals", force: :cascade do |t|

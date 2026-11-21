@@ -21,6 +21,10 @@ onShow(() => {
 onTabItemTap(() => requestTabLogin('/pages/ucenter/index'))
 
 const services = computed(() => pageLinks.value.profile_menu)
+const region = computed(() => {
+  const area = profile.value?.region || {}
+  return [...new Set([area.country, area.province, area.city].filter(Boolean))].join(' ')
+})
 
 async function verifyPhone(result) {
   if (binding.value) return
@@ -61,6 +65,7 @@ function confirmLogout() {
         <text>{{ profile?.nickname || '微信用户' }}</text>
         <view v-if="profile" class="user-detail">
           <text v-if="profile.user_no !== 'demo'">用户编号 {{ profile.user_no }}</text>
+          <text v-if="region">地区 {{ region }}</text>
           <text v-if="profile.mobile">账号手机号 {{ profile.mobile }}</text>
           <custom-phone-authorization v-else label="绑定账号手机号" @authorized="verifyPhone"
             @denied="feedback = '已取消手机号授权'" @failed="feedback = '手机号授权失败，请重试'">

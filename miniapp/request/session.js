@@ -1,5 +1,5 @@
 // One instance per backend and AppID. A missing saved session is an intentional guest.
-export function createSessionClient({ saved, save, send, loginCode, changed }) {
+export function createSessionClient({ saved, save, send, loginCode, changed, deviceContext = () => ({}) }) {
   function credential({ token, expires_at, logout_token }) {
     return { token, expires_at, logout_token }
   }
@@ -36,14 +36,14 @@ export function createSessionClient({ saved, save, send, loginCode, changed }) {
     }))
   }
 
-  function exchange(scene) {
+  function exchange(entry) {
     if (pending) return pending
     const start = generation
     const operation = (async () => {
       const code = await loginCode()
       assertCurrent(start)
       if (!code) throw new Error('未取得微信登录凭证，请重试')
-      const result = await send('session', { method: 'POST', data: { code, scene } })
+      const result = await send('session', { method: 'POST', data: { code, ...deviceContext(), ...entry } })
       if (!result?.token || !(Date.parse(result.expires_at) > Date.now())) throw new Error('登录响应无效，请重试')
       if (start !== generation) {
         // Logout ran while Rails was issuing this otherwise orphaned credential.
@@ -62,10 +62,10 @@ export function createSessionClient({ saved, save, send, loginCode, changed }) {
     return operation
   }
 
-  function signIn(scene) {
+  function signIn(entry) {
     if (pending) return pending
     if (current && Date.parse(current.expires_at) > Date.now()) return Promise.resolve(current.token)
-    return exchange(scene)
+    return exchange(entry)
   }
 
   async function request(path, { method = 'GET', data } = {}) {

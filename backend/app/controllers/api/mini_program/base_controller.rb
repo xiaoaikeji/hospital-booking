@@ -63,9 +63,14 @@ module Api
 
       def render_profile
         profile = @user.slice(:user_no, :nickname, :avatar_url)
+        profile.merge!(@user.login_profile.slice("device_model", "operating_system", "region"))
         profile[:mobile] = @user.mobile if @user.mobile_verified_at?
         profile[:booking_phone_required] = profile[:mobile].blank? && MiniProgramLoginSettings.new("appointment").phone_required?
         render json: profile
+      end
+
+      def visit_context
+        params.permit(:launch_scene, :channel_scene, :scene, :device_model, :operating_system, :device_platform).to_h
       end
 
       def render_error(status, code, message)

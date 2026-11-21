@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import { API_ORIGIN, wechatAppId, requestApp } from '../request/http.js'
 import { createSessionClient } from '../request/session.js'
 import { pauseApp } from '../utils/app-access.js'
+import { deviceContext, entrySource } from '../utils/login-context.js'
 
 const appId = wechatAppId()
 export const demoMode = !appId
@@ -11,7 +12,7 @@ export const signedIn = ref(!!(demoMode ? saved?.user_no || saved?.phone : saved
 const demoUser = mobile => ({ user_no: 'demo', nickname: '体验用户', mobile, booking_phone_required: false })
 export const profile = ref(demoMode && signedIn.value ? demoUser(saved.mobile || saved.phone) : null)
 let profileVersion = 0
-let entryScene
+const guestEntries = []
 
 function save(value) {
   if (value) uni.setStorageSync(storageKey, value)
@@ -20,7 +21,7 @@ function save(value) {
 
 const client = createSessionClient({
   saved: demoMode ? null : saved,
-  save,
+  save, deviceContext,
   loginCode: async () => {
     try { return (await uni.login({ provider: 'weixin' })).code }
     catch { throw new Error('微信登录失败，请重试') }
@@ -59,9 +60,10 @@ export async function signIn() {
     signedIn.value = true
     return
   }
-  const scene = entryScene
-  await client.signIn(scene)
-  if (entryScene === scene) entryScene = undefined
+  const first = guestEntries[0]
+  await client.signIn(first)
+  if (first && guestEntries[0] === first) guestEntries.shift()
+  guestEntries.splice(0).forEach(reportVisit)
   await readProfile()
 }
 
@@ -78,7 +80,7 @@ export async function bindPhone({ code, phone }) {
 }
 
 export function signOut() {
-  entryScene = undefined
+  guestEntries.length = 0
   return client.signOut()
 }
 
@@ -88,13 +90,21 @@ export function retryRevocations() {
 
 export function noteEntry(options) {
   if (demoMode) return
-  const scene = options?.query?.scene || options?.scene
-  entryScene = scene ? String(scene).slice(0, 128) : undefined
-  if (!entryScene || !signedIn.value) return
-  const data = { scene: entryScene }
-  entryScene = undefined
+  const entry = entrySource(options)
+  if (!signedIn.value) {
+    if (entry) guestEntries.push(entry)
+    return
+  }
+  reportVisit(entry)
+}
+
+function reportVisit(entry) {
+  const data = { ...deviceContext(), ...entry }
+  const version = profileVersion
   // If the session expires, the API rejects this before recording the entry.
   client.request('entry_scenes', { method: 'POST', data }).catch(error => {
-    if (error.code === 'confirmation_required') client.request('entry_scenes', { method: 'POST', data }).catch(() => {})
+    if (error.code === 'confirmation_required' && version === profileVersion) {
+      client.request('entry_scenes', { method: 'POST', data }).catch(() => {})
+    }
   })
 }

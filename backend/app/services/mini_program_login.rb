@@ -7,7 +7,7 @@ class MiniProgramLogin
     @app = app
   end
 
-  def call(code, scene: nil)
+  def call(code, context: {}, ip: nil)
     secret = Wechat::AccessToken.credential!(@app)
     original_group = MiniProgramLoginSettings.trusted_group(@app.appid)
     openid, unionid = Wechat::MiniProgramLoginClient.new.identity(@app.appid, secret, code)
@@ -37,7 +37,9 @@ class MiniProgramLogin
         identity.update!(unionid: unionid || identity.unionid, last_sign_in_at: now, sign_in_count: identity.sign_in_count + 1)
         user.update!(last_login_at: now)
         session = MiniProgramSession.issue!(identity)
-        ActiveRecord.after_all_transactions_commit { self.class.record_scene(identity, scene) } if scene.present?
+        if ip || context.present?
+          ActiveRecord.after_all_transactions_commit { MiniProgramVisit.record(identity, context, ip: ip) }
+        end
         session
       end
     rescue ActiveRecord::RecordNotUnique
@@ -49,18 +51,6 @@ class MiniProgramLogin
 
   def self.check_account!(identity, user)
     raise AccountDisabled unless identity.status == "active" && user.status == "active" && user.platform == identity.provider
-  end
-
-  def self.record_scene(identity, scene)
-    return true unless scene.is_a?(String) && scene.present? && scene.length <= 128 && !scene.match?(/[[:cntrl:]]/)
-    Log.transaction(requires_new: true) do
-      Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: identity.user,
-        target: identity, details: { scene: scene })
-    end
-    true
-  rescue StandardError => error
-    Rails.logger.warn("Mini program entry log failed (#{error.class.name})")
-    false
   end
 
   private
