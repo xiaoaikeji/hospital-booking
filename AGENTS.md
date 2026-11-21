@@ -14,6 +14,8 @@ Rails 服务端和管理后台在 `backend/`，Rails 命令在该目录执行。
 
 新文档按读者归入这两个目录。运行时加载的代码、图片和字体留在对应工程。提交标题和正文使用英文，标题沿用 `type: short description`。
 
+每次提交前检查全部暂存改动，每次推送前逐个检查待推送的提交，包括后来又删除的内容。确认其中没有真实密钥或访问凭据后再执行。
+
 ## 后台组件与草稿
 
 后台界面优先复用 `backend/app/views/admins/shared/` 的组件和项目已引入的 Tabler 样式。新布局先查 [后台样式规范](dev-docs/backend/admin-ui.md)，可在 Tabler 官网或本地模板找到对应示例。
