@@ -14,6 +14,13 @@ module Admins
       "组件草稿" => { "drafts" => "通知与任务监控" }
     }.freeze
 
+    CUSTOMER_EXAMPLE_FILTERS = {
+      status: { "active" => "正常", "disabled" => "已停用" },
+      source: { "mini_program" => "小程序", "phone" => "电话登记", "store" => "门店登记", "import" => "批量导入" },
+      period: { "today" => "今日", "week" => "近7天", "month" => "近30天" },
+      tag: { "new" => "新客户", "returning" => "回头客", "vip" => "VIP客户" }
+    }.freeze
+
     def index
       @groups = GROUPS
       @tab = params[:tab].presence_in(GROUPS.values.flat_map(&:keys)) || "media"
@@ -45,7 +52,7 @@ module Admins
       @list_example = params[:example].presence_in(@list_examples.keys) || "toolbars"
       return prepare_toolbar_example if @list_example == "toolbars"
 
-      @list_options = @list_example == "logs" ? { operation: AdminsHelper::LOG_ACTIONS } : CustomersController::FILTER_OPTIONS
+      @list_options = @list_example == "logs" ? { operation: AdminsHelper::LOG_ACTIONS } : CUSTOMER_EXAMPLE_FILTERS
       @list_filters = @list_options.to_h { |key, options| [ key, params[key].presence_in(options.keys) ] }.compact
       @list_query = params[:q].to_s.strip
 

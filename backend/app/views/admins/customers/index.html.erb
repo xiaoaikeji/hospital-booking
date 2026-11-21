@@ -1,62 +1,73 @@
 <% content_for :title, "客户列表 · Booking 管理后台" %>
-<% content_for :fill_content, "true" %>
-<% filter_url = ->(changes = {}) { admins_customers_path(@filters.merge(q: @query.presence).merge(changes).compact) } %>
+<% empty = @customers.empty? %>
+<% content_for :fill_content, "true" if empty %>
+<%= render "admins/shared/enhanced_select_assets" %>
 
-<div class="page-header mt-0 mb-3 flex-shrink-0">
-  <div class="row g-2 align-items-center">
-    <div class="col-auto"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :users, icon_class: "w-5 h-5" %></span>客户列表</h1></div>
-    <div class="col-auto ms-auto"><div class="btn-list">
-      <button type="button" class="btn" data-bs-toggle="collapse" data-bs-target="#customer-advanced-filters" aria-controls="customer-advanced-filters" aria-expanded="<%= @advanced_filters %>">
-        <span data-collapse-label="collapsed">更多筛选</span>
-        <span data-collapse-label="expanded">收起筛选</span>
-      </button>
-      <%= link_to "返回预约列表", admins_reservations_path, class: "btn" %>
-    </div></div>
-  </div>
-</div>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "客户列表", icon: :users } do %>
+  <%= link_to admins_reservations_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回预约列表<% end %>
+<% end %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="客户筛选条件">
-  <div class="list-group list-group-flush border-bottom-0">
-    <% [["客户状态", :status], ["客户来源", :source]].each do |label, key| %>
-      <%= render "admins/shared/list_filter_row", label: label, key: key, options: @filter_options.fetch(key), selected: @filters[key], filter_url: filter_url %>
-    <% end %>
-  </div>
-  <div class="collapse<%= " show" if @advanced_filters %>" id="customer-advanced-filters">
-    <div class="list-group rounded-0">
-      <% advanced_rows = [["注册时间", :period], ["客户标签", :tag]] %>
-      <% advanced_rows.each_with_index do |(label, key), index| %>
-        <%= render "admins/shared/list_filter_row", label: label, key: key, options: @filter_options.fetch(key), selected: @filters[key], filter_url: filter_url,
-                   row_class: class_names("border-x-0 rounded-0", "border-bottom-0" => index == advanced_rows.length - 1) %>
-      <% end %>
-    </div>
+  <div class="list-group list-group-flush">
+    <%= render "admins/shared/list_filter_row", label: "账号状态", key: :status, options: Admins::CustomersController::STATUSES,
+          selected: @filters[:status], filter_url: ->(changes) { admins_customers_path(@filters.merge(changes).compact) } %>
   </div>
 </section>
 
-<%# Native flex continues through the opt-in layout container and card; no measured or fixed height. %>
-<section class="card flex-fill" aria-label="客户记录" data-customer-list>
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="客户记录" data-customer-list>
   <div class="card-header flex-shrink-0">
-    <%= form_with url: admins_customers_path, method: :get, class: "row g-3 align-items-center flex-grow-1", html: { role: "search" } do |form| %>
-      <% @filters.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
-      <div class="col-12 col-sm-6 col-md-4 col-xl-3"><%= form.search_field :q, value: @query, class: "form-control", placeholder: "客户编号 / 姓名 / 手机号", aria: { label: "搜索客户" } %></div>
-      <div class="col-12 col-sm-auto"><div class="btn-list align-items-center">
-        <button type="submit" class="btn">搜索</button>
-        <% if @query.present? || @filters.any? %><%= link_to "重置", admins_customers_path, class: "btn btn-ghost-secondary" %><% end %>
-        <span class="text-secondary"><strong class="text-body"><%= @customers.size %></strong> 位客户</span>
-      </div></div>
+    <%= form_with url: admins_customers_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索客户" } } do |form| %>
+      <%= form.hidden_field :status, value: @filters[:status] if @filters[:status] %>
+      <div class="col-12 col-sm-6 col-xl-3">
+        <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "用户编号 / 昵称 / 手机号", aria: { label: "用户编号、昵称或手机号" } %>
+      </div>
+      <div class="col-12 col-sm-6 col-xl-3">
+        <% app_options = @apps.map { |app| [[app.nickname.presence, app.appid, app.platform_label].compact.join(" · "), app.id] } %>
+        <%= form.select :app_id, options_for_select(app_options, @filters[:app_id]),
+              { include_blank: "全部应用" }, class: "form-select", data: { enhanced_select: "search" }, aria: { label: "所属应用" } %>
+      </div>
+      <div class="col-auto btn-list align-items-center">
+        <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+        <% if @filters.any? %>
+          <%= link_to admins_customers_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+        <span class="text-secondary"><strong class="text-body"><%= @pagy.count %></strong> 位客户</span>
+      </div>
     <% end %>
   </div>
-  <%# Tabler .empty has height: 100%; h-auto lets flex allocate only the remaining card space. %>
-  <div class="empty flex-fill h-auto p-4" role="status" data-customer-empty>
-    <div data-customer-empty-message>
-      <div class="empty-icon mx-auto"><%= render "layouts/admins/icon", name: :users, icon_class: "w-100 h-100" %></div>
-      <% if @query.present? || @filters.any? %>
-        <h2 class="empty-title">没有找到匹配的客户</h2>
-        <p class="empty-subtitle text-secondary">试试其他关键词，或清除筛选条件。</p>
-        <div class="empty-action"><%= link_to "清除筛选", admins_customers_path, class: "btn btn-primary" %></div>
-      <% else %>
-        <h2 class="empty-title">暂无客户</h2>
-        <p class="empty-subtitle text-secondary">客户信息添加后，会显示在这里。</p>
-      <% end %>
-    </div>
-  </div>
+
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :users, title: (@filters.any? ? "没有找到匹配的客户" : "暂无客户"),
+          description: (@filters.any? ? "试试其他关键词，或重置筛选。" : "用户登录小程序或关注公众号后，会显示在这里。") %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr>
+        <th scope="col" class="list-column-id px-2">ID</th>
+        <th scope="col" class="px-2">用户</th>
+        <th scope="col" class="list-column-phone d-none d-sm-table-cell">已验证手机号</th>
+        <th scope="col" class="d-none d-md-table-cell">使用情况</th>
+        <th scope="col" class="list-column-status px-2">账号状态</th>
+        <th scope="col" class="list-column-time d-none d-lg-table-cell">最近登录</th>
+        <th scope="col" class="list-column-action px-2">操作</th>
+      </tr></thead>
+      <tbody>
+        <% @customers.each do |customer| %>
+          <% detail = admins_customer_path(customer, @list_context) %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{customer.id}" %></td>
+            <td class="px-2">
+              <%= render "admins/shared/list_text", text: customer.nickname.presence || customer.user_no, url: detail %>
+              <% if customer.nickname.present? %><small class="d-block text-secondary"><%= customer.user_no %></small><% end %>
+            </td>
+            <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: customer.verified_mobile.presence || "—" %></td>
+            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: customer_usage(@identities_by_user.fetch(customer.id, [])) %></td>
+            <td class="px-2"><%= customer_status_badge(customer.status) %></td>
+            <td class="d-none d-lg-table-cell"><%= admin_list_time(customer.last_login_at, fallback: "尚未登录") %></td>
+            <td class="px-2"><%= link_to detail, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_customers_path(@filters.merge(page: page)) } %>
+  <% end %>
 </section>

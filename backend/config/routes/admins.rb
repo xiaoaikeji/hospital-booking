@@ -63,6 +63,6 @@ namespace :admins do
   resource :system_settings, only: %i[edit update], controller: "system_settings/storage"
   resources :operation_logs, only: %i[index show]
   resources :reservations, only: %i[index show edit]
-  resources :customers, only: :index
+  resources :customers, only: %i[index show]
   resources :components, only: :index
 end

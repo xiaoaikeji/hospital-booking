@@ -1,0 +1,51 @@
+<% content_for :title, "客户详情 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "客户详情", icon: :users } do %>
+  <%= link_to admins_customers_path(@list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">账号资料</h2></div>
+  <div class="card-body">
+    <%= render "admins/shared/field_rows", columns: 3, fields: {
+          "用户编号" => @customer.user_no, "昵称" => @customer.nickname, "已验证手机号" => @customer.verified_mobile,
+          "账号状态" => customer_status_badge(@customer.status), "使用情况" => customer_usage(@identities),
+          "最近登录" => admin_list_time(@customer.last_login_at, fallback: "尚未登录")
+        } %>
+  </div>
+</section>
+
+<% profile = @customer.login_profile
+   region = profile["region"]
+   region_label = region.values_at("country", "province", "city").compact_blank.uniq.join(" · ") if region.is_a?(Hash) %>
+<section class="card mb-3">
+  <div class="card-header"><h2 class="card-title">首次登录资料</h2></div>
+  <div class="card-body">
+    <%= render "admins/shared/field_rows", columns: 3, fields: {
+          "首次地区" => region_label, "设备型号" => profile["device_model"], "操作系统" => profile["operating_system"]
+        } %>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-header"><h2 class="card-title">应用身份</h2></div>
+  <% if @identities.empty? %>
+    <div class="card-body text-secondary">暂无应用身份</div>
+  <% else %>
+    <div class="list-group list-group-flush">
+      <% @identities.each do |identity| %>
+        <div class="list-group-item">
+          <h3 class="h4 mb-3 text-break"><%= identity.app_name.presence || identity.appid %>
+            <small class="text-secondary"><%= App::PROVIDERS.fetch(identity.provider) %><%= App::TYPES.fetch(identity.app_type) %></small>
+          </h3>
+          <% fields = { "AppID" => identity.appid, "绑定状态" => customer_status_badge(identity.status) }
+             if identity.app_type == "mini_program"
+               fields.merge!("登录次数" => identity.sign_in_count, "最近登录" => admin_list_time(identity.last_sign_in_at),
+                             "首次入口场景" => identity.first_entry["launch_scene"], "首次渠道参数" => identity.first_entry["channel_scene"])
+             end
+             fields.merge!("OpenID" => identity.openid, "UnionID" => identity.unionid) if current_admin.super_admin? %>
+          <%= render "admins/shared/field_rows", columns: 3, fields: fields %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</section>
