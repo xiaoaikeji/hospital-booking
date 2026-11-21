@@ -49,7 +49,7 @@ class MiniProgramLoginSettings
       fields = []
       previous = @record.settings.fetch(@field) { sharing? ? [] : false }
       if updated != previous
-        forget_departed_unionids(updated) if sharing?
+        reset_changed_unionids(updated) if sharing?
         @record.write_value(@field, updated)
         @record.save!
         fields << @field
@@ -96,13 +96,14 @@ class MiniProgramLoginSettings
     slots.map { |members| Array(members).sort }
   end
 
-  def forget_departed_unionids(updated)
-    # A UnionID belongs to its previous Open Platform account. Existing OpenID bindings stay valid.
+  def reset_changed_unionids(updated)
+    # Joining from independent login also requires a fresh UnionID from the verified Open Platform account.
+    newly_grouped = updated.flatten - groups.flatten
     departed = groups.each_with_index.flat_map do |members, index|
       next [] if updated.any? { |new_members| members.sort == new_members }
       members - Array(updated[index])
     end
-    eligible = departed & apps.map(&:appid)
+    eligible = (departed | newly_grouped) & apps.map(&:appid)
     UserApp.where(provider: "wechat", appid: eligible).where.not(unionid: nil).update_all(unionid: nil) if eligible.any?
   end
 end

@@ -56,10 +56,12 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
       UserApp.create!(app: app, user: User.create!(platform: "wechat"), openid: "known", unionid: "from-first-platform")
     end
     session = MiniProgramSession.issue!(b_binding)[:token]
+    c_binding = UserApp.create!(app: c, user: User.create!(platform: "wechat"), openid: "independent", unionid: "from-unverified-platform")
     save_groups(edit_revision(edit_admins_user_sharing_path), base.merge(b.appid => "2", c.appid => "2"))
     assert_redirected_to edit_admins_user_sharing_path
     assert_equal "from-first-platform", a_binding.reload.unionid
     assert_nil b_binding.reload.unionid
+    assert_nil c_binding.reload.unionid
     assert_equal b_binding, MiniProgramSession.new(b, session).identity
     assert_equal [ [ a.appid ], [ b.appid, c.appid ] ], row.reload.settings.fetch("unionid_app_groups")
   end

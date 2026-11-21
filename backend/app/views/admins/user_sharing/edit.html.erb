@@ -9,7 +9,7 @@
   <%= form_with scope: :sharing, url: admins_user_sharing_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
     <%= f.hidden_field :revision, value: @settings.revision %>
     <%= render layout: "admins/shared/configuration_card", locals: { title: "微信开放平台分组", record: @settings } do %>
-      <p class="text-secondary">请先在微信开放平台核实归属。同一开放平台账号下的小程序可选同一组，通过 UnionID 共享用户。移出原组的应用在用户下次登录时重新取得 UnionID。</p>
+      <p class="text-secondary">请先在微信开放平台核实归属。同一开放平台账号下的小程序可选同一组，通过 UnionID 共享用户。首次入组或移出原组后，用户下次登录时重新取得 UnionID。</p>
       <% choices = [["独立登录", "0"]] + @settings.group_slots.map { |number| ["共享组 #{number}", number.to_s] } %>
       <div class="row g-3">
         <% @settings.apps.each do |app| %>
