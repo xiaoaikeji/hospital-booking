@@ -12,6 +12,11 @@
     <% end %>
   </div>
   <% if @overview.processes.empty? %><div class="alert alert-warning">当前没有工作进程心跳，任务可能无人处理。请检查 Sidekiq 进程。</div><% end %>
+  <% if @history %>
+    <%= render "history", history: @history, jobs: @overview.cron_jobs %>
+  <% else %>
+    <section class="card mb-3" aria-label="任务历史"><div class="card-body text-secondary">暂时读不到任务历史，请稍后刷新。</div></section>
+  <% end %>
   <section class="card mb-3" aria-label="队列当前分布">
     <div class="card-header"><div><h2 class="card-title">队列当前分布</h2><div class="card-subtitle">同一刻的等待与执行数量 · <span class="text-primary">● 等待</span> <span class="text-success">● 执行</span></div></div></div>
     <div class="card-body">
@@ -41,7 +46,7 @@
       </tbody></table>
     <% end %>
   </section>
-  <section class="card" aria-label="最近失败详情">
+  <section class="card" id="job-current-failures" aria-label="最近失败详情">
     <div class="card-header"><div><h2 class="card-title">最近失败详情</h2><div class="card-subtitle">重试集合前 1000 条与最终失败集合最新 20 条中，按最近失败时间显示最多 20 条。隐藏参数、报错正文及回溯。</div></div></div>
     <% if @overview.failures.empty? %><div class="card-body text-secondary">当前没有等待重试或最终失败的任务。</div><% else %>
       <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>任务 / 错误类型</th><th class="d-none d-md-table-cell">最近失败</th><th>状态 / 已重试</th></tr></thead><tbody>

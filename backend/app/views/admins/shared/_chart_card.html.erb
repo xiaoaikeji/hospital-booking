@@ -1,0 +1,22 @@
+<section class="card h-100" aria-label="<%= title %>">
+  <div class="card-header flex-wrap gap-2">
+    <div>
+      <h2 class="card-title"><%= title %></h2>
+      <div class="card-subtitle"><%= subtitle %></div>
+    </div>
+    <% if series.length > 1 %>
+      <div class="card-actions legend-list flex-wrap">
+        <% series.each do |item| %>
+          <span class="legend legend-<%= item.fetch(:color) %>"><span class="legend-dot"></span><%= item.fetch(:name) %></span>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+  <div class="card-body min-w-0 pt-2 pb-1">
+    <% if series.any? { |item| item.fetch(:data).compact.any? } %>
+      <div role="img" aria-label="<%= title %>" data-admin-chart="<%= { type: type, categories: categories, series: series }.to_json %>"></div>
+    <% else %>
+      <p class="text-secondary mb-0"><%= empty_message %></p>
+    <% end %>
+  </div>
+</section>

@@ -12,6 +12,7 @@ redis_options = redis_url ? { url: redis_url } : {}
 Sidekiq.configure_client { |config| config.redis = redis_options }
 Sidekiq.configure_server do |config|
   config.redis = redis_options
+  config.on(:beat) { BackgroundJobHistory.sample_queue }
   config.on(:startup) do
     config.server_middleware { |chain| chain.add BackgroundJobOverview::CronResultRecorder }
     config.server_middleware { |chain| chain.add StorageConfiguration::JobMiddleware }

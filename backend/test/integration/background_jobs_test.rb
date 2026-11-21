@@ -2,8 +2,19 @@ require "test_helper"
 
 class BackgroundJobsTest < ActionDispatch::IntegrationTest
   include Devise::Test::IntegrationHelpers
-  setup { @original_fetch = BackgroundJobOverview.method(:fetch) }
-  teardown { BackgroundJobOverview.define_singleton_method(:fetch, @original_fetch) }
+  setup do
+    @original_fetch = BackgroundJobOverview.method(:fetch)
+    @original_history = BackgroundJobHistory.method(:fetch)
+    BackgroundJobHistory.define_singleton_method(:fetch) do |at, task_names:|
+      missing = BackgroundJobHistory::Slot.new(hour: at.beginning_of_hour, state: :missing, failures: [])
+      BackgroundJobHistory::Timeline.new(hours: [missing.hour], slots: task_names.index_with { [missing] },
+        waiting: [nil], busy: [nil], failure_counts: [nil], recent_failures: [])
+    end
+  end
+  teardown do
+    BackgroundJobOverview.define_singleton_method(:fetch, @original_fetch)
+    BackgroundJobHistory.define_singleton_method(:fetch, @original_history)
+  end
 
   def snapshot(empty: false)
     now = Time.current
@@ -27,7 +38,9 @@ class BackgroundJobsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "最近入队尚无完成记录"
     assert_includes response.body, "worker-1"
     assert_includes response.body, "Net::ReadTimeout"
-    assert_select "main form, main button", count: 0
+    assert_select "main form", count: 0
+    assert_select "main [data-job-slot][aria-pressed=false]", count: 1
+    assert_select "main [data-admin-chart]", count: 0
   end
 
   test "empty queues missing process heartbeat and no execution records each have their own state" do
@@ -47,6 +60,18 @@ class BackgroundJobsTest < ActionDispatch::IntegrationTest
     assert_select "[data-jobs-unavailable]", count: 1
     assert_select "[data-job-queue]", count: 0
     assert_not_includes response.body, "private-secret"
+  end
+
+  test "history outages preserve the current snapshot" do
+    data = snapshot
+    BackgroundJobOverview.define_singleton_method(:fetch) { data }
+    BackgroundJobHistory.define_singleton_method(:fetch) { |*| raise RedisClient::CannotConnectError, "private history" }
+    sign_in Admin.create!(username: "job_history_unavailable", role: "super_admin")
+    get admins_background_jobs_path
+    assert_response :success
+    assert_select "[data-job-queue='default']", count: 1
+    assert_select "[aria-label='任务历史']", text: /暂时读不到任务历史/
+    assert_not_includes response.body, "private history"
   end
 
   test "unauthenticated and other roles cannot access monitor or see menu and no mutations are routed" do

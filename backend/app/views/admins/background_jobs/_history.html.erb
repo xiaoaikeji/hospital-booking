@@ -1,0 +1,76 @@
+<% states = {
+  success: ["成功", "green"], recovered: ["重试恢复", "yellow"], failed: ["失败未恢复", "red"], missing: ["无执行记录", "secondary"]
+} %>
+<% job_labels = jobs.to_h { |job| [job.name, job.label] } %>
+<% categories = history.hours.map { |hour| l(hour, format: "%H:%M") } %>
+<%= render "admins/shared/chart_assets" %>
+<% content_for :head do %><%= javascript_include_tag "admins/job_history", defer: true %><% end %>
+
+<div class="row g-3 mb-3" data-job-history>
+  <div class="col-12 col-xl-8">
+    <section class="card h-100" aria-labelledby="job-runs-heading">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title" id="job-runs-heading">定时任务运行记录</h2>
+          <div class="card-subtitle">最近 24 个小时段 · 每格 1 小时</div>
+        </div>
+      </div>
+      <% if jobs.empty? %>
+        <div class="card-body text-secondary">本项目尚未配置定时任务。</div>
+      <% else %>
+        <div class="list-group list-group-flush">
+          <% jobs.each_with_index do |job, job_index| %>
+            <div class="list-group-item py-2">
+              <div class="fw-medium text-break mb-2"><%= job.label %></div>
+              <div class="tracking" role="group" aria-label="<%= job.label %>每小时状态">
+                <% history.slots.fetch(job.name).each_with_index do |slot, index| %>
+                  <% label, color = states.fetch(slot.state); detail_id = "job-hour-#{job_index}-#{index}" %>
+                  <% range = "#{l(slot.hour, format: '%m-%d %H:%M')}–#{l(slot.hour + 1.hour, format: '%H:%M')}" %>
+                  <button type="button" class="tracking-block <%= slot.state == :missing ? 'bg-secondary-lt' : "bg-#{color}" %> border-0 p-0"
+                          title="<%= range %> · <%= label %>" aria-label="<%= job.label %> · <%= range %> · <%= label %>"
+                          aria-pressed="false" aria-controls="job-history-failures" data-job-slot data-job-range="<%= job.label %> · <%= range %>"
+                          data-job-state="<%= slot.state %>" data-job-detail="<%= detail_id %>"></button>
+                  <% if slot.failures.any? %>
+                    <template id="<%= detail_id %>"><%= render "history_failures", failures: slot.failures, job_labels: job_labels %></template>
+                  <% end %>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+        <div class="card-footer mt-auto">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 small text-secondary">
+            <span><%= l(history.hours.first, format: "%m-%d %H:%M") %></span>
+            <div class="legend-list flex-wrap">
+              <% states.each_value do |label, color| %><span class="legend legend-<%= color %>"><span class="legend-dot"></span><%= label %></span><% end %>
+            </div>
+            <span><%= l(history.hours.last + 1.hour, format: "%m-%d %H:%M") %></span>
+          </div>
+        </div>
+      <% end %>
+    </section>
+  </div>
+
+  <div class="col-12 col-xl-4">
+    <section class="card h-100" aria-labelledby="job-failure-history-heading">
+      <div class="card-header flex-wrap gap-2">
+        <div>
+          <h2 class="card-title" id="job-failure-history-heading">失败记录</h2>
+          <div class="card-subtitle" data-job-history-range>最近失败</div>
+        </div>
+        <div class="card-actions"><button type="button" class="btn btn-sm d-none" data-job-history-reset>返回最近失败</button></div>
+      </div>
+      <div id="job-history-failures" aria-live="polite"><%= render "history_failures", failures: history.recent_failures.first(4), job_labels: job_labels %></div>
+      <div class="card-footer mt-auto"><%= link_to "查看当前重试与最终失败", "#job-current-failures", class: "btn btn-sm" %></div>
+    </section>
+  </div>
+
+  <div class="col-12 col-xl-8">
+    <%= render "admins/shared/chart_card", title: "队列积压趋势", subtitle: "全部项目队列 · 每小时最后一次采样", type: "area", categories: categories,
+      series: [{name: "等待", color: "primary", data: history.waiting}, {name: "执行", color: "teal", data: history.busy}], empty_message: "等待工作进程采集队列数据。" %>
+  </div>
+  <div class="col-12 col-xl-4">
+    <%= render "admins/shared/chart_card", title: "每小时失败次数", subtitle: "最近 24 个小时段 · 含已恢复的失败", type: "bar", categories: categories,
+      series: [{name: "失败", color: "red", data: history.failure_counts}], empty_message: "暂无可用于统计的任务记录。" %>
+  </div>
+</div>

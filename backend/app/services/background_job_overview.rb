@@ -17,11 +17,7 @@ module BackgroundJobOverview
   class << self
     def fetch
       stats = Sidekiq::Stats.new
-      waiting = stats.queues
-      busy = Sidekiq::WorkSet.new.each_with_object(Hash.new(0)) { |(_pid, _tid, work), counts| counts[work.queue] += 1 }
-      queues = configured_queues.map do |name|
-        QueueCount.new(name: name, waiting: waiting.fetch(name, 0), busy: busy[name])
-      end
+      queues = queue_counts(stats)
       # false 禁止 ProcessSet 在读取时顺带清理失联进程。
       processes = Sidekiq::ProcessSet.new(false).map do |process|
         ProcessInfo.new(hostname: process["hostname"], pid: process["pid"], busy: process["busy"].to_i,
@@ -31,6 +27,14 @@ module BackgroundJobOverview
         recent_failures(Sidekiq::DeadSet.new.first(FAILURE_LIMIT), "dead")
       Overview.new(queues: queues, scheduled: stats.scheduled_size, retries: stats.retry_size, dead: stats.dead_size,
         processes: processes, cron_jobs: cron_jobs, failures: failures.sort_by { |job| -job.failed_at.to_f }.first(FAILURE_LIMIT), captured_at: Time.current)
+    end
+
+    def queue_counts(stats = Sidekiq::Stats.new)
+      waiting = stats.queues
+      busy = Sidekiq::WorkSet.new.each_with_object(Hash.new(0)) { |(_pid, _tid, work), counts| counts[work.queue] += 1 }
+      configured_queues.map do |name|
+        QueueCount.new(name: name, waiting: waiting.fetch(name, 0), busy: busy[name])
+      end
     end
 
     def recent_failures(records, state)
@@ -90,14 +94,14 @@ module BackgroundJobOverview
       {}
     end
 
+    def safe_class(value)
+      value.to_s.match?(/\A[A-Za-z]\w*(?:::[A-Za-z]\w*)*\z/) ? value.to_s.first(160) : "UnknownError"
+    end
+
     private
 
     def load_yaml(path)
       YAML.safe_load(ERB.new(Rails.root.join(path).read).result, permitted_classes: [ Symbol ], aliases: true) || {}
-    end
-
-    def safe_class(value)
-      value.to_s.match?(/\A[A-Za-z]\w*(?:::[A-Za-z]\w*)*\z/) ? value.to_s.first(160) : "UnknownError"
     end
 
     def time_at(value) = value.present? ? Time.zone.at(value.to_f) : nil
@@ -108,14 +112,15 @@ module BackgroundJobOverview
 
     def call(_worker, job, queue)
       name = BackgroundJobOverview.cron_name_for(job, queue)
-      return yield unless name
       begin
         value = yield
       rescue StandardError => error
-        BackgroundJobOverview.record_result(name, error)
+        BackgroundJobOverview.record_result(name, error) if name
+        BackgroundJobHistory.record(job, queue, task: name, error: error)
         raise
       end
-      BackgroundJobOverview.record_result(name)
+      BackgroundJobOverview.record_result(name) if name
+      BackgroundJobHistory.record(job, queue, task: name)
       value
     end
   end

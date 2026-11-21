@@ -1,0 +1,17 @@
+<% if failures.empty? %>
+  <p class="p-3 mb-0 text-secondary">暂无失败记录。</p>
+<% else %>
+  <ul class="list-group list-group-flush">
+    <% failures.each do |entry| %>
+      <% attempt = entry.attempt %>
+      <li class="list-group-item py-2">
+        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2">
+          <strong class="text-break"><%= job_labels.fetch(attempt.task, attempt.worker) %></strong>
+          <span class="badge bg-<%= entry.recovered ? 'success' : 'danger' %>-lt"><%= entry.recovered ? "重试恢复" : "失败未恢复" %></span>
+        </div>
+        <div class="small text-secondary text-break mt-1"><%= l(attempt.at, format: "%m-%d %H:%M") %> · <%= attempt.error_class %></div>
+        <div class="small text-secondary text-break">队列 <%= attempt.queue %> · 第 <%= attempt.number %> 次执行</div>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

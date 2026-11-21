@@ -4,8 +4,9 @@ module Admins
 
     def show
       @overview = BackgroundJobOverview.fetch
+      @history = BackgroundJobHistory.fetch(@overview.captured_at, task_names: @overview.cron_jobs.map(&:name))
     rescue RedisClient::Error, Redis::BaseError, ConnectionPool::TimeoutError
-      @unavailable = true
+      @unavailable = @overview.nil?
     end
   end
 end
