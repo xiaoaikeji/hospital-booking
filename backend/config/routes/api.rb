@@ -4,4 +4,11 @@ namespace :api do
   get "apps/:provider/:appid/configuration", to: "app_configurations#show", as: :app_configuration
   get "apps/:provider/:appid/configuration/images/:id/:key", to: "app_configurations#image",
     as: :app_configuration_image, constraints: { id: /\d+/, key: /[\w.]+/ }, format: false
+
+  scope "apps/wechat/:appid", module: :mini_program, as: :mini_program do
+    resource :session, only: %i[create destroy]
+    resource :me, only: :show, controller: :profiles
+    resource :phone_binding, only: :create
+    resources :entry_scenes, only: :create
+  end
 end

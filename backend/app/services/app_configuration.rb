@@ -82,7 +82,7 @@ class AppConfiguration
     result = client.new.verify!(@app.appid, value)
     if @app.provider == "wechat"
       # Cache the verified token only after the credentials, application ID and audit log have committed.
-      ActiveRecord.after_all_transactions_commit { Wechat::AccessToken.store(@app, value, result, unless_exist: true) }
+      ActiveRecord.after_all_transactions_commit { Wechat::AccessToken.store_verified(@app, value, result) }
     end
     @app.verified_digest = digest(value)
   end

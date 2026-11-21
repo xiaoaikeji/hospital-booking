@@ -1,3 +1,6 @@
 notification_delivery:
   cron: "* * * * *"
   class: "Notifications::DeliveryWorker"
+mini_program_sessions_cleanup:
+  cron: "15 4 * * * Asia/Shanghai"
+  class: "MiniProgramSessionsCleanupWorker"

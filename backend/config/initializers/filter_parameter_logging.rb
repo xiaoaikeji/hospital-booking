@@ -8,5 +8,5 @@ Rails.application.config.filter_parameters += [
   :mobile, :phone, :authorization, :private_key, :auth_code, :pre_auth_code, :state, :signature, :echostr, :ticket, :xml, :database_url, :redis_url, :storage_settings,
   :webhook_key, :wechatid, :userstr, /\Aprivacy\z/i, :buttons, :media_id, :qualification, :head_image, :location_application,
   :background, :page_query, :notification_content, :reply_content, :reply_rules, :template_binding, :reply_binding,
-  :rejection_reason, :rejection_screenshots, :openid, :unionid, /\Aq\z/i, /\Afiles?\z/i
+  :rejection_reason, :rejection_screenshots, :openid, :unionid, :sessions, /\A(?:js_)?code\z/i, /\Aq\z/i, /\Afiles?\z/i
 ]

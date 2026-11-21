@@ -35,6 +35,21 @@ module Wechat
       token
     end
 
+    def self.store_verified(app, secret, result)
+      app.with_lock do
+        fresh_cache do
+          key = "#{cache_prefix(app, secret)}/access_token"
+          store(app, secret, result, unless_exist: true) unless Rails.cache.read("#{key}/rejected")
+        end
+      end
+    end
+
+    # RedisCacheStore also caches reads inside a Rails request. A comparison under the
+    # database lock must see what another process most recently wrote to Redis.
+    def self.fresh_cache(&block)
+      Rails.cache.respond_to?(:with_local_cache) ? Rails.cache.with_local_cache(&block) : yield
+    end
+
     def initialize(app)
       @app = app
     end
@@ -45,22 +60,23 @@ module Wechat
       @app.reload
       secret = self.class.credential!(@app)
       @used_key = token_key(secret)
-      cached = Rails.cache.read(@used_key)
+      cached = self.class.fresh_cache { Rails.cache.read(@used_key) }
       return cached if cached
 
       @app.with_lock do
         secret = self.class.credential!(@app)
         @used_key = token_key(secret)
-        Rails.cache.read(@used_key) || request_token(secret, @used_key)
+        self.class.fresh_cache { Rails.cache.read(@used_key) || request_token(secret, @used_key) }
       end
     end
 
     def expire(token)
       @app.with_lock do
-        next unless Rails.cache.read(@used_key) == token
-
-        Rails.cache.delete(@used_key)
-        Rails.cache.write("#{@used_key}/rejected", true, expires_in: 5.minutes)
+        self.class.fresh_cache do
+          next unless Rails.cache.read(@used_key) == token
+          Rails.cache.delete(@used_key)
+          Rails.cache.write("#{@used_key}/rejected", true, expires_in: 5.minutes)
+        end
       end
     end
 

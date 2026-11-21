@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_000300) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_000400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -382,6 +382,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000300) do
     t.datetime "last_sign_in_at"
     t.string "openid", limit: 150, null: false
     t.string "provider", null: false
+    t.jsonb "sessions", default: {}, null: false
     t.integer "sign_in_count", default: 0, null: false
     t.string "status", default: "active", null: false
     t.string "unionid", limit: 150
@@ -392,6 +393,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_000300) do
     t.index ["user_id", "provider", "appid"], name: "index_user_apps_on_user_id_and_provider_and_appid", unique: true
     t.index ["user_id"], name: "index_user_apps_on_user_id"
     t.check_constraint "(status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])) AND sign_in_count >= 0", name: "valid_user_app"
+    t.check_constraint "jsonb_typeof(sessions) = 'object'::text", name: "user_app_sessions_object"
   end
 
   create_table "users", force: :cascade do |t|
