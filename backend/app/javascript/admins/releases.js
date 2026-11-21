@@ -109,6 +109,7 @@
   dialog?.addEventListener("hide.bs.modal", () => {
     dialogLoad++;
     dialog.querySelectorAll("select[data-enhanced-select]").forEach(select => select.tomselect?.destroy());
+    dialog.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(button => window.tabler.Tooltip.getInstance(button)?.dispose());
   });
   document.addEventListener("click", async event => {
     const opener = event.target.closest("[data-release-dialog]");
@@ -126,6 +127,7 @@
       if (res.ok) {
         body.innerHTML = content;
         window.initializeAdminSelects?.(body);
+        body.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(button => window.tabler.Tooltip.getOrCreateInstance(button));
       } else body.textContent = res.status === 409 ? content : "读取失败，请关闭后重试。";
     } catch { if (id === dialogLoad) body.textContent = "读取失败，请关闭后重试。"; }
   });

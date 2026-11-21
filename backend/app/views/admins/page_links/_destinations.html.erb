@@ -1,30 +1,35 @@
 <% { "page" => ["内部页面", Link::PAGE_DESTINATIONS], "tab" => ["底部导航页面", Link::TAB_DESTINATIONS] }.each do |type, (label, destinations)| %>
   <% selected = @link.link_type == type %>
+  <% invalid = selected && @link.errors[:url].any?; error_id = ("#{type}-url-error" if invalid) %>
   <div class="col-md-8 col-xl-6" data-page-link-fields="<%= type %>" <%= tag.attributes(hidden: !selected) %>>
     <%= form.label :url, label, for: "link_#{type}_url", class: "form-label required" %>
     <%= form.select :url, destinations.invert, { include_blank: "请选择" }, id: "link_#{type}_url", disabled: !selected, required: true,
-      class: admin_field_class(@link, :url, "form-select"), data: { enhanced_select: "single" } %>
-    <%= admin_field_error(@link.errors[:url].join("，"), id: "#{type}-url-error") if selected && @link.errors[:url].any? %>
+      class: class_names("form-select", "is-invalid" => invalid), data: { enhanced_select: "single" }, aria: { invalid: (true if invalid), describedby: error_id } %>
+    <%= admin_field_error(@link.errors[:url].join("，"), id: error_id) if invalid %>
   </div>
 <% end %>
 
 <% webview = @link.link_type == "webview" %>
+<% webview_error = webview && @link.errors[:url].any? %>
 <div class="col-12" data-page-link-fields="webview" <%= tag.attributes(hidden: !webview) %>>
   <div class="d-flex align-items-center gap-1 mb-2">
     <%= form.label :url, "网页地址", for: "link_webview_url", class: "form-label required mb-0" %>
     <%= render "admins/shared/field_help", label: "查看网页地址要求", text: "填写 HTTPS 网址。请在使用此配置的微信小程序中登记对应的业务域名。" %>
   </div>
   <%= form.url_field :url, id: "link_webview_url", maxlength: 2048, size: nil, required: true, disabled: !webview, value: (@link.url if webview),
-    class: admin_field_class(@link, :url), placeholder: "https://example.com/guide" %>
-  <%= admin_field_error(@link.errors[:url].join("，"), id: "webview-url-error") if webview && @link.errors[:url].any? %>
+    class: class_names("form-control", "is-invalid" => webview_error), placeholder: "https://example.com/guide",
+    aria: { invalid: (true if webview_error), describedby: ("webview-url-error" if webview_error) } %>
+  <%= admin_field_error(@link.errors[:url].join("，"), id: "webview-url-error") if webview_error %>
 </div>
 
 <% miniprogram = @link.link_type == "miniprogram" %>
+<% path_error = miniprogram && @link.errors[:url].any? %>
 <div class="col-12" data-page-link-fields="miniprogram" <%= tag.attributes(hidden: !miniprogram) %>>
   <div class="row g-3">
     <div class="col-md-6 col-xl-4">
       <%= form.label :target_appid, "目标 AppID", class: "form-label required" %>
-      <%= form.text_field :target_appid, required: true, disabled: !miniprogram, maxlength: 100, size: nil, value: @link.params["target_appid"], class: admin_field_class(@link, :target_appid) %>
+      <%= form.text_field :target_appid, required: true, disabled: !miniprogram, maxlength: 100, size: nil, value: @link.params["target_appid"],
+        class: admin_field_class(@link, :target_appid), aria: { describedby: ("target_appid-error" if @link.errors[:target_appid].any?) } %>
       <%= admin_field_errors(@link, :target_appid) %>
     </div>
     <div class="col-md-6 col-xl-4">
@@ -32,12 +37,15 @@
         <%= form.label :url, "目标页面路径", for: "link_miniprogram_url", class: "form-label mb-0" %>
         <%= render "admins/shared/field_help", label: "查看目标页面路径说明", text: "留空时打开目标小程序首页。" %>
       </div>
-      <%= form.text_field :url, id: "link_miniprogram_url", maxlength: 2048, size: nil, disabled: !miniprogram, value: (@link.url if miniprogram), class: admin_field_class(@link, :url), placeholder: "pages/index/index" %>
-      <%= admin_field_error(@link.errors[:url].join("，"), id: "miniprogram-url-error") if miniprogram && @link.errors[:url].any? %>
+      <%= form.text_field :url, id: "link_miniprogram_url", maxlength: 2048, size: nil, disabled: !miniprogram, value: (@link.url if miniprogram),
+        class: class_names("form-control", "is-invalid" => path_error), placeholder: "pages/index/index",
+        aria: { invalid: (true if path_error), describedby: ("miniprogram-url-error" if path_error) } %>
+      <%= admin_field_error(@link.errors[:url].join("，"), id: "miniprogram-url-error") if path_error %>
     </div>
     <div class="col-md-6 col-xl-4">
       <%= form.label :page_query, "目标页面参数", class: "form-label" %>
-      <%= form.text_field :page_query, disabled: !miniprogram, value: @page_query, class: admin_field_class(@link, :params), placeholder: "from=home_banner" %>
+      <%= form.text_field :page_query, disabled: !miniprogram, value: @page_query, class: admin_field_class(@link, :params),
+        placeholder: "from=home_banner", aria: { describedby: ("params-error" if @link.errors[:params].any?) } %>
       <%= admin_field_errors(@link, :params) %>
     </div>
   </div>

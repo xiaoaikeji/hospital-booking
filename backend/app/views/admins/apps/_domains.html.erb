@@ -36,7 +36,7 @@
             </div>
           <% end %></div>
         </div>
-        <div class="card-footer bg-transparent text-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :save %>保存<%= title %></button></div>
+        <div class="card-footer btn-list justify-content-end"><button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :save %>保存<%= title %></button></div>
       <% end %>
       <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm", title: "确认更新#{title}", context: "#{@app.display_name} · #{@app.appid}", description: "微信将替换这个小程序的#{title}。请核对填写的地址及勾选清空的类别。", color: "danger", confirm_label: "确认保存#{title}", confirm_icon: :check, cancel_icon: :close %>
     <% end %>

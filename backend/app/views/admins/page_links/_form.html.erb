@@ -9,10 +9,14 @@
 <% end %>
 
 <%= form_with model: @link, url: save_url, class: "card", data: { admin_form: true, page_link_form: true } do |f| %>
-  <div class="card-header"><h2 class="card-title"><%= @app&.display_name || "通用配置" %> · <%= Link::POSITIONS.fetch(@position) %></h2></div>
+  <div class="card-header">
+    <h2 class="card-title d-flex flex-wrap align-items-center gap-2">
+      <%= @app&.display_name || "通用配置" %> · <%= Link::POSITIONS.fetch(@position) %>
+      <%= render "admins/shared/field_help", label: "查看保存生效说明", text: (@app ? "保存后，此位置使用本小程序的专属配置。" : "保存后，正在跟随此位置的微信小程序将在下次启动时读取变更。") %>
+    </h2>
+  </div>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @link %>
-    <p class="text-secondary"><%= @app ? "保存后，此位置使用本小程序的专属配置。" : "保存后，正在跟随此位置的微信小程序将在下次启动时读取变更。" %></p>
     <div class="row g-3">
       <div class="col-md-6 col-xl-4">
         <%= f.label :name, "名称", class: "form-label required" %>
@@ -29,7 +33,7 @@
       </div>
       <div class="col-md-6 col-xl-4">
         <%= f.label :link_type, "点击行为", class: "form-label required" %>
-        <%= f.select :link_type, Link::TYPES.invert, {}, class: admin_field_class(@link, :link_type, "form-select"),
+        <%= f.select :link_type, Link::TYPES.invert, {}, class: admin_field_class(@link, :link_type, "form-select"), required: true,
           data: { enhanced_select: "single", page_link_type: true }, aria: { describedby: ("link_type-error" if @link.errors[:link_type].any?) } %>
         <%= admin_field_errors(@link, :link_type) %>
       </div>
@@ -60,10 +64,10 @@
       <% end %>
     </div>
   </div>
-  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+  <div class="card-footer btn-list justify-content-end">
     <%= link_to list_url, class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
-  </div></div>
+  </div>
 <% end %>
 <% if @link.persisted? && @link.image.attached? %>
   <%= render "admins/shared/image_modal", image: { asset: image_admins_page_link_path(@link), title: @link.name }, modal_id: dom_id(@link, :image) %>

@@ -2,6 +2,13 @@
 <% content_for :fill_content, "true" if @links.empty? %>
 <% context = { app_id: @app&.id, position: @position } %>
 <% item_label = @position == "home_banner" ? "轮播图" : "菜单项" %>
+<% scope_help = if @app.nil?
+  "正在跟随此位置的微信小程序将在下次启动时读取变更。"
+elsif @managed
+  @group.effective.any? ? "此位置使用本小程序的专属记录。" : "此位置暂无启用项，小程序将隐藏此区域。"
+else
+  "下方显示通用配置中的启用项。新增专属#{item_label}后，此位置将改用本小程序的配置。"
+end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "小程序页面配置", icon: :device_mobile } do %>
   <%= link_to new_admins_page_link_path(context), class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增<%= item_label %><% end %>
 <% end %>
@@ -18,22 +25,14 @@
 <section class="<%= class_names("card page-link-list-card", "flex-fill" => @links.empty?) %>" aria-label="页面配置列表">
   <div class="card-header flex-shrink-0 d-flex flex-wrap gap-2">
     <div class="flex-grow-1 min-w-0">
-      <h2 class="card-title d-flex flex-wrap align-items-center gap-2 mb-1">
+      <h2 class="card-title d-flex flex-wrap align-items-center gap-2">
         <%= Link::POSITIONS.fetch(@position) %>
+        <%= render "admins/shared/field_help", label: "查看配置生效说明", text: scope_help %>
         <% if @app %>
           <span class="badge <%= @managed ? 'bg-primary-lt' : 'bg-secondary-lt' %>"><%= @managed ? "使用专属配置" : "跟随通用" %></span>
+          <% unless @app.accessible? %><span class="badge bg-warning-lt">小程序已停用</span><% end %>
         <% end %>
       </h2>
-      <div class="text-secondary">
-        <% if @app.nil? %>
-          正在跟随此位置的微信小程序将在下次启动时读取变更。
-        <% elsif @managed %>
-          <%= @group.effective.any? ? "此位置使用本小程序的专属记录。" : "此位置暂无启用项，小程序将隐藏此区域。" %>
-        <% else %>
-          下方显示通用配置中的启用项。新增专属<%= item_label %>后，此位置将改用本小程序的配置。
-        <% end %>
-        <% if @app && !@app.accessible? %>此小程序已停用，恢复后会读取配置。<% end %>
-      </div>
     </div>
     <% if !@managed %>
       <%= link_to admins_page_links_path(position: @position), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :settings %>维护通用配置<% end %>

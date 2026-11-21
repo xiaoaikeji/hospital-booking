@@ -24,11 +24,11 @@
               help: (@settings.key_unreadable? ? "请重新填写机器人 Key 或清除系统配置。" : ("可填写机器人 Key 或完整 Webhook 地址。留空保留当前来源。" if @settings.key.present?)) %>
       </div>
       <% if @settings.key.present? %>
-        <div class="col-12">
+        <div class="col-12 d-flex align-items-center gap-1">
           <label class="form-check mb-0"><%= f.check_box :same_robot, checked: @input&.fetch(:same_robot, nil) == "1", class: "form-check-input" %>
             <span class="form-check-label">为原群机器人轮换 Key</span>
           </label>
-          <div class="form-hint">勾选后，原群的待发和补发任务使用新 Key。更换通知群时请保留未勾选。</div>
+          <%= render "admins/shared/field_help", label: "查看机器人 Key 轮换说明", text: "勾选后，原群的待发和补发任务使用新 Key。更换通知群时请保留未勾选。" %>
         </div>
       <% end %>
       <fieldset class="col-12">
