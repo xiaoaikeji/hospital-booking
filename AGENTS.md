@@ -18,6 +18,8 @@ Rails 服务端和管理后台在 `backend/`，Rails 命令在该目录执行。
 
 后台界面优先复用 `backend/app/views/admins/shared/` 的组件和项目已引入的 Tabler 样式。新布局先查 [后台样式规范](dev-docs/backend/admin-ui.md)，可在 Tabler 官网或本地模板找到对应示例。
 
+侧栏按角色权限提供完整功能目录，顶栏只放常用快捷入口。「仅顶栏」模式沿用同一份快捷入口清单；开发和验收均以侧栏核对功能完整性。
+
 待评审的组件集中在 [后台组件草稿](dev-docs/backend/admin-ui/drafts.md)，预览入口为 `/admins/components?tab=drafts`。草稿用示例数据在预览页验证交互，经用户确认后再提炼到 `admins/shared/` 并接入指定正式页面。涉及后台通知、任务监控或 Dashboard 时，先看该草稿和对应的开发约定。
 
 ## 小程序命名
