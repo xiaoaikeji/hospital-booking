@@ -6,8 +6,8 @@ import { canOpenBooking, openBooking } from '@/utils/booking-navigation.js'
 
 const doctor = ref(null)
 let bookingParams
-onLoad(options => {
-  if (!canOpenBooking('doctor', options)) return
+onLoad(async options => {
+  if (!await canOpenBooking('doctor', options)) return
   doctor.value = findDoctor(options.id)
   bookingParams = options
 })

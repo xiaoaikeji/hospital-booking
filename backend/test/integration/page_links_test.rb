@@ -71,6 +71,9 @@ class PageLinksTest < ActionDispatch::IntegrationTest
     get api_app_configuration_path(first.provider, first.appid)
     assert_response :forbidden
     assert_equal({ "provider" => "wechat", "appid" => first.appid, "nickname" => "App A", "status" => "disabled" }, json_response)
+    assert_equal [ common_two.id, common_one.id ], ids(config(second), "home_banner")
+    first.update!(status: "active")
+    assert_equal [ common_two.id, common_one.id ], ids(config(first), "home_banner")
     douyin = App.create!(provider: "douyin", appid: "tt-page-a", status: "active")
     assert_equal({ "home_banner" => [], "profile_menu" => [] }, config(douyin).fetch("links"))
   end

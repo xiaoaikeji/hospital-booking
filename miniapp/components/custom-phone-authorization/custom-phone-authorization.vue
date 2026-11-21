@@ -1,11 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 import { appName } from '@/store/app-configuration.js'
+import { wechatAppId } from '@/request/http.js'
+import { phoneAuthorizationOutcome } from '@/utils/phone-authorization.js'
 
 defineProps({ label: { type: String, required: true } })
-const emit = defineEmits(['authorized', 'denied'])
-const account = uni.getAccountInfoSync().miniProgram
-const demo = !account.appId || account.appId === 'touristappid'
+const emit = defineEmits(['authorized', 'denied', 'failed'])
+const demo = !wechatAppId()
 const showDemo = ref(false)
 const demoPhone = '10000000000'
 
@@ -16,9 +17,10 @@ function chooseDemo(allow) {
 }
 
 function receivePhone(event) {
-  const { code, errMsg } = event.detail
-  if (errMsg === 'getPhoneNumber:ok' && code) emit('authorized', { code })
-  else emit('denied')
+  const outcome = phoneAuthorizationOutcome(event?.detail)
+  // 微信授权码等服务端换号接入后再消费，当前只向页面报告授权结果。
+  if (outcome === 'authorized') emit('authorized', {})
+  else emit(outcome)
 }
 </script>
 

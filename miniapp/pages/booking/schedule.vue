@@ -10,8 +10,8 @@ import DoctorCard from './components/doctor_card.vue'
 const clinic = ref(null)
 const { schedule, selectedDay, scheduledDoctors, loadDay, refresh } = useBookingCalendar()
 
-onLoad(options => {
-  if (!canOpenBooking('schedule', options)) return
+onLoad(async options => {
+  if (!await canOpenBooking('schedule', options)) return
   clinic.value = clinics.find(item => item.icon === options.clinic)
 })
 onShow(refresh)

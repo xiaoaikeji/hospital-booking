@@ -1,11 +1,8 @@
 <script setup>
-import { onLaunch } from '@dcloudio/uni-app'
-import { loadAppConfiguration } from '@/request/http.js'
-import { appConfiguration, usingServerPageLinks } from '@/store/app-configuration.js'
+import { onShow } from '@dcloudio/uni-app'
+import { checkAppAccess } from '@/utils/app-access.js'
 
-onLaunch(() => {
-  usingServerPageLinks.value = loadAppConfiguration(config => { appConfiguration.value = config })
-})
+onShow(checkAppAccess)
 </script>
 
 <style lang="scss">

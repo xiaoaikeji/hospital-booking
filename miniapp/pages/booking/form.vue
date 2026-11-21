@@ -29,8 +29,8 @@ const createdNo = ref('')
 let requestNo = ''
 let openedDetail = false
 
-onLoad(options => {
-  if (!canOpenBooking('form', options)) return
+onLoad(async options => {
+  if (!await canOpenBooking('form', options)) return
   doctor.value = findDoctor(options.id)
   if (!doctor.value) return
   withDepartment.value = options.department === '1'
@@ -95,9 +95,8 @@ function phoneFailed() {
 }
 
 function setPhone(result) {
-  // 原生面板只返回授权码。尚未接入服务端换号时，保留原值。
   if (result.phone) phone.value = result.phone
-  else phoneFailed()
+  else notify('已授权，暂未开通预约电话读取')
 }
 
 async function confirmBooking() {
@@ -144,7 +143,7 @@ async function confirmBooking() {
         <view class="row time-row" aria-role="button" @tap="selectTime">
           <view>预约时段<text class="required">*</text></view><text>{{ slot || '请选择时段' }}</text>
         </view>
-        <custom-phone-authorization label="获取预约电话" @authorized="setPhone" @denied="phoneFailed">
+        <custom-phone-authorization label="获取预约电话" @authorized="setPhone" @failed="phoneFailed">
           <view class="row phone-row"><view>预约电话<text class="required">*</text></view><text>{{ phone || '获取手机号' }}</text></view>
         </custom-phone-authorization>
         <view v-if="withDepartment" class="row"><text>科室</text><text>{{ doctor.department }}</text></view>

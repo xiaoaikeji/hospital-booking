@@ -1,4 +1,5 @@
 import { session } from '@/mock/session.js'
+import { canUseApp } from '@/utils/app-access.js'
 
 const destinations = {
   schedule: '/pages/booking/schedule',
@@ -22,7 +23,9 @@ export function openBooking(target, params) {
 }
 
 // 编译模式或分享链接也可能直接打开二级页。
-export function canOpenBooking(target, params) {
+export async function canOpenBooking(target, params) {
+  const page = getCurrentPages().slice(-1)[0]
+  if (!await canUseApp() || getCurrentPages().slice(-1)[0] !== page) return false
   if (session.value) return true
   uni.redirectTo({ url: destinationUrl(target, params, true) })
   return false
