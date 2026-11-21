@@ -12,6 +12,7 @@ class MediaUpload
     wechat_certificate: { label: "资质图片", formats: WECHAT_IMAGES, limit: 2.megabytes },
     wechat_avatar: { label: "头像", formats: WECHAT_IMAGES, limit: 2.megabytes },
     menu_image: { label: "图片素材", formats: WECHAT_IMAGES.merge("gif" => "image/gif", "bmp" => "image/bmp"), limit: 10.megabytes },
+    reply_card_cover: { label: "卡片封面", formats: WECHAT_IMAGES, limit: 2.megabytes },
     menu_voice: { label: "音频素材", formats: { "mp3" => "audio/mpeg", "amr" => "audio/amr", "wav" => "audio/x-wav" }, limit: 2.megabytes },
     menu_video: { label: "视频素材", formats: { "mp4" => "video/mp4" }, limit: 10.megabytes }
   }.freeze
@@ -42,6 +43,7 @@ class MediaUpload
     detected = Marcel::MimeType.for(@file.tempfile)
     detected = "audio/x-wav" if detected == "audio/wav"
     declared = @file.content_type.to_s.split(";").first.to_s.strip.downcase
+    declared = "image/jpeg" if declared == "image/jpg"
     declared = "audio/x-wav" if declared == "audio/wav"
     unless detected == @content_type && [ "", "application/octet-stream", @content_type ].include?(declared)
       raise Invalid, "文件内容与格式不符"

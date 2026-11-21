@@ -23,6 +23,27 @@ class PostersTest < ActionDispatch::IntegrationTest
     { target_kind: "mini_program", app_id: app.id, page_path: "pages/registration/index", page_query: query }
   end
 
+  test "旧海报有确认入口，删除保留操作日志且限超级管理员" do
+    file = poster_file
+    post admins_posters_path, params: { poster: { name: "旧活动海报", background: Rack::Test::UploadedFile.new(file.tempfile.path, file.content_type) } }
+    poster = Poster.sole
+    get edit_admins_poster_path(poster)
+    assert_select "button[data-bs-target='#delete-poster-confirmation']", "删除"
+    assert_select "#delete-poster-confirmation [data-admin-confirm-form='delete-poster-form']", text: "确认删除"
+    sign_in Admin.create!(username: "poster_ops", role: "operator")
+    assert_no_difference "Poster.count" do
+      delete admins_poster_path(poster)
+      assert_response :forbidden
+    end
+    sign_in @admin
+    assert_difference "Poster.count", -1 do
+      delete admins_poster_path(poster)
+      assert_redirected_to admins_posters_path
+    end
+    log = Log.operations_visible_to(@admin).find_by!(action: "poster.delete", target_id: poster.id)
+    assert_equal @admin.id, log.actor_id
+  end
+
   test "empty upload edit save and private background work without public storage URLs" do
     get admins_posters_path
     assert_response :success

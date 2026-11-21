@@ -18,18 +18,30 @@ module WechatPlatform
       data = row&.settings || {}
       @pull = data["pull_violations"] == true
       @kinds = Array(data["kinds"]) & LABELS.keys
+      @stored_key = data["webhook_key"]
+      @stored_key_present = data.key?("webhook_key")
       @key, @source = [
-        [Setting.decode_value(GROUP, "webhook_key", data["webhook_key"]), "加密数据库"],
+        [Setting.decode_value(GROUP, "webhook_key", @stored_key), "加密数据库"],
         [ENV[ENV_KEY], "环境变量"],
         [Rails.application.credentials.dig(:wechat_notifications, :webhook_key), "Rails credentials"]
       ].find { |value, _| value.present? } || [nil, "未配置"]
+    rescue IntegrationSettings::ConfigurationError
+      @key_unreadable = true
+      @source = "系统配置（解密失败）"
     end
+
+    def stored_key? = @stored_key_present
+    def key_unreadable? = @key_unreadable
 
     def revision
-      OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, [key, source, pull, kinds.sort].to_json)
+      OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, [@stored_key, key, source, pull, kinds.sort].to_json)
     end
 
-    def enabled?(kind) = key.present? && kinds.include?(kind)
+    def enabled?(kind)
+      return false unless kinds.include?(kind)
+      raise IntegrationSettings::ConfigurationError, "企业微信群机器人 Key 无法解密" if key_unreadable?
+      key.present?
+    end
 
     def save(input, actor:, request:)
       Setting.transaction do
@@ -43,6 +55,9 @@ module WechatPlatform
           changed << "webhook_key" if row.settings.key?("webhook_key")
           row.write_value("webhook_key", nil)
         else
+          if current.key_unreadable? && input[:webhook_key].blank?
+            raise InvalidKey, "请重新填写机器人 Key 或清除系统配置"
+          end
           chosen = Array(input[:kinds]).compact_blank.uniq.sort
           raise Error, "通知类型无效" unless (chosen - LABELS.keys).empty?
           pull_enabled = input[:pull_violations] == "1"
@@ -62,6 +77,7 @@ module WechatPlatform
           row.write_value("kinds", chosen)
           row.write_value("pull_violations", pull_enabled)
         end
+        Notifications::Channels::WecomGroup.validate_key!(self.class.new(row).key)
         row.save!
         Log.record!(action: "wechat.notification_settings", category: "wechat", actor: actor, target: row, request: request,
           details: { fields: changed })

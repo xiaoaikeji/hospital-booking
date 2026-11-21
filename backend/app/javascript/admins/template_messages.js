@@ -5,11 +5,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let revision = root.dataset.revision;
   root.querySelectorAll("[data-template-event]").forEach(section => {
     const event = section.dataset.templateEvent, definition = events[event], choice = section.querySelector("[data-template-choice]");
+    if (!choice) return;
     const fields = section.querySelector("[data-template-fields]"), preview = section.querySelector("[data-template-preview]");
     let mapping = {};
-    function enhance(select) { if (window.TomSelect) new window.TomSelect(select, { create: false, controlInput: null, dropdownParent: "body" }); }
+    function enhance(select) { if (window.TomSelect && !select.tomselect) new window.TomSelect(select, { create: false, controlInput: null, dropdownParent: "body" }); }
     function draw() {
-      const template = templates.find(t => t.template_id === choice.value); fields.replaceChildren(); mapping = {};
+      const template = templates.find(t => t.template_id === choice.value);
+      fields.querySelectorAll("select").forEach(select => select.tomselect?.destroy());
+      fields.replaceChildren(); mapping = {};
       const matches = [...(template?.content || "").matchAll(/([^\n{}]*)\{\{\s*(\w+)\.DATA\s*\}\}/g)];
       matches.forEach(([, rawLabel, key]) => {
         const label = rawLabel.trim().replace(/[:：]$/, "") || key;
@@ -32,11 +35,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const save = section.querySelector("[data-template-save]");
     save.onclick = async () => {
       if (save.disabled) return;
+      const binding = { template_id: choice.value, mapping: { ...mapping } };
       window.adminForms.setBusy(root, true);
       feedback.hidden = true;
       try {
-        const response = await fetch(root.dataset.url, { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-Token": document.querySelector("meta[name='csrf-token']")?.content || "" }, body: JSON.stringify({ template_binding: { event, template_id: choice.value, mapping, revision } }) });
+        const response = await fetch(root.dataset.url, { method: "PATCH", headers: { Accept: "application/json", "Content-Type": "application/json", "X-CSRF-Token": document.querySelector("meta[name='csrf-token']")?.content || "" }, body: JSON.stringify({ template_binding: { event, ...binding, revision } }) });
         const result = await response.json(); if (!response.ok) throw new Error(result.error || "绑定未保存"); revision = result.revision;
+        bindings[event] = binding;
+        root.querySelectorAll("[data-template-unbind-revision]").forEach(input => { input.value = revision; });
+        section.querySelector("[data-template-unbind]").classList.remove("d-none");
         feedback.className = "alert alert-success"; feedback.textContent = "绑定已保存，同类事件将复用此配置。";
       } catch (error) { feedback.className = "alert alert-danger"; feedback.textContent = error.message; }
       finally {

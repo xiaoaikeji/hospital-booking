@@ -195,4 +195,26 @@ class WechatCategoriesTest < ActionDispatch::IntegrationTest
     assert_equal 1, Log.where(source: "system", action: "wechat.category_audit", target_id: @hospital_app.id).count
     assert_empty @hospital_app.mini_program_audits
   end
+
+  test "微信类目驳回的原因和名称进入发送快照，查不到名称仍有编号" do
+    settings = Setting.create!(key: "wechat_notifications")
+    settings.write_value("webhook_key", "local-test-category-key")
+    settings.write_value("kinds", ["category_2"])
+    settings.save!
+    now = Time.current.to_i
+    xml = "<xml><ToUserName>gh_category</ToUserName><MsgType>event</MsgType><Event>wxa_category_audit</Event><first>10</first><second>20</second><ret>2</ret><reason>资质需要更新</reason><CreateTime>#{now}</CreateTime></xml>"
+    Sidekiq.testing!(:fake) do
+      2.times { signed_push("/api/wechat/component/apps/wxCategory/messages", xml); assert_response :success }
+      signed_push("/api/wechat/component/apps/wxCategory/messages", xml.sub("<second>20", "<second>999"))
+      assert_response :success
+      WechatPlatform::CategoryAuditEventWorker.drain
+    end
+    tasks = Notification.where(event: "category_2").order(:id).to_a
+    assert_equal 2, tasks.size
+    named, fallback = tasks.map { |task| task.messages.sole.dig("content", "text") }
+    assert_includes named, "医疗 / 医院"
+    assert_includes named, "资质需要更新"
+    assert_includes fallback, "二级类目 ID：999"
+    assert_includes fallback, "资质需要更新"
+  end
 end

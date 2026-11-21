@@ -1,5 +1,14 @@
 module WechatPlatform
   class AppDomains
+    class InvalidField < Error
+      attr_reader :field
+
+      def initialize(field, message)
+        @field = field
+        super(message)
+      end
+    end
+
     SERVER = {
       "requestdomain" => ["request 合法域名", "https"], "uploaddomain" => ["uploadFile 合法域名", "https"],
       "downloaddomain" => ["downloadFile 合法域名", "https"], "wsrequestdomain" => ["socket 合法域名", "wss"],
@@ -20,12 +29,12 @@ module WechatPlatform
 
     def initialize(app)
       @app = app
+      @checked = {}
     end
 
     def snapshot
       FIELDS.keys.index_with do |kind|
-        domains = with_client { |client| read(client, kind) }
-        { domains: domains, revision: revision(kind, domains) }
+        @checked[kind] || with_client { |client| domain_snapshot(kind, read(client, kind)) }
       rescue Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected => error
         { error: error.message }
       end
@@ -42,7 +51,8 @@ module WechatPlatform
       with_client do |client|
         @app.with_lock do
           current = read(client, kind)
-          raise Error, "微信域名已变化，请重新核对当前值" unless expected == revision(kind, current)
+          @checked[kind] = domain_snapshot(kind, current)
+          raise Error, "微信域名已变化，请重新核对当前值" unless expected == @checked[kind][:revision]
           updated = replacement(kind, current, texts, clear)
           changed = updated.keys.select { |key| updated[key].sort != current.fetch(key).sort }
           client.replace(kind, updated) if changed.any?
@@ -60,13 +70,13 @@ module WechatPlatform
 
     def replacement(kind, current, texts, clear)
       current.dup.tap do |updated|
-        FIELDS.fetch(kind).each do |field, (label, scheme)|
+        FIELDS.fetch(kind).each do |field, (label, _scheme)|
           entries = texts[field].to_s.lines.map(&:strip).compact_blank.uniq
           if clear.include?(field)
-            raise Error, "请先删除#{label}编辑框中的内容，再确认清空" if entries.any?
+            raise InvalidField.new(field, "请先删除#{label}编辑框中的内容，再确认清空") if entries.any?
             updated[field] = []
           elsif entries.any? && entries.sort != current[field].sort
-            updated[field] = validate(entries, kind, label, scheme)
+            updated[field] = validate(entries, kind, field)
           end
         end
       end
@@ -89,9 +99,12 @@ module WechatPlatform
       Digest::SHA256.hexdigest([@app.id, kind, domains.transform_values(&:sort)].to_json)
     end
 
-    def validate(values, kind, label, scheme)
+    def domain_snapshot(kind, domains) = { domains: domains, revision: revision(kind, domains) }
+
+    def validate(values, kind, field)
+      label, scheme = FIELDS.fetch(kind).fetch(field)
       limit = kind == "business" ? 300 : 200
-      raise Error, "#{label}最多可设置 #{limit} 条" if values.size > limit
+      raise InvalidField.new(field, "#{label}最多可设置 #{limit} 条") if values.size > limit
       values.map do |value|
         match = ORIGIN.match(value)
         host = match && match[:host].downcase
@@ -99,11 +112,11 @@ module WechatPlatform
         unless match && match[:scheme].downcase == scheme && labels.size >= 2 && host.size <= 253 &&
             labels.all? { |part| DNS_LABEL.match?(part) } && labels.last.match?(/[a-z]/) &&
             !(kind == "server" && host == "api.weixin.qq.com")
-          raise Error, "#{label}请填写 #{scheme}:// 开头的合法域名，不能包含路径、参数或 IP 地址"
+          raise InvalidField.new(field, "#{label}请填写 #{scheme}:// 开头的合法域名，不能包含路径、参数或 IP 地址")
         end
         port = match[:port]
-        raise Error, "业务域名不能包含端口" if kind == "business" && port
-        raise Error, "#{label}的端口号无效" if port && !port.to_i.between?(1, 65535)
+        raise InvalidField.new(field, "业务域名不能包含端口") if kind == "business" && port
+        raise InvalidField.new(field, "#{label}的端口号无效") if port && !port.to_i.between?(1, 65535)
         "#{scheme}://#{host}#{":#{port}" if port}"
       end.uniq
     end

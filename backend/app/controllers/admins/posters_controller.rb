@@ -1,7 +1,7 @@
 module Admins
   class PostersController < BaseController
     before_action :require_super_admin!
-    before_action :load_poster, only: %i[edit update background]
+    before_action :load_poster, only: %i[edit update destroy background]
 
     def index
       @pagy, @posters = pagy(Poster.with_attached_background.includes(:app).order(id: :desc))
@@ -36,6 +36,18 @@ module Admins
     def background
       raise ActiveRecord::RecordNotFound unless @poster.background.attached?
       send_data @poster.background.download, type: @poster.background.content_type, disposition: "inline", filename: @poster.background.blob.key
+    end
+
+    def destroy
+      @poster.with_lock do
+        @poster.destroy!
+        Log.record!(category: "poster", action: "poster.delete", actor: current_admin, target: @poster, request: request)
+      end
+      redirect_to admins_posters_path, notice: "海报已删除", status: :see_other
+    rescue ActiveRecord::ActiveRecordError
+      Log.record!(category: "poster", action: "poster.delete", actor: current_admin, target: @poster, request: request,
+        status: "failed", details: { reason: "海报删除失败" })
+      redirect_to edit_admins_poster_path(@poster), alert: "海报删除失败，请重试", status: :see_other
     end
 
     private

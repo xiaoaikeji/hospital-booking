@@ -30,10 +30,10 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     @service.upload!(template_id: "10", version: "1.1", description: "门诊")
   end
 
-  def prepare_submit
+  def prepare_submit(experience: { exp_version: "1.1", exp_desc: "门诊" })
     @a.update!(verified_digest: AppConfiguration.new(@a).digest(@a.appsecret))
     @online = {}
-    @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0, exp_info: { exp_version: "1.1", exp_desc: "门诊" }, release_info: @online) }
+    @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0, exp_info: experience, release_info: @online) }
     @latest_fields = {}
     @stubs.get("/wxa/get_latest_auditstatus") do
       if @latest_remote_id
@@ -147,7 +147,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     assert_equal "pending", audit.status
   end
 
-  test "超时认领和发布都拒绝版本或提交时间不属于本轮的微信单号" do
+  test "超时首次认领严格核实版本与时间，发布拒绝其他审核单或版本" do
     release = upload
     prepare_submit
     @stubs.post("/wxa/submit_audit") { raise Faraday::TimeoutError }
@@ -176,6 +176,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
       assert_equal "passed", audit.reload.status
       @latest_fields = { user_version: "2.0" }
       assert_raises(WechatPlatform::Error) { @service.publish!(audit, automatic: true) }
+      @latest_fields = { auditid: 802, submit_audit_time: nil }
       assert_raises(WechatPlatform::Error) { WechatPlatform::AutoPublishWorker.new.perform(audit.id) }
       assert_equal "unpublished", audit.reload.publication
       assert_equal 0, publishes
@@ -371,6 +372,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     @stubs.post("/wxa/get_auditstatus") { response_for(errcode: 0, status: 0) }
     patch sync_admins_app_audit_path(@a, audit)
     assert_equal "passed", audit.reload.status
+    @latest_fields = { submit_audit_time: nil }
     @stubs.post("/wxa/release") { response_for(errcode: 0) }
     post publish_admins_app_audit_path(@a, audit)
     assert_equal "published", audit.reload.publication
@@ -381,11 +383,11 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
   test "上传断线使旧体验版失效，核实后复用新上传，不重置代码检测" do
     first = upload
     @stubs.post("/wxa/commit") { raise Faraday::TimeoutError }
-    assert_raises(WechatPlatform::Error) { @service.upload!(template_id: "11", version: "1.1", description: "门诊") }
+    assert_raises(WechatPlatform::Error) { @service.upload!(template_id: "11", version: "1.2", description: "门诊") }
     assert_not first.reload.current_build?
     assert_equal "active", @a.reload.status
     latest = @a.mini_program_releases.last
-    prepare_submit
+    prepare_submit(experience: { exp_version: "1.2", exp_desc: "门诊" })
     @service.verify_upload!(latest)
     assert latest.reload.current_build?
     assert_equal "uploaded", latest.status
@@ -397,18 +399,46 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     assert_raises(WechatPlatform::Error) { @service.upload!(template_id: "11", version: "1.2", description: "更新") }
     unknown = @a.mini_program_releases.last
     @stubs.post("/wxa/getversioninfo") { response_for(errcode: 0) }
-    assert_raises(WechatPlatform::Error) { @service.verify_upload!(unknown, not_uploaded: true) }
+    assert_raises(WechatPlatform::Error) { @service.verify_upload!(unknown, outcome: "not_uploaded") }
     assert_equal "upload_unknown", unknown.reload.status
     @stubs.post("/wxa/getversioninfo") { response_for(exp_info: { exp_version: first.version, exp_desc: first.description }) }
-    @service.verify_upload!(unknown, not_uploaded: true)
+    @service.verify_upload!(unknown, outcome: "not_uploaded")
     assert_equal "upload_failed", unknown.reload.status
     assert first.reload.current_build?
+  end
+
+  test "同版本和说明的不同模板不能认领，保留外部体验版只关闭本地阻塞" do
+    first = upload
+    attempts = 0
+    @stubs.post("/wxa/commit") { attempts += 1; raise Faraday::TimeoutError }
+    assert_raises(WechatPlatform::Error) { @service.upload!(template_id: "11", version: first.version, description: first.description) }
+    unknown = @a.mini_program_releases.last
+    exp = { exp_version: first.version, exp_desc: first.description }
+    @stubs.post("/wxa/getversioninfo") { response_for(exp_info: exp) }
+    path = verify_upload_admins_app_release_path(@a, unknown)
+    get confirmation_admins_mini_program_release_path(unknown, app_id: @a.id, operation: "verify_upload")
+    assert_select "form[action=?] select[name=outcome] option[value=keep_remote]", path
+    %w[uploaded not_uploaded].each do |outcome|
+      patch path, params: { confirmed: "1", outcome: outcome }, as: :json
+      assert_response :unprocessable_content
+      assert_includes response.parsed_body["error"], "多份代码"
+    end
+    exp.replace(exp_version: "外部 3.0", exp_desc: "来自微信开发者工具")
+    patch path, params: { confirmed: "1", outcome: "keep_remote" }, as: :json
+    assert_response :success
+    assert_equal "closed", unknown.reload.status
+    assert_not @a.mini_program_releases.exists?(current_build: true)
+    assert_predicate WechatPlatform::ReleaseActions.new(@a), :upload?
+    assert_equal 1, attempts
+    log = Log.where(action: "wechat.resolve", status: "success").sole
+    assert_equal "外部 3.0", log.details["remote_version"]
   end
 
   test "过审任务可补排且幂等，系统另记一次发布时间和结果" do
     build = upload
     prepare_submit
     audit = accepted_round(build, 981, auto: true)
+    @latest_fields = { submit_audit_time: audit.created_at.to_i - 1 }
     @stubs.post("/wxa/get_auditstatus") { response_for(auditid: 981, status: 0) }
     publishes = 0
     @stubs.post("/wxa/release") { publishes += 1; response_for(errcode: 0) }
@@ -465,7 +495,7 @@ class WechatReleasesTest < ActionDispatch::IntegrationTest
     assert_raises(WechatPlatform::Error) { @service.retire!(old, delete: true) }
     assert_raises(WechatPlatform::Error) { submit(old) }
     @stubs.post("/wxa/getversioninfo") { response_for(exp_info: { exp_version: "1.2", exp_desc: "新版" }) }
-    @service.verify_upload!(uncertain, not_uploaded: true)
+    @service.verify_upload!(uncertain, outcome: "not_uploaded")
     assert_equal "upload_failed", uncertain.reload.status
     assert_predicate uncertain.previous_build.reload, :current_build?
     @stubs.post("/wxa/commit") { response_for(errcode: 0) }

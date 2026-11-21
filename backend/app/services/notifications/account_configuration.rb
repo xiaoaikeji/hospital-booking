@@ -60,16 +60,19 @@ module Notifications
         config["replies"][id] = saved
         before = only ? {} : previous || {}
         fields.concat((before.keys | saved.keys).select { |key| before[key] != saved[key] })
-        if input["qrcode_id"].present?
+        if only && input["qrcode_id"].present?
           code = OfficialAccountQrcode.where(app: app).find(input["qrcode_id"])
-          binding = config.fetch("qrcodes", {}).fetch(code.id.to_s, { "mode" => "reply" })
-          raise Error, "该渠道码的回复已改变，请重新打开" if source_id && binding["reply_id"] != source_id
+          binding = config.fetch("qrcodes", {}).fetch(code.id.to_s, { "mode" => "none" })
+          if source_id && binding["reply_id"] != source_id
+            raise Error, "请先在渠道码页面保存所选回复内容，再打开编辑"
+          end
           config["qrcodes"] ||= {}
-          fields << "qrcodes" if binding["reply_id"] != id || binding["mode"] == "none"
-          config["qrcodes"][code.id.to_s] = binding.merge("reply_id" => id, "mode" => binding["mode"] == "none" ? "reply" : binding["mode"])
+          fields << "qrcodes"
+          config["qrcodes"][code.id.to_s] = binding.merge("reply_id" => id)
         end
       end
-      { id: id, key: self.class.menu_key(id), name: reply(id)["name"], messages: reply(id)["messages"], revision: revision }
+      { id: id, key: self.class.menu_key(id), name: reply(id)["name"], messages: reply(id)["messages"], revision: revision,
+        qrcode_id: (input["qrcode_id"] if only) }
     end
 
     def save_rules!(input, actor:, request: nil)
@@ -160,7 +163,7 @@ module Notifications
           media = content["thumb_media_id"]
           old = Array(previous&.fetch("messages", nil)).any? { |m| m["type"] == "miniprogrampage" && m.dig("content", "thumb_media_id") == media }
           proof = Rails.application.message_verifier(:official_menu_resource).verified(row["proof"].to_s)
-          unless media.present? && (old || proof == [ app.id, "media_id", media ])
+          unless media.present? && (old || proof == [ app.id, "card_cover", media ])
             raise FieldError.new("请向本公众号上传卡片封面", field: "thumb_media_id", message_index: index)
           end
           content = content.slice("title", "appid", "pagepath", "thumb_media_id")

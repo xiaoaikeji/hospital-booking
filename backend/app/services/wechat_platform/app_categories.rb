@@ -26,6 +26,21 @@ module WechatPlatform
 
     def awaiting_verification? = unresolved.present?
 
+    def category_name(first, second)
+      configured = read_category do
+        with_client(&:category_settings).fetch("categories").find do |row|
+          row["first"].to_s == first.to_s && row["second"].to_s == second.to_s
+        end&.values_at("first_name", "second_name")
+      end
+      return configured.join(" / ") if configured&.all?(&:present?)
+
+      catalog = read_category do
+        CategoryCatalog.for(@app) { with_client(&:catalog) }.find(first, second)&.values_at("first_name", "name")
+      end
+      names = [configured&.first.presence || catalog&.first.presence, configured&.last.presence || catalog&.last.presence]
+      "#{names.first || first} / #{names.last || second}" if names.any?
+    end
+
     def add!(input)
       mutate("category_add", input) do |data, client|
         raise Error, quota_blocker(data) if quota_blocker(data)
@@ -93,6 +108,12 @@ module WechatPlatform
     end
 
     private
+
+    def read_category
+      yield
+    rescue Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable
+      nil
+    end
 
     def mutate(action, input)
       require_admin!

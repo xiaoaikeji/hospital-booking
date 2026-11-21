@@ -7,14 +7,20 @@ module Notifications
       def self.target(key, name: "企业微信群")
         fingerprint = credential_id(key)
         channel_key = with_channels do |channels|
-          channel = channel_for(channels, fingerprint)
+          channel = usable_channel(channels, fingerprint)
           next channel if channel
-          raise Error, "原配置的机器人 Key 已轮换，请核对当前凭据" if channels.key?(fingerprint)
           channels[fingerprint] = { "name" => name, "channel_type" => "wecom_group",
             "sequence_scope" => fingerprint, "webhook_key" => encrypted_key(key) }
           fingerprint
         end
         { "settings_key" => "notification", "channel_key" => channel_key, "channel_type" => "wecom_group", "sequence_scope" => channel_key, "label" => name }
+      end
+
+      def self.validate_key!(key)
+        return if key.blank?
+
+        channels = Setting.find_by(key: "notification")&.settings&.fetch("channels", {}) || {}
+        usable_channel(channels, credential_id(key))
       end
 
       def self.split_text(text, max_bytes: MAX_TEXT_BYTES)
@@ -51,18 +57,19 @@ module Notifications
         new_fingerprint = credential_id(new_key)
         return if old_fingerprint == new_fingerprint
         with_channels do |channels|
-          old_id = channel_for(channels, old_fingerprint)
+          old_id = usable_channel(channels, old_fingerprint)
           if old_id.nil?
-            raise Error, "原配置的机器人 Key 已轮换，请核对当前凭据" if channels.key?(old_fingerprint)
             old_id = old_fingerprint
             channels[old_id] = { "name" => "企业微信群", "channel_type" => "wecom_group",
               "sequence_scope" => old_id, "webhook_key" => encrypted_key(old_key) }
           end
-          other = channel_for(channels, new_fingerprint)
-          if (other && other != old_id) || (channels.key?(new_fingerprint) && new_fingerprint != old_id)
+          other = usable_channel(channels, new_fingerprint)
+          if other && other != old_id
             raise Error, "新 Key 已登记在其他通知群"
           end
-          channels.fetch(old_id).merge!("credential_id" => new_fingerprint, "webhook_key" => encrypted_key(new_key))
+          channel = channels.fetch(old_id)
+          retired = Array(channel["retired_credential_ids"]) | [old_fingerprint]
+          channel.merge!("credential_id" => new_fingerprint, "webhook_key" => encrypted_key(new_key), "retired_credential_ids" => retired)
         end
       end
 
@@ -74,6 +81,15 @@ module Notifications
 
       def self.channel_for(channels, fingerprint)
         channels.find { |id, row| row["channel_type"] == "wecom_group" && row.fetch("credential_id", id) == fingerprint }&.first
+      end
+
+      def self.usable_channel(channels, fingerprint)
+        channel = channel_for(channels, fingerprint)
+        return channel if channel
+
+        if channels.key?(fingerprint) || channels.values.any? { |row| Array(row["retired_credential_ids"]).include?(fingerprint) }
+          raise Error, "生效的机器人 Key 已轮换，请填写当前 Key 或更新部署配置"
+        end
       end
 
       def self.with_channels
@@ -99,7 +115,7 @@ module Notifications
         used_ids << candidate
         candidate
       end
-      private_class_method :with_channels, :channel_for, :encrypted_key, :next_part_id
+      private_class_method :with_channels, :channel_for, :usable_channel, :encrypted_key, :next_part_id
 
       def initialize(target)
         @target = target

@@ -3,8 +3,13 @@ module Admins
     before_action :require_super_admin!
 
     def index
-      scope = Notification.order(id: :desc)
-      @pagy, @notifications = pagy(scope)
+      if params[:view] == "interval_skips"
+        scope = Log.where(source: "webhook", action: "notification.reply_interval_skipped", target_type: "App")
+        @pagy, @interval_skips = pagy(scope.order(id: :desc))
+        @accounts = App.wechat_official_accounts.where(id: @interval_skips.map(&:target_id)).index_by(&:id)
+      else
+        @pagy, @notifications = pagy(Notification.order(id: :desc))
+      end
     end
 
     def show

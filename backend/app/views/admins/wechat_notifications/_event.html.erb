@@ -17,7 +17,12 @@
         <div class="text-break"><%= simple_format(h(event.message)) %></div>
         <% if event.status == "unknown" %><p class="text-secondary mb-0">请核对群消息，系统已停止重发。</p><% end %>
       </div>
-      <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>关闭</button></div>
+      <div class="modal-footer btn-list">
+        <button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>关闭</button>
+        <% if event.delivery_task %>
+          <%= link_to admins_notification_path(event.delivery_task), class: "btn btn-info" do %><%= render "layouts/admins/icon", name: :eye %>查看发送任务<% end %>
+        <% end %>
+      </div>
     </div>
   </div>
 </div>

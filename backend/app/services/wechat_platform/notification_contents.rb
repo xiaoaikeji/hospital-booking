@@ -3,10 +3,10 @@ module WechatPlatform
   class NotificationContents
     FIELD_MAP = { "版本" => "version", "审核单号" => "audit_id", "原因" => "reason", "错误码" => "error_code",
       "违规单号" => "record_number", "规则" => "rule_name", "申诉单号" => "appeal_number",
-      "一级类目 ID" => "first_category_id", "二级类目 ID" => "second_category_id" }.freeze
+      "一级类目 ID" => "first_category_id", "二级类目 ID" => "second_category_id", "类目名称" => "category_name" }.freeze
     GROUP_FIELDS = {
       "release" => %w[version audit_id reason error_code], "violation" => %w[record_number reason rule_name],
-      "appeal" => %w[appeal_number record_number reason], "category" => %w[first_category_id second_category_id]
+      "appeal" => %w[appeal_number record_number reason], "category" => %w[category_name first_category_id second_category_id]
     }.freeze
     FIELD_LABELS = FIELD_MAP.invert.freeze
 
@@ -22,12 +22,13 @@ module WechatPlatform
       when "passed", "published" then %w[version audit_id]
       when "rejected", "delayed" then %w[version audit_id reason]
       when "failed" then %w[version audit_id error_code]
+      when "category_2" then GROUP_FIELDS.fetch("category") + %w[reason]
       else GROUP_FIELDS.fetch(group)
       end
       keys.each do |key|
         example = { "version" => "1.2.0", "audit_id" => "10001", "reason" => "请补充页面说明", "error_code" => "85051",
           "record_number" => "record-demo", "rule_name" => "服务规范", "appeal_number" => "appeal-demo",
-          "first_category_id" => "1", "second_category_id" => "2" }.fetch(key)
+          "first_category_id" => "1", "second_category_id" => "2", "category_name" => "医疗服务 / 预约挂号" }.fetch(key)
         common[key] = { "label" => FIELD_LABELS.fetch(key), "example" => example, "optional" => true,
           "hint" => "本次事件没有该数据时，省略包含它的整行" }
       end

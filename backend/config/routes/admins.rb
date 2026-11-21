@@ -2,7 +2,7 @@ devise_for :admins, path: "admins", only: :sessions, controllers: { sessions: "a
 
 namespace :admins do
   root "dashboard#index"
-  resources :posters, only: %i[index new create edit update] do
+  resources :posters, only: %i[index new create edit update destroy] do
     get :background, on: :member
   end
   resource :poster_code, only: :create
@@ -39,7 +39,7 @@ namespace :admins do
     get :image, on: :member
   end
   resources :apps do
-    resource :template_message, only: :update, controller: "template_messages"
+    resource :template_message, only: %i[update destroy], controller: "template_messages"
     resources :reply_contents, only: %i[new create edit update] do
       post :media, on: :collection
       get :image, on: :collection

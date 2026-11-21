@@ -59,7 +59,7 @@ module Admins
     def read_quota
       app = @upload_scope.find(&:platform_authorized?)
       raise WechatPlatform::Error, "请先完成一个微信小程序的平台授权" unless app
-      @quota = Wechat::MiniProgramCodeClient.new(WechatPlatform::AuthorizerToken.fetch(app)).quota
+      @quota = WechatPlatform::AuthorizerToken.with_token(app) { |token| Wechat::MiniProgramCodeClient.new(token).quota }
     rescue WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected => error
       @quota_error = error.message
     end

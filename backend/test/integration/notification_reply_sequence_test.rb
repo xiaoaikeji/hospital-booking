@@ -72,7 +72,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
     Sidekiq.testing!(:fake) do
       content = { title: "签到卡", appid: @mini.appid, pagepath: "pages/check_in/index", thumb_media_id: "cover_A" }
       card = { id: "first", type: "miniprogrampage", content: content,
-        proof: WechatPlatform::MenuButtons.proof(@a, "media_id", "cover_A") }
+        proof: WechatPlatform::MenuButtons.proof(@a, "card_cover", "cover_A") }
       welcome = create_reply("欢迎", [ card ])
       text = { id: "first", type: "text", content: { text: "请走东门" } }
       entrance = create_reply("东门说明", [ text ])
@@ -99,7 +99,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
   test "场馆门口码选仅改这个码时隐藏影响范围、复制后仍是原码，选更新全部才展示影响范围" do
     Sidekiq.testing!(:fake) do
       card = { id: "card", type: "miniprogrampage", content: { title: "查看活动", appid: @mini.appid,
-        pagepath: "pages/activities/show", thumb_media_id: "image-A" }, proof: WechatPlatform::MenuButtons.proof(@a, "media_id", "image-A") }
+        pagepath: "pages/activities/show", thumb_media_id: "image-A" }, proof: WechatPlatform::MenuButtons.proof(@a, "card_cover", "image-A") }
       contents = [ { id: "sign", type: "text", content: { text: "到了请去二楼签到" } }, card ]
       reply_id = create_reply("活动说明", contents)
       key = Notifications::AccountConfiguration.menu_key(reply_id)

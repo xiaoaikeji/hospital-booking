@@ -1,19 +1,42 @@
 <% content_for :title, '微信模板消息 · Booking 管理后台' %>
-<% available = @app && @templates.present? %>
+<% bindings = @config&.data&.fetch('template_bindings', {}) || {} %>
+<% available = @app && (@templates.present? || bindings.any?) %>
 <% content_for :fill_content, "true" unless available %>
 <%= render layout: 'admins/shared/list_page_header', locals: { title: '微信模板消息', icon: :templates } do %><%= link_to '回复内容', admins_reply_contents_path(app_id: @app&.id), class: 'btn' %><% end %>
 <%= render 'admins/shared/official_account_filter', accounts: @accounts, selected: @app, path: ->(id) { admins_template_messages_path(app_id: id) } %>
 <% if available %>
   <%= render 'admins/shared/enhanced_select_assets' %>
   <% content_for :head do %><%= javascript_include_tag 'admins/template_messages', defer: true %><% end %>
-  <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.for_templates.to_json %>" data-bindings="<%= @config.data.fetch('template_bindings', {}).to_json %>" data-revision="<%= @config.revision %>">
+  <div data-template-editor data-url="<%= admins_app_template_message_path(@app) %>" data-templates="<%= @templates.to_json %>" data-events="<%= Notifications::EventCatalog.for_templates.to_json %>" data-bindings="<%= bindings.to_json %>" data-revision="<%= @config.revision %>">
     <div class="alert" data-template-feedback hidden role="status"></div>
-    <% Notifications::EventCatalog.for_templates.each do |event, definition| %><section class="card mb-3" data-template-event="<%= event %>">
-      <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div><div class="card-body">
-        <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, @config.data.dig('template_bindings', event, 'template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true } %>
-        <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
-      </div><div class="card-footer btn-list justify-content-end"><%= render "admins/shared/submit_button", label: "确认并保存绑定", icon: :save, type: "button", data: { template_save: true } %></div>
-    </section><% end %>
+    <% if @templates.empty? %>
+      <div class="alert alert-warning" role="status"><%= @error || "暂无可选微信模板" %>。仍可解除已有绑定。</div>
+    <% end %>
+    <% Notifications::EventCatalog.for_templates.each do |event, definition| %>
+      <% binding = bindings[event]; next if !binding && @templates.empty?; form_id = "unbind-template-#{event}" %>
+      <section class="card mb-3" data-template-event="<%= event %>">
+        <div class="card-header"><h2 class="card-title"><%= definition['label'] %></h2></div>
+        <div class="card-body">
+          <% if @templates.present? %>
+            <label class="form-label" for="template-<%= event %>">微信已有模板</label><%= select_tag "template-#{event}", options_for_select(@templates.map { |t| [t['title'], t['template_id']] }, binding&.fetch('template_id')), include_blank: '请选择微信模板', class: 'form-select mb-3', data: { template_choice: true, enhanced_select: "single" } %>
+            <div class="row g-3"><div class="col-12 col-lg-7" data-template-fields></div><div class="col-12 col-lg-5"><h3>示例预览</h3><div class="card card-body bg-body-tertiary text-break" data-template-preview></div></div></div>
+          <% else %>
+            <%= render "admins/shared/field_rows", fields: { "已绑定模板" => binding["title"].presence || binding["template_id"] } %>
+          <% end %>
+        </div>
+        <div class="card-footer btn-list justify-content-end">
+          <button type="button" class="<%= class_names('btn btn-outline-danger', 'd-none' => !binding) %>" data-template-unbind data-bs-toggle="modal" data-bs-target="#<%= form_id %>-confirm"><%= render "layouts/admins/icon", name: :trash %>解除绑定</button>
+          <% if @templates.present? %><%= render "admins/shared/submit_button", label: "确认并保存绑定", icon: :save, type: "button", data: { template_save: true } %><% end %>
+        </div>
+      </section>
+      <%= form_with scope: :template_binding, url: admins_app_template_message_path(@app), method: :delete, id: form_id, class: "d-none" do |f| %>
+        <%= f.hidden_field :event, value: event, id: nil %>
+        <%= f.hidden_field :revision, value: @config.revision, id: nil, data: { template_unbind_revision: true } %>
+      <% end %>
+      <%= render "admins/shared/confirmation_modal", form_id: form_id, modal_id: "#{form_id}-confirm",
+            title: "确认解除模板绑定", context: definition["label"], description: "这个事件将停止使用当前模板。已登记的发送任务照常处理。",
+            color: "danger", confirm_label: "确认解除", confirm_icon: :trash, cancel_icon: :close %>
+    <% end %>
   </div>
 <% else %>
   <section class="card flex-fill" aria-label="微信模板状态">

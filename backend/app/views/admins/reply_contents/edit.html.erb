@@ -4,7 +4,9 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "#{params[:id] ? '编辑' : '新增'}回复内容", icon: :templates } do %>
   <% unless params[:inline] == '1' %><%= link_to "返回列表", admins_reply_contents_path(app_id: @app.id), class: "btn" %><% end %>
 <% end %>
+<% cover = MediaUpload::PURPOSES.fetch(:reply_card_cover) %>
 <div data-reply-editor data-variables="<%= @variable_fields.to_json %>" data-examples="<%= @variable_examples.to_json %>" data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-inline="<%= params[:inline] == '1' %>"
+     data-cover-types="<%= cover[:formats].values.uniq.join(',') %>" data-cover-hint="JPG 或 PNG，大小不超过 <%= cover[:limit] / 1.megabyte %> MB。"
      data-save="<%= params[:id] ? admins_app_reply_content_path(@app, params[:id]) : admins_app_reply_contents_path(@app) %>"
      data-image="<%= image_admins_app_reply_contents_path(@app) %>" data-media="<%= media_admins_app_reply_contents_path(@app) %>" data-back="<%= params[:qrcode_id].present? ? edit_admins_app_channel_qrcode_path(@app, params[:qrcode_id]) : admins_reply_contents_path(app_id: @app.id) %>">
   <div class="alert alert-danger" data-reply-error hidden role="alert"></div>

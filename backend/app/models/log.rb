@@ -2,6 +2,9 @@ class Log < ApplicationRecord
   OPERATION_EVENTS = {
     [ "notification", "notification.wecom_content" ] => "修改企微通知文案",
     [ "poster", "poster.save" ] => "保存通用海报",
+    [ "poster", "poster.delete" ] => "删除通用海报",
+    [ "wechat", "wechat.reply_card_cover_upload" ] => "上传小程序卡片封面",
+    [ "notification", "notification.template_unbind" ] => "解除微信模板绑定",
     [ "notification", "notification.retry" ] => "补发失败通知",
     [ "notification", "notification.reply_save" ] => "保存回复内容",
     [ "notification", "notification.rules_save" ] => "保存自动回复规则",

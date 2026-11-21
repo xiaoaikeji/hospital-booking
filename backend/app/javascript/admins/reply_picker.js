@@ -4,8 +4,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const mode = form.querySelector("#scan-mode");
     const select = picker.querySelector("[data-reply-choice]");
     const edit = picker.querySelector("[data-reply-edit]");
+    const hint = picker.querySelector("[data-reply-edit-hint]");
     const revision = form.querySelector("[data-reply-revision]");
-    let popup;
+    let popup, savedReplyId = picker.dataset.savedReplyId || "";
+    const changedReply = () => picker.dataset.codeId && select.value && select.value !== savedReplyId;
 
     window.initializeAdminSelects(form);
     function updatePicker() {
@@ -19,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
         select.disabled = !active;
       }
       edit.disabled = !active || !select.value;
+      hint.classList.toggle("d-none", !active || !changedReply());
     }
 
     mode.addEventListener("change", updatePicker);
@@ -28,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
       popup = window.open(picker.dataset.new, "booking-reply-" + picker.dataset.appId, "width=1100,height=850");
     };
     edit.onclick = () => {
+      if (changedReply()) return;
       const url = picker.dataset.editBase + "/" + encodeURIComponent(select.value) + "/edit?inline=1" +
         (picker.dataset.codeId ? "&qrcode_id=" + picker.dataset.codeId : "");
       popup = window.open(url, "booking-reply-" + picker.dataset.appId, "width=1100,height=850");
@@ -35,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("message", event => {
       if (event.origin !== location.origin || event.source !== popup || event.data.type !== "booking.reply.saved" || String(event.data.appId) !== picker.dataset.appId) return;
       const row = event.data;
+      if (String(row.qrcode_id) === picker.dataset.codeId) savedReplyId = row.id;
       if (select.tomselect) {
         select.tomselect.addOption({ value: row.id, text: row.name });
         select.tomselect.updateOption(row.id, { value: row.id, text: row.name });

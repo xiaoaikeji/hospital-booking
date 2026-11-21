@@ -24,13 +24,13 @@ module WechatPlatform
         "申诉单号" => appeal.number, "违规单号" => violation.record_number, "原因" => appeal.reason)
     end
 
-    def self.category(app, first, second, result, occurred_at)
+    def self.category(app, first, second, result, occurred_at, name: nil, reason: nil)
       record(app, "category_#{result}", "category:#{first}:#{second}:#{result}:#{occurred_at}",
-        "一级类目 ID" => first, "二级类目 ID" => second)
+        "一级类目 ID" => first, "二级类目 ID" => second, "类目名称" => name, "原因" => reason)
     end
 
     def self.record(app, kind, event_key, fields)
-      WechatNotificationEvent.transaction do
+      WechatNotificationEvent.transaction(requires_new: true) do
         # Keep the selected robot and its credential registration in the same snapshot as settings edits.
         Setting.connection.execute("SELECT pg_advisory_xact_lock(71020012)")
         settings = NotificationSettings.new
@@ -59,8 +59,19 @@ module WechatPlatform
         end
       end
     rescue Notifications::Error, ActiveRecord::ActiveRecordError, IntegrationSettings::ConfigurationError => error
-      Rails.logger.warn("微信通知登记失败 app_id=#{app.id} kind=#{kind} error=#{error.class.name}")
+      trace_registration_failure(app, kind, event_key, error)
     end
+
+    def self.trace_registration_failure(app, kind, event_key, error)
+      Rails.logger.warn("微信通知登记失败 app_id=#{app.id} kind=#{kind} event=#{event_key} error=#{error.class.name}")
+      Log.transaction(requires_new: true) do
+        Log.record!(source: "system", category: "notification", action: "notification.registration_failed",
+          status: "failed", target: app, details: { event: kind, event_reference: event_key, error: error.class.name })
+      end
+    rescue ActiveRecord::ActiveRecordError => log_error
+      Rails.logger.warn("微信通知登记失败日志未入库 app_id=#{app.id} event=#{event_key} error=#{log_error.class.name}")
+    end
+    private_class_method :trace_registration_failure
 
     def self.deliver(id)
       event = WechatNotificationEvent.find_by(id: id)

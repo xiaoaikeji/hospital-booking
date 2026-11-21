@@ -9,22 +9,24 @@ module WechatPlatform
       @verifier.generate("qd_#{SecureRandom.alphanumeric(12)}", purpose: purpose)
     end
 
-    def create!(row, key)
+    def create!(row, key, validate: nil)
       raise Error, "需要超级管理员权限" unless @actor.super_admin?
       scene = @verifier.verified(key.to_s, purpose: purpose)
       raise Error, "表单已失效，请重新打开展示该公众号的新增页" unless scene
       row.scene = scene
       row.validate!(:form)
+      saved = saved_code(row)
+      return saved if saved
+
       raise Error, "请先完成本公众号的平台授权" unless @app.platform_authorized?
       # 换发令牌先提交。重复表单即使并发到达，也只会登记同一个渠道。
       AuthorizerToken.with_token(@app) do |token|
         @app.with_lock do
           raise Error, "请先完成本公众号的平台授权" unless @app.platform_authorized?
-          saved = OfficialAccountQrcode.find_by(app: @app, scene: scene)
-          if saved
-            raise Error, "此表单已生成其他名称的渠道码，请重新打开新增页" if saved.name != row.name
-            return saved
-          end
+          saved = saved_code(row)
+          return saved if saved
+
+          validate&.call
           row.update!(Wechat::ChannelQrcodeClient.new.create(token, scene))
           yield row if block_given?
           audit("success", channel_id: row.id)
@@ -37,6 +39,12 @@ module WechatPlatform
     end
 
     private
+
+    def saved_code(row)
+      saved = OfficialAccountQrcode.find_by(app: @app, scene: row.scene)
+      raise Error, "此表单已生成其他名称的渠道码，请重新打开新增页" if saved && saved.name != row.name
+      saved
+    end
 
     def purpose = "app/#{@app.id}/admin/#{@actor.id}"
 
