@@ -22,7 +22,7 @@ export function configurationResult(appId, { statusCode, data }) {
   return { status: 'error' }
 }
 
-export async function requestApp(appId, path, { method = 'GET', data, token } = {}) {
+export async function requestApp(appId, path, { method = 'GET', data, token, expectedStatus } = {}) {
   if (!appId || !API_ORIGIN) throw new Error('请先配置当前小程序的后台地址')
   let response
   try {
@@ -33,7 +33,10 @@ export async function requestApp(appId, path, { method = 'GET', data, token } = 
   } catch {
     throw new Error('网络连接失败，请重试')
   }
-  if (response.statusCode >= 200 && response.statusCode < 300) return response.data
+  if (response.statusCode >= 200 && response.statusCode < 300) {
+    if (expectedStatus && response.statusCode !== expectedStatus) throw new Error('服务端尚未确认本次操作')
+    return response.data
+  }
   const error = new Error(response.data?.message || '服务暂不可用，请重试')
   error.statusCode = response.statusCode
   error.code = response.data?.code

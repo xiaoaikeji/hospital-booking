@@ -1,5 +1,11 @@
 class MiniProgramVisit
+  def self.valid_entry?(context)
+    id = context[:entry_id]
+    id.nil? || (id.is_a?(String) && id.match?(/\A[a-zA-Z0-9_-]{8,64}\z/) && entry_values(context).any?)
+  end
+
   def self.record(identity, context, ip:)
+    return false unless valid_entry?(context)
     device = {}
     simulated = [ context[:device_platform], context[:device_model] ].any? { |v| v.is_a?(String) && v.match?(/devtools|simulator|emulator|模拟器|开发者工具/i) }
     unless simulated
@@ -20,8 +26,11 @@ class MiniProgramVisit
     entry = entry_values(context)
     return true if entry.empty?
     identity.with_lock(requires_new: true) do
+      id = context[:entry_id]
+      # The row lock serializes retries from the same binding, including a lost acknowledgement.
+      next if id && Log.exists?(action: "mini_program.entry", target_type: "UserApp", target_id: identity.id, correlation_id: id)
       identity.update!(first_entry: entry) if identity.first_entry.empty?
-      Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: user, target: identity, details: entry)
+      Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: user, target: identity, details: entry, correlation_id: id)
     end
     true
   rescue StandardError => error

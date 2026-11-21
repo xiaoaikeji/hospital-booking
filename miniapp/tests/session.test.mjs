@@ -176,3 +176,95 @@ test('a reconnect during a failed logout finishes revocation without touching a 
   assert.equal(state.saved.revocations, undefined)
   assert.equal(await client.request('me'), 'new-device-session')
 })
+
+const disabled = () => Object.assign(new Error('账号已停用'), { statusCode: 403, code: 'account_disabled' })
+
+test('account disablement clears the device and profile once, and late reads cannot repopulate them', async () => {
+  const started = deferred()
+  const delayed = deferred()
+  let profile = { user_no: '12345678' }
+  let saved = { ...credential('current'), user_no: profile.user_no }
+  const notices = []
+  const client = createSessionClient({
+    saved, save: value => { saved = value }, loginCode: () => assert.fail('already signed in'),
+    changed: (active, reason) => { if (!active) { profile = null; notices.push(reason) } },
+    send: async (path, { method }) => {
+      if (method === 'DELETE') return
+      if (path === 'slow') { started.resolve(); await delayed.promise; return { user_no: '12345678' } }
+      throw disabled()
+    },
+  })
+  const late = client.request('slow').then(result => { profile = result })
+  await started.promise
+  await assert.rejects(client.request('me'), { code: 'account_disabled', message: '账号已停用' })
+  delayed.resolve()
+  await assert.rejects(late, /退出/)
+  assert.equal(saved, null)
+  assert.equal(profile, null)
+  assert.deepEqual(notices, ['account_disabled'])
+  await assert.rejects(client.request('me'), /请先登录/)
+})
+
+test('a late disablement for a replaced token cannot log out a new session', async () => {
+  const started = deferred()
+  const delayed = deferred()
+  const { client, state } = device(async (path, { token }) => {
+    if (path === 'slow') { started.resolve(); await delayed.promise; throw disabled() }
+    if (path === 'session') return credential('new')
+    if (token === 'previous') throw expired()
+    return { user_no: '12345678' }
+  })
+  const late = client.request('slow')
+  await started.promise
+  await client.request('me')
+  delayed.resolve()
+  await assert.rejects(late, /状态已更新/)
+  assert.equal(state.saved.token, 'new')
+  assert.equal(state.saved.user_no, '12345678')
+})
+
+test('only explicit account disablement retires the session, including during silent renewal', async () => {
+  const appPaused = Object.assign(new Error('app paused'), { statusCode: 403, appDisabled: true })
+  for (const error of [appPaused, new Error('offline'), Object.assign(new Error(), { statusCode: 503, code: 'account_disabled' })]) {
+    const { client, state } = device(async () => { throw error })
+    await assert.rejects(client.request('me'), err => err === error)
+    assert.equal(state.saved.token, 'previous')
+  }
+  const { client, state } = device(async (path, { method }) => {
+    if (method === 'DELETE') return
+    if (path === 'session') throw disabled()
+    throw expired()
+  })
+  await assert.rejects(client.request('me'), { code: 'account_disabled' })
+  assert.equal(state.saved, null)
+})
+
+test('a renewal to a different WeChat account cannot submit the previous account’s pending write', async () => {
+  const sent = []
+  const { client, state } = device(async (path, { method }) => {
+    if (method === 'DELETE') return
+    sent.push(path)
+    return { ...credential('new'), user_no: '22222222' }
+  }, { ...credential('old'), expires_at: new Date(0).toISOString(), user_no: '11111111' })
+  await assert.rejects(client.request('entry_scenes', { method: 'POST' }), /退出/)
+  assert.deepEqual(sent, ['session'])
+  assert.equal(state.saved.user_no, '22222222')
+})
+
+test('an old session can claim a source only when its own credential proves who was visiting', async () => {
+  let online = false
+  const { client } = device(async (path, { token }) => {
+    if (!online) throw new Error('offline')
+    if (path === 'session') return { ...credential('replacement'), user_no: '22222222' }
+    if (token === 'previous') throw expired()
+    return { user_no: '22222222' }
+  })
+  await assert.rejects(client.identifySavedSession(), /offline/)
+  online = true
+  assert.equal(await client.identifySavedSession(), undefined)
+  assert.equal(client.userNo, '22222222')
+
+  const old = device(async () => ({ user_no: '11111111' }))
+  assert.equal(await old.client.identifySavedSession(), '11111111')
+  assert.equal(old.state.saved.user_no, '11111111')
+})
