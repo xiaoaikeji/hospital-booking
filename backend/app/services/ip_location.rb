@@ -7,6 +7,7 @@ module IpLocation
     224.0.0.0/4 240.0.0.0/4 2001::/23 2001:db8::/32 2002::/16 3fff::/20
   ].map { |range| IPAddr.new(range) }.freeze
   GLOBAL_V6 = IPAddr.new("2000::/3")
+  CLIENTS = { "baidu" => BaiduMap::IpLocationClient, "tencent" => TencentMap::IpLocationClient }.freeze
 
   def self.public_address(input)
     text = input.to_s.strip
@@ -28,8 +29,18 @@ module IpLocation
     nil
   end
 
-  def self.lookup(ip, key:)
+  def self.lookup(ip, settings: MapSettings.new)
     address = public_address(ip)
-    BaiduMap::IpLocationClient.new.locate(address, key) if address && key.present?
+    return unless address && settings.key.present?
+    CLIENTS.fetch(settings.provider).new.locate(address, settings.key)
+  end
+
+  def self.region_name(*candidates)
+    candidates.each do |value|
+      next unless value.is_a?(String)
+      name = value.strip
+      return name if name.present? && name.length <= 80 && !name.match?(/\A(?:none|null|unknown|0|未知)\z|[[:cntrl:]]/i)
+    end
+    nil
   end
 end

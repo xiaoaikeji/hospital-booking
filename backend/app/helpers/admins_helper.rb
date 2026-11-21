@@ -100,7 +100,7 @@ module AdminsHelper
     when "系统配置", "加密数据库" then [ source, "success" ]
     when "环境变量" then [ "ENV", "success" ]
     when "Rails credentials" then [ "credentials", "success" ]
-    when "默认本地" then [ "默认", "secondary" ]
+    when "默认本地", "系统默认" then [ "默认", "secondary" ]
     when "按地域生成" then [ source, "secondary" ]
     when "系统配置（解密失败）" then [ "解密失败", "danger" ]
     when "部署配置无效" then [ source, "danger" ]

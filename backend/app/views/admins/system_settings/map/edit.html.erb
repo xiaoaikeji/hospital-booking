@@ -1,21 +1,34 @@
 <% content_for :title, "地图服务 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% content_for :head do %><%= javascript_include_tag "admins/map_settings", defer: true %><% end %>
 <%= render "admins/system_settings/navigation", title: "地图服务" %>
-<%= form_with scope: :map, url: admins_system_settings_map_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
+<%= form_with scope: :map, url: admins_system_settings_map_path, method: :patch, class: "card", data: { admin_form: true, map_settings: true } do |f| %>
   <%= f.hidden_field :revision, value: @settings.revision %>
-  <%= render layout: "admins/shared/configuration_card", locals: { title: "百度地图 IP 归属地", record: @settings,
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "IP 归属地", record: @settings,
         clear_target: "#clear-map-key", clear_disabled: !@settings.stored? } do %>
-    <div class="col-lg-8">
-      <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :ak, label: "服务端 AK",
-            source: @settings.source, value: @settings.key, help: "使用已开通普通 IP 定位的服务端 AK。后台任务会补查尚空的地区。" %>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <% choices = MapSettings::PROVIDERS.map { |value, label| [label, value] } %>
+        <% choices.unshift(["请选择地图服务商", "", { disabled: true }]) unless @settings.provider %>
+        <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :provider, label: "地图服务商",
+              source: @settings.source("provider"), value: @settings.provider.to_s, choices: choices, enhanced_select: "single" %>
+      </div>
+      <% [["baidu", "ak", "百度地图服务端 AK", "使用已开通普通 IP 定位的服务端 AK。"],
+          ["tencent", "tencent_key", "腾讯地图 WebService Key", "开通 WebService IP 定位，并将任务服务器的公网出口 IP 加入授权名单。"]].each do |provider, field, label, help| %>
+        <fieldset class="col-md-6 col-xl-6" data-map-credential="<%= provider %>" <%= tag.attributes(hidden: @settings.provider != provider, disabled: @settings.provider != provider) %>>
+          <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
+                source: @settings.source(field), value: @settings.value(field), help: help %>
+        </fieldset>
+      <% end %>
     </div>
   <% end %>
 <% end %>
 <% if @settings.stored? %>
   <%= form_with scope: :map, url: admins_system_settings_map_path, method: :patch, id: "clear-map-form", class: "d-none" do |f| %>
     <%= f.hidden_field :revision, value: @settings.revision, id: nil %>
-    <%= f.hidden_field :clear_key, value: "1", id: nil %>
+    <%= f.hidden_field :clear_settings, value: "1", id: nil %>
   <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "clear-map-key", form_id: "clear-map-form",
-        title: "清除地图服务配置", context: "百度地图服务端 AK", description: "清除后按环境变量和 Rails credentials 读取。",
+        title: "清除地图服务配置", context: "地图服务商和两家的密钥", description: "清除本页系统配置后，按环境变量和 Rails credentials 读取。未指定服务商时使用百度地图。",
         color: "warning", confirm_label: "确认清除", confirm_icon: :trash, cancel_icon: :close %>
 <% end %>

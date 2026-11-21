@@ -2,12 +2,16 @@
 module IntegrationSettings
   class ConfigurationError < StandardError; end
 
-  def self.read(section, key, env_key:, env: ENV, credentials: Rails.application.credentials)
+  def self.read(...) = read_with_source(...).first
+
+  def self.read_with_source(section, key, env_key:, env: ENV, credentials: Rails.application.credentials)
     reader = ActiveSupport::IsolatedExecutionState[:integration_settings_reader] || Rails.application.config.x.integration_settings_reader
-    value = reader&.call(section, key)
-    value = env[env_key] if unset?(value)
-    value = credentials.dig(section, key) if unset?(value)
-    value unless unset?(value)
+    value = block_given? ? yield : reader&.call(section, key)
+    return [ value, "系统配置" ] unless unset?(value)
+    value = env[env_key]
+    return [ value, "环境变量" ] unless unset?(value)
+    value = credentials.dig(section, key)
+    unset?(value) ? [ nil, "未配置" ] : [ value, "Rails credentials" ]
   end
 
   # 同一次校验和客户端创建使用相同快照，避免并发更新时混用两版字段。

@@ -15,16 +15,8 @@ module BaiduMap
       content = data["content"]
       details = content["address_detail"] if content.is_a?(Hash)
       details = {} unless details.is_a?(Hash)
-      { "country" => text(parts[0]), "province" => text(details["province"]) || text(parts[1]),
-        "city" => text(details["city"]) || text(parts[2]) }.compact.presence
-    end
-
-    private
-
-    def text(value)
-      value = value.strip if value.is_a?(String)
-      value if value.is_a?(String) && value.present? && value.length <= 80 &&
-        !value.match?(/\A(?:none|null|unknown|0|未知)\z|[[:cntrl:]]/i)
+      { "country" => IpLocation.region_name(parts[0]), "province" => IpLocation.region_name(details["province"], parts[1]),
+        "city" => IpLocation.region_name(details["city"], parts[2]) }.compact.presence
     end
   end
 end
