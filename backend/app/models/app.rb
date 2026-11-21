@@ -5,12 +5,11 @@ class App < ApplicationRecord
   scope :wechat_mini_programs, -> { wechat_accounts.where(app_type: "mini_program") }
   scope :wechat_official_accounts, -> { wechat_accounts.where(app_type: "official_account") }
   belongs_to :open_platform_account, optional: true
-  after_update :clear_previous_unionids, if: :saved_change_to_open_platform_account_id?
   validates :app_type, inclusion: { in: TYPES.keys }
   validates :app_type, exclusion: { in: ["official_account"], message: "抖音仅支持小程序" }, if: -> { provider == "douyin" }
   def code_capable? = provider == "wechat" && app_type == "mini_program"
+  def wechat_official_account? = provider == "wechat" && app_type == "official_account"
   def platform_label = "#{PROVIDERS[provider]}#{TYPES[app_type]}"
-  def platform_authorized? = provider == "wechat" && app_authorization&.authorized?
 
   STATUSES = { "active" => "正常", "auditing" => "审核中", "disabled" => "已停用" }.freeze
   has_many :official_account_callbacks, dependent: :restrict_with_error
@@ -23,7 +22,8 @@ class App < ApplicationRecord
   has_many :location_interface_applications, dependent: :restrict_with_error
   has_many :wechat_violations, dependent: :restrict_with_error
   has_many :wechat_notification_events, dependent: :restrict_with_error
-  encrypts :appsecret
+  encrypts :appsecret, :callback_token, :callback_encoding_aes_key
+  validates :wechat_original_id, format: { with: /\Agh_[a-zA-Z0-9_]{1,64}\z/ }, uniqueness: true, allow_nil: true
   attr_readonly :provider, :app_type, :appid
   validates :provider, inclusion: { in: PROVIDERS.keys }
   validates :appid, format: { with: /\A[a-zA-Z0-9_-]{1,100}\z/ }, uniqueness: { scope: :provider }
@@ -43,11 +43,9 @@ class App < ApplicationRecord
   end
 
   def deletion_blocker
-    authorization = app_authorization
-    authorization&.lock!
-    return "已有微信授权记录，只能停用" if authorization&.used?
+    return "已有微信授权记录，只能停用" if app_authorization&.recorded?
     return "已有用户身份记录，只能停用" if UserApp.for_app(self).exists?
-    return "已绑定开放平台账号，请先解绑" if open_platform_account_id?
+    return "已有开放平台绑定历史，只能停用" if open_platform_account_id?
     return "该应用还有专属页面配置，请先删除专属配置" if links.exists?
     if app_type == "official_account" && Setting.find_by(key: "notification")&.settings&.dig("accounts", appid).present?
       return "已有公众号通知配置，只能停用"
@@ -64,9 +62,5 @@ class App < ApplicationRecord
     }
     label, = histories.find { |_title, rows| rows.exists? }
     "已有#{label}记录，只能停用" if label
-  end
-
-  def clear_previous_unionids
-    UserApp.for_app(self).where.not(unionid: nil).update_all(unionid: nil, updated_at: Time.current)
   end
 end

@@ -12,8 +12,7 @@ class PostersTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @apps = %w[wxPosterA wxPosterB].map do |appid|
       app = App.create!(provider: "wechat", status: "active", appid: appid, nickname: appid)
-      auth = app.create_app_authorization!(refresh_token: "local-refresh")
-      Rails.cache.write("apps/#{app.id}/channel_token", { value: appid, revision: auth.updated_at.to_f })
+      configure_account(app)
       app
     end
   end
@@ -100,7 +99,7 @@ class PostersTest < ActionDispatch::IntegrationTest
     assert_equal original_blob, poster.reload.background.blob
   end
 
-  test "codes and caches isolate applications paths and query and reject revoked authorization" do
+  test "codes and caches isolate applications paths and query and reject missing credentials" do
     requests = []
     @stubs.post("/wxa/getwxacode") do |env|
       body = JSON.parse(env.body)
@@ -115,7 +114,7 @@ class PostersTest < ActionDispatch::IntegrationTest
       assert_includes Base64.decode64(response.parsed_body["image"].split(",").last), App.find(value[:app_id]).appid
     end
     assert_equal [ [ "wxPosterA", "pages/registration/index?event_id=clinic" ], [ "wxPosterB", "pages/registration/index?event_id=clinic" ], [ "wxPosterA", "pages/registration/index?event_id=esports" ] ], requests
-    @apps.first.app_authorization.update!(refresh_token: nil)
+    @apps.first.update!(appsecret: nil)
     post admins_poster_code_path, params: { target: target }, as: :json
     assert_response :unprocessable_content
     assert_equal 3, requests.size
@@ -152,8 +151,9 @@ class PostersTest < ActionDispatch::IntegrationTest
 
   test "direct credential errors remain actionable and disabled apps cannot reuse cached images" do
     app = App.create!(provider: "wechat", status: "active", appid: "wxPosterDirect", appsecret: "local-direct-secret")
+    app.create_app_authorization!(original_id: "gh_archived", revoked_at: 1.day.ago)
     calls = 0
-    @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "direct-poster") }
+    @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "direct-poster", expires_in: 7200) }
     @stubs.post("/wxa/getwxacode") do |env|
       calls += 1
       assert_equal "direct-poster", env.params["access_token"]

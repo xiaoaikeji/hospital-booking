@@ -12,8 +12,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wxPointA wxPointB].map do |appid|
       account = App.create!(provider: "wechat", app_type: "official_account", appid: appid)
-      auth = account.create_app_authorization!(refresh_token: "local", original_id: "gh_#{appid}")
-      Rails.cache.write("apps/#{account.id}/channel_token", { value: appid, revision: auth.updated_at.to_f })
+      configure_account(account)
       account
     end
     @mini = App.create!(provider: "wechat", appid: "wxDemoMini")
@@ -37,7 +36,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
   def push(account, event, scene)
     fields = { ToUserName: "gh_#{account.appid}", FromUserName: "shared-test-openid", CreateTime: Time.current.to_i,
       MsgType: "event", Event: event, EventKey: scene }
-    signed_push(api_wechat_component_messages_path(appid: account.appid), fields.to_xml(root: "xml", skip_types: true))
+    signed_push(api_wechat_official_account_messages_path(appid: account.appid), fields.to_xml(root: "xml", skip_types: true), account: account)
     assert_response :success
   end
 
@@ -72,7 +71,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
     Sidekiq.testing!(:fake) do
       content = { title: "签到卡", appid: @mini.appid, pagepath: "pages/check_in/index", thumb_media_id: "cover_A" }
       card = { id: "first", type: "miniprogrampage", content: content,
-        proof: WechatPlatform::MenuButtons.proof(@a, "card_cover", "cover_A") }
+        proof: Wechat::MenuButtons.proof(@a, "card_cover", "cover_A") }
       welcome = create_reply("欢迎", [ card ])
       text = { id: "first", type: "text", content: { text: "请走东门" } }
       entrance = create_reply("东门说明", [ text ])
@@ -99,7 +98,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
   test "场馆门口码选仅改这个码时隐藏影响范围、复制后仍是原码，选更新全部才展示影响范围" do
     Sidekiq.testing!(:fake) do
       card = { id: "card", type: "miniprogrampage", content: { title: "查看活动", appid: @mini.appid,
-        pagepath: "pages/activities/show", thumb_media_id: "image-A" }, proof: WechatPlatform::MenuButtons.proof(@a, "card_cover", "image-A") }
+        pagepath: "pages/activities/show", thumb_media_id: "image-A" }, proof: Wechat::MenuButtons.proof(@a, "card_cover", "image-A") }
       contents = [ { id: "sign", type: "text", content: { text: "到了请去二楼签到" } }, card ]
       reply_id = create_reply("活动说明", contents)
       key = Notifications::AccountConfiguration.menu_key(reply_id)
@@ -145,7 +144,7 @@ class NotificationReplySequenceTest < ActionDispatch::IntegrationTest
       freeze_time do
         2.times { push(@a, "SCAN", code.scene) }
         encrypted = Nokogiri::XML(response.body)
-        plain = Wechat::MessageCrypto.new(@component).decrypt(encrypted.at_xpath("//Encrypt").text,
+        plain = Wechat::MessageCrypto.new(AppConfiguration.new(@a).callback_credentials!).decrypt(encrypted.at_xpath("//Encrypt").text,
           timestamp: encrypted.at_xpath("//TimeStamp").text, nonce: encrypted.at_xpath("//Nonce").text,
           signature: encrypted.at_xpath("//MsgSignature").text)
         assert_equal "到了请去二楼签到", Nokogiri::XML(plain).at_xpath("//Content").text

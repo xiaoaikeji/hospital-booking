@@ -8,7 +8,7 @@
       <div class="modal-body">
         <% fields = {
              "小程序" => link_to(event.app.display_name, admins_app_path(event.app)),
-             "事件" => WechatPlatform::NotificationSettings::LABELS.fetch(event.kind),
+             "事件" => WechatNotificationEvent::LABELS.fetch(event.kind, event.kind),
              "状态" => render("status", event: event), "通知时间" => admin_list_time(event.created_at)
            }
            fields["企业微信错误码"] = event.error_code.to_s if event.error_code %>

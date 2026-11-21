@@ -1,0 +1,39 @@
+<% content_for :title, "企微通知设置 · Booking 管理后台" %>
+<%= render "admins/system_settings/navigation", title: "企微通知设置" %>
+<% can_clear = @settings.stored_key?; revision = @settings.revision %>
+<% history_link = capture do %>
+  <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>发送记录<% end %>
+<% end %>
+<%= form_with scope: :notification_settings, url: admins_system_settings_wecom_notifications_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
+  <%= f.hidden_field :revision, value: @input&.fetch(:revision, nil) || revision %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "企业微信群机器人", record: @settings, header_actions: history_link,
+        clear_target: "#clear-notification-configuration", clear_disabled: !can_clear } do %>
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :webhook_key, label: "企业微信群机器人 Key",
+              source: @settings.source, value: @input&.fetch(:webhook_key, nil) || @settings.key,
+              placeholder: "请输入 Key 或完整 Webhook 地址",
+              help: (@settings.key_unreadable? ? "请重新填写机器人 Key 或清除系统配置。" : ("可填写机器人 Key 或完整 Webhook 地址。留空保留当前来源。" if @settings.key.present?)) %>
+      </div>
+      <% if @settings.key.present? %>
+        <div class="col-12 d-flex align-items-center gap-1">
+          <label class="form-check mb-0"><%= f.check_box :same_robot, checked: @input&.fetch(:same_robot, nil) == "1", class: "form-check-input" %>
+            <span class="form-check-label">为原群机器人轮换 Key</span>
+          </label>
+          <%= render "admins/shared/field_help", label: "查看机器人 Key 轮换说明", text: "勾选后，原群的待发和补发任务使用新 Key。更换通知群时请保留未勾选。" %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+<% if can_clear %>
+  <%= form_with scope: :notification_settings, url: admins_system_settings_wecom_notifications_path, method: :patch,
+        id: "clear-notification-configuration-form", class: "d-none" do |f| %>
+    <%= f.hidden_field :revision, value: revision, id: nil %>
+    <%= f.hidden_field :clear_key, value: "1", id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "clear-notification-configuration", form_id: "clear-notification-configuration-form",
+      title: "确认清除系统配置", context: "企业微信群机器人 Key",
+      description: "清除数据库中的 Key 后，将按环境变量、Rails credentials 的顺序读取。",
+      color: "warning", confirm_label: "确认清除", confirm_icon: :trash, cancel_icon: :close %>
+<% end %>

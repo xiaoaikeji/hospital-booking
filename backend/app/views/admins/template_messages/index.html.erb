@@ -49,7 +49,7 @@
     <% elsif @app %>
       <%= render "admins/shared/list_empty", icon: :templates, title: "暂无可选微信模板", description: "在微信公众平台添加模板后，刷新本页重新读取。" %>
     <% else %>
-      <%= render "admins/shared/list_empty", icon: :device_mobile, title: "还没有公众号", description: "登记并授权微信公众号后，即可读取该公众号的微信模板。" %>
+      <%= render "admins/shared/list_empty", icon: :device_mobile, title: "还没有公众号", description: "配置公众号自有凭据后，即可读取该公众号的微信模板。" %>
     <% end %>
   </section>
 <% end %>

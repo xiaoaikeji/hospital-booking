@@ -2,7 +2,7 @@
 <% empty = (@interval_skips || @notifications).empty? %>
 <% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "发送记录", icon: :bell } do %>
-  <%= link_to admins_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>微信历史记录<% end %>
+  <% if WechatNotificationEvent.exists? %><%= link_to admins_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>微信历史记录<% end %><% end %>
 <% end %>
 <div class="card mb-3"><div class="list-group list-group-flush">
   <%= render "admins/shared/list_filter_row", label: "记录", key: :view, include_all: false,

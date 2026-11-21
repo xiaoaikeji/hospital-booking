@@ -2,7 +2,7 @@ module Admins
   class ReplyContentsController < BaseController
     before_action :require_super_admin!
     before_action :load_account, except: :index
-    rescue_from Notifications::Error, WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable, with: :failed
+    rescue_from Notifications::Error, Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable, with: :failed
 
     def index
       @accounts = App.wechat_official_accounts.order(:nickname, :id)
@@ -24,7 +24,7 @@ module Admins
     def update = save_reply
 
     def media
-      render json: WechatPlatform::OfficialAccountMenus.new(@app, actor: current_admin, request: request).upload_card_cover!(params[:file])
+      render json: Wechat::OfficialAccountMenus.new(@app, actor: current_admin, request: request).upload_card_cover!(params[:file])
     end
 
     def image
@@ -32,7 +32,7 @@ module Admins
       own = configuration.replies.values.any? { |reply| reply["messages"].any? { |m| m["type"] == "miniprogrampage" && m.dig("content", "thumb_media_id") == id } }
       proof = Rails.application.message_verifier(:official_menu_resource).verified(params[:proof].to_s)
       raise ActiveRecord::RecordNotFound unless own || proof == [ @app.id, "card_cover", id ]
-      bytes, mime = WechatPlatform::AuthorizerToken.with_token(@app) { |token| Wechat::OfficialAccountMenuClient.new(token).image(id) }
+      bytes, mime = Wechat::AccessToken.with_token(@app) { |token| Wechat::OfficialAccountMenuClient.new(token).image(id) }
       send_data bytes, type: mime, disposition: "inline"
     end
 

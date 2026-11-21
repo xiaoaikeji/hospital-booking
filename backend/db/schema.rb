@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_21_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -83,6 +83,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
     t.string "app_type", default: "mini_program", null: false
     t.string "appid", null: false
     t.text "appsecret"
+    t.text "callback_encoding_aes_key"
+    t.text "callback_token"
     t.datetime "created_at", null: false
     t.integer "lock_version", default: 0, null: false
     t.text "memo"
@@ -92,9 +94,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
     t.string "status", default: "disabled", null: false
     t.datetime "updated_at", null: false
     t.string "verified_digest"
+    t.string "wechat_original_id"
     t.datetime "violations_synced_at"
     t.index ["open_platform_account_id"], name: "index_apps_on_open_platform_account_id"
     t.index ["provider", "appid"], name: "index_apps_on_provider_and_appid", unique: true
+    t.index ["wechat_original_id"], name: "index_apps_on_wechat_original_id", unique: true, where: "(wechat_original_id IS NOT NULL)"
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
@@ -179,6 +183,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
     t.string "previous_status", null: false
     t.string "prior_online_marker"
     t.string "publication", default: "unpublished", null: false
+    t.jsonb "publication_attempt"
     t.datetime "published_at"
     t.text "rejection_reason"
     t.text "rejection_screenshots", default: [], null: false, array: true
@@ -195,6 +200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
   create_table "mini_program_releases", force: :cascade do |t|
     t.bigint "app_id", null: false
     t.text "audit_description"
+    t.bigint "confirmed_experience_time"
     t.datetime "created_at", null: false
     t.boolean "current_build", default: false, null: false
     t.text "description", null: false
@@ -202,6 +208,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_20_100000) do
     t.jsonb "ext_config"
     t.bigint "operator_id", null: false
     t.bigint "previous_build_id"
+    t.jsonb "prior_experience"
     t.bigint "restored_for_id"
     t.bigint "source_release_id"
     t.string "status", default: "upload_unknown", null: false

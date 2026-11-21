@@ -19,5 +19,5 @@
     <%= link_to admins_plugins_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :rotate %>重新读取<% end %>
   </div><% else %><%= render "admins/apps/plugin_table", plugins: @plugins, manage: false %><% end %>
 <% else %>
-  <%= render "admins/shared/list_empty", icon: :puzzle, title: @apps.any? ? "请选择小程序" : "暂无已授权的微信小程序" %>
+  <%= render "admins/shared/list_empty", icon: :puzzle, title: @apps.any? ? "请选择小程序" : "暂无微信小程序" %>
 <% end %></section>

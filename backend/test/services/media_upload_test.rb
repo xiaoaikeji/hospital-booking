@@ -14,7 +14,7 @@ class MediaUploadTest < ActiveSupport::TestCase
     bytes = upload.read
     upload.rewind
     travel_to Time.zone.at(1_783_295_957) do
-      first = MediaUpload.new(upload, as: :location_picture).create_blob!
+      first = MediaUpload.new(upload, as: :link_image).create_blob!
       stray = "1783295958#{Digest::MD5.hexdigest(bytes).first(6)}.png"
       first.service.upload(stray, StringIO.new("existing"))
       second = MediaUpload.new(file(bytes: bytes), as: :poster_background).create_blob!
@@ -31,12 +31,12 @@ class MediaUploadTest < ActiveSupport::TestCase
 
   test "purpose restrictions reject spoofed empty oversized and unsupported files before storage" do
     [ file(bytes: "text"), file(bytes: ""), file(name: "a.gif"), file(type: "audio/mpeg"),
-      file(bytes: "x" * (2.megabytes + 1)) ].each do |upload|
-      assert_raises(MediaUpload::Invalid) { MediaUpload.new(upload, as: :wechat_certificate).validate! }
+      file(bytes: "x" * (10.megabytes + 1)) ].each do |upload|
+      assert_raises(MediaUpload::Invalid) { MediaUpload.new(upload, as: :reply_card_cover).validate! }
     end
     assert_raises(MediaUpload::Invalid) { MediaUpload.new(nil, as: :poster_background).validate! }
-    assert_equal "image/png", MediaUpload.new(file(type: "application/octet-stream"), as: :wechat_certificate).validate!.content_type
-    assert_match(/\A\d{10}[0-9a-f]{6}\.png\z/, MediaUpload.new(file, as: :wechat_certificate).validate!.filename)
+    assert_equal "image/png", MediaUpload.new(file(type: "application/octet-stream"), as: :reply_card_cover).validate!.content_type
+    assert_match(/\A\d{10}[0-9a-f]{6}\.png\z/, MediaUpload.new(file, as: :reply_card_cover).validate!.filename)
   end
 
   test "upload and business failures clean up new blobs" do
@@ -44,7 +44,7 @@ class MediaUploadTest < ActiveSupport::TestCase
     original = service.method(:upload)
     service.define_singleton_method(:upload) { |*| raise IOError, "private storage details" }
     assert_no_difference "ActiveStorage::Blob.count" do
-      error = assert_raises(MediaUpload::Failed) { MediaUpload.new(file, as: :location_picture).create_blob! }
+      error = assert_raises(MediaUpload::Failed) { MediaUpload.new(file, as: :link_image).create_blob! }
       assert_not_includes error.message, "private"
     end
     service.define_singleton_method(:upload, original)

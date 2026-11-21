@@ -1,28 +1,28 @@
 <% content_for :title, "自定义菜单 · Booking 管理后台" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "自定义菜单", icon: :templates } do %>
-  <% if @app&.platform_authorized? %><button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#menu-pull"><%= render "layouts/admins/icon", name: :rotate %>从微信读取</button><% end %>
+  <% if Wechat::AccessToken.configured?(@app) %><button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#menu-pull"><%= render "layouts/admins/icon", name: :rotate %>从微信读取</button><% end %>
 <% end %>
 <% if @app %>
   <div class="card mb-3"><nav class="card-body py-2 d-flex flex-wrap align-items-center gap-2 nav nav-pills" aria-label="公众号">
     <span class="text-secondary me-2">公众号</span>
     <% @accounts.each do |account| %><%= link_to account.display_name, admins_official_account_menus_path(app_id: account.id), class: class_names("nav-link", active: @app == account) %><% end %>
   </nav></div>
-  <% if @app.platform_authorized? %>
+  <% if Wechat::AccessToken.configured?(@app) %>
     <%= form_with url: pull_admins_app_official_account_menu_path(@app), id: "pull-menu-form", class: "d-none" do |f| %><%= hidden_field_tag :revision, @menu.revision %><% end %>
     <%= render "admins/shared/confirmation_modal", modal_id: "menu-pull", title: "从微信读取菜单", context: "#{@app.display_name} · #{@app.appid}", description: "读取后将用微信当前菜单替换本地编辑内容。", color: "warning", confirm_label: "读取菜单", form_id: "pull-menu-form", confirm_icon: :rotate %>
   <% else %>
-    <div class="alert alert-warning">完成本公众号的平台授权后可从微信读取和发布菜单。<%= link_to "查看平台授权", admins_app_path(@app) %></div>
+    <div class="alert alert-warning">请配置此公众号的 AppSecret 并启用应用。<%= link_to "编辑应用", edit_admins_app_path(@app) %></div>
   <% end %>
   <% unless @menu.pending_buttons.nil? %>
     <div class="alert alert-warning d-block"><strong>菜单发布结果待核实</strong><p class="mb-0">请从微信读取当前菜单，再决定是否重新发布。</p>
     <% unless @menu.observed_buttons.nil? %>
       <% [["上次提交", @menu.pending_buttons], ["微信当前菜单", @menu.observed_buttons]].each do |label, buttons| %>
-        <details class="mt-2"><summary><%= label %>（<%= buttons.size %> 个一级菜单）</summary><pre class="release-config"><%= JSON.pretty_generate(WechatPlatform::MenuButtons.wire(buttons)) %></pre></details>
+        <details class="mt-2"><summary><%= label %>（<%= buttons.size %> 个一级菜单）</summary><pre class="admin-detail-text"><%= JSON.pretty_generate(Wechat::MenuButtons.wire(buttons)) %></pre></details>
       <% end %>
-      <% if @app.platform_authorized? %><button type="button" class="btn mt-2" data-bs-toggle="modal" data-bs-target="#menu-accept"><%= render "layouts/admins/icon", name: :check %>采用微信当前菜单</button><% end %>
+      <% if Wechat::AccessToken.configured?(@app) %><button type="button" class="btn mt-2" data-bs-toggle="modal" data-bs-target="#menu-accept"><%= render "layouts/admins/icon", name: :check %>采用微信当前菜单</button><% end %>
     <% end %></div>
-    <% if !@menu.observed_buttons.nil? && @app.platform_authorized? %><%= form_with url: pull_admins_app_official_account_menu_path(@app), id: "accept-menu-form", class: "d-none" do %><%= hidden_field_tag :revision, @menu.revision %><%= hidden_field_tag :accept, "1" %><% end %>
+    <% if !@menu.observed_buttons.nil? && Wechat::AccessToken.configured?(@app) %><%= form_with url: pull_admins_app_official_account_menu_path(@app), id: "accept-menu-form", class: "d-none" do %><%= hidden_field_tag :revision, @menu.revision %><%= hidden_field_tag :accept, "1" %><% end %>
       <%= render "admins/shared/confirmation_modal", modal_id: "menu-accept", title: "采用微信当前菜单", context: "#{@app.display_name} · #{@app.appid}", description: "将重新查询微信，核对一致后结束本次核实。", color: "warning", confirm_label: "确认采用", form_id: "accept-menu-form" %><% end %>
   <% end %>
-  <%= render "editor", editable: @app.platform_authorized? && @menu.pending_buttons.nil? %>
+  <%= render "editor", editable: Wechat::AccessToken.configured?(@app) && @menu.pending_buttons.nil? %>
 <% else %><section class="card"><%= render "admins/shared/list_empty", icon: :device_mobile, title: "还没有公众号", description: "在应用管理登记微信公众号后，即可配置菜单。" %></section><% end %>

@@ -11,8 +11,7 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wxPluginA wxPluginB].map do |id|
       app = App.create!(provider: "wechat", appid: id)
-      auth = app.create_app_authorization!(refresh_token: "local-refresh")
-      Rails.cache.write("apps/#{app.id}/channel_token", {value: id, revision: auth.updated_at.to_f})
+      configure_account(app)
       app
     end
     @rows = { @a.appid => [], @b.appid => [{ "appid" => "wxOther", "nickname" => "B 的插件", "status" => 2 }] }
@@ -165,13 +164,13 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     assert_equal 2, @writes.size
   end
 
-  test "读取失效令牌或残缺名单后收起写入口，非超管和非授权小程序不能管理" do
+  test "读取失效令牌或残缺名单后收起写入口，非超管和未配置的小程序不能管理" do
     @read_error = {errcode: 42001}
     get admins_app_path(@a, tab: "plugins")
     assert_select "[role=alert]", text: /42001/
     assert_select "form[action=?]", admins_app_plugins_path(@a), count: 0
-    assert_nil Rails.cache.read("apps/#{@a.id}/channel_token")
-    assert Rails.cache.exist?("apps/#{@b.id}/channel_token")
+    assert_nil Rails.cache.read(direct_token_key(@a))
+    assert Rails.cache.exist?(direct_token_key(@b))
     @read_error = {errcode: 0}
     get admins_plugins_path(app_id: @b.id)
     assert_select ".empty-title", "暂无插件"
@@ -181,11 +180,12 @@ class WechatPluginsTest < ActionDispatch::IntegrationTest
     official = App.create!(provider: "wechat", app_type: "official_account", appid: "wxPub")
     post admins_app_plugins_path(official), params: {plugin_appid: "wxTool"}
     assert_response :not_found
-    @b.app_authorization.update!(refresh_token: nil)
+    @b.update!(appsecret: nil)
     post admins_app_plugins_path(@b), params: {plugin_appid: "wxTool"}
-    assert_match(/授权/, flash[:alert])
+    assert_match(/AppSecret|凭据/, flash[:alert])
     get admins_plugins_path(app_id: @b.id)
-    assert_response :not_found
+    assert_response :success
+    assert_select "[role=alert]", /AppSecret/
     %w[operator customer_service].each do |role|
       sign_in Admin.create!(username: "plugin_#{role}", role: role)
       get admins_root_path

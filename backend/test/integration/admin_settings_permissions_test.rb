@@ -14,16 +14,16 @@ class AdminSettingsPermissionsTest < ActionDispatch::IntegrationTest
     assert_select "#sidebar-menu .dropdown-toggle", text: /系统设置/
     assert_select "header nav a[href=?]", edit_admins_system_settings_storage_path, text: /系统设置/
     assert_select "header a.dropdown-item[href=?]", edit_admins_system_settings_storage_path, text: "系统设置"
-    pages = [ edit_admins_system_settings_storage_path, edit_admins_system_settings_appearance_path ]
+    pages = [ edit_admins_system_settings_storage_path, edit_admins_system_settings_appearance_path, edit_admins_system_settings_wecom_notifications_path ]
     pages.each { |path| assert_select "#sidebar-menu a[href=?]", path }
     assert_select "#sidebar-menu li.dropdown" do |groups|
       navigation = groups.to_h { |group| [ group.at_css(".dropdown-toggle").text.strip, group.css(".dropdown-item").map { |a| a["href"] } ] }
       assert_includes navigation.fetch("应用管理"), admins_apps_path
       assert_includes navigation.fetch("运营工具"), admins_channel_qrcodes_path
-      assert_includes navigation.fetch("通知管理"), edit_admins_wecom_notification_content_path
+      assert_includes navigation.fetch("通知管理"), admins_notifications_path
       assert_includes navigation.fetch("后台管理"), admins_background_jobs_path
-      assert_not_includes navigation.fetch("系统设置"), edit_admins_wecom_notification_content_path
-      assert_includes navigation.fetch("系统设置"), edit_admins_system_settings_wechat_notifications_path
+      assert_not_includes navigation.fetch("系统设置"), admins_notifications_path
+      assert_includes navigation.fetch("系统设置"), edit_admins_system_settings_wecom_notifications_path
     end
     check_personal_appearance(admin)
 
@@ -51,7 +51,7 @@ class AdminSettingsPermissionsTest < ActionDispatch::IntegrationTest
       assert_select "#sidebar-menu a, header a", text: /系统设置/, count: 0
       assert_select "a[href^='/admins/system_settings']", count: 0
       assert_select "#sidebar-menu .dropdown-toggle", text: /应用管理|运营工具|通知管理/, count: 0
-      assert_select "#sidebar-menu a[href=?]", edit_admins_wecom_notification_content_path, count: 0
+      assert_select "#sidebar-menu a[href=?]", admins_notifications_path, count: 0
       assert_select "#sidebar-menu a[href=?]", admins_operation_logs_path
       check_personal_appearance(admin)
 

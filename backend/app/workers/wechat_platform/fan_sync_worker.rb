@@ -5,7 +5,7 @@ module WechatPlatform
 
     def perform(id)
       run = OfficialAccountFanSync.find_by(id: id)
-      OfficialAccountFans.new(run.app).sync!(run) if run
+      Wechat::OfficialAccountFans.new(run.app).sync!(run) if run
     end
   end
 end

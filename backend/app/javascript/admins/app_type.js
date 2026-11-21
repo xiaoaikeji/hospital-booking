@@ -9,6 +9,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (type.tomselect) type.tomselect.setValue("mini_program");
       else type.value = "mini_program";
     }
+    const callback = document.getElementById("official-account-callback");
+    if (callback) callback.hidden = callback.disabled = restricted || type.value !== "official_account";
     const option = type.querySelector('option[value="official_account"]');
     if (option) option.disabled = restricted;
     const control = type.tomselect;
@@ -19,5 +21,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   platform.addEventListener("change", updateTypes);
+  type.addEventListener("change", updateTypes);
   updateTypes();
 });

@@ -12,8 +12,7 @@ class NotificationTemplateOccurrencesTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wxDemoVenueA wxDemoVenueB].map do |appid|
       account = App.create!(provider: "wechat", app_type: "official_account", appid: appid)
-      auth = account.create_app_authorization!(refresh_token: "local", original_id: "gh_#{appid}")
-      Rails.cache.write("apps/#{account.id}/channel_token", { value: appid, revision: auth.updated_at.to_f })
+      configure_account(account)
       account
     end
     @catalog_reads = []

@@ -1,62 +1,39 @@
 module Admins
   class AppsController < BaseController
     before_action :require_super_admin!
-    before_action :load_app, only: %i[show edit update destroy]
+    before_action :load_app, only: %i[show edit update disable destroy]
+
+    before_action :protect_credentials, only: %i[new edit create update]
 
     def index
       @filters = params.permit(:q, :provider, :app_type, :status).to_h.compact_blank
+      provider = @filters["provider"].presence_in(App::PROVIDERS.keys) || "wechat"
+      @types = provider == "wechat" ? App::TYPES : App::TYPES.slice("mini_program")
+      type = @filters["app_type"].presence_in(@types.keys) || @types.keys.first
+      @filters.merge!("provider" => provider, "app_type" => type)
       scope = App.where(@filters.slice("provider", "app_type", "status"))
       if @filters["q"]
         scope = scope.where("nickname ILIKE :q OR appid ILIKE :q", q: "%#{App.sanitize_sql_like(@filters["q"])}%")
       end
-      @pagy, @apps = pagy(scope.preload(:app_authorization).order(id: :desc))
-      @component_configured = WechatPlatform::ComponentToken.new.missing.empty? if @apps.any? { |app| app.provider == "wechat" }
+      @pagy, @apps = pagy(scope.order(id: :desc))
     end
 
-    WECHAT_TABS = {
-      "overview" => "基本资料", "releases" => "代码发布", "experiencers" => "体验者",
-      "privacy" => "隐私指引", "categories" => "服务类目", "domains" => "域名管理",
-      "plugins" => "插件", "profile" => "账号资料", "links" => "关联小程序", "open_platform" => "开放平台",
-      "location" => "地理位置"
-    }.freeze
-
     def show
-      @tabs = if @app.code_capable?
-        WECHAT_TABS.except("links")
-      elsif @app.provider == "wechat"
-        WECHAT_TABS.slice("overview", "links", "open_platform")
-      else
-        WECHAT_TABS.slice("overview")
-      end
-      @tab = @tabs.key?(params[:tab]) ? params[:tab] : "overview"
-      return load_management_tab unless %w[overview releases].include?(@tab)
-      return unless @app.provider == "wechat"
-      @platform = WechatPlatform::ComponentToken.new
-      return unless @app.code_capable?
-      @trial = @app.mini_program_releases.find_by(current_build: true)
-      @online_version = @app.mini_program_audits.where(publication: "published").order(id: :desc).pick(:version)
-      history = @app.mini_program_audits.order(id: :desc)
-      @current_round = history.accepted_or_uncertain.first || history.first
-      if @tab == "releases"
-        @audit_history, @audits = pagy(history, limit: 10)
-        if params[:verify_version] == "1" && @app.platform_authorized?
-          @version_info = WechatPlatform::AuthorizerToken.with_token(@app) { |token| Wechat::MiniProgramCodeClient.new(token).version_info }
-        end
-      else
-        @audits = history.limit(3)
-      end
-    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
-      @version_error = error.message
+      @tab = params[:tab] == "plugins" && @app.code_capable? ? "plugins" : "overview"
+      @plugins = Wechat::AppPlugins.new(@app).list if @tab == "plugins"
+    rescue Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+      @tab_error = error.message
     end
 
     def edit
-      load_form_credential
+      load_form_credentials
       render :edit, status: :unprocessable_content if @credential_unavailable
     end
 
     def new
-      @app = App.new(provider: "wechat")
-      load_form_credential
+      context = helpers.application_list_context
+      @app = App.new(provider: context["provider"] || "wechat", app_type: context["app_type"] || "mini_program")
+      load_form_credentials
     end
 
     def create
@@ -66,6 +43,27 @@ module Admins
 
     def update
       save_app("update")
+    end
+
+    def disable
+      form = params[:app]
+      unless form.is_a?(ActionController::Parameters) && form.keys == %w[revision]
+        raise AppConfiguration::Invalid, "停用请求只能提交页面版本，请刷新后重试"
+      end
+
+      @app.with_lock(requires_new: true) do
+        unless @app.accessible? && form[:revision] == AppConfiguration.new(@app).disable_revision
+          raise AppConfiguration::Invalid, "应用状态或资料已变化，请刷新页面后重试"
+        end
+
+        @app.update!(status: "disabled")
+        audit("update", details: { fields: %w[status] })
+      end
+      redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已停用", status: :see_other
+    rescue AppConfiguration::Invalid, ActiveRecord::ActiveRecordError => error
+      reason = error.is_a?(AppConfiguration::Invalid) ? error.message : "停用失败，请刷新页面后重试"
+      audit("update", status: "failed", details: { reason: reason })
+      redirect_to edit_admins_app_path(@app, helpers.application_context_params), alert: reason, status: :see_other
     end
 
     def destroy
@@ -84,48 +82,28 @@ module Admins
 
     private
 
-    def load_management_tab
-      if @tab == "links"
-        @links_page = WechatPlatform::OfficialAccountLinks.new(@app).page
-        return
-      end
-      return unless @app.platform_authorized?
-
-      case @tab
-      when "experiencers" then @experiencers = WechatPlatform::Experiencers.new(@app).list
-      when "privacy" then @privacy = WechatPlatform::PrivacySettings.new(@app).read
-      when "categories" then @category_page = WechatPlatform::AppCategories.new(@app).page
-      when "plugins" then @plugins = WechatPlatform::AppPlugins.new(@app).list
-      when "profile" then load_profile
-      when "location" then @location_entries = WechatPlatform::LocationInterfaces.new(@app).list
-      when "domains" then @domain_settings = WechatPlatform::AppDomains.new(@app).snapshot
-      end
-    rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
-      @tab_error = error.message
-      flash.keep(:location_draft) if @tab == "location" && params[:view] == "apply"
-    end
-
-    def load_profile
-      service = WechatPlatform::AppProfile.new(@app)
-      @profile = service.read
-      @nickname_query = params[:nickname].to_s.strip
-      return if @nickname_query.empty?
-      begin
-        @nickname_check = service.check_nickname(@nickname_query)
-      rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
-        @nickname_error = error.message
-      end
-    end
-
     def load_app = @app = App.find(params[:id])
-    def input = params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret, :clear_secret, :revision)
 
-    def load_form_credential
+    def input
+      params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret,
+        :wechat_original_id, :callback_token, :callback_encoding_aes_key, :clear_secret, :clear_callback, :revision)
+    end
+
+    def protect_credentials
+      response.headers["Cache-Control"] = "private, no-store"
+    end
+
+    def load_form_credentials
       config = AppConfiguration.new(@app)
-      @credential_value, @credential_source = config.credential
-      @credential_revision = config.revision([ @credential_value, @credential_source ]) if @app.persisted?
+      @credentials = config.editable_credentials
+      @credential_revision = config.revision(@credentials) if @app.persisted?
+      @credentials.each do |field, (_, source)|
+        if source == AppConfiguration::DAMAGED_SOURCE
+          @app.errors.add(field, "凭据密文已损坏。留空保留，或填写新值、清除系统配置。")
+        end
+      end
     rescue AppConfiguration::Invalid => error
-      @credential_source = error.is_a?(AppConfiguration::DecryptionFailed) ? "系统配置（解密失败）" : "部署配置无效"
+      @credentials = { appsecret: [nil, "部署配置无效"] }
       @credential_unavailable = true
       @app.errors.add(:appsecret, error.message)
     end
@@ -134,38 +112,50 @@ module Admins
       App.transaction(requires_new: true) do
         @app.lock! if @app.persisted?
         config = AppConfiguration.new(@app)
-        if @app.persisted? && config.revision != input[:revision]
+        snapshot = config.editable_credentials
+        if @app.persisted? && config.revision(snapshot) != input[:revision]
           raise AppConfiguration::Invalid, "配置已变更，请刷新页面后重新填写"
         end
         @app.assign_attributes(input.slice(:nickname, :memo, :status))
-        config.assign(input)
-        raise ActiveRecord::RecordInvalid, @app unless @app.valid?
-        if @app.accessible? && (@app.status_changed? || config.credential_status != "已验证")
-          config.verify!
+        if @app.wechat_official_account? && input.key?(:wechat_original_id)
+          @app.wechat_original_id = input[:wechat_original_id].to_s.strip.presence
         end
+        repaired = config.assign(input, snapshot: snapshot)
+        raise ActiveRecord::RecordInvalid, @app unless @app.valid?
+        verify_credential(config, damaged: snapshot.fetch(:appsecret).last == AppConfiguration::DAMAGED_SOURCE, repaired: repaired.include?(:appsecret))
         fields = @app.changed - %w[verified_digest]
+        fields |= repaired.map(&:to_s)
         @app.save!
         audit(action, details: { fields: fields })
-        if fields.include?("appsecret")
-          ActiveRecord.after_all_transactions_commit { Rails.cache.delete("apps/#{@app.id}/channel_token") }
-        end
       end
-      if input[:clear_secret] == "1"
+      if input[:clear_secret] == "1" || input[:clear_callback] == "1"
         redirect_to edit_admins_app_path(@app, helpers.application_context_params), notice: "系统配置已清除", status: :see_other
       else
         redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已保存", status: :see_other
       end
-    rescue AppConfiguration::Invalid, WechatPlatform::Error, HttpConnection::Unavailable, Wechat::BaseClient::Rejected, ActiveRecord::ActiveRecordError => error
+    rescue AppConfiguration::Invalid, HttpConnection::Unavailable, Wechat::BaseClient::Rejected,
+      ActiveRecord::ActiveRecordError, ActiveRecord::Encryption::Errors::Base => error
       reason = case error
       when ActiveRecord::RecordInvalid then "请核对标出的应用资料"
       when ActiveRecord::ActiveRecordError then "保存失败，请刷新页面"
+      when ActiveRecord::Encryption::Errors::Base then AppConfiguration::ENCRYPTION_UNAVAILABLE
       else error.message
       end
       audit(action, status: "failed", details: { reason: reason })
       @app.reload if @app.persisted?
-      load_form_credential
+      load_form_credentials
       @app.errors.add(:base, reason) unless @credential_unavailable
       render(action == "create" ? :new : :edit, status: :unprocessable_content)
+    end
+
+    def verify_credential(config, damaged:, repaired:)
+      return unless @app.accessible?
+      if damaged && !@app.status_changed?
+        return unless repaired
+        # An explicit clear may leave a previously unreadable credential unconfigured.
+        return if input[:clear_secret] == "1" && config.credential.first.blank?
+      end
+      config.verify! if @app.status_changed? || config.credential_status != "已验证"
     end
 
     def audit(action, **options)

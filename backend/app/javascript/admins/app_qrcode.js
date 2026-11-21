@@ -6,13 +6,14 @@ async function fetchCode(url, signal) {
     throw new Error(result.error || "暂时无法获取二维码。");
   }
   if (!response.ok || !["image/png", "image/jpeg"].includes(type)) {
-    throw new Error("未能获取二维码，请检查应用的授权与版本后重试。");
+    throw new Error("未能获取二维码，请检查应用的凭据与版本后重试。");
   }
   return response.blob();
 }
 
 async function loadPanel(panel) {
   const refresh = panel.querySelector("button[type='submit']");
+  if (!panel.querySelector("[data-code-src]")) return;
   refresh.disabled = true;
   try {
     await Promise.all(Array.from(panel.querySelectorAll("[data-code-src]"), async (tile) => {

@@ -32,8 +32,8 @@ class Poster < ApplicationRecord
 
   def target_allowed
     return if target_kind.blank?
-    WechatPlatform::PosterCode.validate!(**target_attributes)
-  rescue WechatPlatform::Error => error
+    Wechat::PosterCode.validate!(**target_attributes)
+  rescue Wechat::Error => error
     errors.add(:base, error.message)
   end
 end

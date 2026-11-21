@@ -46,8 +46,6 @@
           ["预约", admins_reservations_path, :calendar, controller_path == "admins/reservations"],
           ["客户", admins_customers_path, :users, controller_path == "admins/customers"],
           (["应用", admins_apps_path, :device_mobile, controller_path == "admins/apps"] if current_admin.super_admin?),
-          (["模板", admins_code_templates_path, :templates, controller_path == "admins/code_templates"] if current_admin.super_admin?),
-          (["代码", admins_mini_program_releases_path, :code, controller_path.in?(%w[admins/mini_program_releases admins/wechat_releases])] if current_admin.super_admin?),
           ["服务", admins_root_path(anchor: "services"), :package, false],
           ["收款", admins_root_path(anchor: "payments"), :wallet, false],
           ["报表", admins_root_path(anchor: "reports"), :chart, false],

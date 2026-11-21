@@ -12,8 +12,7 @@ class NotificationTemplateMessagesTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wxTemplateA wxTemplateB].map do |appid|
       App.create!(provider: "wechat", app_type: "official_account", appid: appid).tap do |account|
-        auth = account.create_app_authorization!(refresh_token: "demo-token", original_id: "gh_#{appid}")
-        Rails.cache.write("apps/#{account.id}/channel_token", { value: appid, revision: auth.updated_at.to_f })
+        configure_account(account)
       end
     end
     @recipient = UserApp.create!(app: @a, user: User.create!(platform: "wechat"), openid: "fan-a")

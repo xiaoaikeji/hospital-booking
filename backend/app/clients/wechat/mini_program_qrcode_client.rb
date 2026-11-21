@@ -1,23 +1,23 @@
 module Wechat
   class MiniProgramQrcodeClient < BaseClient
-    # 有限码允许页面自带 query，沿用正式版页面校验，不要求调用方改成 scene 参数。
+    # 有限码允许页面自带 query，沿用正式版页面校验。
     def page(token, path:)
-      response = HttpConnection.request(@connection, :post, "/wxa/getwxacode",
-        query: { access_token: token }, body: { path: path, env_version: "release", width: 1280 })
-      bytes = response.body.to_s.b
-      return bytes if bytes.start_with?("\x89PNG\r\n\x1a\n".b, "\xff\xd8\xff".b)
-      checked(HttpConnection.json(response))
-      raise HttpConnection::Unavailable, "微信未返回小程序页面码，请重试"
+      code("/wxa/getwxacode", token, { path: path, env_version: "release", width: 1280 })
     end
 
-    def released_homepage(token)
-      response = HttpConnection.request(@connection, :post, "/wxa/getwxacodeunlimit",
-        query: { access_token: token }, body: { scene: "home", env_version: "release", check_path: true, width: 430 })
+    def homepage(token, version:)
+      code("/wxa/getwxacodeunlimit", token, { scene: "home", env_version: version, check_path: version == "release", width: 430 })
+    end
+
+    private
+
+    def code(path, token, body)
+      response = HttpConnection.request(@connection, :post, path, query: { access_token: token }, body: body)
       bytes = response.body.to_s.b
       return bytes if bytes.start_with?("\x89PNG\r\n\x1a\n".b, "\xff\xd8\xff".b)
 
       checked(HttpConnection.json(response))
-      raise HttpConnection::Unavailable, "微信未返回正式版小程序码"
+      raise HttpConnection::Unavailable, "微信未返回小程序码图片"
     end
   end
 end

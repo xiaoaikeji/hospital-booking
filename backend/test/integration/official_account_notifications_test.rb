@@ -12,8 +12,7 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wxReplyA wxReplyB].map do |appid|
       App.create!(provider: "wechat", app_type: "official_account", appid: appid, nickname: appid).tap do |account|
-        auth = account.create_app_authorization!(refresh_token: "demo-token", original_id: "gh_#{appid}")
-        Rails.cache.write("apps/#{account.id}/channel_token", { value: appid, revision: auth.updated_at.to_f })
+        configure_account(account)
       end
     end
     @mini = App.create!(provider: "wechat", appid: "wxActivityMini")
@@ -30,7 +29,7 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
   teardown { remove_wechat_stubs }
 
   def create_reply(name = "活动说明")
-    proof = WechatPlatform::MenuButtons.proof(@a, "card_cover", "cover-a")
+    proof = Wechat::MenuButtons.proof(@a, "card_cover", "cover-a")
     @config.save_reply!({ name: name, revision: @config.revision, messages: [
       { id: "text", type: "text", content: { text: "到了请去二楼签到" } },
       { id: "card", type: "miniprogrampage", proof: proof, content: { title: "活动入口", appid: @mini.appid, pagepath: "pages/activity/index", thumb_media_id: "cover-a" } }
@@ -44,7 +43,7 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
   def push(account = @a, **fields)
     message = { "ToUserName" => "gh_#{account.appid}", "FromUserName" => "fan-openid", "CreateTime" => Time.current.to_i.to_s, "MsgType" => "event", "Event" => "SCAN" }.merge(fields.stringify_keys)
     xml = "<xml>" + message.map { |k, v| "<#{k}>#{ERB::Util.html_escape(v)}</#{k}>" }.join + "</xml>"
-    signed_push(api_wechat_component_messages_path(appid: account.appid), xml)
+    signed_push(api_wechat_official_account_messages_path(appid: account.appid), xml, account: account)
     assert_response :success
     message
   end
@@ -230,10 +229,11 @@ class OfficialAccountNotificationsTest < ActionDispatch::IntegrationTest
     assert_equal "sent", row.reload.status
     @sent.clear
     Sidekiq.testing!(:fake) do
-      2.times { push(EventKey: qr.scene) }
+      replayed_at = Time.current.to_i
+      2.times { push(EventKey: qr.scene, CreateTime: replayed_at) }
       callback_task = Notification.last
       envelope = Nokogiri::XML(response.body)
-      plain = Wechat::MessageCrypto.new(@component).decrypt(envelope.at_xpath("//Encrypt").text,
+      plain = Wechat::MessageCrypto.new(AppConfiguration.new(@a).callback_credentials!).decrypt(envelope.at_xpath("//Encrypt").text,
         timestamp: envelope.at_xpath("//TimeStamp").text, nonce: envelope.at_xpath("//Nonce").text, signature: envelope.at_xpath("//MsgSignature").text)
       assert_includes plain.force_encoding("UTF-8"), "到了请去二楼签到"
       assert_equal 1, OfficialAccountCallback.count

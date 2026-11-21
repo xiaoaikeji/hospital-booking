@@ -2,7 +2,7 @@ module Admins
   class TemplateMessagesController < BaseController
     before_action :require_super_admin!
     before_action :load_app, only: %i[update destroy]
-    rescue_from Notifications::Error, WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable, with: :failed
+    rescue_from Notifications::Error, Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable, with: :failed
 
     def index
       @accounts = App.wechat_official_accounts.order(:nickname, :id)

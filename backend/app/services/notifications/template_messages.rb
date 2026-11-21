@@ -6,8 +6,8 @@ module Notifications
     end
 
     def templates
-      raise Error, "请先完成本公众号的平台授权" unless @app.platform_authorized?
-      WechatPlatform::AuthorizerToken.with_token(@app) { |token| Wechat::OfficialAccountMessageClient.new.templates(token) }
+      raise Error, "请选择微信公众号" unless @app.wechat_official_account?
+      Wechat::AccessToken.with_token(@app) { |token| Wechat::OfficialAccountMessageClient.new.templates(token) }
     end
 
     def self.fields(content)

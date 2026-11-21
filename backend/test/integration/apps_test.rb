@@ -7,32 +7,157 @@ class AppsTest < ActionDispatch::IntegrationTest
   setup { install_wechat_stubs }
   teardown { remove_wechat_stubs }
 
-  test "未配置第三方平台时打开微信应用详情无需加载微信客户端" do
-    sign_in Admin.create!(username: "boss", role: "super_admin")
-    app = App.create!(provider: "wechat", appid: "wxDetail")
-    @previous_env.each_key { |name| ENV.delete(name) }
-
-    stub_const(Object, :Wechat, Module.new) do
-      get admins_app_path(app)
-      assert_response :success
-      assert_select "h2", "应用资料"
-      assert_select "[role='status']", /请配置第三方平台/
-    end
-  end
-
-  test "密钥解密失败时保留编辑页布局并标记字段" do
-    sign_in Admin.create!(username: "credential_admin", role: "super_admin")
-    app = App.create!(provider: "wechat", appid: "wxDamaged")
-    App.where(id: app.id).update_all("appsecret = 'damaged-ciphertext'")
+  test "唯一应用的 AppSecret 无法解密时仍提供独立停用入口" do
+    admin = Admin.create!(username: "single_app_admin", role: "super_admin")
+    sign_in admin
+    app = App.create!(provider: "wechat", appid: "wxOnly", status: "active", nickname: "门诊",
+      memo: "原资料", appsecret: "demo-only")
+    corrupt = damage_secret(app)
+    assert_equal [ app.id ], App.ids
+    assert_empty AppAuthorization.where.not(refresh_token: nil)
+    assert_empty Setting.where(key: Setting::SECRET_FIELDS.keys)
 
     get edit_admins_app_path(app)
-
     assert_response :unprocessable_content
+    assert_select "#appsecret-error.invalid-feedback", /系统加密主密钥/
+    assert_select "button", text: "停用应用"
+    assert_select "#disable-app [data-admin-confirm-form='disable-app-form']", "确认停用"
+    assert_select "#disable-app-form[action=?]", disable_admins_app_path(app)
+    revision = css_select("#disable-app-form input[name='app[revision]']").sole["value"]
+
+    patch disable_admins_app_path(app), params: { app: { revision: revision, appsecret: "unwanted-key", clear_secret: "1" } }
+    assert_redirected_to edit_admins_app_path(app)
+    patch disable_admins_app_path(app), params: { app: { revision: revision, nickname: "不应保存" } }
+    assert_redirected_to edit_admins_app_path(app)
+    assert_equal [ "active", "门诊", corrupt ], [ app.reload.status, app.nickname, app.appsecret_before_type_cast ]
+
+    app.update!(memo: "并发修改")
+    patch disable_admins_app_path(app), params: { app: { revision: revision } }
+    assert_redirected_to edit_admins_app_path(app)
+    assert_includes flash[:alert], "刷新"
+    assert_equal "active", app.reload.status
+
+    get edit_admins_app_path(app)
+    revision = css_select("#disable-app-form input[name='app[revision]']").sole["value"]
+    patch disable_admins_app_path(app), params: { app: { revision: revision } }
+    assert_redirected_to admins_app_path(app)
+    assert_equal [ "disabled", "门诊", "并发修改", corrupt ],
+      [ app.reload.status, app.nickname, app.memo, app.appsecret_before_type_cast ]
+    log = Log.where(action: "app.update", target_id: app.id, status: "success").sole
+    assert_equal admin.id, log.actor_id
+    assert_equal({ "fields" => %w[status] }, log.details)
+
+    patch admins_app_path(app), params: { app: { revision: revision, status: "active", appsecret: "demo-replacement" } }
+    assert_response :unprocessable_content
+    assert_equal [ "disabled", corrupt ], [ app.reload.status, app.appsecret_before_type_cast ]
+  end
+
+  test "未配置密钥的微信应用可查看基本资料" do
+    sign_in Admin.create!(username: "boss", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxDetail")
+    get admins_app_path(app)
+    assert_response :success
+    assert_select "[role='status']", /AppSecret/
+    assert_select "[data-code-src]", count: 0
+  end
+
+  test "单条 AppSecret 损坏时编辑资料和停用保留原密文" do
+    sign_in Admin.create!(username: "credential_admin", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxDamaged", status: "active", appsecret: "original-demo")
+    other = App.create!(provider: "wechat", appid: "wxUnaffected", status: "active", appsecret: "other-demo")
+    corrupt = damage_secret(app)
+
+    get edit_admins_app_path(app)
+    assert_response :success
     assert_select "h1", "编辑应用"
     assert_select ".badge.bg-danger-lt", "解密失败"
-    assert_select "#app_appsecret[disabled][aria-describedby='appsecret-error']"
-    assert_select "#appsecret-error.invalid-feedback", /核对加密主密钥/
-    assert_not_includes response.body, "damaged-ciphertext"
+    assert_select "#app_appsecret:not([disabled])[aria-describedby='appsecret-error']"
+    assert_select "#appsecret-error.invalid-feedback", /密文已损坏/
+    assert_select "#app-form [data-admin-submit]:not([disabled])"
+    assert_select "#clear-app-configuration-form"
+    assert_not_includes response.body, CGI.escapeHTML(corrupt)
+
+    revision = css_select("#app_revision").sole["value"]
+    patch admins_app_path(app), params: { app: { revision: revision, memo: "备注更新", status: "active", appsecret: "" } }
+    assert_redirected_to admins_app_path(app)
+    assert_equal [ "active", "备注更新", corrupt ], [ app.reload.status, app.memo, app.appsecret_before_type_cast ]
+
+    get edit_admins_app_path(app)
+    revision = css_select("#app_revision").sole["value"]
+    patch admins_app_path(app), params: { app: { revision: revision, status: "disabled", appsecret: "" } }
+    assert_redirected_to admins_app_path(app)
+    assert_equal [ "disabled", corrupt ], [ app.reload.status, app.appsecret_before_type_cast ]
+    assert_equal [ "active", "other-demo" ], [ other.reload.status, other.appsecret ]
+    assert_equal [ %w[memo], %w[status] ], Log.where(action: "app.update", target_id: app.id).order(:id).map { |log| log.details["fields"] }
+  end
+
+  test "仅替换或清除损坏密钥，验证失败不提交且只影响目标应用" do
+    sign_in Admin.create!(username: "credential_repair_admin", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxDamaged", status: "active", appsecret: "original-demo")
+    other = App.create!(provider: "wechat", appid: "wxUnaffected", status: "active", appsecret: "other-demo")
+    corrupt = damage_secret(app)
+    calls = []
+    @stubs.post("/cgi-bin/stable_token") do |env|
+      body = JSON.parse(env.body)
+      calls << [ body["appid"], body["secret"] ]
+      calls.one? ? response_for(errcode: 40125) : response_for(access_token: "demo-stable", expires_in: 7200)
+    end
+    get edit_admins_app_path(app)
+    revision = css_select("#app_revision").sole["value"]
+    input = { revision: revision, appsecret: "new-appsecret-demo" }
+
+    patch admins_app_path(app), params: { app: input }
+    assert_response :unprocessable_content
+    assert_includes response.body, "40125"
+    assert_equal corrupt, app.reload.appsecret_before_type_cast
+    Rails.cache.write(direct_token_key(app, "original-demo"), "old-demo-token")
+    Rails.cache.write(direct_token_key(other), "other-demo-token")
+    patch admins_app_path(app), params: { app: input }
+    assert_redirected_to admins_app_path(app)
+    assert_equal "new-appsecret-demo", app.reload.appsecret
+    assert_not_includes app.ciphertext_for(:appsecret), "new-appsecret-demo"
+    assert_not_equal "old-demo-token", Rails.cache.read(direct_token_key(app))
+    assert_equal [ [ app.appid, "new-appsecret-demo" ] ] * 2, calls
+
+    damage_secret(app)
+    get edit_admins_app_path(app)
+    clear = css_select("#clear-app-configuration-form").sole
+    patch admins_app_path(app), params: { app: {
+      revision: clear.at_css("input[name='app[revision]']")["value"], clear_secret: clear.at_css("input[name='app[clear_secret]']")["value"]
+    } }
+    assert_redirected_to edit_admins_app_path(app)
+    assert_nil app.reload.appsecret
+    assert_nil app.verified_digest
+    assert_equal "active", app.status
+    assert_equal [ "active", "other-demo" ], [ other.reload.status, other.appsecret ]
+    assert_equal "other-demo-token", Rails.cache.read(direct_token_key(other))
+    assert_equal 2, calls.size
+    logs = Log.where(action: "app.update", target_id: app.id)
+    assert_equal [ %w[appsecret], %w[appsecret] ], logs.where(status: "success").order(:id).map { |log| log.details["fields"] }
+    %w[original-demo new-appsecret-demo other-demo].each { |value| assert_not_includes logs.pluck(:details).to_json, value }
+  end
+
+  test "主密钥不匹配时不能当成单条密文损坏处理" do
+    sign_in Admin.create!(username: "master_key_admin", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxMismatch", status: "active", appsecret: "original-demo")
+    other = App.create!(provider: "wechat", appid: "wxUnaffected", status: "active", appsecret: "other-demo")
+    ciphertext = app.ciphertext_for(:appsecret)
+    revision = AppConfiguration.new(app).revision
+    wrong_key = ActiveRecord::Encryption::DerivedSecretKeyProvider.new("wrong-deployment-key")
+
+    ActiveRecord::Encryption.with_encryption_context(key_provider: wrong_key) do
+      get edit_admins_app_path(app)
+      assert_response :unprocessable_content
+      assert_select "#appsecret-error.invalid-feedback", /系统加密主密钥/
+      assert_select "#app_appsecret[disabled]"
+      assert_select "#clear-app-configuration-form", count: 0
+      patch admins_app_path(app), params: { app: { revision: revision, clear_secret: "1" } }
+      assert_response :unprocessable_content
+    end
+
+    assert_equal ciphertext, app.reload.ciphertext_for(:appsecret)
+    assert_equal [ "active", "original-demo" ], [ app.status, app.appsecret ]
+    assert_equal [ "active", "other-demo" ], [ other.reload.status, other.appsecret ]
   end
 
   test "管理页面及写操作仅向超管开放" do
@@ -50,28 +175,25 @@ class AppsTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
       patch admins_app_path(app)
       assert_response :forbidden
+      patch disable_admins_app_path(app)
+      assert_response :forbidden
       delete admins_app_path(app)
       assert_response :forbidden
     end
   end
 
-  test "平台授权可独立校验启用，当前审核与新体验版分开，筛选后返回原列表" do
-    admin = Admin.create!(username: "app_scope_admin", role: "super_admin")
-    sign_in admin
-    app = App.create!(provider: "wechat", appid: "wxManaged", nickname: "门诊")
-    auth = app.create_app_authorization!(refresh_token: "test-refresh")
-    Rails.cache.write("apps/#{app.id}/channel_token", { value: "managed", revision: auth.updated_at.to_f })
-    patch admins_app_path(app), params: { app: { status: "active", revision: AppConfiguration.new(app).revision } }
-    assert_redirected_to admins_app_path(app)
-    assert_equal "active", app.reload.status
-    first = app.mini_program_releases.create!(status: "uploaded", template_id: "1", version: "1.1", description: "旧版本", operator: admin)
-    app.mini_program_audits.create!(mini_program_release: first, version: "1.1", description: "审核说明", operator: admin, previous_status: "active", status: "pending")
-    trial = app.mini_program_releases.create!(status: "uploaded", template_id: "2", version: "1.2", description: "体验版", operator: admin, current_build: true)
-    get admins_app_path(app), params: { list: { app_type: "mini_program", q: "门诊" } }
-    assert_select "dd", text: "1.1 · 审核中"
-    assert_select "dd", text: "1.2"
-    assert_select "[data-qrcode-panel] [data-code-src=?]", trial_admins_app_release_path(app, trial)
-    assert_select "a[href=?]", admins_apps_path(app_type: "mini_program", q: "门诊"), text: /返回列表/
+  test "先按平台和类型选择账号，详情保留来源筛选，抖音仅支持小程序" do
+    sign_in Admin.create!(username: "app_scope_admin", role: "super_admin")
+    app = App.create!(provider: "wechat", app_type: "official_account", appid: "wxClinic", nickname: "门诊")
+    App.create!(provider: "douyin", appid: "dyClinic")
+    get admins_apps_path
+    assert_select "tbody a", text: "门诊", count: 0
+    params = { provider: "wechat", app_type: "official_account", q: "门诊" }
+    get admins_apps_path(params)
+    assert_select "tbody a", text: "门诊"
+    get admins_app_path(app, list: params)
+    assert_select "a[href=?]", admins_apps_path(params), text: /返回列表/
+    assert_includes response.body, api_wechat_official_account_messages_path(appid: app.appid)
     post admins_apps_path, params: { app: { provider: "douyin", app_type: "official_account", appid: "invalid" } }
     assert_response :unprocessable_content
     assert_select "#app_type-error", text: /抖音仅支持小程序/
@@ -90,7 +212,7 @@ class AppsTest < ActionDispatch::IntegrationTest
     assert_equal "disabled", app.reload.status
     @stubs.post("/cgi-bin/stable_token") do |env|
       assert_equal "fallback-demo", JSON.parse(env.body)["secret"]
-      response_for(access_token: "demo-stable")
+      response_for(access_token: "demo-stable", expires_in: 7200)
     end
     change.call(status: "active", clear_secret: "1")
     assert_equal "active", app.reload.status
@@ -126,10 +248,10 @@ class AppsTest < ActionDispatch::IntegrationTest
     patch admins_app_path(b), params: { app: { revision: revision, appsecret: "env-demo" } }
     assert_response :unprocessable_content
     assert_nil b.reload.appsecret
-    [ a, b ].each { |app| Rails.cache.write("apps/#{app.id}/channel_token", "cached") }
+    [ a, b ].each { |app| Rails.cache.write(direct_token_key(app), "cached") }
     patch admins_app_path(a), params: { app: { revision: AppConfiguration.new(a).revision, appsecret: "rotated-demo" } }
-    assert_nil Rails.cache.read("apps/#{a.id}/channel_token")
-    assert_equal "cached", Rails.cache.read("apps/#{b.id}/channel_token")
+    assert_nil Rails.cache.read(direct_token_key(a.reload))
+    assert_equal "cached", Rails.cache.read(direct_token_key(b))
     assert_equal "rotated-demo", a.reload.appsecret
     assert_not_includes a.ciphertext_for(:appsecret), "rotated-demo"
     assert_not_includes Log.pluck(:details).to_json, "demo"
@@ -138,6 +260,30 @@ class AppsTest < ActionDispatch::IntegrationTest
     assert Log.exists?(target_id: a.id, action: "app.destroy", actor_id: Admin.find_by(username: "boss").id)
   ensure
     ENV.delete(key)
+  end
+
+  test "首次启用的凭据验证令牌供其他功能共用" do
+    sign_in Admin.create!(username: "direct_verify", role: "super_admin")
+    app = App.create!(provider: "wechat", appid: "wxEnable", status: "disabled")
+    issued = 0
+    @stubs.post("/cgi-bin/stable_token") do
+      issued += 1
+      response_for(access_token: "first-stable", expires_in: 7200)
+    end
+    patch admins_app_path(app), params: {app: {revision: AppConfiguration.new(app).revision, status: "active", appsecret: "demo-hospital"}}
+    assert_redirected_to admins_app_path(app)
+    assert_equal "first-stable", Wechat::AccessToken.new(app.reload).fetch
+    assert_equal 1, issued
+  end
+
+  test "空授权草稿随空应用清除，已发生的授权与操作历史保留" do
+    sign_in Admin.create!(username: "direct_history", role: "super_admin")
+    empty, used = %w[wxEmpty wxUsed].map { |id| App.create!(provider: "wechat", appid: id) }
+    empty.create_app_authorization!
+    used.create_app_authorization!(revoked_at: 1.day.ago)
+    assert_difference("App.count", -1) { delete admins_app_path(empty) }
+    assert_no_difference("App.count") { delete admins_app_path(used) }
+    assert_match(/已有微信授权记录/, flash[:alert])
   end
 
   test "有真实用户或公众号通知配置时保留记录并分别提示原因" do
@@ -152,5 +298,17 @@ class AppsTest < ActionDispatch::IntegrationTest
     delete admins_app_path(account)
     assert_includes flash[:alert], "已有公众号通知配置"
     assert App.exists?(account.id)
+  end
+
+  private
+
+  def damage_secret(app)
+    envelope = JSON.parse(app.reload.ciphertext_for(:appsecret))
+    payload = Base64.strict_decode64(envelope.fetch("p"))
+    payload.setbyte(0, payload.getbyte(0) ^ 1)
+    envelope["p"] = Base64.strict_encode64(payload)
+    corrupt = envelope.to_json
+    App.where(id: app.id).update_all([ "appsecret = ?", corrupt ])
+    corrupt
   end
 end

@@ -1,3 +1,3 @@
 <% form_id = dom_id(app, :delete) %>
 <%= form_with url: admins_app_path(app, application_context_params), method: :delete, id: form_id, class: "d-none" do %><% end %>
-<%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: "确认删除应用", context: app.display_name, description: "仅可删除没有实际授权、发布及业务记录的空应用。未完成的授权请求将失效。", color: "danger", confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>
+<%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id, title: "确认删除应用", context: app.display_name, description: "仅可删除没有业务记录或历史关联的空应用。", color: "danger", confirm_label: "确认删除", confirm_icon: :trash, cancel_icon: :close %>

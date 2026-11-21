@@ -11,8 +11,7 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wx1111111111111111 wx2222222222222222].map do |id|
       app = App.create!(appid: id, provider: "wechat", app_type: "official_account")
-      auth = app.create_app_authorization!(refresh_token: "demo")
-      Rails.cache.write("apps/#{app.id}/channel_token", {value: id, revision: auth.updated_at.to_f})
+      configure_account(app)
       app
     end
     @mini = App.create!(appid: "wx3333333333333333", provider: "wechat")
@@ -47,7 +46,7 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     assert_select "#menu-appid option[value=?]", @mini.appid
     get admins_app_path(@a)
     assert_select "a[href=?]", admins_official_account_menus_path(app_id: @a.id)
-    @a.app_authorization.update!(refresh_token: nil)
+    @a.update!(appsecret: nil)
     get admins_official_account_menus_path(app_id: @a.id)
     assert_select "#official-menu-editor[data-editable=false]"
     assert_select "#menu-submit", count: 0
@@ -145,8 +144,8 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     assert_equal [nodes.first], @a.reload.official_account_menu.buttons
     @snapshot = {errcode: 42001}
     pull
-    assert_nil Rails.cache.read("apps/#{@a.id}/channel_token")
-    assert_equal @b.appid, Rails.cache.read("apps/#{@b.id}/channel_token")[:value]
+    assert_nil Rails.cache.read(direct_token_key(@a))
+    assert_equal @b.appid, Rails.cache.read(direct_token_key(@b))
   end
 
   test "读取到缺少动作字段的子菜单时保留整套原菜单" do
@@ -181,7 +180,7 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     ]
     assert_redirected_to admins_official_account_menus_path(app_id: @a.id)
     buttons = @a.reload.official_account_menu.buttons
-    assert_equal expected, WechatPlatform::MenuButtons.wire(buttons)
+    assert_equal expected, Wechat::MenuButtons.wire(buttons)
     publish(buttons)
     assert_response :success
     assert_equal expected, @writes.sole.last
@@ -212,7 +211,7 @@ class OfficialAccountMenusTest < ActionDispatch::IntegrationTest
     assert_not OfficialAccountMenu.exists?(row.id)
   end
 
-  test "分页文章和上传素材按授权方读取，跨账号引用失败" do
+  test "分页文章和上传素材按公众号读取，跨账号引用失败" do
     @stubs.post("/cgi-bin/freepublish/batchget") do |env|
       assert_equal({"offset"=>10,"count"=>10,"no_content"=>1}, JSON.parse(env.body))
       response_for(total_count: 11, item: [{article_id:"article-demo",content:{news_item:[{title:"门诊指南"}]}}])

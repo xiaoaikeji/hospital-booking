@@ -3,7 +3,7 @@
 <% content_for :fill_content, "true" if empty %>
 <% filters = { app_id: @app&.id, q: @query.presence, status: @status }.compact %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "粉丝列表", icon: :users } do %>
-  <% if @app&.platform_authorized? && !@sync&.busy? %>
+  <% if Wechat::AccessToken.configured?(@app) && !@sync&.busy? %>
     <button type="button" class="btn" data-bs-toggle="modal" data-bs-target="#fan-sync"><%= render "layouts/admins/icon", name: :rotate %>同步已有粉丝</button>
   <% end %>
 <% end %>
@@ -14,7 +14,7 @@
       <%= render "admins/shared/list_filter_row", label: "关注状态", key: :status, options: { "subscribed" => "关注中", "unsubscribed" => "已取关" }, selected: @status, filter_url: ->(overrides) { admins_official_account_fans_path(filters.merge(overrides).compact) } %>
     </div>
   </section>
-  <% if !@app.platform_authorized? %><div class="alert alert-warning">完成平台授权后可同步该公众号的粉丝。<%= link_to "查看平台授权", admins_app_path(@app) %></div><% end %>
+  <% if !Wechat::AccessToken.configured?(@app) %><div class="alert alert-warning">启用公众号并配置 AppSecret 后可同步该公众号的粉丝。<%= link_to "编辑应用", edit_admins_app_path(@app) %></div><% end %>
   <% if @sync&.busy? %><div class="alert alert-info">正在同步。<%= link_to "刷新结果", admins_official_account_fans_path(filters.merge(page: params[:page])) %></div>
   <% elsif @sync&.state == "success" %><p class="text-secondary">上次同步 <%= admin_list_time(@sync.updated_at) %> · 关注中 <%= number_with_delimiter(@sync.fan_count) %> 人</p>
   <% elsif @sync %><div class="alert alert-warning">上次同步未完成。<%= @sync.error.presence || "请重新同步。" %></div><% end %>
@@ -52,7 +52,7 @@
       <%= render "admins/shared/pagination", pagy: @pagy, url: ->(n) { admins_official_account_fans_path(filters.merge(page: n)) } %>
     <% end %>
   </section>
-  <% if @app.platform_authorized? && !@sync&.busy? %>
+  <% if Wechat::AccessToken.configured?(@app) && !@sync&.busy? %>
     <%= form_with url: sync_admins_app_fans_path(@app, filters.except(:app_id).merge(page: params[:page]).compact), id: "fan-sync-form", class: "d-none" do %><% end %>
     <%= render "admins/shared/confirmation_modal", modal_id: "fan-sync", form_id: "fan-sync-form", title: "同步已有粉丝", context: "#{@app.display_name} · #{@app.appid}", description: "从微信读取本公众号的关注名单。完整同步后更新关注状态，历史记录保留。", color: "primary", confirm_label: "确认同步", confirm_icon: :rotate %>
   <% end %>

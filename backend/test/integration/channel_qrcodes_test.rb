@@ -12,8 +12,7 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wx1111111111111111 wx2222222222222222].map do |id|
       app = App.create!(provider: "wechat", appid: id, app_type: "official_account", nickname: "院区#{id.last}")
-      auth = app.create_app_authorization!(refresh_token: "test-only", original_id: "gh_#{id}")
-      Rails.cache.write("apps/#{app.id}/channel_token", {value: id, revision: auth.updated_at.to_f})
+      configure_account(app)
       app
     end
     @calls = []
@@ -63,7 +62,7 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     assert_empty @b.official_account_callbacks
   end
 
-  test "失败留在新增页保留输入，同表单只生成一个永久码，中文下载在撤销授权后仍可用" do
+  test "失败留在新增页保留输入，同表单只生成一个永久码，中文下载在清除密钥后仍可用" do
     key = form
     submit(key, "   ")
     assert_response :unprocessable_content
@@ -90,7 +89,7 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     assert_not_equal "weixin-ticket", code.ticket_before_type_cast
     assert_equal 1, Log.where(action: "wechat.channel_qrcode_create", status: "success", target_id: @a.id).count
     assert_not_includes Log.where(action: "wechat.channel_qrcode_create").pluck(:details).to_s, "weixin-ticket"
-    @a.app_authorization.update!(refresh_token: nil)
+    @a.update!(appsecret: nil)
     get admins_channel_qrcodes_path(app_id: @a.id)
     assert_select "a[href=?]", new_admins_app_channel_qrcode_path(@a), count: 0
     get admins_app_channel_qrcode_path(@a, code, format: :png)
@@ -110,7 +109,7 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     code = OfficialAccountQrcode.sole
     get admins_app_channel_qrcode_path(@b, code, format: :png)
     assert_response :not_found
-    @b.app_authorization.update!(refresh_token: nil)
+    @b.update!(appsecret: nil)
     get new_admins_app_channel_qrcode_path(@b)
     assert_redirected_to admins_channel_qrcodes_path(app_id: @b.id)
     mini = App.create!(provider: "wechat", appid: "wx3333333333333333")
@@ -143,9 +142,9 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     end
     @reply = {errcode: 42001}
     submit(key, "院区")
-    assert_nil Rails.cache.read("apps/#{@a.id}/channel_token")
-    assert Rails.cache.read("apps/#{@b.id}/channel_token")
-    Rails.cache.write("apps/#{@a.id}/channel_token", {value: "fresh", revision: @a.app_authorization.updated_at.to_f})
+    assert_nil Rails.cache.read(direct_token_key(@a))
+    assert Rails.cache.read(direct_token_key(@b))
+    Rails.cache.write(direct_token_key(@a), "fresh")
     @reply = nil
     submit(key, "院区")
     assert_redirected_to admins_channel_qrcodes_path(app_id: @a.id)
@@ -159,7 +158,7 @@ class ChannelQrcodesTest < ActionDispatch::IntegrationTest
     @stubs.get("/cgi-bin/user/info") { |env| response_for(openid: env.params["openid"], subscribe: 1, subscribe_scene: "ADD_SCENE_QR_CODE") }
     push = ->(type, seconds, scene, app = @a) do
       xml = "<xml><ToUserName>gh_#{app.appid}</ToUserName><FromUserName>fan-sample</FromUserName><MsgType>event</MsgType><Event>#{type}</Event><EventKey>#{scene}</EventKey><CreateTime>#{seconds}</CreateTime></xml>"
-      signed_push(api_wechat_component_messages_path(appid: app.appid), xml)
+      signed_push(api_wechat_official_account_messages_path(appid: app.appid), xml, account: app)
       assert_response :success
     end
     at = 1.hour.ago.to_i

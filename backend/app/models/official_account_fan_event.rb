@@ -8,6 +8,6 @@ class OfficialAccountFanEvent < ApplicationRecord
       row.assign_attributes(openid: openid, event: event, occurred_at: Time.zone.at(seconds), qr_scene: qr_scene)
     end
     # 微信只有在入队成功后才收到 success。入队前进程中断时，重发会复用已保存的回调。
-    raise WechatPlatform::Error unless WechatPlatform::FanEventWorker.perform_async(record.id)
+    raise Wechat::Error unless WechatPlatform::FanEventWorker.perform_async(record.id)
   end
 end

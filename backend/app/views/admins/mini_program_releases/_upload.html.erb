@@ -1,9 +1,0 @@
-<div class="modal fade" id="release-upload" tabindex="-1" aria-labelledby="upload-title" data-templates="<%= templates_admins_mini_program_releases_path %>" data-open="<%= params[:upload] == '1' %>">
-  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
-    <div class="modal-header"><h2 class="modal-title" id="upload-title">上传代码</h2><button class="btn-close" type="button" data-bs-dismiss="modal" aria-label="关闭"></button></div>
-    <%= form_with url: admins_app_releases_path(@upload_apps.first), scope: :release, class: "d-flex flex-column overflow-hidden", data: { release_form: true } do |f| %>
-      <div class="modal-body"><%= render "admins/mini_program_releases/upload_fields", f: f, apps: @upload_apps %></div>
-      <div class="modal-footer"><button type="button" class="btn" data-bs-dismiss="modal">取消</button><%= render "admins/shared/submit_button", label: "确认上传", icon: :import %></div>
-    <% end %>
-  </div></div>
-</div>

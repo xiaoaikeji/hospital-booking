@@ -1,4 +1,5 @@
 class Link < ApplicationRecord
+  DNS_LABEL = /\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/i
   POSITIONS = { "home_banner" => "首页轮播", "profile_menu" => "我的菜单" }.freeze
   TYPES = {
     "none" => "仅展示", "page" => "内部页面", "tab" => "底部 Tab",
@@ -88,7 +89,7 @@ class Link < ApplicationRecord
     uri = URI.parse(url)
     labels = uri.host.to_s.split(".", -1)
     uri.is_a?(URI::HTTPS) && labels.size >= 2 && labels.last.match?(/[a-z]/i) &&
-      labels.all? { |label| WechatPlatform::AppDomains::DNS_LABEL.match?(label) }
+      labels.all? { |label| DNS_LABEL.match?(label) }
   rescue URI::InvalidURIError
     false
   end

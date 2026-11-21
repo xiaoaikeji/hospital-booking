@@ -7,7 +7,7 @@ module AdminsHelper
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
       [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ],
-      [ "微信通知设置", edit_admins_system_settings_wechat_notifications_path, "admins/system_settings/wechat_notifications" ]
+      [ "企微通知设置", edit_admins_system_settings_wecom_notifications_path, "admins/system_settings/wecom_notifications" ]
     ]
   end
 
@@ -16,17 +16,11 @@ module AdminsHelper
     admin_pages = []
     if current_admin.super_admin?
       groups << [ "应用管理", :device_mobile, [
-        [ "应用列表", admins_apps_path, %w[admins/apps admins/app_privacy_settings] ],
+        [ "应用列表", admins_apps_path, "admins/apps" ],
         [ "小程序页面配置", admins_page_links_path, "admins/page_links" ],
-        [ "代码发布", admins_mini_program_releases_path, %w[admins/mini_program_releases admins/wechat_releases] ],
-        [ "代码模板", admins_code_templates_path, "admins/code_templates" ],
         [ "插件列表", admins_plugins_path, "admins/plugins" ],
-        [ "违规记录", admins_illegal_records_path, "admins/illegal_records" ],
-        [ "微信第三方平台", admins_wechat_platform_path, "admins/wechat_platforms" ],
-        [ "开放平台账号", admins_open_platform_accounts_path, "admins/open_platform_accounts" ]
       ] ]
       groups << [ "运营工具", :templates, [
-        [ "公众号关联管理", admins_official_account_links_path, "admins/official_account_links" ],
         [ "公众号粉丝", admins_official_account_fans_path, "admins/official_account_fans" ],
         [ "公众号自定义菜单", admins_official_account_menus_path, "admins/official_account_menus" ],
         [ "渠道二维码", admins_channel_qrcodes_path, "admins/channel_qrcodes" ],
@@ -35,7 +29,6 @@ module AdminsHelper
       groups << [ "通知管理", :bell, [
         [ "回复内容", admins_reply_contents_path, %w[admins/reply_contents admins/reply_rules] ],
         [ "微信模板消息", admins_template_messages_path, "admins/template_messages" ],
-        [ "企微通知文案", edit_admins_wecom_notification_content_path, "admins/wecom_notification_contents" ],
         [ "发送记录", admins_notifications_path, %w[admins/notifications admins/wechat_notifications] ]
       ] ]
       admin_pages << [ "管理员", admins_administrators_path, "admins/administrators" ]
@@ -44,10 +37,6 @@ module AdminsHelper
     admin_pages << [ "操作日志", admins_operation_logs_path, "admins/operation_logs" ]
     admin_pages << [ "组件规范", admins_components_path, "admins/components" ]
     groups << [ "后台管理", :settings, admin_pages ]
-  end
-
-  def wechat_component_messages_template_url
-    api_wechat_component_messages_url(appid: "APPID").sub("/APPID/", '/$APPID$/')
   end
 
   def admin_appearance
@@ -89,7 +78,7 @@ module AdminsHelper
   end
 
   def notification_event_label(event)
-    Notifications::EventCatalog.definitions.dig(event, "label") || {
+    Notifications::EventCatalog.definitions.dig(event, "label") || WechatNotificationEvent::LABELS[event] || {
       "official_account.keyword" => "关键词回复",
       "official_account.subscribe" => "关注回复",
       "official_account.scan" => "扫码回复",

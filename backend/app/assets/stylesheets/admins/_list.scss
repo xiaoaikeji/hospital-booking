@@ -26,11 +26,6 @@
   container-type: inline-size;
   .app-platform { width: 6rem; }
   .app-actions { width: 20.5rem; }
-  table:has(.app-quick-authorization + [data-qrcode-url]) .app-actions { width: 26rem; }
-}
-
-@container (max-width: 70rem) {
-  .app-list-card table:has(.app-quick-authorization + [data-qrcode-url]) .app-created { display: none; }
 }
 
 @container (max-width: 64rem) {

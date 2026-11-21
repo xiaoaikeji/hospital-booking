@@ -12,8 +12,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     sign_in @admin
     @a, @b = %w[wx1111111111111111 wx2222222222222222].map do |id|
       app = App.create!(provider: "wechat", appid: id, app_type: "official_account", nickname: "服务号 #{id.last}")
-      auth = app.create_app_authorization!(refresh_token: "demo", original_id: "gh_#{id}")
-      Rails.cache.write("apps/#{app.id}/channel_token", {value: id, revision: auth.updated_at.to_f})
+      configure_account(app)
       app
     end
     @mini = App.create!(provider: "wechat", appid: "wx3333333333333333")
@@ -77,11 +76,11 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", admins_official_account_fans_path(app_id: @a.id, q: user.user_no), text: /返回列表/
     get admins_app_fan_path(@b, row)
     assert_response :not_found
-    @b.app_authorization.update!(refresh_token: nil)
+    @b.update!(appsecret: nil)
     get admins_official_account_fans_path(app_id: @b.id)
     assert_select "#fan-sync", count: 0
     post sync_admins_app_fans_path(@b)
-    assert_match(/授权/, flash[:alert])
+    assert_match(/AppSecret|凭据/, flash[:alert])
     assert_empty OfficialAccountFanSync.where(app: @b)
     post sync_admins_app_fans_path(@mini)
     assert_response :not_found
@@ -107,7 +106,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
       if cursor.nil?
         { total: 102, count: 101, data: {openid: batch}, next_openid: "next" }
       else
-        WechatPlatform::OfficialAccountFans.new(@a).event!("late", "subscribe", 2.seconds.ago.to_i, nil)
+        Wechat::OfficialAccountFans.new(@a).event!("late", "subscribe", 2.seconds.ago.to_i, nil)
         { total: 102, count: 1, data: {openid: ["last"]}, next_openid: "" }
       end
     end
@@ -143,24 +142,16 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     assert_equal count, @requests.size
   end
 
-  test "同开放平台可信 UnionID 才复用账号，绑定切换不使用旧 UnionID" do
-    group = OpenPlatformAccount.create!(open_appid: "open-one", name: "本院", created_via_app: @a, operator: @admin)
-    [@mini, @a].each { |app| app.update!(open_platform_account: group) }
+  test "保留已有用户映射，两个公众号收到同一 UnionID 也不会合并身份" do
     user = User.create!(platform: "wechat", nickname: "已有用户")
-    identity = UserApp.create!(user: user, app: @mini, openid: "mini-1", unionid: "trusted", sign_in_count: 1)
-    @profiles["first"] = {"unionid" => "trusted"}
+    identity = UserApp.create!(user: user, app: @a, openid: "first", unionid: "historic", sign_in_count: 1)
+    @profiles["first"] = { "unionid" => "historic" }
     sync
-    assert_equal user.id, fan(@a, "first").user_app.user_id
     sync(@b)
+    assert_equal user.id, fan(@a, "first").user_app.user_id
+    assert_equal "historic", identity.reload.unionid
     assert_not_equal user.id, fan(@b, "first").user_app.user_id
-    get admins_app_fan_path(@a, fan(@a, "first"))
-    assert_select "dd", text: "是"
-    @mini.update!(open_platform_account: nil)
-    assert_nil identity.reload.unionid
-    assert_no_difference "User.count" do
-      sync
-      sync(@b)
-    end
+    assert_no_difference("User.count") { sync(@b) }
   end
 
   test "验签回调检查应用归属、重复与晚到顺序，保留扫码来源和实际取关时间" do
@@ -168,7 +159,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     time = 2.hours.ago.to_i
     push_event = ->(event, at, path_app = @a, tamper = false) do
       xml = "<xml><ToUserName>gh_#{@a.appid}</ToUserName><FromUserName>#{id}</FromUserName><MsgType>event</MsgType><Event>#{event}</Event><EventKey>qrscene_hospital</EventKey><CreateTime>#{at}</CreateTime></xml>"
-      signed_push(api_wechat_component_messages_path(appid: path_app.appid), xml, tamper: tamper)
+      signed_push(api_wechat_official_account_messages_path(appid: path_app.appid), xml, tamper: tamper)
     end
     Sidekiq.testing!(:fake) do
       2.times { push_event.call("subscribe", time) }
@@ -199,7 +190,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "微信拒绝同步在原页保留历史与原因，解除授权后排队任务不读取微信" do
+  test "微信拒绝同步在原页保留历史与原因，清除密钥后排队任务不读取微信" do
     sync
     @list = ->(_) { {errcode: 48001} }
     rejected = sync
@@ -209,7 +200,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     assert_select "tbody tr", count: 2
     assert_select "button", text: /同步已有粉丝/
     queued = OfficialAccountFanSync.create!(app: @a, operator: @admin)
-    @a.app_authorization.update!(refresh_token: nil)
+    @a.update!(appsecret: nil)
     before = @requests.size
     WechatPlatform::FanSyncWorker.new.perform(queued.id)
     assert_equal before, @requests.size

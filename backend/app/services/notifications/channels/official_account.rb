@@ -7,7 +7,7 @@ module Notifications
 
       def send_message(message, notification:)
         app = App.wechat_official_accounts.find_by(id: @target["app_id"], appid: @target["appid"])
-        raise Error, "原公众号不存在或已取消授权" unless app&.platform_authorized?
+        raise Error, "原公众号不存在或已停用" unless app&.accessible?
         openid = if @target["callback_id"]
           OfficialAccountCallback.where(app: app).find(@target["callback_id"]).fields.fetch("FromUserName")
         else
@@ -23,17 +23,18 @@ module Notifications
         when "template" then content.merge(client_msg_id: "booking-#{notification.id}-#{message['id']}")
         else raise Error, "该公众号不支持此消息类型"
         end
-        response = WechatPlatform::AuthorizerToken.with_token(app) do |token|
+        response = Wechat::AccessToken.with_token(app) do |token|
           Wechat::OfficialAccountMessageClient.new.send_message(token, body.merge(touser: openid), template: template)
         end
         receipt(response)
       rescue ActiveRecord::RecordNotFound, KeyError
         raise Error, "原公众号收件人或消息快照无效"
-      rescue WechatPlatform::Error => error
+      rescue Wechat::Error => error
         raise Error, error.message
       rescue Wechat::BaseClient::Rejected => error
         receipt("errcode" => error.code, "errmsg" => error.message)
       end
+
       private
 
       def receipt(response)

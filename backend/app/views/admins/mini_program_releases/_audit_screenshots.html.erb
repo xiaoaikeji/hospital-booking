@@ -1,8 +1,0 @@
-<% if round.rejection_screenshots.any? %><div class="d-flex flex-wrap gap-3 mt-2"><% round.rejection_screenshots.each_with_index do |id, index| %>
-  <div data-screenshot="<%= screenshot_admins_app_audit_path(round.app_id, round, index: index) %>">
-    <% image = { title: "拒审截图 #{index + 1}", asset: screenshot_admins_app_audit_path(round.app_id, round, index: index) }; modal_id = dom_id(round, "screenshot_#{index}") %>
-    <template><%= render "admins/shared/image_thumbnail", image: image, modal_id: modal_id, size: "avatar-xl" %><%= render "admins/shared/image_modal", image: image, modal_id: modal_id %></template>
-    <details class="small text-secondary"><summary>素材编号</summary><code><%= id %></code></details>
-    <small role="status">正在读取截图…</small><button hidden type="button" class="btn btn-sm" data-retry-image>重试</button>
-  </div>
-<% end %></div><% end %>

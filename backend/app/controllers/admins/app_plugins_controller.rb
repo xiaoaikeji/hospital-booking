@@ -1,5 +1,8 @@
 module Admins
-  class AppPluginsController < WechatAppManagementController
+  class AppPluginsController < BaseController
+    before_action :require_super_admin!
+    before_action { @app = App.wechat_mini_programs.find(params[:app_id]) }
+
     def create
       change("apply", params[:plugin_appid], "已提交插件使用申请") { |id| service.apply(id) }
     end
@@ -22,19 +25,23 @@ module Admins
 
     private
 
-    def service = WechatPlatform::AppPlugins.new(@app)
+    def service = Wechat::AppPlugins.new(@app)
 
     def change(action, appid, notice, version: nil)
       id = appid.to_s.strip
       details = {}
       details[:plugin_appid] = id if Wechat::MiniProgramPluginClient::PLUGIN_APPID.match?(id)
       details[:version] = version if version.present? && version.length <= 32
-      perform_wechat_change("plugin_#{action}", tab: "plugins", notice: notice, details: details) do
-        yield id
-      rescue WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable
-        flash[:plugin_form] = { app_id: @app.id, action: action, id: id.first(64), version: version&.first(32) }
-        raise
-      end
+      yield id
+      Wechat.log!(@app, "plugin_#{action}", actor: current_admin, request: request, details: details)
+      redirect_to plugin_path, notice: notice, status: :see_other
+    rescue Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+      Wechat.log!(@app, "plugin_#{action}", actor: current_admin, request: request, status: "failed",
+        details: details.merge(reason: error.message))
+      flash[:plugin_form] = { app_id: @app.id, action: action, id: id.first(64), version: version&.first(32) }
+      redirect_to plugin_path, alert: error.message, status: :see_other
     end
+
+    def plugin_path = admins_app_path(@app, helpers.application_context_params.merge(tab: "plugins"))
   end
 end

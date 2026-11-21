@@ -1,5 +1,3 @@
-<% trial = local_assigns[:trial] %>
-<% title = trial ? "体验版小程序码" : (app.code_capable? ? "正式版小程序码" : "公众号二维码") %>
-<button type="button" class="btn btn-sm text-nowrap" title="<%= title %>" data-bs-toggle="modal" data-bs-target="#app-qrcode"
-  data-qrcode-url="<%= trial ? trial_admins_app_release_path(app, trial) : admins_app_qrcode_path(app) %>" data-qrcode-title="<%= title %>"
-  data-app-name="<%= [app.display_name, trial&.version].compact.join(' · ') %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :qrcode %><%= label %></button>
+<button type="button" class="btn btn-sm text-nowrap" title="正式版小程序码" data-bs-toggle="modal" data-bs-target="#app-qrcode"
+  data-qrcode-url="<%= admins_app_qrcode_path(app) %>" data-qrcode-title="正式版小程序码"
+  data-app-name="<%= app.display_name %>" data-appid="<%= app.appid %>"><%= render "layouts/admins/icon", name: :qrcode %><%= label %></button>

@@ -10,36 +10,44 @@ module WechatHttpTest
     Adapter.stubs = @stubs
     Faraday.default_adapter = Adapter
     Rails.cache = ActiveSupport::Cache::MemoryStore.new
-    @component = { appid: "wxPlatform", appsecret: "demo-component-secret", token: "demo-verify-token",
-      encoding_aes_key: Base64.strict_encode64("x" * 32).delete_suffix("=") }
-    @previous_env = {}
-    @component.each do |key, value|
-      name = "WECHAT_COMPONENT_#{key.upcase}"
-      @previous_env[name] = ENV[name]
-      ENV[name] = value
-    end
   end
 
   def remove_wechat_stubs
     Faraday.default_adapter = @previous_adapter
     Rails.cache = @previous_cache
-    @previous_env.each { |key, value| ENV[key] = value }
   end
 
   def response_for(data)
-    [ 200, { "Content-Type" => "application/json" }, data.to_json ]
+    [200, { "Content-Type" => "application/json" }, data.to_json]
   end
 
-  def signed_push(path, xml, tamper: false)
-    message = "0" * 16 + [ xml.bytesize ].pack("N") + xml.b + @component[:appid].b
+  def direct_token_key(app, secret = AppConfiguration.new(app).credential.first)
+    "#{Wechat::AccessToken.cache_prefix(app, secret)}/access_token"
+  end
+
+  def configure_account(app)
+    fields = { status: "active", appsecret: "demo-secret-#{app.appid}" }
+    if app.wechat_official_account?
+      fields.merge!(wechat_original_id: "gh_#{app.appid}", callback_token: "Demo#{app.id}Token",
+        callback_encoding_aes_key: Base64.strict_encode64(Digest::SHA256.digest(app.appid)).delete_suffix("="))
+    end
+    app.update!(fields)
+    Rails.cache.write(direct_token_key(app), app.appid)
+    app
+  end
+
+  # Independent encoding of a platform push, including the receiving AppID after the XML.
+  def signed_push(path, xml, account: @a, tamper: false, frame_appid: account.appid)
+    message = "0" * 16 + [xml.bytesize].pack("N") + xml.b + frame_appid.b
     pad = 32 - message.bytesize % 32
+    key = Base64.strict_decode64("#{account.callback_encoding_aes_key}=")
     cipher = OpenSSL::Cipher.new("aes-256-cbc").encrypt
-    cipher.key = "x" * 32
-    cipher.iv = "x" * 16
+    cipher.key = key
+    cipher.iv = key.byteslice(0, 16)
     cipher.padding = 0
     encrypted = Base64.strict_encode64(cipher.update(message + pad.chr * pad) + cipher.final)
     time, nonce = Time.current.to_i.to_s, "demo-nonce"
-    signature = Digest::SHA1.hexdigest([ @component[:token], time, nonce, encrypted ].sort.join)
+    signature = Digest::SHA1.hexdigest([account.callback_token, time, nonce, encrypted].sort.join)
     query = { timestamp: time, nonce: nonce, msg_signature: tamper ? "invalid" : signature }
     post "#{path}?#{query.to_query}", params: "<xml><Encrypt>#{encrypted}</Encrypt></xml>", headers: { "CONTENT_TYPE" => "text/xml" }
   end

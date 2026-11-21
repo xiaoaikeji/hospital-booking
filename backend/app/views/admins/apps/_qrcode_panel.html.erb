@@ -1,17 +1,17 @@
-<% trial_allowed = trial && WechatPlatform::ReleaseActions.new(app, release: trial).trial? %>
+<% available = app_direct_qrcode_available?(app) %>
 <section class="app-qrcode-panel" data-qrcode-panel aria-label="小程序码">
   <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
     <h3 class="card-title mb-0">小程序码</h3>
     <%= form_with url: refresh_admins_app_qrcode_path(app, application_context_params), data: { qrcode_refresh: true } do |f| %>
-      <%= f.button class: "btn btn-sm" do %><%= render "layouts/admins/icon", name: :rotate %>刷新<% end %>
+      <%= f.button disabled: !available, class: "btn btn-sm" do %><%= render "layouts/admins/icon", name: :rotate %>刷新<% end %>
     <% end %>
   </div>
   <div class="row g-2">
-    <% [["正式版", admins_app_qrcode_path(app), "success"], ["体验版", (trial_admins_app_release_path(app, trial) if trial_allowed), "warning"]].each do |label, url, color| %>
+    <% [["正式版", "release", "success"], ["体验版", "trial", "warning"]].each do |label, version, color| %>
       <figure class="col-6 text-center mb-0">
         <div class="ratio ratio-1x1 border rounded">
-          <div class="d-flex align-items-center justify-content-center p-2" <%= tag.attributes(data: { code_src: url }) if url %>>
-            <span class="small text-secondary text-break" role="status"><%= url ? "正在读取…" : (app.platform_authorized? ? "暂无可用的体验版" : "请先完成平台授权") %></span>
+          <div class="d-flex align-items-center justify-content-center p-2" <%= tag.attributes(data: { code_src: admins_app_qrcode_path(app, version: version) }) if available %>>
+            <span class="small text-secondary text-break" role="status"><%= available ? "正在读取…" : "请检查运行状态和 AppSecret" %></span>
             <img alt="<%= label %>小程序码" class="w-100 h-100 object-fit-contain" hidden>
           </div>
         </div>

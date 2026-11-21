@@ -1,42 +1,35 @@
 <% content_for :title, "#{@app.display_name} · 应用详情" %>
-<% content_for :head do %><%= javascript_include_tag "admins/app_qrcode", defer: true %><%= javascript_include_tag "admins/releases", defer: true if @app.code_capable? %><% end %>
-<% official_account = @app.provider == "wechat" && @app.app_type == "official_account" %>
+<% content_for :head do %><%= javascript_include_tag "admins/app_qrcode", defer: true %><% end %>
+<% tabs = { "overview" => "基本资料", "plugins" => "插件管理" } %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "应用详情", icon: :device_mobile } do %>
   <%= link_to edit_admins_app_path(@app, application_context_params), class: "btn btn-outline-primary" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
   <%= link_to admins_apps_path(application_list_context), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <section class="card mb-3">
-  <% if @tabs.size > 1 %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
-    <% @tabs.each do |key, label| %>
+  <% if @app.code_capable? %><div class="card-header"><nav class="nav nav-tabs card-header-tabs" aria-label="应用详情分区">
+    <% tabs.each do |key, label| %>
       <%= link_to label, admins_app_path(@app, application_context_params.merge(tab: (key unless key == "overview")).compact), class: class_names("nav-link", active: @tab == key), aria: { current: ("page" if @tab == key) } %>
     <% end %>
   </nav></div><% end %>
-  <% if %w[overview releases].exclude?(@tab) %>
-    <div class="card-body py-2 text-break"><strong><%= @app.display_name %></strong> <span class="text-secondary ms-2"><%= @app.appid %></span></div>
-  <% elsif @tab == "releases" %><%= render "versions" %><% else %>
-    <h2 class="visually-hidden">应用资料</h2>
+  <% if @tab == "overview" %>
     <div class="card-body"><div class="row gy-3">
-      <div class="<%= @app.code_capable? ? "col-12 col-xl-8" : "col-12" %>"><%= render "admins/shared/field_rows", fields: {
-      "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
-      "AppID" => @app.appid, "原始 ID" => @app.app_authorization&.original_id, "运行状态" => app_status_badge(@app.status),
-      "AppSecret" => AppConfiguration.new(@app).credential_status, "创建时间" => admin_list_time(@app.created_at),
-      "更新时间" => admin_list_time(@app.updated_at),
-      **(official_account ? { "二维码" => render("qrcode_button", app: @app, label: "公众号二维码") } : {}),
-      "备注" => @app.memo
-    }, full: ["备注"], columns: (@app.code_capable? ? 2 : 3) %></div>
-      <% if @app.code_capable? %><div class="col-12 col-xl-4"><%= render "qrcode_panel", app: @app, trial: @trial %></div><% end %>
+      <div class="<%= @app.code_capable? ? "col-12 col-xl-8" : "col-12" %>">
+        <%= render "admins/shared/field_rows", fields: {
+          "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
+          "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "AppSecret" => AppConfiguration.new(@app).credential_status,
+          **(@app.wechat_official_account? ? { "原始 ID" => @app.wechat_original_id, "服务器地址" => api_wechat_official_account_messages_url(appid: @app.appid) } : {}),
+          "创建时间" => admin_list_time(@app.created_at), "更新时间" => admin_list_time(@app.updated_at), "备注" => @app.memo
+        }, full: ["服务器地址", "备注"], columns: 2 %>
+      </div>
+      <% if @app.code_capable? %><div class="col-12 col-xl-4"><%= render "qrcode_panel", app: @app %></div><% end %>
     </div></div>
-
+  <% else %>
+    <div class="card-body text-break"><strong><%= @app.display_name %></strong> <span class="text-secondary ms-2"><%= @app.appid %></span></div>
   <% end %>
 </section>
-<%= render "official_account_actions", app: @app if official_account && @tab == "overview" %>
-<%= render "wechat" if @app.provider == "wechat" && @tab == "overview" %>
-<% if @app.code_capable? && %w[overview releases].include?(@tab) %>
-  <% if @tab == "overview" %><section class="card mb-3"><%= render "versions" %></section><% end %>
-  <%= render "release_history" %>
+<%= render "official_account_actions", app: @app if @app.wechat_official_account? %>
+<% if @tab == "plugins" %>
+  <% if @tab_error %>
+    <div class="alert alert-warning" role="alert"><%= @tab_error %></div>
+  <% else %><%= render "plugins" %><% end %>
 <% end %>
-<% if %w[overview releases].exclude?(@tab) %>
-  <% visible = @app.platform_authorized? || %w[links open_platform].include?(@tab) %>
-  <%= render(visible && @tab_error.nil? ? "admins/apps/#{@tab}" : "management_notice") %>
-<% end %>
-<%= render "qrcode_modal" if @tab == "releases" || official_account %>

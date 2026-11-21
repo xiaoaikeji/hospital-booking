@@ -25,7 +25,7 @@
             <label class="form-check mb-0"><%= form.check_box :confirmed, class: "form-check-input", required: true %><span>已在微信公众平台核实本次结果</span></label>
             <%= form.button class: "btn btn-sm" do %><%= render "layouts/admins/icon", name: :check %>登记核实结果<% end %>
           <% end %>
-        <% elsif WechatPlatform::AppPlugins.update_allowed?(plugin) %>
+        <% elsif Wechat::AppPlugins.update_allowed?(plugin) %>
         <%= form_with url: admins_app_plugin_path(@app, plugin.fetch("appid"), application_context_params), method: :patch, class: "d-flex gap-1 align-items-center" do |f| %>
           <%= f.text_field :user_version, id: nil, value: (draft["version"] if draft["action"] == "update" && draft["id"] == plugin["appid"]),
             placeholder: "版本号", size: 8, maxlength: 32, required: true, class: "form-control form-control-sm w-auto", aria: { label: "#{plugin['appid']} 的目标版本" } %>

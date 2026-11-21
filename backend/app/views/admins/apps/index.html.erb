@@ -8,8 +8,8 @@
 
 <section class="card mb-3 flex-shrink-0" aria-label="应用筛选条件">
   <div class="list-group list-group-flush">
-    <% { provider: ["平台", App::PROVIDERS], app_type: ["应用类型", App::TYPES], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
-      <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
+    <% { provider: ["平台", App::PROVIDERS], app_type: ["应用类型", @types], status: ["运行状态", App::STATUSES] }.each do |key, (label, options)| %>
+      <%= render "admins/shared/list_filter_row", label: label, key: key, options: options, include_all: key == :status, selected: @filters[key], filter_url: ->(changes) { admins_apps_path(@filters.merge(changes).compact) } %>
     <% end %>
   </div>
 </section>
@@ -22,13 +22,13 @@
         <%= f.search_field :q, value: @filters["q"], placeholder: "名称 / AppID", aria: { label: "应用名称或 AppID" }, class: "form-control text-truncate" %>
       </div>
       <%= f.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
-      <% if @filters.any? %>
-        <%= link_to admins_apps_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% if @filters.slice("q", "status").any? %>
+        <%= link_to admins_apps_path(@filters.slice("provider", "app_type")), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
       <% end %>
     <% end %>
   </div>
   <% if empty %>
-    <%= render "admins/shared/list_empty", icon: :package, title: (@filters.any? ? "没有找到匹配的应用" : "暂无应用"), description: ("试试其他关键词，或重置筛选。" if @filters.any?) %>
+    <%= render "admins/shared/list_empty", icon: :package, title: (@filters.slice("q", "status").any? ? "没有找到匹配的应用" : "暂无此类型的应用"), description: ("试试其他关键词，或重置筛选。" if @filters.slice("q", "status").any?) %>
   <% else %>
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead><tr>
@@ -36,41 +36,23 @@
         <th scope="col" class="app-platform px-2">应用平台</th>
         <th scope="col" class="px-2">应用名称</th>
         <th scope="col" class="app-appid list-column-number px-2">AppID</th>
-        <th scope="col" class="app-authorization list-column-status px-2">平台授权</th>
         <th scope="col" class="list-column-status px-2">运行状态</th>
         <th scope="col" class="app-created list-column-time px-2">创建时间</th>
         <th scope="col" class="app-actions px-2">操作</th>
       </tr></thead>
       <tbody>
         <% @apps.each do |app| %>
-          <% authorized = app.platform_authorized? %>
           <% detail_url = admins_app_path(app, application_context_params) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{app.id}" %></td>
             <td class="app-platform px-2"><%= app.platform_label %></td>
             <td class="px-2"><%= render "admins/shared/list_text", text: app.display_name, url: detail_url %></td>
             <td class="app-appid px-2"><%= render "admins/shared/list_text", text: app.appid, url: detail_url %></td>
-            <td class="app-authorization px-2">
-              <% if app.provider == "wechat" %>
-                <% if authorized %>
-                  <span class="badge bg-success-lt">已授权</span>
-                <% else %>
-                  <span class="badge bg-secondary-lt"><%= app.app_authorization&.revoked_at ? "已取消授权" : "未授权" %></span>
-                <% end %>
-              <% else %>
-                <span class="text-secondary">不适用</span>
-              <% end %>
-            </td>
             <td class="px-2"><%= app_status_badge(app.status) %></td>
             <td class="app-created px-2"><%= admin_list_time(app.created_at) %></td>
             <td class="app-action-cell px-2"><div class="d-flex flex-wrap gap-1">
               <%= link_to detail_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
-              <% if app.provider == "wechat" %>
-                <% if @component_configured && !authorized %>
-                  <%= button_to admins_app_authorization_path(app), class: "btn btn-sm text-nowrap", form: { class: "app-quick-authorization d-inline-flex", target: "_blank", rel: "noopener" } do %><%= render "layouts/admins/icon", name: :link %>平台授权<% end %>
-                <% end %>
-                <%= render "qrcode_button", app: app, label: "二维码" if authorized || app_direct_qrcode_available?(app) %>
-              <% end %>
+              <%= render "qrcode_button", app: app, label: "二维码" if app_direct_qrcode_available?(app) %>
               <%= link_to edit_admins_app_path(app, application_context_params), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
               <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(app, :delete) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
             </div></td>
@@ -82,5 +64,5 @@
   <% end %>
 </section>
 
-<%= render "qrcode_modal" if @apps.any? { |app| app.provider == "wechat" } %>
+<%= render "qrcode_modal" if @apps.any?(&:code_capable?) %>
 <%= render partial: "delete_confirmation", collection: @apps, as: :app %>

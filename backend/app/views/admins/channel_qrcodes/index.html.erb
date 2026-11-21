@@ -2,7 +2,7 @@
 <% empty = @codes.blank? %>
 <% content_for :fill_content, "true" if empty %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "渠道二维码", icon: :qrcode } do %>
-  <% if @app&.platform_authorized? %>
+  <% if Wechat::AccessToken.configured?(@app) %>
     <%= link_to new_admins_app_channel_qrcode_path(@app, q: @query.presence, page: params[:page]), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>新增渠道二维码<% end %>
   <% end %>
 <% end %>
@@ -10,7 +10,7 @@
   <section class="card mb-3"><div class="list-group list-group-flush">
     <%= render "admins/shared/list_filter_row", label: "公众号", key: :app_id, options: @accounts.to_h { |account| [account.id, account.display_name] }, include_all: false, selected: @app.id, filter_url: ->(overrides) { admins_channel_qrcodes_path(overrides.merge(q: @query.presence)) } %>
   </div></section>
-  <% unless @app.platform_authorized? %><div class="alert alert-warning">完成平台授权后可新增渠道二维码。<%= link_to "查看平台授权", admins_app_path(@app) %></div><% end %>
+  <% unless Wechat::AccessToken.configured?(@app) %><div class="alert alert-warning">启用公众号并配置 AppSecret 后可新增渠道二维码。<%= link_to "编辑应用", edit_admins_app_path(@app) %></div><% end %>
   <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="渠道码列表">
     <div class="card-header"><%= form_with url: admins_channel_qrcodes_path, method: :get, class: "d-flex flex-wrap align-items-center gap-2 w-100", html: { role: "search" } do %>
       <%= hidden_field_tag :app_id, @app.id %>

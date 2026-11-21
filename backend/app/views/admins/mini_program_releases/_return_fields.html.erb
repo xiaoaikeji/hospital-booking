@@ -1,8 +1,0 @@
-<% if controller_name == "mini_program_releases" %>
-  <% if action_name == "index" %>
-    <% @filters.merge(page: @pagy.page).each do |key, value| %><%= hidden_field_tag "list[#{key}]", value, id: nil %><% end %>
-  <% elsif @release %>
-    <%= hidden_field_tag :detail, @release.id, id: nil %>
-    <% @list&.each do |key, value| %><%= hidden_field_tag "list[#{key}]", value, id: nil %><% end %>
-  <% end %>
-<% end %>

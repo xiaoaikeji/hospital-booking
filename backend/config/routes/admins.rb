@@ -8,37 +8,22 @@ namespace :admins do
   resource :poster_code, only: :create
   resource :background_jobs, only: :show
   resource :account, only: %i[edit update]
-  resources :mini_program_releases, only: %i[index show] do
-    get :templates, on: :collection
-    get :confirmation, on: :member
-  end
-  resources :code_templates, only: %i[index create destroy]
-  resource :wechat_platform, only: :show
   resources :plugins, only: :index
-  resources :illegal_records, only: :index
   resources :notifications, only: %i[index show] do
     post :retry_failed, on: :member
   end
   resources :template_messages, only: :index
   resources :reply_contents, only: :index
-  resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
-  # 旧书签和已打开的文案编辑器仍可使用原地址。
-  scope path: "system_settings", as: "system_settings" do
-    resource :wecom_notification_content, only: %i[edit update], controller: "wecom_notification_contents"
-  end
   resources :wechat_notifications, only: :index
   resources :official_account_menus, only: :index
   resources :official_account_fans, only: :index
   resources :channel_qrcodes, only: :index
-  resources :official_account_links, only: :index
-  resources :open_platform_accounts, only: %i[index new create show] do
-    resources :bindings, only: %i[create destroy], controller: "open_platform_bindings"
-  end
   resources :page_links, only: %i[index new create edit update destroy] do
     patch :status, on: :member
     get :image, on: :member
   end
   resources :apps do
+    patch :disable, on: :member
     resource :template_message, only: %i[update destroy], controller: "template_messages"
     resources :reply_contents, only: %i[new create edit update] do
       post :media, on: :collection
@@ -57,56 +42,18 @@ namespace :admins do
       get :articles
       get :image
     end
-    resource :open_platform, only: :update, controller: "app_open_platforms"
-    resources :mini_program_links, only: %i[create destroy], controller: "app_mini_program_links" do
-      post :verify, on: :collection
-    end
     resources :plugins, only: %i[create update destroy], controller: "app_plugins" do
       post :verify, on: :member
     end
-    resource :profile, only: :update, controller: "app_profiles"
-    resources :location_interface_applications, only: :create, controller: "app_location_interface_applications" do
-      post :verify, on: :member
-    end
-    resources :experiencers, only: :create, controller: "app_experiencers" do
-      delete :destroy, on: :collection, path: ""
-    end
-    resource :privacy_setting, only: %i[edit update], controller: "app_privacy_settings"
-    resources :categories, only: %i[create destroy], controller: "app_categories" do
-      post :verify, on: :collection
-    end
-    resource :server_domain, only: :update, controller: "app_domains", defaults: { kind: "server" }
-    resource :business_domain, only: :update, controller: "app_domains", defaults: { kind: "business" }
     resource :qrcode, only: :show, controller: "wechat_qrcodes" do
       post :refresh
-    end
-    resource :authorization, only: :create, controller: "wechat_authorizations"
-    resources :releases, only: %i[new create destroy], controller: "wechat_releases" do
-      member do
-        get :trial
-        post :retry_upload
-        patch :verify_upload
-        post :submit
-        patch :close
-      end
-    end
-    resources :audits, only: [], controller: "wechat_releases" do
-      member do
-        get "screenshots/:index", action: :screenshot, as: :screenshot, constraints: { index: /\d+/ }
-        patch :mode
-        patch :sync
-        post :resolve
-        post :withdraw
-        post :resume_auto
-        post :publish
-      end
     end
   end
   resources :administrators, only: %i[index new create edit update]
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
     resource :storage, only: %i[edit update], controller: "storage"
-    resource :wechat_notifications, only: %i[edit update], controller: "wechat_notifications"
+    resource :wecom_notifications, only: %i[edit update], controller: "wecom_notifications"
     resource :appearance, only: %i[edit update], controller: "appearance"
   end
   # 兼容旧存储页的书签和已打开的表单。

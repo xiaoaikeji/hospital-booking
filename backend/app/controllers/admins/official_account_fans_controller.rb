@@ -3,7 +3,7 @@ module Admins
     before_action :require_super_admin!
 
     def index
-      @accounts = App.wechat_official_accounts.includes(:app_authorization).order(:id)
+      @accounts = App.wechat_official_accounts.order(:id)
       @app = params[:app_id].present? ? @accounts.find(params[:app_id]) : @accounts.first
       return unless @app
       @query = params[:q].to_s.strip
@@ -31,9 +31,9 @@ module Admins
     def sync
       app = App.wechat_official_accounts.find(params[:app_id])
       path = admins_official_account_fans_path(params.permit(:q, :status, :page).merge(app_id: app.id))
-      started = WechatPlatform::OfficialAccountFans.new(app).request_sync!(current_admin, request: request)
+      started = Wechat::OfficialAccountFans.new(app).request_sync!(current_admin, request: request)
       redirect_to path, notice: started ? "已开始同步，稍后刷新本页查看结果" : "该公众号正在同步", status: :see_other
-    rescue WechatPlatform::Error => error
+    rescue Wechat::Error => error
       redirect_to path, alert: error.message, status: :see_other
     end
 

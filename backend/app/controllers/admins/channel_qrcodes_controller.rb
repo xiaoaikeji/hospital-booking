@@ -5,7 +5,7 @@ module Admins
     helper_method :list_path
 
     def index
-      @accounts = App.wechat_official_accounts.includes(:app_authorization).order(:id)
+      @accounts = App.wechat_official_accounts.order(:id)
       @app = params[:app_id].present? ? @accounts.find(params[:app_id]) : @accounts.first
       return unless @app
 
@@ -17,7 +17,7 @@ module Admins
     end
 
     def new
-      return redirect_to list_path, alert: "请先完成本公众号的平台授权" unless @app.platform_authorized?
+      return redirect_to list_path, alert: "请启用此公众号并配置 AppSecret" unless Wechat::AccessToken.configured?(@app)
       @code = OfficialAccountQrcode.new(app: @app)
       @key = service.form_key
       prepare_binding
@@ -35,7 +35,7 @@ module Admins
       redirect_to admins_channel_qrcodes_path(app_id: @app.id), notice: "渠道二维码已创建", status: :see_other
     rescue ActiveRecord::RecordInvalid
       render :new, status: :unprocessable_content
-    rescue Notifications::Error, WechatPlatform::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
+    rescue Notifications::Error, Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       flash.now[:alert] = error.message
       render :new, status: :unprocessable_content
     end
@@ -68,7 +68,7 @@ module Admins
     end
 
     def load_app = @app = App.wechat_official_accounts.find(params[:app_id])
-    def service = WechatPlatform::ChannelQrcodes.new(@app, actor: current_admin, request: request)
+    def service = Wechat::ChannelQrcodes.new(@app, actor: current_admin, request: request)
     def list_path = admins_channel_qrcodes_path(params.permit(:q, :page).merge(app_id: @app.id))
   end
 end
