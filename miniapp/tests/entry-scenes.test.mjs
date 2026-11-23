@@ -138,3 +138,44 @@ test('a legacy session keeps its first offline scan across restarts and only cla
   await beforeLogout.flush()
   assert.equal(sent.length, 1)
 })
+
+test('a legacy scan staged during a storage outage stays in memory, persists after recovery and is never overwritten by 1089', async () => {
+  const backing = memoryStorage()
+  let storageBroken = true
+  const flakyStorage = {
+    getStorageSync: key => backing.getStorageSync(key),
+    setStorageSync: (key, value) => {
+      if (storageBroken) throw new Error('storage full')
+      backing.setStorageSync(key, value)
+    },
+    removeStorageSync: key => {
+      if (storageBroken) throw new Error('storage full')
+      backing.removeStorageSync(key)
+    },
+  }
+  const key = 'booking-session:fixture-origin:app-a'
+  const sent = []
+  const queue = createEntryQueue({ storage: flakyStorage, sessionKey: key, submit: async row => { sent.push(structuredClone(row)) } })
+
+  // Storage fails on the first hall QR scan, so it stays in memory.
+  queue.addForSession('legacy-mem-1', hall)
+  assert.equal(queue.hasPendingSession('legacy-mem-1'), true)
+  assert.equal(backing.getStorageSync(key + ':entries'), undefined)
+
+  // Storage recovers while app stays open; entering from 1089 must keep 1047 and flush it to disk.
+  storageBroken = false
+  queue.addForSession('legacy-mem-1', recent)
+  const stored = backing.getStorageSync(key + ':entries')
+  assert.equal(stored?.length, 1)
+  assert.equal(stored[0].launch_scene, 1047)
+  assert.equal(stored[0].channel_scene, '门诊大厅')
+
+  // Confirming the original owner reports 1047 once.
+  queue.activate('11111111', 'legacy-mem-1')
+  await queue.flush()
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].launch_scene, 1047)
+  assert.equal(sent[0].channel_scene, '门诊大厅')
+  assert.equal(sent[0].intended_user_no, '11111111')
+  assert.equal(backing.getStorageSync(key + ':entries'), undefined)
+})

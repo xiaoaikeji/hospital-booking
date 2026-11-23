@@ -11,28 +11,31 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     return record
   }
   let current = saved?.token ? credential(saved) : null
+  let pendingSessionDirty = false
   const revocations = new Set(Array.isArray(saved?.revocations) ? saved.revocations : [])
   const revoking = new Map()
   let generation = 0
   let pending
 
+  function sessionError(message) {
+    const error = new Error(message)
+    error.stage = 'session'
+    return error
+  }
+
   function assertCurrent(start) {
-    if (start !== generation) throw new Error('已退出登录')
+    if (start !== generation) throw sessionError('已退出登录')
   }
 
   async function sendForAccount(path, options, start) {
     try {
       return await send(path, options)
     } catch (error) {
-      if (error.statusCode === 403 && error.appDisabled) {
-        // Confirmed app disablement retires this session and invalidates in-flight logins and reads.
-        if (start === generation) signOut('app_disabled').catch(() => {})
-        throw error
-      }
       assertCurrent(start)
-      if (error.statusCode === 403 && error.code === 'account_disabled') {
-        if (options.token && options.token !== current?.token) throw new Error('登录状态已更新，请重试')
-        signOut('account_disabled').catch(() => {})
+      if (error.statusCode === 403 && (error.appDisabled || error.code === 'account_disabled')) {
+        // Only a still-current request may retire the session or pause the app.
+        if (options.token && options.token !== current?.token) throw sessionError('登录状态已更新，请重试')
+        signOut(error.appDisabled ? 'app_disabled' : 'account_disabled').catch(() => {})
       }
       throw error
     }
@@ -66,27 +69,33 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     if (pending) return pending
     const start = generation
     const operation = (async () => {
-      const code = await loginCode()
-      assertCurrent(start)
-      if (!code) throw new Error('未取得微信登录凭证，请重试')
-      const result = await sendForAccount('session', { method: 'POST', data: { code, ...deviceContext(), ...entry } }, start)
-      if (!result?.token || !(Date.parse(result.expires_at) > Date.now())) throw new Error('登录响应无效，请重试')
-      if (start !== generation) {
-        // Logout ran while Rails was issuing this otherwise orphaned credential.
-        const retired = result.logout_token || result.token
-        revocations.add(retired)
-        persist()
-        await revoke(retired).catch(() => {})
+      try {
+        const code = await loginCode()
         assertCurrent(start)
+        if (!code) throw new Error('未取得微信登录凭证，请重试')
+        const result = await sendForAccount('session', { method: 'POST', data: { code, ...deviceContext(), ...entry } }, start)
+        if (!result?.token || !(Date.parse(result.expires_at) > Date.now())) throw new Error('登录响应无效，请重试')
+        if (start !== generation) {
+          // Logout ran while Rails was issuing this otherwise orphaned credential.
+          const retired = result.logout_token || result.token
+          revocations.add(retired)
+          persist()
+          await revoke(retired).catch(() => {})
+          assertCurrent(start)
+        }
+        if (current?.user_no && result.user_no && current.user_no !== result.user_no) {
+          // The new WeChat identity cannot continue any read, write or upload started for the old one.
+          signOut('account_changed').catch(() => {})
+        }
+        current = credential(result)
+        pendingSessionDirty = false
+        persist()
+        changed(true)
+        return current.token
+      } catch (error) {
+        if (error && typeof error === 'object') error.stage = 'session'
+        throw error
       }
-      if (current?.user_no && result.user_no && current.user_no !== result.user_no) {
-        // The new WeChat identity cannot continue any read, write or upload started for the old one.
-        signOut('account_changed').catch(() => {})
-      }
-      current = credential(result)
-      persist()
-      changed(true)
-      return current.token
     })().finally(() => { if (pending === operation) pending = null })
     pending = operation
     return operation
@@ -100,19 +109,20 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
 
   async function request(path, { method = 'GET', data, expectedStatus } = {}) {
     const start = generation
-    if (!current) throw new Error('请先登录')
+    if (!current) throw sessionError('请先登录')
     const token = await signIn()
     assertCurrent(start)
     async function sendCurrent(token) {
       const result = await sendForAccount(path, { method, data, token, expectedStatus }, start)
       assertCurrent(start)
-      if (current.token !== token) throw new Error('登录状态已更新，请重试')
+      if (current.token !== token) throw sessionError('登录状态已更新，请重试')
       if (path === 'me' && result?.user_no && !current.user_no) {
         // A device signed in before login responses included the Booking user number.
         const confirmedSession = current.session_id
         current.user_no = result.user_no
         delete current.session_id
-        persist()
+        pendingSessionDirty = false
+        try { persist() } catch { /* Storage failures must not prevent reading the user's profile. */ }
         changed(true, confirmedSession)
       }
       return result
@@ -124,7 +134,25 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
       assertCurrent(start)
     }
 
-    const renewed = current.token === token ? await exchange() : current.token
+    let renewed
+    if (current.token === token) {
+      try {
+        renewed = await exchange()
+      } catch (error) {
+        // The backend confirmed this token expired; mark it locally expired so the next login re-exchanges directly.
+        if (current && current.token === token) {
+          current.expires_at = new Date(0).toISOString()
+          try { persist() } catch {}
+        }
+        if (error && typeof error === 'object') {
+          error.stage = 'session'
+          error.sessionExpired = true
+        }
+        throw error
+      }
+    } else {
+      renewed = current.token
+    }
     assertCurrent(start)
     // Only reads are replayed. A phone code, booking or payment needs a new user action.
     if (method !== 'GET') {
@@ -140,6 +168,7 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     const previous = current
     current = null
     pending = null
+    pendingSessionDirty = false
     if (previous) revocations.add(previous.logout_token || previous.token)
     persist()
     changed(false, reason)
@@ -151,7 +180,13 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     if (!current || current.user_no) return undefined
     if (!current.session_id) {
       current.session_id = newSessionId()
-      persist()
+      pendingSessionDirty = true
+    }
+    if (pendingSessionDirty) {
+      try {
+        persist()
+        pendingSessionDirty = false
+      } catch { /* Keep the session tag in memory and persist once storage recovers. */ }
     }
     return current.session_id
   }

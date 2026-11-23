@@ -337,6 +337,70 @@ test('confirmed app disablement discards late manual login, silent renewal and p
   assert.deepEqual(await auto.request('me'), { user_no: '11111111' })
 })
 
+test('a stale app-disabled error after recovery or token replacement cannot pause or revoke the new session', async () => {
+  // 1. Delayed appDisabled from before disable -> recover -> new login must be rejected as stale without calling changed('app_disabled') or revoking the new token.
+  const delayedError = deferred()
+  const started = deferred()
+  const revoked = []
+  const disableNotices = []
+  let saved = { ...credential('session-before'), logout_token: 'logout-before', user_no: '11111111' }
+  const client = createSessionClient({
+    saved, save: value => { saved = value }, loginCode: async () => 'code-new',
+    changed: (active, reason) => { if (!active && reason === 'app_disabled') disableNotices.push(reason) },
+    send: async (path, { method, token }) => {
+      if (method === 'DELETE') { revoked.push(token); return }
+      if (path === 'stale-me') {
+        started.resolve()
+        await delayedError.promise
+        throw Object.assign(new Error('app paused'), { statusCode: 403, appDisabled: true })
+      }
+      if (path === 'session') return { ...credential('session-after'), logout_token: 'logout-after', user_no: '11111111' }
+      return { user_no: '11111111' }
+    },
+  })
+  const staleRead = client.request('stale-me')
+  await started.promise
+  await client.signOut('app_disabled')
+  await client.signIn()
+  assert.deepEqual(await client.request('me'), { user_no: '11111111' })
+  delayedError.resolve()
+  await assert.rejects(staleRead, /退出/)
+  assert.equal(saved.token, 'session-after')
+  assert.deepEqual(disableNotices, ['app_disabled'])
+  assert.deepEqual(revoked, ['logout-before'])
+  assert.deepEqual(await client.request('me'), { user_no: '11111111' })
+
+  // 2. A late appDisabled for a replaced token in the same generation cannot retire the newer token.
+  const replacedStarted = deferred()
+  const replacedDelay = deferred()
+  const replacedRevoked = []
+  const replacedNotices = []
+  let replacedSaved = { ...credential('previous'), logout_token: 'logout-previous' }
+  const replaced = createSessionClient({
+    saved: replacedSaved, save: value => { replacedSaved = value }, loginCode: async () => 'code-renew',
+    changed: (active, reason) => { if (!active && reason === 'app_disabled') replacedNotices.push(reason) },
+    send: async (path, { method, token }) => {
+      if (method === 'DELETE') { replacedRevoked.push(token); return }
+      if (path === 'slow') {
+        replacedStarted.resolve()
+        await replacedDelay.promise
+        throw Object.assign(new Error('app paused'), { statusCode: 403, appDisabled: true })
+      }
+      if (path === 'session') return { ...credential('renewed'), logout_token: 'logout-renewed', user_no: '11111111' }
+      if (token === 'previous') throw expired()
+      return { user_no: '11111111' }
+    },
+  })
+  const slow = replaced.request('slow')
+  await replacedStarted.promise
+  assert.deepEqual(await replaced.request('me'), { user_no: '11111111' })
+  replacedDelay.resolve()
+  await assert.rejects(slow, /状态已更新/)
+  assert.equal(replacedSaved.token, 'renewed')
+  assert.deepEqual(replacedNotices, [])
+  assert.deepEqual(replacedRevoked, [])
+})
+
 test('offline logout keeps its revocation receipt across restarts until the backend returns 204', async () => {
   const initial = { ...credential('device-1'), logout_token: 'logout-dev-1', user_no: '11111111' }
   const offline = device(async () => { throw new Error('网络连接失败，请重试') }, initial)
@@ -390,6 +454,74 @@ test('a 503 on the first profile read keeps the valid session so retry only read
   assert.deepEqual(await client.request('me'), { user_no: '11111111', booking_phone_required: false })
   assert.equal(state.codes, 1)
   assert.deepEqual(calls, [['POST', 'session'], ['GET', 'me'], ['GET', 'me']])
+})
+
+test('401 session_expired followed by failed re-login marks session stage and expires the stale local credential', async () => {
+  let loginFails = true
+  const calls = []
+  let saved = { ...credential('expired-on-server'), logout_token: 'logout-old', user_no: '11111111' }
+  const client = createSessionClient({
+    saved, save: value => { saved = value },
+    loginCode: async () => {
+      if (loginFails) throw new Error('微信登录失败，请重试')
+      return 'code-retry-ok'
+    },
+    changed: () => {},
+    send: async (path, { method, token }) => {
+      calls.push([method, path, token])
+      if (path === 'session') return { ...credential('fresh-after-retry'), logout_token: 'logout-fresh', user_no: '11111111' }
+      if (token === 'expired-on-server') throw expired()
+      return { user_no: '11111111' }
+    },
+  })
+  let err
+  try { await client.request('me') } catch (caught) { err = caught }
+  assert.equal(err?.stage, 'session')
+  assert.equal(err?.sessionExpired, true)
+  assert.ok(Date.parse(saved.expires_at) <= Date.now(), 'Stale credential must be marked locally expired')
+
+  // Next manual login immediately exchanges without resending the dead token to /me.
+  loginFails = false
+  assert.equal(await client.signIn(), 'fresh-after-retry')
+  assert.deepEqual(await client.request('me'), { user_no: '11111111' })
+  assert.deepEqual(calls, [
+    ['GET', 'me', 'expired-on-server'],
+    ['POST', 'session', undefined],
+    ['GET', 'me', 'fresh-after-retry'],
+  ])
+})
+
+test('storage failure while tagging or identifying a legacy session keeps the tag in memory and persists once storage recovers', async () => {
+  let storageBroken = true
+  let saved = credential('legacy-token')
+  const details = []
+  const client = createSessionClient({
+    saved,
+    save: value => {
+      if (storageBroken) throw new Error('storage unavailable')
+      saved = value
+    },
+    loginCode: () => assert.fail('must not renew'),
+    changed: (active, detail) => details.push([active, detail]),
+    send: async () => ({ user_no: '11111111' }),
+  })
+
+  // First attempt fails to write storage, but still returns an in-memory session tag without throwing.
+  const firstTag = client.ensurePendingSession()
+  assert.ok(firstTag)
+  assert.equal(client.pendingSessionId, firstTag)
+  assert.equal(saved.session_id, undefined)
+
+  // Once storage recovers while the app stays open, a subsequent ensurePendingSession persists the same tag.
+  storageBroken = false
+  assert.equal(client.ensurePendingSession(), firstTag)
+  assert.equal(saved.session_id, firstTag)
+
+  // Even if storage fails again while confirming user_no via /me, reading profile still succeeds.
+  storageBroken = true
+  assert.equal(await client.identifySavedSession(), '11111111')
+  assert.equal(client.userNo, '11111111')
+  assert.deepEqual(details, [[true, firstTag]])
 })
 
 test('a renewal to a different WeChat account cannot submit the previous account’s pending write', async () => {

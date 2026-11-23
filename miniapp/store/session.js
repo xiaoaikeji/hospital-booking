@@ -14,6 +14,7 @@ export const signedIn = ref(!!(demoMode ? saved?.user_no || saved?.phone : saved
 const demoUser = mobile => ({ user_no: 'demo', nickname: '体验用户', mobile, booking_phone_required: false })
 export const profile = ref(demoMode && signedIn.value ? demoUser(saved.mobile || saved.phone) : null)
 let profileVersion = 0
+let handlingAppDisabled = false
 const entries = demoMode ? null : createEntryQueue({ storage: uni, sessionKey: storageKey, submit: postVisit })
 if (saved?.token) {
   if (saved.user_no) entries?.activate(saved.user_no)
@@ -34,13 +35,8 @@ const client = createSessionClient({
     try { return (await uni.login({ provider: 'weixin' })).code }
     catch { throw new Error('微信登录失败，请重试') }
   },
-  send: async (path, options) => {
-    try { return await requestApp(appId, path, options) }
-    catch (error) {
-      if (error.appDisabled) pauseApp()
-      throw error
-    }
-  },
+  // Let createSessionClient validate request freshness before pausing the app or retiring the session.
+  send: (path, options) => requestApp(appId, path, options),
   changed: (active, detail) => {
     signedIn.value = active
     if (active) {
@@ -51,6 +47,11 @@ const client = createSessionClient({
       profile.value = null
       entries?.leave()
       if (detail === 'account_disabled') uni.showToast({ title: '账号已停用', icon: 'none' })
+      if (detail === 'app_disabled' && !handlingAppDisabled) {
+        handlingAppDisabled = true
+        try { pauseApp() }
+        finally { handlingAppDisabled = false }
+      }
     }
   },
 })
@@ -58,15 +59,28 @@ const client = createSessionClient({
 if (!demoMode) {
   // Configuration and private-endpoint disablement share the same session invalidation path.
   onAppDisabled(() => {
-    client.signOut('app_disabled').catch(() => {})
+    if (handlingAppDisabled) return
+    handlingAppDisabled = true
+    try { client.signOut('app_disabled').catch(() => {}) }
+    finally { handlingAppDisabled = false }
   })
 }
 
 export async function readProfile() {
   if (demoMode) return profile.value
   const version = profileVersion
-  const result = await client.request('me')
-  if (!result?.user_no) throw new Error('未取得本人资料，请重试')
+  let result
+  try {
+    result = await client.request('me')
+  } catch (error) {
+    if (error && typeof error === 'object' && !error.stage) error.stage = 'profile'
+    throw error
+  }
+  if (!result?.user_no) {
+    const error = new Error('未取得本人资料，请重试')
+    error.stage = 'profile'
+    throw error
+  }
   if (version !== profileVersion) throw new Error('登录状态已更新，请重试')
   profile.value = result
   return profile.value
@@ -110,6 +124,7 @@ export function retryEntryReports() {
   if (client.userNo) {
     entries.retry().catch(() => {})
   } else if (entries.hasPendingSession(client.pendingSessionId)) {
+    client.ensurePendingSession()
     identifyAndFlushEntries().catch(() => {})
   }
 }
@@ -137,7 +152,7 @@ export async function noteEntry(options) {
     return
   }
   const version = profileVersion
-  if (entry) {
+  if (entry || entries.hasPendingSession(client.pendingSessionId)) {
     const pendingSession = client.ensurePendingSession()
     if (pendingSession) entries.addForSession(pendingSession, entry)
   }

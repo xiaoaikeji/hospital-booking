@@ -34,19 +34,24 @@ test('device context drops tools, errors and unknown fields independently', () =
 })
 
 test('loginFailureState offers profile retry only for temporary failures after login succeeded', () => {
-  const unavailable = Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 503 })
-  assert.deepEqual(loginFailureState(unavailable, true), { profileRetry: true, feedback: '已登录，暂时无法读取资料' })
-  assert.deepEqual(loginFailureState(unavailable, false), { profileRetry: false, feedback: '服务暂不可用，请重试' })
+  const profileUnavailable = Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 503, stage: 'profile' })
+  assert.deepEqual(loginFailureState(profileUnavailable, true), { profileRetry: true, feedback: '已登录，暂时无法读取资料' })
+  assert.deepEqual(loginFailureState(profileUnavailable, false), { profileRetry: false, feedback: '服务暂不可用，请重试' })
+  // A failure at the session step (even with a stale stored token) must NOT say already logged in.
+  const sessionUnavailable = Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 503, stage: 'session' })
+  assert.deepEqual(loginFailureState(sessionUnavailable, true), { profileRetry: false, feedback: '服务暂不可用，请重试' })
+  const expiredReloginFailed = Object.assign(new Error('微信登录失败，请重试'), { stage: 'session', sessionExpired: true })
+  assert.deepEqual(loginFailureState(expiredReloginFailed, true), { profileRetry: false, feedback: '登录已过期，请重新登录' })
   assert.deepEqual(
-    loginFailureState(Object.assign(new Error('请重新登录'), { statusCode: 401, code: 'session_expired' }), true),
+    loginFailureState(Object.assign(new Error('请重新登录'), { statusCode: 401, code: 'session_expired', stage: 'profile' }), true),
     { profileRetry: false, feedback: '请重新登录' },
   )
   assert.deepEqual(
-    loginFailureState(Object.assign(new Error('账号已停用'), { statusCode: 403, code: 'account_disabled' }), false),
+    loginFailureState(Object.assign(new Error('账号已停用'), { statusCode: 403, code: 'account_disabled', stage: 'session', sessionExpired: true }), false),
     { profileRetry: false, feedback: '账号已停用' },
   )
   assert.deepEqual(
-    loginFailureState(Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 403, appDisabled: true }), false),
+    loginFailureState(Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 403, appDisabled: true, stage: 'profile' }), false),
     { profileRetry: false, feedback: '服务暂不可用，请重试' },
   )
 })

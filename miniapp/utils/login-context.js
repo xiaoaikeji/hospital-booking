@@ -11,8 +11,11 @@ export function entrySource(options) {
 }
 
 export function loginFailureState(error, isSignedIn) {
-  if (isSignedIn && !error?.appDisabled && error?.code !== 'account_disabled' && error?.code !== 'session_expired') {
+  if (error?.stage === 'profile' && isSignedIn && !error?.appDisabled && error?.code !== 'account_disabled' && error?.code !== 'session_expired') {
     return { profileRetry: true, feedback: '已登录，暂时无法读取资料' }
+  }
+  if (error?.sessionExpired && !error?.appDisabled && error?.code !== 'account_disabled') {
+    return { profileRetry: false, feedback: '登录已过期，请重新登录' }
   }
   return { profileRetry: false, feedback: error?.message || '登录失败，请重试' }
 }

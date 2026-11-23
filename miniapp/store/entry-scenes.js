@@ -9,13 +9,17 @@ export function createEntryQueue({ storage, sessionKey, submit }) {
   let owner
   let generation = 0
   let sending
+  let dirty = false
 
   function persist() {
     // Source tracking is optional. If storage is full, the running app can still deliver its in-memory entries.
     try {
       if (entries.length) storage.setStorageSync(key, entries)
       else storage.removeStorageSync(key)
-    } catch {}
+      dirty = false
+    } catch {
+      dirty = true
+    }
   }
 
   function newEntryId() {
@@ -24,15 +28,23 @@ export function createEntryQueue({ storage, sessionKey, submit }) {
   }
 
   function add(entry) {
-    if (!entry || (!owner && entries.some(item => !item.intended_user_no && !item.pending_session))) return
+    if (!entry) return
+    if (!owner && entries.some(item => !item.intended_user_no && !item.pending_session)) {
+      if (dirty) persist()
+      return
+    }
     entries.push({ ...entry, entry_id: newEntryId(), intended_user_no: owner })
     persist()
   }
 
   // Legacy credentials without user_no stage only their first offline scan until the same session confirms its owner.
   function addForSession(sessionId, entry) {
-    if (!entry || !sessionId || owner) return
-    if (entries.some(item => !item.intended_user_no && item.pending_session === sessionId)) return
+    if (!sessionId || owner) return
+    if (entries.some(item => !item.intended_user_no && item.pending_session === sessionId)) {
+      if (dirty) persist()
+      return
+    }
+    if (!entry) return
     entries.push({ ...entry, entry_id: newEntryId(), pending_session: sessionId })
     persist()
   }
