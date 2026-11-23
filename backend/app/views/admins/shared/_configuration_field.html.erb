@@ -11,6 +11,11 @@
   <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, data: { enhanced_select: local_assigns[:enhanced_select] }, aria: { describedby: error_id } %>
 <% else %>
   <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写")) unless local_assigns[:disabled] %>
-  <%= form.text_field field, value: local_assigns[:value], class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder, disabled: local_assigns[:disabled], aria: { describedby: error_id, invalid: (true if error_id) } %>
+  <% options = { value: local_assigns[:value], class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder, disabled: local_assigns[:disabled], aria: { describedby: error_id, invalid: (true if error_id) } } %>
+  <% if local_assigns[:rows] %>
+    <%= form.text_area field, **options, rows: rows %>
+  <% else %>
+    <%= form.text_field field, **options %>
+  <% end %>
 <% end %>
 <%= admin_field_errors(record, field) if record %>

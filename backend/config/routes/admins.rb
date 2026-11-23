@@ -54,6 +54,7 @@ namespace :admins do
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
     resource :appointment, only: %i[edit update], controller: "appointment"
+    resource :wechat_pay, only: %i[edit update], controller: "wechat_pay"
     resource :map, only: %i[edit update], controller: "map"
     resource :storage, only: %i[edit update], controller: "storage"
     resource :wecom_notifications, only: %i[edit update], controller: "wecom_notifications"

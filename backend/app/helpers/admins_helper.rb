@@ -7,6 +7,7 @@ module AdminsHelper
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
       [ "预约设置", edit_admins_system_settings_appointment_path, "admins/system_settings/appointment" ],
+      [ "微信支付", edit_admins_system_settings_wechat_pay_path, "admins/system_settings/wechat_pay" ],
       [ "地图服务", edit_admins_system_settings_map_path, "admins/system_settings/map" ],
       [ "外观设置", edit_admins_system_settings_appearance_path, "admins/system_settings/appearance" ],
       [ "企微通知设置", edit_admins_system_settings_wecom_notifications_path, "admins/system_settings/wecom_notifications" ]

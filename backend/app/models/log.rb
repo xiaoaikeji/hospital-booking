@@ -73,6 +73,7 @@ class Log < ApplicationRecord
     [ "security", "storage_settings.refresh" ] => "刷新存储客户端",
     [ "settings", "appearance.update" ] => "修改默认外观",
     [ "settings", "appointment.phone_policy" ] => "修改预约手机号验证设置",
+    [ "settings", "wechat_pay.update" ] => "修改微信支付设置",
     [ "settings", "map_settings.update" ] => "修改地图服务设置",
     [ "settings", "personal_appearance.update" ] => "修改个人外观"
   }.freeze

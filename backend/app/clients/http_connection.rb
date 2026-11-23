@@ -6,8 +6,8 @@ class HttpConnection
 
   class Unavailable < StandardError; end
 
-  def self.build(origin)
-    Faraday.new(url: origin, request: { open_timeout: OPEN_TIMEOUT, timeout: READ_TIMEOUT }, ssl: { verify: true }) do |connection|
+  def self.build(origin, ssl: {})
+    Faraday.new(url: origin, request: { open_timeout: OPEN_TIMEOUT, timeout: READ_TIMEOUT }, ssl: ssl.merge(verify: true)) do |connection|
       connection.request :multipart
       connection.request :json
       connection.adapter Faraday.default_adapter

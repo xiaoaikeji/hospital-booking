@@ -1,0 +1,44 @@
+<% content_for :title, "微信支付 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<% content_for :head do %><%= javascript_include_tag "admins/wechat_pay_settings", defer: true %><% end %>
+<%= render "admins/system_settings/navigation", title: "微信支付" %>
+<% version = @submitted&.[]("version") || @settings.value("version") %>
+<% versions = WechatPaySettings::VERSIONS.map { |id, name| [name, id] }
+   versions.unshift(["请选择接口版本", "", { disabled: true }]) unless WechatPaySettings::VERSIONS.key?(version) %>
+<% help = {
+  "version" => "新支付单使用所选版本，原单续付、查单和退款沿用下单配置。",
+  "notify_origin" => "填写微信服务器可访问的医院后台 HTTPS 域名，例如 https://booking.example.org。",
+  "v2_certificate" => "粘贴商户 API 证书 apiclient_cert.pem 的完整内容，用于退款双向认证。",
+  "v2_private_key" => "粘贴该证书配套的 apiclient_key.pem。",
+  "merchant_serial" => "填写签发商户私钥所对应的 API 证书序列号。",
+  "v3_private_key" => "粘贴商户 API 证书配套的 apiclient_key.pem，用于请求和收银台签名。",
+  "verification_id" => "公钥模式填写 PUB_KEY_ID_ 开头的 ID，平台证书模式填写该证书的序列号。",
+  "verification_pem" => "粘贴与所填 ID 对应的微信支付公钥或平台证书 PEM，用于验证微信应答和通知。"
+} %>
+<%= form_with scope: :wechat_pay, url: admins_system_settings_wechat_pay_path, method: :patch, class: "card", data: { admin_form: true, wechat_pay_settings: true } do |f| %>
+  <%= f.hidden_field :revision, value: @submitted&.[]("revision") || @settings.revision %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "普通商户直连", record: @settings, clear_target: "#clear-wechat-pay", clear_disabled: !@settings.stored? } do %>
+    <div class="row g-3">
+      <% WechatPaySettings::LABELS.each do |field, label| %>
+        <% group = WechatPaySettings::MATERIAL.find { |_version, fields| fields.include?(field) }&.first
+           inactive = group && group != version
+           multiline = %w[v2_certificate v2_private_key v3_private_key verification_pem].include?(field)
+           value = @submitted&.[](field).presence || @settings.value(field) %>
+        <fieldset class="<%= multiline ? "col-md-6" : "col-md-6 col-xl-4" %>" <%= tag.attributes(data: { payment_version: group }, hidden: inactive, disabled: inactive) %>>
+          <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
+                source: @settings.source(field), value: value, help: help[field], rows: (4 if multiline),
+                choices: (versions if field == "version"), enhanced_select: "single" %>
+        </fieldset>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>
+<% if @settings.stored? %>
+  <%= form_with scope: :wechat_pay, url: admins_system_settings_wechat_pay_path, method: :patch, id: "clear-wechat-pay-form", class: "d-none" do |f| %>
+    <%= f.hidden_field :revision, value: @settings.revision, id: nil %>
+    <%= f.hidden_field :clear_settings, value: "1", id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "clear-wechat-pay", form_id: "clear-wechat-pay-form",
+        title: "清除微信支付配置", context: "普通商户直连", description: "新单将按环境变量和 Rails credentials 读取配置。已有支付单保留原配置引用。",
+        color: "warning", confirm_label: "确认清除", confirm_icon: :trash, cancel_icon: :close %>
+<% end %>

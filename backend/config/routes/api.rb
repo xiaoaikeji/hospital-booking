@@ -1,4 +1,6 @@
 namespace :api do
+  post "wechat/pay/:version/:config_ref/:kind", to: "wechat_payment_notifications#create", as: :wechat_payment_notification,
+    constraints: { version: /v[23]/, config_ref: /[a-f0-9]{64}/, kind: /payment|refund/ }, format: false
   get "wechat/official_accounts/:appid/messages", to: "wechat_official_account_messages#verify", as: :wechat_official_account_messages
   post "wechat/official_accounts/:appid/messages", to: "wechat_official_account_messages#create"
   get "apps/:provider/:appid/configuration", to: "app_configurations#show", as: :app_configuration
