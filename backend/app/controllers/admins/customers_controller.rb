@@ -7,13 +7,11 @@ module Admins
       app = @apps.find(params[:app_id]) if params[:app_id].present?
       @filters = { q: params[:q].to_s.strip.presence, status: params[:status].presence_in(STATUSES.keys), app_id: app&.id }.compact
 
-      rows = User.select(:id, :user_no, :nickname, :mobile, :mobile_verified_at, :status, :last_login_at)
+      rows = User.select(:id, :platform, :nickname, :avatar_url, :mobile, :mobile_verified_at, :status, :last_login_at,
+                         "users.login_profile -> 'region' AS first_region")
       rows = rows.where(id: UserApp.for_app(app).select(:user_id)) if app
       rows = rows.where(status: @filters[:status]) if @filters[:status]
-      if @filters[:q]
-        term = "%#{User.sanitize_sql_like(@filters[:q])}%"
-        rows = rows.where("user_no LIKE :term OR nickname ILIKE :term OR (mobile_verified_at IS NOT NULL AND mobile LIKE :term)", term: term)
-      end
+      rows = rows.matching_identity(@filters[:q], verified_mobile: true) if @filters[:q]
 
       @pagy, @customers = pagy(rows.order(User.arel_table[:last_login_at].desc.nulls_last, id: :desc))
       @identities_by_user = identities.where(user_id: @customers.map(&:id)).group_by(&:user_id)
@@ -23,7 +21,7 @@ module Admins
     def show
       @customer = User.find(params[:id])
       @identities = identities.where(user_id: @customer.id)
-        .select(:id, :provider, :appid, :status, :first_entry, "apps.nickname AS app_name").order(:id)
+        .select(:id, :status, :last_sign_in_at)
       @identities = @identities.select(:openid, :unionid) if current_admin.super_admin?
       @list_context = params.permit(:q, :status, :app_id, :page)
     end
@@ -31,7 +29,7 @@ module Admins
     private
 
     def identities
-      UserApp.joins(:app).select(:user_id, :sign_in_count, :last_sign_in_at, "apps.app_type")
+      UserApp.joins(:app).select(:user_id, :provider, :appid, :sign_in_count, :first_entry, "apps.app_type", "apps.nickname AS app_name").order(:id)
     end
   end
 end

@@ -58,4 +58,14 @@ class MediaUploadTest < ActiveSupport::TestCase
   ensure
     service.define_singleton_method(:upload, original) if original
   end
+
+  test "matches WeChat temporary avatar filenames to the actual image format" do
+    [ "wx-avatar", "wx-avatar.tmp" ].each do |name|
+      upload = MediaUpload.new(file(name: name, type: "application/octet-stream"), as: :user_avatar)
+      assert_equal "image/png", upload.validate!.content_type
+      assert_match(/\.png\z/, upload.filename)
+    end
+    assert_raises(MediaUpload::Invalid) { MediaUpload.new(file(name: "x.tmp", bytes: "text"), as: :user_avatar).validate! }
+    assert_raises(MediaUpload::Invalid) { MediaUpload.new(file(name: "x.tmp"), as: :link_image).validate! }
+  end
 end

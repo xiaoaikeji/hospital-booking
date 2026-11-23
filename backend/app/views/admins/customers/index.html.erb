@@ -1,38 +1,31 @@
 <% content_for :title, "客户列表 · Booking 管理后台" %>
 <% empty = @customers.empty? %>
 <% content_for :fill_content, "true" if empty %>
-<%= render "admins/shared/enhanced_select_assets" %>
 
-<%= render layout: "admins/shared/list_page_header", locals: { title: "客户列表", icon: :users } do %>
-  <%= link_to admins_reservations_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回预约列表<% end %>
-<% end %>
+<%= render "admins/shared/list_page_header", title: "客户列表", icon: :users %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="客户筛选条件">
   <div class="list-group list-group-flush">
+    <% if @apps.present? %>
+      <%= render "admins/shared/list_filter_row", label: "使用应用", key: :app_id, options: customer_app_filter_options(@apps),
+            selected: @filters[:app_id], row_class: "text-break", filter_url: ->(changes) { admins_customers_path(@filters.merge(changes).compact) } %>
+    <% end %>
     <%= render "admins/shared/list_filter_row", label: "账号状态", key: :status, options: Admins::CustomersController::STATUSES,
           selected: @filters[:status], filter_url: ->(changes) { admins_customers_path(@filters.merge(changes).compact) } %>
   </div>
 </section>
 
-<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="客户记录" data-customer-list>
+<section class="<%= class_names("card customer-list-card", "flex-fill" => empty) %>" aria-label="客户记录" data-customer-list>
   <div class="card-header flex-shrink-0">
-    <%= form_with url: admins_customers_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索客户" } } do |form| %>
-      <%= form.hidden_field :status, value: @filters[:status] if @filters[:status] %>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "用户编号 / 昵称 / 手机号", aria: { label: "用户编号、昵称或手机号" } %>
+    <%= form_with url: admins_customers_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索客户" } } do |form| %>
+      <% @filters.except(:q).each do |key, value| %><%= hidden_field_tag key, value %><% end %>
+      <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
+        <%= form.search_field :q, value: @filters[:q], class: "form-control text-truncate", placeholder: "昵称 / 手机号 / 用户编号", aria: { label: "昵称、手机号或用户编号" } %>
       </div>
-      <div class="col-12 col-sm-6 col-xl-3">
-        <% app_options = @apps.map { |app| [[app.nickname.presence, app.appid, app.platform_label].compact.join(" · "), app.id] } %>
-        <%= form.select :app_id, options_for_select(app_options, @filters[:app_id]),
-              { include_blank: "全部应用" }, class: "form-select", data: { enhanced_select: "search" }, aria: { label: "所属应用" } %>
-      </div>
-      <div class="col-auto btn-list align-items-center">
-        <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
-        <% if @filters.any? %>
-          <%= link_to admins_customers_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
-        <% end %>
-        <span class="text-secondary"><strong class="text-body"><%= @pagy.count %></strong> 位客户</span>
-      </div>
+      <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+      <% if @filters.any? %>
+        <%= link_to admins_customers_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% end %>
     <% end %>
   </div>
 
@@ -43,11 +36,14 @@
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead><tr>
         <th scope="col" class="list-column-id px-2">ID</th>
-        <th scope="col" class="px-2">用户</th>
-        <th scope="col" class="list-column-phone d-none d-sm-table-cell">已验证手机号</th>
-        <th scope="col" class="d-none d-md-table-cell">使用情况</th>
-        <th scope="col" class="list-column-status px-2">账号状态</th>
-        <th scope="col" class="list-column-time d-none d-lg-table-cell">最近登录</th>
+        <th scope="col" class="px-2">客户</th>
+        <th scope="col" class="customer-phone px-2">已验证手机号</th>
+        <th scope="col" class="customer-apps px-2">使用应用</th>
+        <th scope="col" class="customer-source px-2">首次来源</th>
+        <th scope="col" class="customer-region px-2">首次地区</th>
+        <th scope="col" class="customer-logins px-2">登录次数</th>
+        <th scope="col" class="list-column-status px-2">状态</th>
+        <th scope="col" class="customer-login px-2">最近登录</th>
         <th scope="col" class="list-column-action px-2">操作</th>
       </tr></thead>
       <tbody>
@@ -55,14 +51,17 @@
           <% detail = admins_customer_path(customer, @list_context) %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{customer.id}" %></td>
-            <td class="px-2">
-              <%= render "admins/shared/list_text", text: customer.nickname.presence || customer.user_no, url: detail %>
-              <% if customer.nickname.present? %><small class="d-block text-secondary"><%= customer.user_no %></small><% end %>
+            <td class="px-2"><%= render "admins/shared/customer_identity", user: customer, url: detail %></td>
+            <td class="customer-phone px-2"><%= render "admins/shared/list_text", text: customer.verified_mobile.presence || "—" %></td>
+            <td class="customer-apps px-2">
+              <% identities = @identities_by_user.fetch(customer.id, []) %>
+              <%= render "admins/shared/list_text", text: identities.map { |identity| identity.app_name.presence || identity.appid }.join("、").presence || "—" %>
             </td>
-            <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: customer.verified_mobile.presence || "—" %></td>
-            <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: customer_usage(@identities_by_user.fetch(customer.id, [])) %></td>
+            <td class="customer-source px-2"><%= render "admins/shared/list_text", text: customer_entry_sources(identities) || "—" %></td>
+            <td class="customer-region px-2"><%= render "admins/shared/list_text", text: customer_region(customer.first_region) || "—" %></td>
+            <td class="customer-logins px-2"><%= identities.sum(&:sign_in_count) %></td>
             <td class="px-2"><%= customer_status_badge(customer.status) %></td>
-            <td class="d-none d-lg-table-cell"><%= admin_list_time(customer.last_login_at, fallback: "尚未登录") %></td>
+            <td class="customer-login px-2"><%= render "admins/shared/list_text", text: admin_list_time(customer.last_login_at, fallback: "尚未登录") %></td>
             <td class="px-2"><%= link_to detail, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
           </tr>
         <% end %>

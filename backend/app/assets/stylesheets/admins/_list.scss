@@ -12,6 +12,38 @@
 .official-account-links-table .list-column-action { width: 7.5rem; }
 .channel-qrcode-table .list-column-action { width: 7rem; }
 
+.customer-list-card {
+  container-type: inline-size;
+  .customer-phone { width: max(7.5rem, 10%); }
+  .customer-apps { width: 17%; }
+  .customer-source { width: 12%; }
+  .customer-region { width: 10%; }
+  .customer-logins { width: 4.75rem; }
+  .customer-login { width: max(9.25rem, 12%); }
+}
+
+@container (max-width: 65rem) {
+  .customer-region { display: none; }
+}
+@container (max-width: 56rem) {
+  .customer-logins { display: none; }
+}
+@container (max-width: 49rem) {
+  .customer-source { display: none; }
+}
+@container (max-width: 44rem) {
+  .customer-login { display: none; }
+}
+@container (max-width: 40rem) {
+  .customer-apps { display: none; }
+}
+@container (max-width: 32rem) {
+  .customer-phone { display: none; }
+  .customer-list-card .list-column-id { width: 2.75rem; }
+  .customer-list-card .list-column-status { width: 3.75rem; }
+  .customer-list-card .list-column-action { width: 4.75rem; }
+}
+
 @media (min-width: 768px) {
   .wechat-notification-table .list-column-status,
   .notification-delivery-table .list-column-status { width: 8rem; }

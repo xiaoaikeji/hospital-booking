@@ -1,0 +1,15 @@
+<div class="d-flex align-items-center gap-2 overflow-hidden">
+  <span class="avatar <%= local_assigns[:detail] ? "avatar-lg" : "avatar-md" %> bg-primary-lt rounded-circle flex-shrink-0 overflow-hidden" aria-hidden="true">
+    <%= user.avatar_initial %>
+    <% if user.avatar_url.present? %>
+      <%= tag.img src: user.avatar_url, alt: "", loading: "lazy", referrerpolicy: "no-referrer", class: "position-absolute top-0 start-0 w-100 h-100 object-cover rounded-circle", data: { customer_avatar: true } %>
+    <% end %>
+  </span>
+  <div class="overflow-hidden fw-medium">
+    <% if local_assigns[:detail] %>
+      <h2 class="card-title mb-0 text-break"><%= user.display_name %></h2>
+    <% else %>
+      <%= render "admins/shared/list_text", text: user.display_name, url: local_assigns[:url] %>
+    <% end %>
+  </div>
+</div>

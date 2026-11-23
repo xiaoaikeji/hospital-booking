@@ -111,6 +111,19 @@ export async function bindPhone({ code, phone }) {
   return result
 }
 
+export async function updateProfile({ nickname, avatarPath }) {
+  if (!signedIn.value || demoMode) throw new Error('请先使用微信账号登录')
+  const version = profileVersion
+  const change = avatarPath ? { upload: { filePath: avatarPath, name: 'avatar' } } : { data: { nickname } }
+  const result = await client.request('me', { ...change, method: 'PUT', expectedStatus: 200 })
+  if (!signedIn.value || version !== profileVersion) throw new Error('账号状态已更新，请重新查看资料')
+  if (!result?.user_no || result.user_no !== client.userNo || (avatarPath ? !result.avatar_url : result.nickname !== nickname)) {
+    throw new Error('资料未获确认，请重新查看')
+  }
+  profileVersion++
+  profile.value = result
+}
+
 export function signOut() {
   return client.signOut()
 }

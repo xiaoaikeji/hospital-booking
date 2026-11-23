@@ -6,6 +6,7 @@ class MediaUpload
   IMAGES = { "jpg" => "image/jpeg", "jpeg" => "image/jpeg", "png" => "image/png", "webp" => "image/webp" }.freeze
   WECHAT_IMAGES = IMAGES.except("webp").freeze
   PURPOSES = {
+    user_avatar: { label: "头像", formats: IMAGES, limit: 2.megabytes, temporary_filename: true },
     poster_background: { label: "海报底图", formats: IMAGES, limit: 10.megabytes },
     link_image: { label: "页面配置图片", formats: IMAGES, limit: 10.megabytes },
     menu_image: { label: "图片素材", formats: WECHAT_IMAGES.merge("gif" => "image/gif", "bmp" => "image/bmp"), limit: 10.megabytes },
@@ -31,14 +32,17 @@ class MediaUpload
     raise Invalid, "请选择#{@purpose[:label]}" unless @file.respond_to?(:tempfile) && @file.respond_to?(:original_filename)
     name = @file.original_filename.to_s
     raise Invalid, "文件名不正确" if name.strip.empty? || name.length > 255
-    @extension = File.extname(name).delete_prefix(".").downcase
-    @content_type = @purpose[:formats][@extension]
-    raise Invalid, "#{@purpose[:label]}仅支持 #{@purpose[:formats].keys.map(&:upcase).join('、')} 格式" unless @content_type
     raise Invalid, "文件是空的" unless @file.size.positive?
     raise Invalid, "#{@purpose[:label]}不能超过 #{@purpose[:limit] / 1.megabyte}MB" if @file.size > @purpose[:limit]
     @file.tempfile.rewind
     detected = Marcel::MimeType.for(@file.tempfile)
     detected = "audio/x-wav" if detected == "audio/wav"
+    @extension = File.extname(name).delete_prefix(".").downcase
+    if @purpose[:temporary_filename] && [ "", "tmp" ].include?(@extension)
+      @extension = @purpose[:formats].key(detected)
+    end
+    @content_type = @purpose[:formats][@extension]
+    raise Invalid, "#{@purpose[:label]}仅支持 #{@purpose[:formats].keys.map(&:upcase).join('、')} 格式" unless @content_type
     declared = @file.content_type.to_s.split(";").first.to_s.strip.downcase
     declared = "image/jpeg" if declared == "image/jpg"
     declared = "audio/x-wav" if declared == "audio/wav"

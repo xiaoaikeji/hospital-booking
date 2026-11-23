@@ -5,6 +5,9 @@ module Api
       before_action :check_app_access
       before_action :require_session
 
+      rescue_from MiniProgramSession::Expired do
+        render_error(:unauthorized, "session_expired", "请重新登录")
+      end
       rescue_from MiniProgramLogin::Disabled, with: :app_disabled
       rescue_from MiniProgramLogin::AccountDisabled do
         render_error(:forbidden, "account_disabled", "账号已停用")
@@ -48,17 +51,28 @@ module Api
 
       def require_session(lock: false)
         @identity = session_credential.identity(lock: lock)
-        unless @identity
-          render_error(:unauthorized, "session_expired", "请重新登录")
-          return
-        end
+        raise MiniProgramSession::Expired unless @identity
         @user = @identity.user
         @user.lock! if lock
         MiniProgramLogin.check_account!(@identity, @user)
       end
 
+      # The session or application may have changed while an external call or upload was in flight.
+      def with_current_user
+        UserApp.transaction do
+          @app.lock!("FOR SHARE")
+          raise MiniProgramLogin::Disabled unless @app.accessible?
+          require_session(lock: true)
+          yield
+        end
+      end
+
       def render_profile
-        render json: @user.account_profile.merge(booking_phone_required: Appointments::PhoneVerification.required_for?(@user))
+        profile = @user.account_profile
+        if @user.avatar_url.to_s.start_with?("/api/avatars/")
+          profile[:avatar_url] = request.base_url + @user.avatar_url
+        end
+        render json: profile.merge(booking_phone_required: Appointments::PhoneVerification.required_for?(@user))
       end
 
       def visit_context

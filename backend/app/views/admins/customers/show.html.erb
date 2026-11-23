@@ -4,24 +4,24 @@
 <% end %>
 
 <section class="card mb-3">
-  <div class="card-header"><h2 class="card-title">账号资料</h2></div>
+  <div class="card-header justify-content-between gap-2">
+    <%= render "admins/shared/customer_identity", user: @customer, detail: true %>
+    <%= customer_status_badge(@customer.status) %>
+  </div>
   <div class="card-body">
     <%= render "admins/shared/field_rows", columns: 3, fields: {
-          "用户编号" => @customer.user_no, "昵称" => @customer.nickname, "已验证手机号" => @customer.verified_mobile,
-          "账号状态" => customer_status_badge(@customer.status), "使用情况" => customer_usage(@identities),
+          "用户编号" => @customer.user_no, "所属平台" => App::PROVIDERS[@customer.platform], "已验证手机号" => @customer.verified_mobile,
           "最近登录" => admin_list_time(@customer.last_login_at, fallback: "尚未登录")
         } %>
   </div>
 </section>
 
-<% profile = @customer.login_profile
-   region = profile["region"]
-   region_label = region.values_at("country", "province", "city").compact_blank.uniq.join(" · ") if region.is_a?(Hash) %>
+<% profile = @customer.login_profile %>
 <section class="card mb-3">
   <div class="card-header"><h2 class="card-title">首次登录资料</h2></div>
   <div class="card-body">
     <%= render "admins/shared/field_rows", columns: 3, fields: {
-          "首次地区" => region_label, "设备型号" => profile["device_model"], "操作系统" => profile["operating_system"]
+          "首次地区" => customer_region(profile["region"], include_country: true), "设备型号" => profile["device_model"], "操作系统" => profile["operating_system"]
         } %>
   </div>
 </section>
@@ -34,13 +34,14 @@
     <div class="list-group list-group-flush">
       <% @identities.each do |identity| %>
         <div class="list-group-item">
-          <h3 class="h4 mb-3 text-break"><%= identity.app_name.presence || identity.appid %>
-            <small class="text-secondary"><%= App::PROVIDERS.fetch(identity.provider) %><%= App::TYPES.fetch(identity.app_type) %></small>
-          </h3>
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <h3 class="h4 mb-0 text-break"><%= identity.app_name.presence || identity.appid %></h3>
+            <span class="badge bg-secondary-lt"><%= App::PROVIDERS.fetch(identity.provider) %><%= App::TYPES.fetch(identity.app_type) %></span>
+          </div>
           <% fields = { "AppID" => identity.appid, "绑定状态" => customer_status_badge(identity.status) }
              if identity.app_type == "mini_program"
                fields.merge!("登录次数" => identity.sign_in_count, "最近登录" => admin_list_time(identity.last_sign_in_at),
-                             "首次入口场景" => identity.first_entry["launch_scene"], "首次渠道参数" => identity.first_entry["channel_scene"])
+                             "首次入口场景" => customer_entry_scene(identity, with_code: true), "首次渠道参数" => identity.first_entry["channel_scene"])
              end
              fields.merge!("OpenID" => identity.openid, "UnionID" => identity.unionid) if current_admin.super_admin? %>
           <%= render "admins/shared/field_rows", columns: 3, fields: fields %>

@@ -72,7 +72,7 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     assert_select "table tbody tr", count: 1
     assert_select "a", text: "张女士"
     get admins_app_fan_path(@a, row, q: user.user_no)
-    assert_select "dd", text: "张女士"
+    assert_select "h2", text: "张女士"
     assert_select "a[href=?]", admins_official_account_fans_path(app_id: @a.id, q: user.user_no), text: /返回列表/
     get admins_app_fan_path(@b, row)
     assert_response :not_found

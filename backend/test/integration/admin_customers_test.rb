@@ -29,8 +29,19 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     get admins_customers_path
     assert_response :success
     assert_select "[data-customer-list] tbody tr", count: 3
-    assert_select "tr", text: /小王.*10000000001.*已登录小程序/m, count: 1
-    assert_select "tr", text: /仅关注用户.*仅公众号记录.*已停用.*尚未登录/m, count: 1
+    assert_select "nav[aria-label='使用应用'] a[aria-current='page']", text: "全部"
+    assert_select "nav[aria-label='使用应用'] a[href=?]", admins_customers_path(app_id: @a.id), text: @a.nickname
+    assert_select "form[role='search'] select", count: 0
+    refute_match(/\d+\s*位客户/, css_select("form[role='search']").text)
+    assert_select "td a", text: "抖音用户#{other.id}"
+    assert_select "td a", text: other.user_no, count: 0
+    assert_select "th", text: "客户"
+    assert_select "tr", text: /小王.*10000000001.*门诊小程序、分院小程序/m, count: 1
+    assert_select "td.customer-logins", text: "3"
+    assert_select "td.customer-region", text: "广东省 · 深圳市"
+    assert_select "td.customer-source", text: /门诊小程序 · 扫描小程序码 · 门诊大厅.*分院小程序 · 单聊分享 · 分院入口/
+    assert_select "tr", text: /仅关注用户.*医院公众号.*已停用.*尚未登录/m, count: 1
+    assert_select "td.customer-apps small, td.customer-apps .text-secondary", count: 0
     refute_includes response.body, other.mobile
 
     [ @customer.user_no, "小王", @customer.verified_mobile ].each do |query|
@@ -42,12 +53,24 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     get admins_customers_path, params: { app_id: @b.id }
     assert_select "[data-customer-list] tbody tr", count: 1
     assert_select "td a", text: "小王"
+    assert_select "nav[aria-label='使用应用'] a[aria-current='page']", text: @b.nickname
+    assert_select "form[role='search'] input[type=hidden][name=app_id][value=?]", @b.id.to_s
     get admins_customers_path, params: { app_id: @official.id, status: "disabled" }
     assert_select "[data-customer-list] tbody tr", count: 1
     assert_select "td a", text: @follower.nickname
     get admins_customers_path, params: { q: other.mobile }
     assert_select "[data-customer-list] table", count: 0
     assert_select ".empty-title", "没有找到匹配的客户"
+  end
+
+  test "switching the application keeps the other filters, distinguishes duplicate names, and resets the page" do
+    @b.update!(nickname: @a.nickname)
+    filters = { q: "小王", status: "active" }
+    get admins_customers_path, params: filters.merge(app_id: @a.id)
+    assert_select "nav[aria-label='使用应用'] a[aria-current='page']", text: "#{@a.nickname} · 微信小程序 · #{@a.appid}"
+    assert_select "nav[aria-label='使用应用'] a[href=?]", admins_customers_path(filters.merge(app_id: @b.id)), text: "#{@b.nickname} · 微信小程序 · #{@b.appid}"
+    assert_select "nav[aria-label='使用应用'] a[href=?]", admins_customers_path(filters), text: "全部"
+    assert_select "form[role='search'] input[type=hidden][name=status][value=active]"
   end
 
   test "details keep each app's first entry and reveal only the identity fields available to the current role" do
@@ -76,11 +99,31 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-customer-list] tbody tr", count: 20
     assert_select "nav[aria-label='列表分页'] a[href=?]", admins_customers_path(filters.merge(page: 2)), text: "下一页"
-    assert_select "[data-customer-list] tbody", text: /#{users.first.user_no}/, count: 0
+    assert_select "td a[href=?]", admins_customer_path(users.first, filters), count: 0
     get admins_customers_path, params: filters.merge(page: 2)
     assert_select "[data-customer-list] tbody tr", count: 1
-    assert_select "[data-customer-list] tbody small", text: users.first.user_no
+    assert_select "td a[href=?]", admins_customer_path(users.first, filters.merge(page: 2)), text: "同批客户"
     assert_select "td a[href=?]", admins_customer_path(users.first, filters.merge(page: 2)), text: "查看"
+  end
+
+  test "list, search and details use the same platform name and avatar without changing the stored nickname" do
+    @customer.update!(nickname: nil, avatar_url: "https://example.invalid/customer.jpg")
+    label = "微信用户#{@customer.id}"
+    get admins_customers_path(q: label)
+    assert_response :success
+    assert_select "[data-customer-list] tbody tr", count: 1
+    assert_select "td a", text: label
+    assert_select "td .avatar", text: "微"
+    assert_select "td img[src=?]", @customer.avatar_url
+    refute_includes css_select("tbody").text, @customer.user_no
+    get admins_customer_path(@customer)
+    assert_select "h2", text: label
+    assert_select "img[src=?]", @customer.avatar_url
+    assert_select "dd", text: @customer.user_no
+    assert_nil @customer.reload.nickname
+    @customer.update!(nickname: "已选昵称")
+    get admins_customers_path(q: label)
+    assert_select "[data-customer-list] tbody tr", count: 0
   end
 
   test "customer queries require an enabled admin and no customer write route is available" do

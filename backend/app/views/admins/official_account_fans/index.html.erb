@@ -36,8 +36,7 @@
           <% user = fan.user_app.user
              detail_path = admins_app_fan_path(@app, fan, filters.except(:app_id).merge(page: params[:page]).compact) %>
           <tr><td class="text-secondary px-2">#<%= fan.id %></td>
-            <td class="px-2"><%= render "admins/shared/list_text", text: user.nickname.presence || user.user_no, url: detail_path %>
-              <% if user.nickname.present? %><small class="d-block text-secondary"><%= user.user_no %></small><% end %></td>
+            <td class="px-2"><%= render "admins/shared/customer_identity", user: user, url: detail_path %></td>
             <td class="px-2"><%= render "status", fan: fan %></td>
             <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: fan.channel(@channels).presence || "—" %></td>
             <td class="d-none d-lg-table-cell"><%= @joined.include?(user.id) ? "是" : "否" %></td>

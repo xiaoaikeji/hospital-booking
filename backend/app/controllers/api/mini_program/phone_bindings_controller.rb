@@ -4,14 +4,7 @@ module Api
       def create
         mobile = Wechat::MiniProgramLoginClient.new.phone_number(@app, params[:code])
 
-        # Logout, expiry or disablement during the exchange must take effect before writing.
-        UserApp.transaction do
-          @app.lock!("FOR SHARE")
-          raise MiniProgramLogin::Disabled unless @app.accessible?
-          require_session(lock: true)
-          return if performed?
-          @user.verify_mobile!(mobile)
-        end
+        with_current_user { @user.verify_mobile!(mobile) }
         render_profile
       end
     end

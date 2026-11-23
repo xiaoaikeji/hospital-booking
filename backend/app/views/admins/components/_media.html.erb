@@ -46,7 +46,7 @@
         <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
           <%= image_tag "admins/components/staff-1.jpg", class: "avatar avatar-xl rounded-circle", alt: "员工头像" %>
           <span class="avatar avatar-lg bg-primary-lt rounded-circle">陈</span>
-          <span class="avatar avatar-lg bg-secondary-lt"><%= render "layouts/admins/icon", name: :users %></span>
+          <%= render "admins/shared/customer_identity", user: User.new(platform: "wechat", id: 243) %>
           <span class="avatar avatar-lg bg-secondary-lt"><%= render "layouts/admins/icon", name: :package %></span>
         </div>
         <label class="form-label" for="component-avatar">员工头像</label><input type="file" class="form-control" id="component-avatar" accept="image/jpeg,image/png,image/webp">

@@ -107,13 +107,14 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     return exchange(entry)
   }
 
-  async function request(path, { method = 'GET', data, expectedStatus } = {}) {
+  async function request(path, options = {}) {
+    const { method = 'GET' } = options
     const start = generation
     if (!current) throw sessionError('请先登录')
     const token = await signIn()
     assertCurrent(start)
     async function sendCurrent(token) {
-      const result = await sendForAccount(path, { method, data, token, expectedStatus }, start)
+      const result = await sendForAccount(path, { ...options, method, token }, start)
       assertCurrent(start)
       if (current.token !== token) throw sessionError('登录状态已更新，请重试')
       if (path === 'me' && result?.user_no && !current.user_no) {

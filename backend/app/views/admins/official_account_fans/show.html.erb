@@ -3,9 +3,11 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "粉丝详情", icon: :users } do %>
   <%= link_to admins_official_account_fans_path(params.permit(:q, :status, :page).merge(app_id: @app.id)), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
-<section class="card"><div class="card-body">
+<section class="card">
+  <div class="card-header"><%= render "admins/shared/customer_identity", user: user, detail: true %></div>
+  <div class="card-body">
   <%= render "admins/shared/field_rows", fields: {
-    "公众号" => @app.display_name, "AppID" => @app.appid, "用户编号" => user.user_no, "昵称" => user.nickname,
+    "公众号" => @app.display_name, "AppID" => @app.appid, "用户编号" => user.user_no,
     "关注状态" => render("status", fan: @fan), "关注渠道" => @fan.channel(@channels),
     "关注时间" => admin_list_time(@fan.subscribed_at), "取关时间" => admin_list_time(@fan.unsubscribed_at),
     "进过小程序" => (UserApp.where(user_id: user.id, provider: "wechat", appid: App.wechat_mini_programs.select(:appid)).where("sign_in_count > 0").exists? ? "是" : "否")

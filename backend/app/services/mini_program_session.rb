@@ -1,5 +1,7 @@
 # The row ID locates the binding. Each device proves possession of its own random secret.
 class MiniProgramSession
+  class Expired < StandardError; end
+
   TTL = 30.days
   FORMAT = /\A([1-9]\d{0,18})\.[A-Za-z0-9_-]{43}\z/
 

@@ -35,14 +35,20 @@ export function responseData(appId, response, expectedStatus) {
   throw error
 }
 
-export async function requestApp(appId, path, { method = 'GET', data, token, expectedStatus } = {}) {
+export async function requestApp(appId, path, { method = 'GET', data, upload, token, expectedStatus } = {}) {
   if (!appId || !API_ORIGIN) throw new Error('请先配置当前小程序的后台地址')
   let response
   try {
-    response = await uni.request({
-      url: buildApiUrl(appId, path),
-      method, data, timeout: 15000, header: token ? { Authorization: 'Bearer ' + token } : {},
-    })
+    const options = { url: buildApiUrl(appId, path), timeout: 15000, header: token ? { Authorization: 'Bearer ' + token } : {} }
+    if (upload) {
+      // WeChat uploads multipart files via POST. Rails reads the intended resource method from the form.
+      response = await uni.uploadFile({ ...options, ...upload, formData: { ...data, _method: method } })
+      if (typeof response.data === 'string') {
+        try { response.data = JSON.parse(response.data) } catch { /* Preserve non-JSON errors for responseData. */ }
+      }
+    } else {
+      response = await uni.request({ ...options, method, data })
+    }
   } catch {
     throw new Error('网络连接失败，请重试')
   }

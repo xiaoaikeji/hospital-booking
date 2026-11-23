@@ -287,6 +287,54 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     assert_nil UserApp.for_app(@a).sole.user.mobile_verified_at
   end
 
+  test "edits only the signed-in profile, replaces uploaded avatars, and serves only the current avatar" do
+    token = login(@a)
+    user = UserApp.for_app(@a).sole.user
+    path = api_mini_program_me_path(@a.appid)
+    original = me(@a, token)
+    assert_equal "微信用户#{user.id}", original["display_name"]
+    assert_equal "微", original["avatar_initial"]
+    put path, params: { nickname: "  小林  ", mobile: "10000000009", user_no: "10000000" }, headers: bearer(token), as: :json
+    assert_response :success
+    assert_equal "小林", response.parsed_body["display_name"]
+    assert_equal "小", response.parsed_body["avatar_initial"]
+    assert_nil user.reload.mobile
+    assert_nil user.avatar_url
+
+    old_path = nil
+    2.times do
+      post path, params: { _method: "PUT", avatar: fixture_file_upload("storage.png", "image/png") }, headers: bearer(token)
+      assert_response :success
+      assert_equal "小林", response.parsed_body["nickname"]
+      assert_equal request.base_url + user.reload.avatar_url, response.parsed_body["avatar_url"]
+      get user.avatar_url
+      assert_response :success
+      assert_equal "image/png", response.media_type
+      assert_equal File.binread(file_fixture("storage.png")), response.body.b
+      if old_path
+        refute_equal old_path, user.avatar_url
+        get old_path
+        assert_response :not_found
+      end
+      old_path = user.avatar_url
+    end
+
+    put api_mini_program_me_path(@b.appid), params: { nickname: "跨应用" }, headers: bearer(token), as: :json
+    assert_response :unauthorized
+    put path, params: { nickname: " " }, headers: bearer(token), as: :json
+    assert_response :unprocessable_content
+    put path, params: { avatar_url: "https://example.invalid/image.png" }, headers: bearer(token), as: :json
+    assert_response :unprocessable_content
+    put path, params: { avatar: fixture_file_upload("storage.png", "audio/mpeg") }, headers: bearer(token)
+    assert_response :unprocessable_content
+    assert_equal old_path, user.reload.avatar_url
+    assert_equal "小林", user.nickname
+    user.update!(status: "disabled")
+    put path, params: { nickname: "停用后" }, headers: bearer(token), as: :json
+    assert_response :forbidden
+    assert_equal "小林", user.reload.nickname
+  end
+
   test "a late rejection compares with the shared cache despite a stale request-local read" do
     Dir.mktmpdir do |directory|
       Rails.cache = RequestCache.new(directory)

@@ -125,6 +125,18 @@ test('one-time phone codes, booking and payment writes are never automatically r
   }
 })
 
+test('a profile photo uses the signed-in session and an expired upload requires a new confirmation', async () => {
+  const attempts = []
+  const upload = { filePath: 'wxfile://tmp/avatar.png', name: 'avatar' }
+  const { client } = device(async (path, options) => {
+    if (path === 'session') return credential('renewed')
+    attempts.push({ path, ...options })
+    throw expired()
+  })
+  await assert.rejects(client.request('me', { method: 'PUT', upload }), { code: 'confirmation_required' })
+  assert.deepEqual(attempts, [{ path: 'me', method: 'PUT', upload, token: 'previous' }])
+})
+
 test('local expiry renews before sending and network errors keep the Booking session', async () => {
   let timeout = true
   const { client, state } = device(async (path, { token }) => {

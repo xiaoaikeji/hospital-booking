@@ -1,14 +1,83 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onShow, onTabItemTap } from '@dcloudio/uni-app'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
-import { signedIn, signOut } from '@/store/session.js'
+import { demoMode, profile, readProfile, signedIn, signOut, updateProfile } from '@/store/session.js'
 import { pageLinks } from '@/store/app-configuration.js'
 
-onShow(() => handleTabShow('/pages/ucenter/index'))
-onTabItemTap(() => requestTabLogin('/pages/ucenter/index'))
+const myPage = '/pages/ucenter/index'
+const defaultAvatar = '/static/ucenter/wechat-avatar.svg'
+const failedAvatar = ref('')
+const nicknameDraft = ref('')
+const pendingNickname = ref('')
+let profileSave = Promise.resolve()
+const saving = ref(false)
+const canEdit = computed(() => signedIn.value && !demoMode)
+const displayName = computed(() => (canEdit.value && (profile.value?.display_name || profile.value?.nickname)) || '微信用户')
+const avatar = computed(() => canEdit.value && profile.value?.avatar_url || '')
+const avatarInitial = computed(() => profile.value?.avatar_initial || Array.from(displayName.value)[0])
+
+onShow(() => {
+  handleTabShow(myPage)
+  if (canEdit.value) {
+    failedAvatar.value = ''
+    readProfile().catch(() => {}) // An offline refresh keeps the last confirmed profile.
+  }
+})
+onTabItemTap(() => requestTabLogin(myPage))
+
+watch(() => profile.value?.nickname, name => { nicknameDraft.value = name || '' }, { immediate: true })
+watch(signedIn, active => { if (!active) pendingNickname.value = '' })
 
 const services = computed(() => pageLinks.value.profile_menu)
+
+function saveProfile(change) {
+  const owner = profile.value?.user_no
+  if (!canEdit.value || !owner) return
+  // Closing the nickname keyboard can coincide with choosing a photo.
+  profileSave = profileSave.then(async () => {
+    if (!canEdit.value || profile.value?.user_no !== owner) return
+    saving.value = true
+    try {
+      await updateProfile(change)
+    } catch (error) {
+      if (canEdit.value && profile.value?.user_no === owner) {
+        if (change.nickname) nicknameDraft.value = profile.value?.nickname || ''
+        uni.showToast({ title: error.message, icon: 'none' })
+      }
+    } finally {
+      saving.value = false
+    }
+  })
+}
+
+function chooseAvatar(event) {
+  const avatarPath = event.detail?.avatarUrl
+  if (avatarPath) saveProfile({ avatarPath })
+}
+
+function finishNickname(event) {
+  nicknameDraft.value = event.detail?.value || ''
+  const nickname = nicknameDraft.value.trim()
+  if (!nickname) {
+    nicknameDraft.value = profile.value?.nickname || ''
+    return
+  }
+  if (nickname === profile.value?.nickname) return
+  if (uni.canIUse?.('input.bindnicknamereview')) pendingNickname.value = nickname
+  else saveProfile({ nickname })
+}
+
+function nicknameReviewed({ detail }) {
+  const nickname = pendingNickname.value
+  pendingNickname.value = ''
+  if (!nickname) return
+  if (detail?.pass && !detail.timeout) saveProfile({ nickname })
+  else {
+    nicknameDraft.value = profile.value?.nickname || ''
+    uni.showToast({ title: detail?.timeout ? '昵称检查超时，请重试' : '请重新选择昵称', icon: 'none' })
+  }
+}
 
 function confirmLogout() {
   uni.showModal({
@@ -31,8 +100,17 @@ function confirmLogout() {
   <view class="profile-page">
     <custom-page-header />
     <view class="user-heading">
-      <image class="user-avatar" src="/static/ucenter/wechat-avatar.svg" mode="aspectFit" />
-      <text>微信用户</text>
+      <button v-if="canEdit" class="profile-avatar-button" open-type="chooseAvatar" hover-class="none" aria-label="更换头像"
+        :disabled="saving || !profile" @chooseavatar="chooseAvatar">
+        <image v-if="avatar && avatar !== failedAvatar" class="user-avatar" :src="avatar" mode="aspectFill" @error="failedAvatar = avatar" />
+        <text v-else class="user-avatar profile-monogram" aria-hidden="true">{{ avatarInitial }}</text>
+      </button>
+      <image v-else class="user-avatar" :src="defaultAvatar" mode="aspectFit" @tap="requestTabLogin(myPage)" />
+      <input v-if="canEdit" v-model="nicknameDraft" class="profile-name" type="nickname" confirm-type="done" :maxlength="100"
+        :placeholder="displayName" placeholder-style="color: #fff;" aria-label="修改昵称"
+        :disabled="saving || !!pendingNickname || !profile" @blur="finishNickname" @nicknamereview="nicknameReviewed" />
+      <text v-else-if="demoMode && signedIn" class="profile-name">{{ displayName }}</text>
+      <button v-else class="profile-name" hover-class="none" aria-label="微信登录" @tap="requestTabLogin(myPage)">{{ displayName }}</button>
     </view>
     <view v-if="services.length || signedIn" class="services-panel">
       <view class="services-title">就医服务</view>
@@ -56,7 +134,12 @@ function confirmLogout() {
 <style scoped>
 .profile-page { min-height: 100vh; background: linear-gradient(180deg,#97bee0 0%,#f4f4f6 78%); color: #111; }
 .user-heading { display: flex; align-items: center; gap: 20rpx; margin: 38rpx 60rpx 0; color: #fff; font-size: 46rpx; }
-.user-avatar { width: 120rpx; height: 120rpx; }
+.user-avatar, .profile-avatar-button { display: block; width: 120rpx; height: 120rpx; flex-shrink: 0; border-radius: 50%; }
+.user-avatar.profile-monogram { display: flex; align-items: center; justify-content: center; background: #e9f3fb; color: #316790; font-size: 52rpx; font-weight: 600; line-height: 1; }
+.user-heading button { margin: 0; padding: 0; background: transparent; color: inherit; line-height: inherit; }
+.user-heading button::after { border: 0; }
+.profile-name { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: inherit; text-align: left; }
+.user-heading input.profile-name { flex: 1; height: 80rpx; color: inherit; background: transparent; }
 .services-panel { margin: 78rpx 32rpx 0; min-height: 326rpx; border-radius: 18rpx; background: #fff; padding: 30rpx 0 32rpx; box-sizing: border-box; }
 .services-title { display: flex; align-items: center; gap: 12rpx; font-size: 32rpx; line-height: 48rpx; }
 .services-title::before { content: ''; width: 8rpx; height: 30rpx; border-radius: 6rpx; background: #709af1; }

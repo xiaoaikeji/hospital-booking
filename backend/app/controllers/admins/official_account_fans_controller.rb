@@ -10,10 +10,7 @@ module Admins
       @status = params[:status].presence_in(%w[subscribed unsubscribed])
       rows = OfficialAccountFan.for_app(@app).joins(user_app: :user).preload(user_app: :user)
       rows = rows.where(subscribed: @status == "subscribed") if @status
-      if @query.present?
-        term = "%#{User.sanitize_sql_like(@query)}%"
-        rows = rows.where("users.nickname ILIKE :term OR users.user_no LIKE :term", term: term)
-      end
+      rows = rows.merge(User.matching_identity(@query)) if @query.present?
       @pagy, @fans = pagy(rows.order(id: :desc))
       @channels = channel_names(@fans.map(&:qr_scene))
       users = @fans.map { |fan| fan.user_app.user_id }
