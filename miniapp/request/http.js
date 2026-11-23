@@ -1,5 +1,6 @@
-// 在工程根目录的 .env.local 中设置后台地址。留空时可在游客模式预览外观。
-export const API_ORIGIN = (import.meta.env?.VITE_BOOKING_API_ORIGIN || '').trim().replace(/\/+$/, '')
+import { API_ORIGIN, buildApiUrl } from '../config/api.js'
+
+export { API_ORIGIN }
 
 export function wechatAppId() {
   const { appId } = uni.getAccountInfoSync?.()?.miniProgram ?? {}
@@ -27,7 +28,7 @@ export async function requestApp(appId, path, { method = 'GET', data, token, exp
   let response
   try {
     response = await uni.request({
-      url: API_ORIGIN + '/api/apps/wechat/' + encodeURIComponent(appId) + '/' + path,
+      url: buildApiUrl(appId, path),
       method, data, timeout: 15000, header: token ? { Authorization: 'Bearer ' + token } : {},
     })
   } catch {
@@ -51,7 +52,7 @@ export async function loadAppConfiguration() {
     const appId = wechatAppId()
     if (!appId) return { status: 'demo' }
     const response = await uni.request({
-      url: API_ORIGIN + '/api/apps/wechat/' + encodeURIComponent(appId) + '/configuration',
+      url: buildApiUrl(appId, 'configuration'),
       timeout: 10000,
     })
     return configurationResult(appId, response)
