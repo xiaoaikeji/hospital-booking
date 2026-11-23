@@ -456,17 +456,18 @@ test('a 503 on the first profile read keeps the valid session so retry only read
   assert.deepEqual(calls, [['POST', 'session'], ['GET', 'me'], ['GET', 'me']])
 })
 
-test('401 session_expired followed by failed re-login marks session stage and expires the stale local credential', async () => {
+test('confirmed expiry and failed re-login clear the device session and preserve outstanding logout receipts', async () => {
   let loginFails = true
   const calls = []
-  let saved = { ...credential('expired-on-server'), logout_token: 'logout-old', user_no: '11111111' }
+  const changes = []
+  let saved = { ...credential('expired-on-server'), logout_token: 'logout-old', user_no: '11111111', revocations: ['earlier-logout'] }
   const client = createSessionClient({
     saved, save: value => { saved = value },
     loginCode: async () => {
       if (loginFails) throw new Error('微信登录失败，请重试')
       return 'code-retry-ok'
     },
-    changed: () => {},
+    changed: (active, reason) => changes.push([active, reason]),
     send: async (path, { method, token }) => {
       calls.push([method, path, token])
       if (path === 'session') return { ...credential('fresh-after-retry'), logout_token: 'logout-fresh', user_no: '11111111' }
@@ -478,7 +479,9 @@ test('401 session_expired followed by failed re-login marks session stage and ex
   try { await client.request('me') } catch (caught) { err = caught }
   assert.equal(err?.stage, 'session')
   assert.equal(err?.sessionExpired, true)
-  assert.ok(Date.parse(saved.expires_at) <= Date.now(), 'Stale credential must be marked locally expired')
+  assert.deepEqual(changes, [[false, 'session_expired']])
+  assert.deepEqual(saved, { revocations: ['earlier-logout'] })
+  await assert.rejects(client.request('me'), /请先登录/)
 
   // Next manual login immediately exchanges without resending the dead token to /me.
   loginFails = false

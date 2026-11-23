@@ -139,14 +139,10 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
       try {
         renewed = await exchange()
       } catch (error) {
-        // The backend confirmed this token expired; mark it locally expired so the next login re-exchanges directly.
-        if (current && current.token === token) {
-          current.expires_at = new Date(0).toISOString()
-          try { persist() } catch {}
-        }
-        if (error && typeof error === 'object') {
-          error.stage = 'session'
-          error.sessionExpired = true
+        // Rails already rejected this credential. A failed renewal ends only that device session.
+        if (start === generation && current?.token === token) {
+          clearLocalSession('session_expired')
+          if (error && typeof error === 'object') error.sessionExpired = true
         }
         throw error
       }
@@ -163,15 +159,19 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     return sendCurrent(renewed)
   }
 
-  function signOut(reason) {
+  function clearLocalSession(reason) {
     generation += 1
-    const previous = current
     current = null
     pending = null
     pendingSessionDirty = false
-    if (previous) revocations.add(previous.logout_token || previous.token)
-    persist()
+    try { persist() } catch { /* Keep the device signed out in memory if storage is unavailable. */ }
     changed(false, reason)
+  }
+
+  function signOut(reason) {
+    const previous = current
+    if (previous) revocations.add(previous.logout_token || previous.token)
+    clearLocalSession(reason)
     if (reason === 'app_disabled' && !previous) return Promise.resolve()
     return retryRevocations()
   }
