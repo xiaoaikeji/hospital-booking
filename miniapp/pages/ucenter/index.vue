@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { onShow, onTabItemTap } from '@dcloudio/uni-app'
+import { onHide, onShow, onTabItemTap } from '@dcloudio/uni-app'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
 import { demoMode, profile, readProfile, signedIn, signOut, updateProfile } from '@/store/session.js'
 import { pageLinks } from '@/store/app-configuration.js'
@@ -8,6 +8,7 @@ import { pageLinks } from '@/store/app-configuration.js'
 const myPage = '/pages/ucenter/index'
 const defaultAvatar = '/static/ucenter/wechat-avatar.svg'
 const failedAvatar = ref('')
+const choosingNickname = ref(false)
 const nicknameDraft = ref('')
 const pendingNickname = ref('')
 let profileSave = Promise.resolve()
@@ -25,9 +26,8 @@ onShow(() => {
   }
 })
 onTabItemTap(() => requestTabLogin(myPage))
-
-watch(() => profile.value?.nickname, name => { nicknameDraft.value = name || '' }, { immediate: true })
-watch(signedIn, active => { if (!active) pendingNickname.value = '' })
+onHide(closeNickname)
+watch(() => profile.value?.user_no, closeNickname)
 
 const services = computed(() => pageLinks.value.profile_menu)
 
@@ -42,7 +42,6 @@ function saveProfile(change) {
       await updateProfile(change)
     } catch (error) {
       if (canEdit.value && profile.value?.user_no === owner) {
-        if (change.nickname) nicknameDraft.value = profile.value?.nickname || ''
         uni.showToast({ title: error.message, icon: 'none' })
       }
     } finally {
@@ -56,14 +55,22 @@ function chooseAvatar(event) {
   if (avatarPath) saveProfile({ avatarPath })
 }
 
+function chooseNickname() {
+  if (choosingNickname.value || pendingNickname.value) return
+  nicknameDraft.value = ''
+  choosingNickname.value = true
+}
+
+function closeNickname() {
+  choosingNickname.value = false
+  pendingNickname.value = ''
+}
+
 function finishNickname(event) {
-  nicknameDraft.value = event.detail?.value || ''
-  const nickname = nicknameDraft.value.trim()
-  if (!nickname) {
-    nicknameDraft.value = profile.value?.nickname || ''
-    return
-  }
-  if (nickname === profile.value?.nickname) return
+  if (!choosingNickname.value) return
+  choosingNickname.value = false
+  const nickname = (event.detail?.value ?? nicknameDraft.value).trim()
+  if (!nickname || nickname === profile.value?.nickname) return
   if (uni.canIUse?.('input.bindnicknamereview')) pendingNickname.value = nickname
   else saveProfile({ nickname })
 }
@@ -74,7 +81,6 @@ function nicknameReviewed({ detail }) {
   if (!nickname) return
   if (detail?.pass && !detail.timeout) saveProfile({ nickname })
   else {
-    nicknameDraft.value = profile.value?.nickname || ''
     uni.showToast({ title: detail?.timeout ? '昵称检查超时，请重试' : '请重新选择昵称', icon: 'none' })
   }
 }
@@ -106,12 +112,15 @@ function confirmLogout() {
         <text v-else class="user-avatar profile-monogram" aria-hidden="true">{{ avatarInitial }}</text>
       </button>
       <image v-else class="user-avatar" :src="defaultAvatar" mode="aspectFit" @tap="requestTabLogin(myPage)" />
-      <input v-if="canEdit" v-model="nicknameDraft" class="profile-name" type="nickname" confirm-type="done" :maxlength="100"
-        :placeholder="displayName" placeholder-style="color: #fff;" aria-label="修改昵称"
-        :disabled="saving || !!pendingNickname || !profile" @blur="finishNickname" @nicknamereview="nicknameReviewed" />
+      <button v-if="canEdit" class="profile-name" hover-class="none" aria-label="选择微信昵称"
+        :disabled="saving || !!pendingNickname || !profile" @tap="chooseNickname">{{ (choosingNickname && nicknameDraft) || displayName }}</button>
       <text v-else-if="demoMode && signedIn" class="profile-name">{{ displayName }}</text>
       <button v-else class="profile-name" hover-class="none" aria-label="微信登录" @tap="requestTabLogin(myPage)">{{ displayName }}</button>
     </view>
+    <!-- WeChat presents nickname suggestions when this native input receives focus after a tap. -->
+    <input v-if="canEdit && (choosingNickname || pendingNickname)" v-model="nicknameDraft" class="nickname-keyboard" type="nickname"
+      aria-label="选择或填写昵称" confirm-type="done" :maxlength="100" :focus="choosingNickname" :adjust-position="false"
+      @blur="finishNickname" @nicknamereview="nicknameReviewed" />
     <view v-if="services.length || signedIn" class="services-panel">
       <view class="services-title">就医服务</view>
       <view class="service-list">
@@ -139,7 +148,7 @@ function confirmLogout() {
 .user-heading button { margin: 0; padding: 0; background: transparent; color: inherit; line-height: inherit; }
 .user-heading button::after { border: 0; }
 .profile-name { min-width: 0; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: inherit; text-align: left; }
-.user-heading input.profile-name { flex: 1; height: 80rpx; color: inherit; background: transparent; }
+.nickname-keyboard { position: fixed; top: 0; left: 0; width: 1px; height: 1px; min-height: 0; opacity: 0; pointer-events: none; }
 .services-panel { margin: 78rpx 32rpx 0; min-height: 326rpx; border-radius: 18rpx; background: #fff; padding: 30rpx 0 32rpx; box-sizing: border-box; }
 .services-title { display: flex; align-items: center; gap: 12rpx; font-size: 32rpx; line-height: 48rpx; }
 .services-title::before { content: ''; width: 8rpx; height: 30rpx; border-radius: 6rpx; background: #709af1; }
