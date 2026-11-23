@@ -1,7 +1,8 @@
-// 改这一行，重新运行或预览。发行时始终使用 production。
+// 普通运行和扫码预览默认连开发后台。要联调正式后台，只改 API_TARGET 并重新运行。
+// 发行时始终使用 production。
 // 在 miniapp/.env.development.local 填开发地址，在 miniapp/.env.production.local 填医院正式地址。
 // 两个文件都使用 VITE_BOOKING_API_ORIGIN。
-const API_TARGET = 'production'
+const API_TARGET = 'development'
 
 export function apiTarget(release) {
   if (release) return 'production'

@@ -17,7 +17,7 @@ export default defineConfig(() => {
   // 开发编译也可以连接正式后台，因此按接口目标读取对应的 .env 文件。
   const env = loadEnv(target, __dirname, 'VITE_BOOKING_API_ORIGIN')
   const origin = (env.VITE_BOOKING_API_ORIGIN || '').trim().replace(/\/+$/, '')
-  if (target === 'production' && (release || origin) && !isHttpsAddress(origin)) {
+  if (target === 'production' && !isHttpsAddress(origin)) {
     throw new Error('请在 miniapp/.env.production.local 设置 VITE_BOOKING_API_ORIGIN 为部署医院的 HTTPS 后台地址')
   }
 

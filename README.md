@@ -58,7 +58,7 @@ bin/dev
 
 ### 微信小程序
 
-1. 用 HBuilderX 打开 `miniapp/`。在 `miniapp/config/api.js` 改一行 `API_TARGET` 选择 `development` 或 `production`，再选择「运行 → 运行到小程序模拟器 → 微信开发者工具」。普通运行和扫码预览使用所选后台，发行固定使用医院的正式后台。[开发与正式地址的填写位置](docs/setup/本地运行.md#选择小程序后台)
+1. 用 HBuilderX 打开 `miniapp/`，选择「运行 → 运行到小程序模拟器 → 微信开发者工具」。运行和扫码预览默认连开发后台，发行固定连医院正式后台。临时切换只需修改 `miniapp/config/api.js` 中的 `API_TARGET` 并重新运行。[开发与正式地址的填写位置](docs/setup/本地运行.md#选择小程序后台)
 2. 预览示例排班时，进入首页的「预约挂号」。联调登录、轮播和菜单时，在后台登记并启用工程所用的微信 AppID。[小程序联调步骤](docs/setup/本地运行.md#联调页面配置)
 
 ## 项目目录
