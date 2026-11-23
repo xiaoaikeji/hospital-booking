@@ -1,5 +1,6 @@
 <%# Required: form, field, label, source. Optional: record, value, choices, enhanced_select, placeholder, help, disabled. %>
 <% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices] %>
+<% source_label, source_color = ["选填", "secondary"] if local_assigns[:optional] && source == "未配置" %>
 <% error_id = ("#{field}-error" if record && record.errors[field].any?) %>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <%= form.label field, label, class: "form-label mb-0" %>

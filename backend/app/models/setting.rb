@@ -2,7 +2,7 @@ class Setting < ApplicationRecord
   INTEGRATION_GROUPS = %w[active_storage tencent_cos].freeze
   SECRET_FIELDS = { "baidu_map" => %w[ak], "tencent_map" => %w[key], "wechat_component" => %w[appsecret token encoding_aes_key], "tencent_cos" => %w[secret_id secret_key],
                     "wechat_notifications" => %w[webhook_key],
-                    "wechat_pay" => %w[v2_api_key v2_certificate v2_private_key v3_api_key v3_private_key verification_pem] }.freeze
+                    "wechat_pay" => %w[v2_api_key v2_certificate v2_private_key v3_api_key v3_private_key verification_pem backup_verification_pem] }.freeze
   self.filter_attributes += [ :settings ]
   validates :key, presence: true, length: { maximum: 100 }, uniqueness: true
   validates :description, length: { maximum: 255 }

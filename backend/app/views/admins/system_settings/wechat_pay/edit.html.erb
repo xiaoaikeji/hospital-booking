@@ -6,10 +6,10 @@
 <% versions = WechatPaySettings::VERSIONS.map { |id, name| [name, id] }
    versions.unshift(["请选择接口版本", "", { disabled: true }]) unless WechatPaySettings::VERSIONS.key?(version) %>
 <% help = {
-  "version" => "新支付单使用所选版本，原单续付、查单和退款沿用下单配置。",
+  "version" => "新单使用所选版本。旧单保留原商户和版本，使用该商户更新后的凭据。",
   "notify_origin" => "填写微信服务器可访问的医院后台 HTTPS 域名，例如 https://booking.example.org。",
-  "v2_certificate" => "粘贴商户 API 证书 apiclient_cert.pem 的完整内容，用于退款双向认证。",
-  "v2_private_key" => "粘贴该证书配套的 apiclient_key.pem。",
+  "v2_certificate" => "收款时可留空。发起退款前粘贴有效的 apiclient_cert.pem 及配套私钥。",
+  "v2_private_key" => "收款时可留空。发起退款前粘贴与商户 API 证书配套的 apiclient_key.pem。",
   "merchant_serial" => "填写签发商户私钥所对应的 API 证书序列号。",
   "v3_private_key" => "粘贴商户 API 证书配套的 apiclient_key.pem，用于请求和收银台签名。",
   "verification_id" => "公钥模式填写 PUB_KEY_ID_ 开头的 ID，平台证书模式填写该证书的序列号。",
@@ -19,18 +19,45 @@
   <%= f.hidden_field :revision, value: @submitted&.[]("revision") || @settings.revision %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "普通商户直连", record: @settings, clear_target: "#clear-wechat-pay", clear_disabled: !@settings.stored? } do %>
     <div class="row g-3 row-cols-1 row-cols-md-2 <%= version == "v2" ? "row-cols-xl-4" : "row-cols-xl-3" %>" data-payment-fields>
-      <% WechatPaySettings::LABELS.each do |field, label| %>
+      <% WechatPaySettings::LABELS.except(*WechatPaySettings::BACKUP).each do |field, label| %>
         <% group = WechatPaySettings::MATERIAL.find { |_version, fields| fields.include?(field) }&.first
            inactive = group && group != version
            multiline = %w[v2_certificate v2_private_key v3_private_key verification_pem].include?(field)
-           value = @submitted&.[](field).presence || @settings.value(field) %>
+           value = @submitted&.[](field).presence || @settings.value(field)
+           optional = WechatPaySettings::V2_TLS.include?(field) %>
         <fieldset <%= tag.attributes(class: ("col-xl-6" if multiline), data: { payment_version: group }, hidden: inactive, disabled: inactive) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
-                source: @settings.source(field), value: value, help: help[field], rows: (4 if multiline),
+                source: @settings.source(field), optional: optional, value: value, help: help[field], rows: (4 if multiline), placeholder: (optional ? "发起退款时填写" : "未配置，请填写"),
                 choices: (versions if field == "version"), enhanced_select: "single" %>
         </fieldset>
       <% end %>
     </div>
+    <% if WechatPaySettings::V2_TLS.any? { |field| @settings.value(field).present? } %>
+      <fieldset <%= tag.attributes(class: "mt-3", data: { payment_version: "v2" }, hidden: version != "v2", disabled: version != "v2") %>>
+        <% if (problem = @settings.v2_refund_problem) %><p class="text-danger mb-2"><%= problem %></p><% end %>
+        <label class="form-check mb-0"><%= f.check_box :remove_v2_certificate, class: "form-check-input" %>
+          <span class="form-check-label">停用当前退款证书和私钥</span></label>
+      </fieldset>
+    <% end %>
+    <fieldset <%= tag.attributes(class: "mt-3 border-top pt-3", data: { payment_version: "v3" }, hidden: version != "v3", disabled: version != "v3") %>>
+      <details <%= "open" if WechatPaySettings::BACKUP.any? { |field| @settings.errors[field].any? || @submitted&.[](field).present? || @settings.value(field).present? } %>>
+        <summary class="form-label mb-0">备用验签材料（选填）</summary>
+        <p class="text-secondary my-2">换证期间可同时验证两套微信签名。过渡结束后可停用旧材料。</p>
+        <div class="row g-3">
+          <% WechatPaySettings::BACKUP.each do |field| %>
+            <div class="col-12 col-md-6">
+              <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: WechatPaySettings::LABELS.fetch(field),
+                    source: @settings.source(field), optional: true, value: @submitted&.[](field).presence || @settings.value(field),
+                    rows: (4 if field.end_with?("_pem")), placeholder: "换证期间填写" %>
+            </div>
+          <% end %>
+        </div>
+        <% if @settings.value("backup_verification_id").present? %>
+          <label class="form-check mt-3 mb-0"><%= f.check_box :remove_backup, class: "form-check-input" %>
+            <span class="form-check-label">停用备用验签材料</span></label>
+        <% end %>
+      </details>
+    </fieldset>
   <% end %>
 <% end %>
 <% if @settings.stored? %>

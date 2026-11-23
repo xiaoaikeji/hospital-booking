@@ -53,7 +53,7 @@ module WechatPayProtocol
       "Wechatpay-Signature" => Base64.strict_encode64(signature) }
   end
 
-  def notification_packet(version, kind, data)
+  def notification_packet(version, kind, data, associated_data: :default)
     if version == "v2"
       body = if kind == "payment"
         signed_xml(data)
@@ -68,12 +68,13 @@ module WechatPayProtocol
     type = kind == "payment" ? "transaction" : "refund"
     nonce = SecureRandom.hex(6)
     cipher = OpenSSL::Cipher.new("aes-256-gcm").encrypt
-    cipher.key, cipher.iv, cipher.auth_data = @v3_key, nonce, type
+    associated = associated_data == :default ? type : associated_data
+    cipher.key, cipher.iv, cipher.auth_data = @v3_key, nonce, associated.is_a?(String) ? associated : ""
     encrypted = cipher.update(JSON.generate(data)) + cipher.final + cipher.auth_tag
     event = kind == "payment" ? "TRANSACTION.SUCCESS" : "REFUND.#{data.fetch("refund_status")}"
-    body = JSON.generate(resource_type: "encrypt-resource", event_type: event,
-      resource: { algorithm: "AEAD_AES_256_GCM", original_type: type, associated_data: type, nonce: nonce,
-        ciphertext: Base64.strict_encode64(encrypted) })
+    resource = { algorithm: "AEAD_AES_256_GCM", original_type: type, nonce: nonce, ciphertext: Base64.strict_encode64(encrypted) }
+    resource[:associated_data] = associated unless associated == :omit
+    body = JSON.generate(resource_type: "encrypt-resource", event_type: event, resource: resource)
     [ body, v3_headers(body).merge("Content-Type" => "application/json") ]
   end
 
