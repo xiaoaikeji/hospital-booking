@@ -18,13 +18,13 @@
 <%= form_with scope: :wechat_pay, url: admins_system_settings_wechat_pay_path, method: :patch, class: "card", data: { admin_form: true, wechat_pay_settings: true } do |f| %>
   <%= f.hidden_field :revision, value: @submitted&.[]("revision") || @settings.revision %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "普通商户直连", record: @settings, clear_target: "#clear-wechat-pay", clear_disabled: !@settings.stored? } do %>
-    <div class="row g-3">
+    <div class="row g-3 row-cols-1 row-cols-md-2 <%= version == "v2" ? "row-cols-xl-4" : "row-cols-xl-3" %>" data-payment-fields>
       <% WechatPaySettings::LABELS.each do |field, label| %>
         <% group = WechatPaySettings::MATERIAL.find { |_version, fields| fields.include?(field) }&.first
            inactive = group && group != version
            multiline = %w[v2_certificate v2_private_key v3_private_key verification_pem].include?(field)
            value = @submitted&.[](field).presence || @settings.value(field) %>
-        <fieldset class="<%= multiline ? "col-md-6" : "col-md-6 col-xl-4" %>" <%= tag.attributes(data: { payment_version: group }, hidden: inactive, disabled: inactive) %>>
+        <fieldset <%= tag.attributes(class: ("col-xl-6" if multiline), data: { payment_version: group }, hidden: inactive, disabled: inactive) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
                 source: @settings.source(field), value: value, help: help[field], rows: (4 if multiline),
                 choices: (versions if field == "version"), enhanced_select: "single" %>
