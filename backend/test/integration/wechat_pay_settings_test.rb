@@ -6,6 +6,58 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
 
   setup { generate_payment_keys }
 
+  test "switching merchants redisplays only the replacement credentials and names the required materials" do
+    admin = Admin.create!(username: "switch_merchant", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    old = payment_settings("v3")
+    platform = payment_certificate(@wechat_key, "Test Platform")
+    old.merge!("verification_id" => platform.serial.to_s(16).upcase, "verification_pem" => platform.to_pem)
+    settings = WechatPaySettings.new
+    assert settings.save(old.merge("revision" => settings.revision), actor: admin)
+    get edit_admins_system_settings_wechat_pay_path
+    replacement = old.merge("merchant_id" => "1900000002", "v3_api_key" => SecureRandom.hex(16),
+      "revision" => WechatPaySettings.new.revision)
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: replacement }
+    assert_response :unprocessable_content
+    assert_select "input#wechat_pay_v3_api_key[value=?]", replacement.fetch("v3_api_key")
+    assert_select "input#wechat_pay_verification_id" do |inputs|
+      assert_empty inputs.first["value"].to_s
+      refute_match(/留空保留/, inputs.first["placeholder"])
+    end
+    assert_empty css_select("#wechat_pay_verification_pem").first.text.strip
+    assert_empty css_select("#wechat_pay_v3_private_key").first.text.strip
+    assert_select "[data-merchant-change]:not([hidden])", text: /新商户.*平台证书/m
+    assert_equal @merchant_id, WechatPaySettings.new.value("merchant_id")
+    generate_payment_keys
+    new_fields = payment_settings("v3").merge("merchant_id" => "1900000002", "revision" => replacement.fetch("revision"),
+      "backup_verification_id" => platform.serial.to_s(16).downcase, "backup_verification_pem" => platform.to_pem)
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: new_fields }
+    assert_response :unprocessable_content
+    assert_select "#backup_verification_id-error", text: /新商户/
+    assert_empty css_select("#wechat_pay_backup_verification_pem").first.text.strip
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: new_fields.except(*WechatPaySettings::BACKUP) }
+    assert_redirected_to edit_admins_system_settings_wechat_pay_path
+    assert_equal "1900000002", WechatPaySettings.new.material!.fetch("merchant_id")
+  end
+
+  test "a backup PEM without its ID can be disabled from the form after a failed save" do
+    field = "WECHAT_PAY_BACKUP_VERIFICATION_PEM"
+    previous = ENV[field]
+    ENV[field] = OpenSSL::PKey::RSA.generate(2048).public_key.to_pem
+    admin = Admin.create!(username: "disable_backup", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    input = payment_settings("v3").merge("revision" => WechatPaySettings.new.revision)
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: input }
+    assert_response :unprocessable_content
+    assert_select "#backup_verification_id-error"
+    assert_select "details[open] input#wechat_pay_remove_backup[type=checkbox]"
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: input.merge("remove_backup" => "1") }
+    assert_redirected_to edit_admins_system_settings_wechat_pay_path
+    assert_nil WechatPaySettings.new.material!["backup_verification_pem"]
+  ensure
+    ENV[field] = previous
+  end
+
   test "only a super admin sees the menu or can read or write the credentials" do
     %w[operator customer_service].each do |role|
       admin = Admin.create!(username: "payments_#{role}", role: role)
@@ -57,7 +109,7 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     refute_includes log.details.to_s, @v2_key
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: { revision: first_revision, version: "v3" } }
     assert_response :unprocessable_content
-    assert_select ".alert-danger", text: /APIv3/
+    assert_select ".invalid-feedback", text: /APIv3/
     assert_equal "v2", WechatPaySettings.new.value("version")
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: payment_settings("v3").merge("revision" => first_revision) }
     assert_redirected_to edit_admins_system_settings_wechat_pay_path
@@ -93,5 +145,38 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
       refute settings.save(invalid.merge("revision" => settings.revision), actor: nil)
       assert_equal "v3", WechatPaySettings.new.value("version")
     end
+  end
+
+  test "inherited backup is disabled on old references and an incomplete or mismatched pair shows its own field" do
+    old_merchant = ENV["WECHAT_PAY_MERCHANT_ID"]
+    old_id = ENV["WECHAT_PAY_BACKUP_VERIFICATION_ID"]
+    old_pem = ENV["WECHAT_PAY_BACKUP_VERIFICATION_PEM"]
+    ENV["WECHAT_PAY_BACKUP_VERIFICATION_ID"] = "PUB_KEY_ID_3000000001"
+    ENV["WECHAT_PAY_BACKUP_VERIFICATION_PEM"] = OpenSSL::PKey::RSA.generate(2048).public_key.to_pem
+    settings = WechatPaySettings.new
+    assert settings.save(payment_settings("v3").merge("revision" => settings.revision), actor: nil)
+    settings = WechatPaySettings.new
+    ref = settings.reserve!.fetch("config_ref")
+    assert_equal "环境变量", settings.source("backup_verification_id")
+    assert settings.save({ "revision" => settings.revision, "remove_backup" => "1" }, actor: nil)
+    assert_nil WechatPaySettings.fetch!(ref)["backup_verification_id"]
+    v2 = payment_settings("v2")
+    [ [ v2.except("v2_private_key"), "v2_private_key" ], [ v2.except("v2_certificate"), "v2_certificate" ],
+      [ v2.merge("v2_private_key" => @wechat_key.to_pem), "v2_private_key" ] ].each do |input, field|
+      settings = WechatPaySettings.new
+      refute settings.save(input.merge("revision" => settings.revision), actor: nil)
+      assert_predicate settings.errors[field], :present?
+    end
+    settings = WechatPaySettings.new
+    assert settings.save(v2.merge("revision" => settings.revision), actor: nil)
+    assert_nil WechatPaySettings.fetch!(ref)["backup_verification_id"]
+    ENV["WECHAT_PAY_MERCHANT_ID"] = @merchant_id
+    settings = WechatPaySettings.new
+    assert settings.save({ "revision" => settings.revision, "clear_settings" => "1" }, actor: nil)
+    assert WechatPaySettings::BACKUP.none? { |field| WechatPaySettings.fetch!(ref).key?(field) }
+  ensure
+    ENV["WECHAT_PAY_MERCHANT_ID"] = old_merchant
+    ENV["WECHAT_PAY_BACKUP_VERIFICATION_ID"] = old_id
+    ENV["WECHAT_PAY_BACKUP_VERIFICATION_PEM"] = old_pem
   end
 end

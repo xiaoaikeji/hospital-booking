@@ -2,22 +2,24 @@ require "ipaddr"
 
 # Business records own payment contexts and refund reservations. The receiver's
 # with_payment(number) locks the record, yields it and returns the block result
-# after committing. A record exposes payment_context, refund(number) and apply!.
+# after committing. The record persists checkout parameters and refund attempts
+# before network I/O, and applies verified results inside the same lock.
 class Payments
   class Error < StandardError; end
   class InvalidResult < Error
     def initialize = super("微信支付结果未通过核对")
   end
   class Unavailable < Error
-    def initialize = super("微信支付结果待核实，请按原单号查询")
+    def initialize(message = nil) = super(message || "微信支付结果待核实，请按原单号查询")
   end
+  class RefundNotFound < Unavailable; end
   class DeliveryError < Error; end
   class ChannelError < Error
     attr_reader :code
 
-    def initialize(code)
+    def initialize(code, message = nil)
       @code = code.to_s.match?(/\A[A-Z0-9_]{1,64}\z/) ? code : "UNKNOWN"
-      super("微信支付返回 #{@code}")
+      super(message || "微信支付返回 #{@code}")
     end
   end
 
@@ -25,6 +27,7 @@ class Payments
   REFUND_STATES = %w[PROCESSING SUCCESS CLOSED ABNORMAL].freeze
   NUMBER = /\A[0-9]{20}\z/
   PROVIDER_NUMBER = /\A[0-9]{1,64}\z/
+  PREPAY_MARGIN = 5.minutes
 
   def initialize(receiver: Rails.application.config.x.payments.receiver, http: HttpConnection)
     @receiver, @http = receiver, http
@@ -36,28 +39,50 @@ class Payments
     raise ArgumentError, "支付金额须为正整数分" unless amount_cents.is_a?(Integer) && amount_cents.positive?
     check_identity!(app, identity)
     WechatPaySettings.new.reserve!.merge("payment_no" => payment_no, "amount_cents" => amount_cents,
-      "appid" => app.appid, "openid" => identity.openid)
+      "appid" => app.appid, "openid" => identity.openid, "prepay_attempted" => false)
   end
 
-  # Save prepay_id and prepay_expires_at on the same business record. Only
-  # payment_params go to the phone. Reopening the cashier re-signs the original prepay.
+  # Commit the first request parameters before contacting WeChat. A missing attempt
+  # marker on an older order means the result of its last request is unknown.
   def checkout(payment_no, app:, identity:, description: nil, client_ip: nil)
     payment = context(payment_no)
     check_identity!(app, identity)
     raise Error, "当前小程序或付款人与原单不符" unless payment["appid"] == app.appid && payment["openid"] == identity.openid
-    raise Error, "支付单已结清或已关闭" if payment["transaction_id"].present? || payment["closed"]
+    check_payable!(payment)
 
     client, config = channel(payment)
     id, expiry = payment.values_at("prepay_id", "prepay_expires_at")
-    unless id.present? && expiry && Time.iso8601(expiry) > Time.current
-      raise ArgumentError, "请提供有效的支付说明" unless description.is_a?(String) && description.present? && description.bytesize <= 127
-      if payment["version"] == "v2"
-        raise ArgumentError, "请提供有效的终端 IP" unless client_ip.is_a?(String) && !client_ip.include?("/") && IPAddr.new(client_ip)
+    deadline = Time.iso8601(expiry) if id.present? && expiry.present?
+    unless reusable_prepay?(payment, deadline)
+      args, attempt = with_payment(payment_no) do |order|
+        current = order.payment_context
+        check_payable!(current)
+        raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
+        original = current["checkout_request"] || checkout_request(payment, description, client_ip)
+        attempt = SecureRandom.uuid
+        unless order.save_checkout!({ "checkout_request" => original, "prepay_attempted" => true, "prepay_attempt" => attempt }) == true
+          raise DeliveryError, "预支付请求写入失败"
+        end
+        [ original, attempt ]
       end
-      expiry = (Time.current + 2.hours).iso8601
-      id = client.prepay(payment, description: description, client_ip: client_ip, notify_url: notify_url(config, payment, "payment"))
+      new_expiry = 2.hours.from_now.iso8601
+      fresh = client.prepay(payment, description: args.fetch("description"), client_ip: args["client_ip"], notify_url: notify_url(config, payment, "payment"))
+      validate_prepay!(fresh)
+      # A newly signed response containing the same ID does not renew its lifetime.
+      if fresh == id
+        raise Unavailable unless deadline&.future?
+      else
+        expiry = new_expiry
+      end
+      id = fresh
+      with_payment(payment_no) do |order|
+        current = order.payment_context
+        raise Unavailable if current["prepay_attempt"] != attempt || current["closed"] || current["transaction_id"].present?
+        raise DeliveryError, "预支付凭证写入失败" unless order.save_checkout!({ "prepay_id" => id, "prepay_expires_at" => expiry }) == true
+        true
+      end
     end
-    raise InvalidResult unless id.is_a?(String) && id.match?(/\A[A-Za-z0-9_-]{1,128}\z/)
+    validate_prepay!(id)
     { "prepay_id" => id, "prepay_expires_at" => expiry, "payment_params" => client.checkout_params(app.appid, id) }
   end
 
@@ -88,6 +113,21 @@ class Payments
     payment, refund = refund_context(payment_no, refund_no)
     return query_refund(payment_no, refund_no: refund_no) if refund["refund_id"].present?
     client, config = channel(payment)
+    retrying = with_payment(payment_no) do |order|
+      record = order.refund(refund_no)
+      raise InvalidResult unless record && record["refund_cents"] == refund["refund_cents"]
+      previous = record["attempted"] || record["submitted_at"].present? || record["refund_id"].present?
+      WechatPaySettings.refund_tls!(config) if !previous && payment["version"] == "v2"
+      raise DeliveryError, "退款申请写入失败" unless order.mark_refund_attempted!(refund_no) == true
+      previous ? :lookup : :submit
+    end
+    if retrying == :lookup
+      begin
+        return query_refund(payment_no, refund_no: refund_no)
+      rescue RefundNotFound
+        # Only a verified not-found permits another attempt, with the same reservation.
+      end
+    end
     begin
       result = client.refund(payment, refund, notify_url: notify_url(config, payment, "refund"))
     rescue Unavailable
@@ -103,7 +143,7 @@ class Payments
   rescue ChannelError => error
     raise unless %w[REFUNDNOTEXIST RESOURCE_NOT_EXISTS].include?(error.code)
     # Absence immediately after submission does not release the business reservation.
-    raise Unavailable
+    raise RefundNotFound
   end
 
   def receive(version:, config_ref:, kind:, body:, headers:)
@@ -120,12 +160,52 @@ class Payments
       verified = client.query_refund(payment, refund_no)
       keys = %i[state appid merchant_id payment_no transaction_id total_cents refund_no refund_id refund_cents]
       raise InvalidResult unless verified.slice(*keys) == result.slice(*keys)
+      if result[:payer_refund_cents] && verified[:payer_refund_cents] && verified[:payer_refund_cents] != result[:payer_refund_cents]
+        raise InvalidResult
+      end
+      # Bind the decrypted notice to this exact refund and state before filling a
+      # field omitted by the signed query. Conflicting or previously changed cash fails closed.
+      verified[:payer_refund_cents] ||= result[:payer_refund_cents]
       result = verified
     end
     deliver(payment, result, refund_no: result[:refund_no])
   end
 
   private
+
+  def checkout_request(payment, description, client_ip)
+    raise ArgumentError, "请提供有效的原支付说明" unless description.is_a?(String) && description.present? && description.bytesize <= 127
+    if payment["version"] == "v2"
+      raise ArgumentError, "请提供有效的原终端 IP" unless client_ip.is_a?(String) && !client_ip.include?("/") && IPAddr.new(client_ip)
+    end
+    { "description" => description, "client_ip" => client_ip }
+  end
+
+  def validate_prepay!(id)
+    raise InvalidResult unless id.is_a?(String) && id.match?(/\A[A-Za-z0-9_-]{1,128}\z/)
+  end
+
+  def check_payable!(payment)
+    raise Error, "支付单已结清或已关闭" if payment["transaction_id"].present? || payment["closed"]
+  end
+
+  def reusable_prepay?(payment, deadline)
+    return true if deadline && deadline > PREPAY_MARGIN.from_now
+    return false if payment["prepay_attempted"] == false && payment["prepay_id"].blank?
+    state = query(payment.fetch("payment_no"))[:state]
+    if state == "NOTPAY"
+      current = context(payment.fetch("payment_no"))
+      check_payable!(current)
+      raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
+      return deadline&.future?
+    end
+    raise Unavailable if state == "USERPAYING"
+    raise Error, "原支付单状态为 #{state}，无法继续调起收银台"
+  rescue ChannelError => error
+    missing = payment.fetch("version") == "v2" ? "ORDERNOTEXIST" : "ORDER_NOT_EXIST"
+    raise unless error.code == missing
+    false
+  end
 
   def with_payment(number, &block)
     number!(number)
@@ -149,7 +229,7 @@ class Payments
       raise DeliveryError, "找不到原退款记录" unless refund && refund["refund_no"] == refund_no
       amount, paid = refund["refund_cents"], payment["paid_cents"]
       unless payment["payment_no"] == number && provider_number?(payment["transaction_id"]) &&
-          paid.is_a?(Integer) && paid.between?(1, payment.fetch("amount_cents")) && amount.is_a?(Integer) && amount.between?(1, paid)
+          paid.is_a?(Integer) && paid.between?(0, payment.fetch("amount_cents")) && amount.is_a?(Integer) && amount.between?(1, payment.fetch("amount_cents"))
         raise InvalidResult
       end
       [ payment.deep_dup, refund.deep_dup ]
@@ -199,6 +279,7 @@ class Payments
       refund = order.refund(refund_no) if refund_no
       raise DeliveryError, "找不到原退款记录" if refund_no && !refund
       verify!(payment, result, refund: refund)
+      result[:payer_refund_cents] = refund["payer_refund_cents"] if refund && result[:payer_refund_cents].nil?
       # V3 refunds identify the app by the verified original paid transaction.
       result[:appid] ||= payment.fetch("appid")
       raise DeliveryError, "支付业务写入失败" unless order.apply!(result) == true
@@ -214,10 +295,10 @@ class Payments
         (missing_appid || result[:appid] == payment["appid"])
       raise InvalidResult
     end
-    if !result[:total_cents].nil? || result[:kind] == :refund || result[:state] == "SUCCESS"
-      unless result[:total_cents].is_a?(Integer) && result[:total_cents] == payment["amount_cents"] && result[:currency] == "CNY"
-        raise InvalidResult
-      end
+    required = result[:kind] == :refund || result[:state] == "SUCCESS"
+    if required || !result[:total_cents].nil?
+      raise InvalidResult unless result[:total_cents].is_a?(Integer) && result[:total_cents] == payment["amount_cents"]
+      raise InvalidResult if (required || result[:currency]) && result[:currency] != "CNY"
     end
     result[:kind] == :refund ? verify_refund!(payment, result, refund) : verify_payment!(payment, result)
   end
@@ -229,14 +310,20 @@ class Payments
     raise InvalidResult if refund["refund_id"].present? && refund["refund_id"] != result[:refund_id]
 
     amount, paid, cash = result[:refund_cents], payment["paid_cents"], result[:payer_refund_cents]
-    raise InvalidResult unless amount.is_a?(Integer) && paid.is_a?(Integer) && amount.between?(1, paid) && amount == refund["refund_cents"]
-    raise InvalidResult unless cash.nil? || (cash.is_a?(Integer) && cash.between?(0, amount))
+    raise InvalidResult unless amount.is_a?(Integer) && paid.is_a?(Integer) && amount.between?(1, payment.fetch("amount_cents")) && amount == refund["refund_cents"]
+    raise InvalidResult unless result[:paid_cents].nil? || (result[:paid_cents].is_a?(Integer) && result[:paid_cents] == paid)
+    raise InvalidResult unless cash.nil? || (cash.is_a?(Integer) && cash.between?(0, [ amount, paid ].min))
+    known = refund["payer_refund_cents"]
+    raise InvalidResult if !known.nil? && !cash.nil? && known != cash
   end
 
   def verify_payment!(payment, result)
     raise InvalidResult unless PAYMENT_STATES.include?(result[:state])
-    raise InvalidResult if result[:openid] && result[:openid] != payment["openid"]
-    raise InvalidResult if result[:trade_type] && result[:trade_type] != "JSAPI"
+    raise InvalidResult if !result[:transaction_id].nil? && !provider_number?(result[:transaction_id])
+    raise InvalidResult if !result[:paid_cents].nil? && !(result[:paid_cents].is_a?(Integer) && result[:paid_cents].between?(0, payment.fetch("amount_cents")))
+    raise InvalidResult if [ result[:currency], result[:payer_currency] ].compact.any? { |code| code != "CNY" }
+    raise InvalidResult if !result[:openid].nil? && result[:openid] != payment["openid"]
+    raise InvalidResult if !result[:trade_type].nil? && result[:trade_type] != "JSAPI"
     if result[:transaction_id] && payment["transaction_id"].present? && result[:transaction_id] != payment["transaction_id"]
       raise InvalidResult
     end

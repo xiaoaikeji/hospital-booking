@@ -100,20 +100,18 @@ module Wechat
         "nonce_str" => SecureRandom.hex(16), "sign_type" => SIGN_TYPE)
       fields["sign"] = sign(fields)
       xml = Nokogiri::XML::Builder.new { |b| b.xml { fields.each { |name, value| b.send(name, value.to_s) } } }.to_xml
-      ssl = if tls
-        { client_cert: OpenSSL::X509::Certificate.new(@config.fetch("v2_certificate")),
-          client_key: OpenSSL::PKey::RSA.new(@config.fetch("v2_private_key"), "") }
-      else
-        {}
-      end
+      ssl = tls ? WechatPaySettings.refund_tls!(@config) : {}
       response = @http.build(ORIGIN, ssl: ssl).post(path, xml, "Content-Type" => "text/xml; charset=utf-8")
       raise Payments::Unavailable unless response.status == 200
       data = parse(response.body)
       raise Payments::Unavailable unless data["return_code"] == "SUCCESS"
+      raise Payments::Unavailable if data["result_code"] == "FAIL" && data["sign"].blank?
       verify!(data)
       raise Payments::InvalidResult unless data["appid"] == fields["appid"] && data["mch_id"] == fields["mch_id"]
       unless data["result_code"] == "SUCCESS"
-        raise Payments::Unavailable if data["err_code"] == "SYSTEMERROR"
+        if data["err_code"] == "SYSTEMERROR" || (tls && %w[BIZERR_NEED_RETRY FREQUENCY_LIMITED].include?(data["err_code"]))
+          raise Payments::Unavailable
+        end
         raise Payments::ChannelError, data["err_code"]
       end
       data
@@ -122,13 +120,14 @@ module Wechat
     end
 
     def cents(value)
-      return if value.nil?
+      return if value.nil? || value.empty?
       raise Payments::InvalidResult unless value.match?(/\A\d{1,12}\z/)
       value.to_i
     end
 
     def payment_result(data, state)
-      paid_at = Time.find_zone!("Asia/Shanghai").strptime(data["time_end"], "%Y%m%d%H%M%S") if data["time_end"].present?
+      data = data.reject { |_key, value| value == "" }
+      paid_at = parse_time(data["time_end"], "%Y%m%d%H%M%S")
       { kind: :payment, state: state, merchant_id: data["mch_id"], appid: data["appid"], payment_no: data["out_trade_no"],
         transaction_id: data["transaction_id"], total_cents: cents(data["total_fee"]), currency: data.fetch("fee_type", "CNY"),
         paid_cents: cents(data["cash_fee"]), payer_currency: data.fetch("cash_fee_type", "CNY"), paid_at: paid_at,
@@ -138,15 +137,29 @@ module Wechat
     end
 
     def refund_result(data, state, suffix: "")
-      timestamp = data["refund_success_time#{suffix}"] || data["success_time"]
-      refunded_at = Time.find_zone!("Asia/Shanghai").strptime(timestamp, "%Y-%m-%d %H:%M:%S") if timestamp.present?
+      data = data.reject { |_key, value| value == "" }
+      refunded_at = parse_time(data["refund_success_time#{suffix}"] || data["success_time"], "%Y-%m-%d %H:%M:%S")
+      amount = cents(data["refund_fee#{suffix}"])
+      cash = cents(data["cash_refund_fee#{suffix}"])
+      coupon = cents(data["coupon_refund_fee#{suffix}"])
+      if coupon && amount
+        raise Payments::InvalidResult if coupon > amount || (cash && cash != amount - coupon)
+        cash = amount - coupon
+      end
       { kind: :refund, state: { "REFUNDCLOSE" => "CLOSED", "CHANGE" => "ABNORMAL" }.fetch(state, state),
         merchant_id: data["mch_id"], appid: data["appid"], payment_no: data["out_trade_no"], transaction_id: data["transaction_id"],
         total_cents: cents(data["total_fee"]), refund_no: data["out_refund_no#{suffix}"], refund_id: data["refund_id#{suffix}"],
-        refund_cents: cents(data["refund_fee#{suffix}"]), payer_refund_cents: cents(data["cash_refund_fee#{suffix}"]),
+        refund_cents: amount, payer_refund_cents: cash, paid_cents: cents(data["cash_fee"]),
         currency: data.fetch("fee_type", "CNY"), refunded_at: refunded_at }
     rescue ArgumentError
       raise Payments::InvalidResult, cause: nil
+    end
+
+    def parse_time(value, format)
+      return unless value
+      time = Time.find_zone!("Asia/Shanghai").strptime(value, format)
+      raise Payments::InvalidResult unless time.strftime(format) == value
+      time
     end
   end
 end

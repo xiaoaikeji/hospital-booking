@@ -28,9 +28,29 @@ class WechatPaymentsTest < ActionDispatch::IntegrationTest
 
     def refund(number) = refunds[number]
 
+    def save_checkout!(attributes)
+      payment_context.merge!(attributes)
+      true
+    end
+
+    def mark_refund_attempted!(number)
+      refunds.fetch(number)["attempted"] = true
+    end
+
     def reserve(number, cents)
-      raise "over reservation" if refunds.values.sum { |r| r.fetch("refund_cents") } + cents > payment_context.fetch("paid_cents")
-      refunds[number] = { "refund_no" => number, "refund_cents" => cents, "state" => "PROCESSING" }
+      @lock.synchronize do
+        existing = refunds[number]
+        return existing if existing && existing["refund_cents"] == cents
+        raise "refund number reused" if existing
+        reserved = refunds.values.reject { |row| row["state"] == "CLOSED" }.sum { |row| row.fetch("refund_cents") }
+        raise "over reservation" unless cents.is_a?(Integer) && cents.positive? && reserved + cents <= payment_context.fetch("amount_cents")
+        refunds[number] = { "refund_no" => number, "refund_cents" => cents, "state" => "PROCESSING" }
+      end
+    end
+
+    def refunded_cash
+      amounts = refunds.values.select { |record| record["state"] == "SUCCESS" }.pluck("payer_refund_cents")
+      amounts.sum unless amounts.include?(nil)
     end
 
     def apply!(result)
@@ -47,10 +67,20 @@ class WechatPaymentsTest < ActionDispatch::IntegrationTest
       end
       if result[:kind] == :refund
         record = refunds.fetch(result[:refund_no])
-        unless record["state"] == "SUCCESS"
-          record.merge!("refund_id" => result[:refund_id], "state" => result[:state])
-          @refunded += result[:refund_cents] if result[:state] == "SUCCESS"
+        state = result[:state]
+        return true if record["state"] == "SUCCESS" && state != "SUCCESS"
+        raise Payments::InvalidResult if record["state"] == "CLOSED" && state == "SUCCESS"
+        return true if record["state"] == "CLOSED" && state != "CLOSED"
+        return true if record["state"] == "ABNORMAL" && state == "PROCESSING"
+        cash = result[:payer_refund_cents]
+        if state == "SUCCESS"
+          confirmed = refunds.except(result[:refund_no]).values.select { |r| r["state"] == "SUCCESS" }.sum { |r| r["payer_refund_cents"] || 0 }
+          raise Payments::InvalidResult if cash && confirmed + cash > payment_context.fetch("paid_cents")
+          @refunded += result[:refund_cents] unless record["state"] == "SUCCESS"
         end
+        record.merge!("refund_id" => result[:refund_id], "state" => state)
+        record["payer_refund_cents"] = cash unless cash.nil?
+        record["acceptance_state"] = result[:acceptance_state] if result[:acceptance_state]
       end
       true
     end
@@ -275,7 +305,7 @@ class WechatPaymentsTest < ActionDispatch::IntegrationTest
         stub_wechat(version, :get, "/v3/refund/domestic/refunds/#{REFUND}", status: 404) { { "code" => "RESOURCE_NOT_EXISTS" } }
       end
       assert_raises(Payments::Unavailable) { @payments.refund(PAYMENT, refund_no: REFUND) }
-      assert_equal({ "refund_no" => REFUND, "refund_cents" => 500, "state" => "PROCESSING" }, @order.refund(REFUND))
+      assert_equal({ "refund_no" => REFUND, "refund_cents" => 500, "state" => "PROCESSING", "attempted" => true }, @order.refund(REFUND))
       assert_equal 0, @order.refunded
     end
 
@@ -328,8 +358,12 @@ class WechatPaymentsTest < ActionDispatch::IntegrationTest
   test "v2 refund ciphertext cannot settle without matching independent signed query and business commit" do
     prepare("v2")
     settings = WechatPaySettings.new
-    assert settings.save({ "revision" => settings.revision, "v2_api_key" => SecureRandom.hex(16) }, actor: nil)
+    new_key = SecureRandom.hex(16)
+    assert settings.save({ "revision" => settings.revision, "v2_api_key" => new_key }, actor: nil)
     refute_equal @payment["config_ref"], WechatPaySettings.new.reserve!.fetch("config_ref")
+    notify("v2", "payment", payment_data("v2"))
+    assert_response :bad_request
+    @v2_key = new_key
     notify("v2", "payment", payment_data("v2"))
     assert_response :ok
     data = refund_data("v2", 500, "SUCCESS")
