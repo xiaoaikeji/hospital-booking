@@ -5,6 +5,12 @@ module Wechat
   class PaymentV3Client
     ORIGIN = "https://api.mch.weixin.qq.com"
     SCHEME = "WECHATPAY2-SHA256-RSA2048"
+    GATEWAY_ERRORS = {
+      "SIGN_ERROR" => [ 401, "请求签名错误，请核对商户证书序列号、私钥和服务器时间" ],
+      "ORDER_NOT_EXIST" => [ 404, "订单不存在，请核对原商户号和原支付单号" ],
+      "RESOURCE_NOT_EXISTS" => [ 404, "查询的记录不存在，请核对原单号" ]
+    }.freeze
+    SIGNATURE_HEADERS = %w[Wechatpay-Timestamp Wechatpay-Nonce Wechatpay-Serial Wechatpay-Signature Wechatpay-Signature-Type].freeze
 
     def initialize(config, http: HttpConnection)
       @config = config
@@ -140,18 +146,52 @@ module Wechat
         "Wechatpay-Serial" => request_verification_id, "User-Agent" => "Booking-WeChat-Pay" }
       response = @connection.run_request(method, path, body, headers)
       raw = response.body.to_s
-      # An unsigned error page can only trigger a lookup. A present signature,
-      # including one on an error response, must verify before using the response.
-      raise Payments::Unavailable if !response.success? && response.headers["Wechatpay-Signature"].blank?
+      response_error!(response, raw) unless response.success?
       verify!(raw, response.headers)
-      raise Payments::Unavailable if response.status >= 500 || response.status == 429
-      raise Payments::ChannelError, json(raw)["code"] unless response.success?
       raise Payments::InvalidResult unless response.status == status
       return json(raw) unless status == 204
       raise Payments::InvalidResult unless raw.empty?
       true
     rescue Faraday::Error
       raise Payments::Unavailable, cause: nil
+    end
+
+    def response_error!(response, raw)
+      code = error_code(raw)
+      expected_status, reason = GATEWAY_ERRORS[code]
+      known_error = expected_status == response.status
+      signed = response.headers["Wechatpay-Signature"].present?
+      begin
+        verify!(raw, response.headers) if signed
+      rescue Payments::InvalidResult
+        gateway_diagnostic(response, code, reason, "回包验签失败，错误内容未经验证") if known_error
+        raise
+      end
+      raise Payments::Unavailable if response.status >= 500 || response.status == 429
+      message = gateway_diagnostic(response, code, reason, signed ? "验签通过" : "未经验证，请按原单号核实") if known_error
+      raise Payments::Unavailable, message unless signed
+      raise Payments::InvalidResult if code.nil? || (expected_status && !known_error)
+      raise Payments::ChannelError.new(code, message)
+    end
+
+    def error_code(raw)
+      return if raw.bytesize > 16.kilobytes
+      data = JSON.parse(raw)
+      data["code"] if data.is_a?(Hash) && data["code"].is_a?(String)
+    rescue JSON::ParserError
+      nil
+    end
+
+    def gateway_diagnostic(response, code, reason, verification)
+      message = "HTTP #{response.status} · #{code} · #{reason}（#{verification}）"
+      headers = SIGNATURE_HEADERS.select { |name| response.headers.key?(name) }
+      begin
+        Log.record!(source: "system", category: "payment", action: "wechat_pay.gateway_error", status: "failed",
+          details: { reason: message, headers_present: headers })
+      rescue ActiveRecord::ActiveRecordError
+        Rails.logger.warn("微信支付诊断记录写入失败：#{message}")
+      end
+      message
     end
 
     def json(text)

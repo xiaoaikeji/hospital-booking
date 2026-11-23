@@ -85,7 +85,7 @@ class WechatPaymentsTest
     end
   end
 
-  test "audit cashier queries before refreshing a nearly expired prepay" do
+  test "cashier queries before refreshing an expired prepay with the original parameters" do
     prepare("v3")
     events = []
     stub_wechat("v3", :post, "/v3/pay/transactions/jsapi") do |req|
@@ -94,7 +94,7 @@ class WechatPaymentsTest
     end
     stub_payment_query("v3") { events << [ :query, PAYMENT ]; payment_data("v3", "NOTPAY") }
     @payment.merge!(checkout.except("payment_params"))
-    @payment["prepay_expires_at"] = 4.minutes.from_now.iso8601
+    @payment["prepay_expires_at"] = Time.current.iso8601
     result = @payments.checkout(PAYMENT, app: @mini_program, identity: @identity, description: "改过的说明")
     assert_equal [ [ :prepay, PAYMENT, "支付底座测试" ], [ :query, PAYMENT ], [ :prepay, PAYMENT, "支付底座测试" ] ], events
     assert_equal "wx_3", result["prepay_id"]
@@ -150,14 +150,73 @@ class WechatPaymentsTest
     assert_equal [ "PROCESSING", 0, 0 ], [ @order.refund(REFUND)["state"], @order.refunded, @order.refunded_cash ]
   end
 
-  test "near-expiry prepay returned unchanged by WeChat keeps its original deadline" do
+  %w[v2 v3].each do |version|
+    test "#{version} keeps the original noon prepay at 11:57 and renews it only after expiry" do
+      prepare(version)
+      noon = Time.current.change(hour: 12)
+      requests, queries = [], 0
+      stub_payment_query(version) { queries += 1; payment_data(version, "NOTPAY") }
+      stub_wechat(version, :post, version == "v2" ? "/pay/unifiedorder" : "/v3/pay/transactions/jsapi") do |req|
+        requests << req.except("nonce_str", "sign")
+        { "prepay_id" => requests.size == 1 || Time.current < noon ? "original" : "renewed", "trade_type" => "JSAPI" }
+      end
+      first = travel_to(noon - 2.hours) { checkout }
+      travel_to(noon - 3.minutes) do
+        again = checkout
+        assert_equal [ "original", first.fetch("prepay_expires_at") ], again.values_at("prepay_id", "prepay_expires_at")
+        assert_equal "prepay_id=original", again.dig("payment_params", "package")
+        assert_equal [ 1, 1 ], [ requests.size, queries ]
+      end
+      travel_to(noon) do
+        renewed = @payments.checkout(PAYMENT, app: @mini_program, identity: @identity, description: "新的说明")
+        assert_equal [ "renewed", 2.hours.from_now.iso8601 ], renewed.values_at("prepay_id", "prepay_expires_at")
+        assert_equal [ 2, 2 ], [ requests.size, queries ]
+        assert_equal requests.first, requests.last
+      end
+    end
+  end
+
+  test "v3 signature and missing order diagnostics distinguish unverified hints from signed errors" do
     prepare("v3")
-    @payment.merge!("prepay_id" => "same", "prepay_expires_at" => 4.minutes.from_now.iso8601)
-    expiry = @payment["prepay_expires_at"]
-    stub_payment_query("v3") { payment_data("v3", "NOTPAY") }
-    stub_wechat("v3", :post, "/v3/pay/transactions/jsapi") { { "prepay_id" => "same" } }
-    assert_raises(Payments::Unavailable) { checkout }
-    assert_equal expiry, @payment["prepay_expires_at"]
+    path = "/v3/pay/transactions/out-trade-no/#{PAYMENT}?mchid=#{@merchant_id}"
+    status, code, signed = 401, "SIGN_ERROR", false
+    @stubs.get(path) do
+      raw = JSON.generate(code: code, message: "private-body-marker")
+      headers = case signed
+      when :partial then { "wechatpay-signature" => "private-header-marker" }
+      when true then v3_headers(raw)
+      else { "wechatpay-nonce" => "private-header-marker" }
+      end
+      [ status, headers, raw ]
+    end
+    admin = Admin.create!(username: "gateway_diagnostics", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    [ [ 401, "SIGN_ERROR", "签名错误" ], [ 404, "ORDER_NOT_EXIST", "订单不存在" ] ].each do |http_status, error_code, reason|
+      status, code = http_status, error_code
+      [ false, true ].each do |has_signature|
+        signed = has_signature
+        error = assert_raises(signed ? Payments::ChannelError : Payments::Unavailable) { @payments.query(PAYMENT) }
+        assert_includes error.message, reason
+        assert_includes error.message, code
+        assert_includes error.message, "未经验证" unless signed
+        event = Log.where(action: "wechat_pay.gateway_error").order(:id).last!
+        get edit_admins_system_settings_wechat_pay_path
+        assert_response :success
+        assert_includes response.body, reason
+        assert_includes response.body, "HTTP #{status}"
+        assert_includes response.body, signed ? "验签通过" : "未经验证"
+        assert_includes response.body, "Wechatpay-Nonce"
+        refute_includes event.details.to_s, "private-"
+        assert_equal 0, @order.credits
+      end
+    end
+    signed = :partial
+    assert_raises(Payments::InvalidResult) { @payments.query(PAYMENT) }
+    get edit_admins_system_settings_wechat_pay_path
+    assert_select "aside.alert", text: /回包验签失败.*Wechatpay-Signature/m
+    assert_equal 0, @order.credits
+    signed, status = true, 403
+    assert_raises(Payments::InvalidResult) { @payments.query(PAYMENT) }
   end
 
   test "unknown prepay only resubmits after signed order not found" do
@@ -179,6 +238,25 @@ class WechatPaymentsTest
     assert_equal [ 1, 1 ], [ submissions, queries ]
     assert_equal "recovered", checkout["prepay_id"]
     assert_equal [ 2, 2 ], [ submissions, queries ]
+  end
+
+  test "a newly signed response with the same prepay never extends the old deadline" do
+    prepare("v3")
+    expiry = 3.minutes.from_now.change(usec: 0)
+    @payment.merge!("prepay_id" => "same", "prepay_expires_at" => expiry.iso8601)
+    submissions, lookups = 0, 0
+    stub_wechat("v3", :get, "/v3/pay/transactions/out-trade-no/#{PAYMENT}?mchid=#{@merchant_id}", status: 404) do
+      lookups += 1
+      { "code" => "ORDER_NOT_EXIST" }
+    end
+    stub_wechat("v3", :post, "/v3/pay/transactions/jsapi") do |request|
+      submissions += 1
+      assert_equal PAYMENT, request.fetch("out_trade_no")
+      { "prepay_id" => "same" }
+    end
+    assert_equal [ "same", expiry.iso8601 ], checkout.values_at("prepay_id", "prepay_expires_at")
+    travel_to(expiry) { assert_raises(Payments::Unavailable) { checkout } }
+    assert_equal [ 2, 2, expiry.iso8601 ], [ submissions, lookups, @payment.fetch("prepay_expires_at") ]
   end
 
   [ 400, 503 ].each do |status|

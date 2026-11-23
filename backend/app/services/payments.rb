@@ -10,16 +10,16 @@ class Payments
     def initialize = super("微信支付结果未通过核对")
   end
   class Unavailable < Error
-    def initialize = super("微信支付结果待核实，请按原单号查询")
+    def initialize(message = nil) = super(message || "微信支付结果待核实，请按原单号查询")
   end
   class RefundNotFound < Unavailable; end
   class DeliveryError < Error; end
   class ChannelError < Error
     attr_reader :code
 
-    def initialize(code)
+    def initialize(code, message = nil)
       @code = code.to_s.match?(/\A[A-Z0-9_]{1,64}\z/) ? code : "UNKNOWN"
-      super("微信支付返回 #{@code}")
+      super(message || "微信支付返回 #{@code}")
     end
   end
 
@@ -48,15 +48,15 @@ class Payments
     payment = context(payment_no)
     check_identity!(app, identity)
     raise Error, "当前小程序或付款人与原单不符" unless payment["appid"] == app.appid && payment["openid"] == identity.openid
-    raise Error, "支付单已结清或已关闭" if payment["transaction_id"].present? || payment["closed"]
+    check_payable!(payment)
 
     client, config = channel(payment)
     id, expiry = payment.values_at("prepay_id", "prepay_expires_at")
-    unless id.present? && expiry.present? && Time.iso8601(expiry) > PREPAY_MARGIN.from_now
-      check_before_prepay!(payment_no) if payment["prepay_attempted"] != false || id.present?
+    deadline = Time.iso8601(expiry) if id.present? && expiry.present?
+    unless reusable_prepay?(payment, deadline)
       args, attempt = with_payment(payment_no) do |order|
         current = order.payment_context
-        raise Error, "支付单已结清或已关闭" if current["closed"] || current["transaction_id"].present?
+        check_payable!(current)
         raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
         original = current["checkout_request"] || checkout_request(payment, description, client_ip)
         attempt = SecureRandom.uuid
@@ -65,11 +65,15 @@ class Payments
         end
         [ original, attempt ]
       end
-      expiry = 2.hours.from_now.iso8601
+      new_expiry = 2.hours.from_now.iso8601
       fresh = client.prepay(payment, description: args.fetch("description"), client_ip: args["client_ip"], notify_url: notify_url(config, payment, "payment"))
       validate_prepay!(fresh)
-      # Returning the old id does not renew its lifetime.
-      raise Unavailable if fresh == id
+      # A newly signed response containing the same ID does not renew its lifetime.
+      if fresh == id
+        raise Unavailable unless deadline&.future?
+      else
+        expiry = new_expiry
+      end
       id = fresh
       with_payment(payment_no) do |order|
         current = order.payment_context
@@ -181,13 +185,26 @@ class Payments
     raise InvalidResult unless id.is_a?(String) && id.match?(/\A[A-Za-z0-9_-]{1,128}\z/)
   end
 
-  def check_before_prepay!(number)
-    state = query(number)[:state]
-    return if state == "NOTPAY"
+  def check_payable!(payment)
+    raise Error, "支付单已结清或已关闭" if payment["transaction_id"].present? || payment["closed"]
+  end
+
+  def reusable_prepay?(payment, deadline)
+    return true if deadline && deadline > PREPAY_MARGIN.from_now
+    return false if payment["prepay_attempted"] == false && payment["prepay_id"].blank?
+    state = query(payment.fetch("payment_no"))[:state]
+    if state == "NOTPAY"
+      current = context(payment.fetch("payment_no"))
+      check_payable!(current)
+      raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
+      return deadline&.future?
+    end
     raise Unavailable if state == "USERPAYING"
     raise Error, "原支付单状态为 #{state}，无法继续调起收银台"
   rescue ChannelError => error
-    raise unless %w[ORDERNOTEXIST ORDER_NOT_EXIST].include?(error.code)
+    missing = payment.fetch("version") == "v2" ? "ORDERNOTEXIST" : "ORDER_NOT_EXIST"
+    raise unless error.code == missing
+    false
   end
 
   def with_payment(number, &block)

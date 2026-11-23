@@ -6,6 +6,46 @@ class WechatPaymentsTest
     assert settings.save(fields.merge("revision" => settings.revision), actor: nil), settings.errors.full_messages
   end
 
+  %w[v2 v3].each do |version|
+    test "#{version} cleared settings with only a deployment merchant still serve its old orders" do
+      env = %w[WECHAT_PAY_MERCHANT_ID WECHAT_PAY_VERSION].index_with { |field| ENV[field] }
+      ENV["WECHAT_PAY_MERCHANT_ID"] = @merchant_id
+      ENV["WECHAT_PAY_VERSION"] = ("v2" if version == "v2")
+      prepare(version)
+      @merchant_key = OpenSSL::PKey::RSA.generate(2048)
+      @certificate = payment_certificate(@merchant_key, @merchant_id)
+      @v2_key = SecureRandom.hex(16)
+      configure(version)
+      update_payment_settings("clear_settings" => "1")
+      assert_raises(WechatPaySettings::Invalid) do
+        @payments.prepare(app: @mini_program, identity: @identity, payment_no: PAYMENT.succ, amount_cents: 2000)
+      end
+      stub_payment_query(version) { payment_data(version) }
+      assert_equal "SUCCESS", @payments.query(PAYMENT)[:state]
+      notify(version, "payment", payment_data(version))
+      assert_response(version == "v2" ? :ok : :no_content)
+      assert_equal "SUCCESS", Hash.from_xml(response.body).dig("xml", "return_code") if version == "v2"
+      assert_equal 1, @order.credits
+      @order.reserve(REFUND, 500)
+      applications, lookups = [], 0
+      stub_wechat(version, :post, version == "v2" ? "/secapi/pay/refund" : "/v3/refund/domestic/refunds") do |request|
+        applications << request.fetch("out_refund_no")
+        refund_data(version, 500, "PROCESSING")
+      end
+      assert_equal "PROCESSING", @payments.refund(PAYMENT, refund_no: REFUND)[:state]
+      stub_refund_query(version) do
+        lookups += 1
+        data = refund_data(version, 500, "SUCCESS", query: true)
+        cash = version == "v2" ? { "cash_refund_fee_1" => "500" } : { "amount" => { "payer_refund" => 500 } }
+        data.deep_merge(cash)
+      end
+      assert_equal "SUCCESS", @payments.query_refund(PAYMENT, refund_no: REFUND)[:state]
+      assert_equal [ [ REFUND ], 1, 500 ], [ applications, lookups, @order.refunded_cash ]
+    ensure
+      env.each { |field, original| ENV[field] = original }
+    end
+  end
+
   test "v2 collects without TLS, then refunds that same order after adding and rotating its certificate" do
     update_payment_settings(payment_settings("v2").except(*WechatPaySettings::V2_TLS))
     @payment = Payments.new.prepare(app: @mini_program, identity: @identity, payment_no: PAYMENT, amount_cents: 2000)

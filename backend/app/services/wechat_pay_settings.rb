@@ -34,6 +34,23 @@ class WechatPaySettings
   def stored? = @record&.settings.present?
   def revision = fingerprint([ @record&.settings || {}, @fields ])
 
+  def changing_merchant?(merchant)
+    value("merchant_id").present? && merchant.is_a?(String) && merchant.present? && merchant.strip != value("merchant_id")
+  end
+
+  def form_fields(input)
+    return @fields unless input
+    changing = changing_merchant?(input["merchant_id"])
+    @fields.to_h do |field, (active, source)|
+      entry = input[field].presence if input[field].is_a?(String)
+      if changing && !COMMON.include?(field)
+        [ field, [ (entry unless previous_credential?(field, entry)), "未配置" ] ]
+      else
+        [ field, [ entry || active, source ] ]
+      end
+    end
+  end
+
   def save(input, actor:, request: nil)
     fields = []
     audit = { category: "settings", action: "wechat_pay.update", actor: actor, request: request }
@@ -76,9 +93,12 @@ class WechatPaySettings
     original = archived!(ref)
     version, merchant = original.values_at("version", "merchant_id")
     active = new
-    latest = if [ active.value("version"), active.value("merchant_id") ] == [ version, merchant ]
-      active.material!(check_optional: false)
-    elsif (current_ref = Setting.read_integration_value(registry_key(version, merchant), "ref"))
+    if [ active.value("version"), active.value("merchant_id") ] == [ version, merchant ]
+      # Clearing the override can expose an incomplete deployment. Its merchant
+      # number alone cannot supersede that merchant's last usable credentials.
+      latest = active.configured_material
+    end
+    latest ||= if (current_ref = Setting.read_integration_value(registry_key(version, merchant), "ref"))
       archived!(current_ref)
     else
       # Legacy inactive merchants have only encrypted immutable profiles, with no index.
@@ -183,13 +203,16 @@ class WechatPaySettings
     raise Invalid, "请选择 V2 或 V3" unless VERSIONS.key?(version)
     fields = (COMMON + MATERIAL.fetch(version)) & input.keys
     raise Invalid, "配置格式无效" unless fields.all? { |field| input[field].is_a?(String) }
-    fields = fields.select { |field| normalize(input.fetch(field)).present? && normalize(input.fetch(field)) != current.value(field) }
-    if fields.include?("merchant_id") && current.value("merchant_id").present?
-      # The browser resubmits the previous merchant's visible values. Only an
-      # explicit change can provision credentials for the replacement merchant.
+    if current.changing_merchant?(input["merchant_id"])
+      (MATERIAL.fetch(version) & fields).each do |field|
+        if current.previous_credential?(field, input[field])
+          raise Invalid.new("商户号已更换，请填写新商户的#{LABELS.fetch(field)}", field: field)
+        end
+      end
       record.write_value("deployment_merchant", current.value("merchant_id")) unless record.settings["deployment_merchant"]
       (MATERIAL.values.flatten + %w[backup_disabled v2_tls_disabled]).each { |field| record.write_value(field, nil) }
     end
+    fields = fields.select { |field| normalize(input.fetch(field)).present? && normalize(input.fetch(field)) != current.value(field) }
     fields.each { |field| record.write_value(field, normalize(input.fetch(field))) }
     optional, flag, remove = if version == "v2"
       [ V2_TLS, "v2_tls_disabled", "remove_v2_certificate" ]
@@ -248,6 +271,24 @@ class WechatPaySettings
 
   # Browsers submit textarea line endings as CRLF, including PEMs inherited from ENV.
   def normalize(value) = value.gsub("\r\n", "\n").strip
+
+  protected
+
+  # The same platform certificate can be pasted into either verification slot.
+  def previous_credential?(field, entry)
+    return false if entry.blank?
+    candidate = normalize(entry)
+    case field
+    when "verification_id", "backup_verification_id"
+      %w[verification_id backup_verification_id].any? { |name| candidate.casecmp?(value(name).to_s) }
+    when "verification_pem", "backup_verification_pem"
+      %w[verification_pem backup_verification_pem].any? { |name| candidate == value(name) }
+    else
+      candidate == value(field)
+    end
+  end
+
+  private
 
   def fingerprint(values)
     OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, JSON.generate(values))
