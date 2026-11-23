@@ -18,22 +18,59 @@ export function createEntryQueue({ storage, sessionKey, submit }) {
     } catch {}
   }
 
-  function add(entry) {
-    if (!entry || (!owner && entries.some(item => !item.intended_user_no))) return
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() :
+  function newEntryId() {
+    return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() :
       Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
-    entries.push({ ...entry, entry_id: id, intended_user_no: owner })
+  }
+
+  function add(entry) {
+    if (!entry || (!owner && entries.some(item => !item.intended_user_no && !item.pending_session))) return
+    entries.push({ ...entry, entry_id: newEntryId(), intended_user_no: owner })
     persist()
   }
 
-  function activate(userNo) {
-    if (!userNo || userNo === owner) return
-    owner = userNo
-    generation++
-    sending = null
-    const guestEntries = entries.filter(entry => !entry.intended_user_no)
-    if (guestEntries.length) {
-      for (const entry of guestEntries) entry.intended_user_no = userNo
+  // Legacy credentials without user_no stage only their first offline scan until the same session confirms its owner.
+  function addForSession(sessionId, entry) {
+    if (!entry || !sessionId || owner) return
+    if (entries.some(item => !item.intended_user_no && item.pending_session === sessionId)) return
+    entries.push({ ...entry, entry_id: newEntryId(), pending_session: sessionId })
+    persist()
+  }
+
+  function pruneSessions(activeSessionId) {
+    const kept = entries.filter(item => !item.pending_session || (activeSessionId && item.pending_session === activeSessionId))
+    if (kept.length === entries.length) return
+    entries = kept
+    persist()
+  }
+
+  function activate(userNo, confirmedSessionId) {
+    if (!userNo) return
+    if (userNo !== owner) {
+      owner = userNo
+      generation++
+      sending = null
+    }
+    let dirty = false
+    const next = []
+    for (const entry of entries) {
+      if (entry.intended_user_no) {
+        next.push(entry)
+      } else if (!entry.pending_session) {
+        entry.intended_user_no = userNo
+        next.push(entry)
+        dirty = true
+      } else if (confirmedSessionId && entry.pending_session === confirmedSessionId) {
+        delete entry.pending_session
+        entry.intended_user_no = userNo
+        next.push(entry)
+        dirty = true
+      } else {
+        dirty = true
+      }
+    }
+    if (dirty) {
+      entries = next
       persist()
     }
   }
@@ -72,5 +109,9 @@ export function createEntryQueue({ storage, sessionKey, submit }) {
     if (start === generation) await flush()
   }
 
-  return { add, activate, leave, flush, retry, get pending() { return !!owner && entries.some(entry => entry.intended_user_no === owner) } }
+  return {
+    add, addForSession, pruneSessions, activate, leave, flush, retry,
+    hasPendingSession: sessionId => !!sessionId && entries.some(item => !item.intended_user_no && item.pending_session === sessionId),
+    get pending() { return !!owner && entries.some(entry => entry.intended_user_no === owner) },
+  }
 }

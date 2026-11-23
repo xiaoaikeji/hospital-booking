@@ -10,6 +10,13 @@ export function entrySource(options) {
   return Object.keys(entry).length ? entry : undefined
 }
 
+export function loginFailureState(error, isSignedIn) {
+  if (isSignedIn && !error?.appDisabled && error?.code !== 'account_disabled' && error?.code !== 'session_expired') {
+    return { profileRetry: true, feedback: '已登录，暂时无法读取资料' }
+  }
+  return { profileRetry: false, feedback: error?.message || '登录失败，请重试' }
+}
+
 export function deviceContext(read = () => typeof wx !== 'undefined' && wx.getDeviceInfo ? wx.getDeviceInfo() : uni.getDeviceInfo?.()) {
   try {
     const info = read()

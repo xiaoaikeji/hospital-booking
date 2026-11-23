@@ -5,13 +5,24 @@ import { loadAppConfiguration } from '@/request/http.js'
 
 const appConfiguration = ref(null)
 export const configurationStatus = ref('loading')
+const disabledListeners = new Set()
 let pending
 let revision = 0
+
+export function onAppDisabled(listener) {
+  disabledListeners.add(listener)
+  return () => disabledListeners.delete(listener)
+}
+
+function notifyAppDisabled() {
+  for (const listener of disabledListeners) listener()
+}
 
 export function markAppDisabled() {
   revision++
   appConfiguration.value = null
   configurationStatus.value = 'disabled'
+  notifyAppDisabled()
 }
 
 export function refreshAppConfiguration() {
@@ -22,7 +33,12 @@ export function refreshAppConfiguration() {
   pending = loadAppConfiguration().then(({ status, config }) => {
     if (started !== revision) return
     if (status === 'ready') appConfiguration.value = config
-    if (status === 'disabled') appConfiguration.value = null
+    if (status === 'disabled') {
+      appConfiguration.value = null
+      configurationStatus.value = 'disabled'
+      notifyAppDisabled()
+      return
+    }
     // 停用已由服务端确认，后续读取失败时仍等待明确恢复。
     if (status !== 'error' || configurationStatus.value !== 'disabled') configurationStatus.value = status
   }).finally(() => { pending = null })

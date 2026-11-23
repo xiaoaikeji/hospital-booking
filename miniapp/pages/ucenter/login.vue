@@ -1,25 +1,45 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { demoMode, signIn } from '@/store/session.js'
+import { demoMode, readProfile, retryEntryReports, signedIn, signIn } from '@/store/session.js'
 import { resumeBooking } from '@/utils/booking-navigation.js'
+import { loginFailureState } from '@/utils/login-context.js'
 
 const feedback = ref('')
 const busy = ref(false)
+const profileRetry = ref(false)
 let target = {}
 let leaving = false
 onLoad(options => { target = options })
 onUnload(() => { leaving = true })
+watch(signedIn, active => {
+  if (!active) profileRetry.value = false
+})
+
+const retryingProfile = computed(() => profileRetry.value && signedIn.value)
+const buttonText = computed(() => {
+  if (retryingProfile.value) return busy.value ? '读取中…' : '重新读取'
+  return busy.value ? '登录中…' : demoMode ? '体验登录' : '微信登录'
+})
 
 async function login() {
   if (busy.value || leaving) return
   busy.value = true
   feedback.value = ''
+  const retryOnly = retryingProfile.value
   try {
-    await signIn()
+    if (retryOnly) {
+      await readProfile()
+      retryEntryReports()
+    } else {
+      await signIn()
+    }
+    profileRetry.value = false
     if (!leaving) resumeBooking(target)
   } catch (error) {
-    feedback.value = error.message || '登录失败，请重试'
+    const next = loginFailureState(error, signedIn.value)
+    profileRetry.value = next.profileRetry
+    feedback.value = next.feedback
   } finally {
     busy.value = false
   }
@@ -34,7 +54,7 @@ async function login() {
       <view class="permission">
         <text class="permission-title">{{ demoMode ? '预约体验' : '微信账号登录' }}</text>
         <text class="permission-note">登录后可查看本人资料，继续预约。</text>
-        <button class="login-button" :disabled="busy" @tap="login">{{ busy ? '登录中…' : demoMode ? '体验登录' : '微信登录' }}</button>
+        <button class="login-button" :disabled="busy" @tap="login">{{ buttonText }}</button>
         <text v-if="feedback" class="permission-result" role="status">{{ feedback }}</text>
       </view>
     </view>

@@ -1,7 +1,14 @@
 // One instance per backend and AppID. A missing saved session is an intentional guest.
 export function createSessionClient({ saved, save, send, loginCode, changed, deviceContext = () => ({}) }) {
-  function credential({ token, expires_at, logout_token, user_no }) {
-    return { token, expires_at, logout_token, user_no }
+  function newSessionId() {
+    return typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() :
+      Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+  }
+
+  function credential({ token, expires_at, logout_token, user_no, session_id }) {
+    const record = { token, expires_at, logout_token, user_no }
+    if (!user_no && session_id) record.session_id = session_id
+    return record
   }
   let current = saved?.token ? credential(saved) : null
   const revocations = new Set(Array.isArray(saved?.revocations) ? saved.revocations : [])
@@ -17,8 +24,13 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     try {
       return await send(path, options)
     } catch (error) {
+      if (error.statusCode === 403 && error.appDisabled) {
+        // Confirmed app disablement retires this session and invalidates in-flight logins and reads.
+        if (start === generation) signOut('app_disabled').catch(() => {})
+        throw error
+      }
       assertCurrent(start)
-      if (error.statusCode === 403 && error.code === 'account_disabled' && !error.appDisabled) {
+      if (error.statusCode === 403 && error.code === 'account_disabled') {
         if (options.token && options.token !== current?.token) throw new Error('登录状态已更新，请重试')
         signOut('account_disabled').catch(() => {})
       }
@@ -33,7 +45,8 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
 
   function revoke(token) {
     if (revoking.has(token)) return revoking.get(token)
-    const operation = send('session', { method: 'DELETE', token }).then(() => {
+    // Only the backend's 204 confirms revocation; gateway 200 maintenance pages must retain the receipt.
+    const operation = send('session', { method: 'DELETE', token, expectedStatus: 204 }).then(() => {
       revocations.delete(token)
       persist()
     }).finally(() => { revoking.delete(token) })
@@ -96,9 +109,11 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
       if (current.token !== token) throw new Error('登录状态已更新，请重试')
       if (path === 'me' && result?.user_no && !current.user_no) {
         // A device signed in before login responses included the Booking user number.
+        const confirmedSession = current.session_id
         current.user_no = result.user_no
+        delete current.session_id
         persist()
-        changed(true)
+        changed(true, confirmedSession)
       }
       return result
     }
@@ -128,7 +143,17 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     if (previous) revocations.add(previous.logout_token || previous.token)
     persist()
     changed(false, reason)
+    if (reason === 'app_disabled' && !previous) return Promise.resolve()
     return retryRevocations()
+  }
+
+  function ensurePendingSession() {
+    if (!current || current.user_no) return undefined
+    if (!current.session_id) {
+      current.session_id = newSessionId()
+      persist()
+    }
+    return current.session_id
   }
 
   async function identifySavedSession() {
@@ -138,5 +163,9 @@ export function createSessionClient({ saved, save, send, loginCode, changed, dev
     return savedSession === current ? current?.user_no : undefined
   }
 
-  return { signIn, request, signOut, retryRevocations, identifySavedSession, get userNo() { return current?.user_no } }
+  return {
+    signIn, request, signOut, retryRevocations, identifySavedSession, ensurePendingSession,
+    get userNo() { return current?.user_no },
+    get pendingSessionId() { return current && !current.user_no ? current.session_id : undefined },
+  }
 }

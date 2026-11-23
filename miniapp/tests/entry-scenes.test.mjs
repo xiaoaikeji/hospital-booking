@@ -87,3 +87,54 @@ test('source storage failures still allow in-memory recording and acknowledgemen
   assert.deepEqual(sent, [1047])
   assert.equal(queue.pending, false)
 })
+
+test('a legacy session keeps its first offline scan across restarts and only claims it for the confirmed owner', async () => {
+  const storage = memoryStorage()
+  const key = 'booking-session:fixture-origin:app-a'
+  const sent = []
+  const open = (sessionKey = key) => createEntryQueue({ storage, sessionKey, submit: async row => { sent.push([sessionKey, structuredClone(row)]) } })
+
+  // Day 1 offline: legacy session stages the hall QR scan.
+  const offline = open()
+  offline.addForSession('legacy-sess-1', hall)
+  assert.equal(offline.hasPendingSession('legacy-sess-1'), true)
+
+  // Day 2 online: recently used 1089 must not overwrite the staged 1047 + channel.
+  const reopened = open()
+  reopened.pruneSessions('legacy-sess-1')
+  reopened.addForSession('legacy-sess-1', recent)
+  assert.equal(storage.getStorageSync(key + ':entries').length, 1)
+  reopened.activate('11111111', 'legacy-sess-1')
+  await reopened.flush()
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0][1].launch_scene, 1047)
+  assert.equal(sent[0][1].channel_scene, '门诊大厅')
+  assert.equal(sent[0][1].intended_user_no, '11111111')
+  assert.equal(sent[0][1].pending_session, undefined)
+  assert.equal(storage.getStorageSync(key + ':entries'), undefined)
+
+  // Unconfirmed legacy scan must never leak on account switch, logout, AppID change or backend change.
+  const leakCheck = open()
+  leakCheck.addForSession('legacy-sess-2', hall)
+  for (const otherScope of ['booking-session:fixture-origin:app-b', 'booking-session:other-origin:app-a']) {
+    const isolated = open(otherScope)
+    isolated.activate('22222222', 'legacy-sess-2')
+    await isolated.flush()
+  }
+  assert.equal(sent.length, 1)
+  // Expired legacy session replaced by another account (no confirmedSessionId): must discard.
+  const replaced = open()
+  replaced.activate('22222222')
+  await replaced.flush()
+  assert.equal(sent.length, 1)
+  assert.equal(storage.getStorageSync(key + ':entries'), undefined)
+
+  // Sign-out discards an unconfirmed legacy scan before another user logs in.
+  const beforeLogout = open()
+  beforeLogout.addForSession('legacy-sess-3', hall)
+  beforeLogout.leave()
+  assert.equal(storage.getStorageSync(key + ':entries'), undefined)
+  beforeLogout.activate('22222222')
+  await beforeLogout.flush()
+  assert.equal(sent.length, 1)
+})

@@ -3,6 +3,7 @@ import { API_ORIGIN, wechatAppId, requestApp } from '../request/http.js'
 import { createSessionClient } from '../request/session.js'
 import { pauseApp } from '../utils/app-access.js'
 import { deviceContext, entrySource } from '../utils/login-context.js'
+import { configurationStatus, onAppDisabled } from './app-configuration.js'
 import { createEntryQueue } from './entry-scenes.js'
 
 const appId = wechatAppId()
@@ -14,7 +15,12 @@ const demoUser = mobile => ({ user_no: 'demo', nickname: '体验用户', mobile,
 export const profile = ref(demoMode && signedIn.value ? demoUser(saved.mobile || saved.phone) : null)
 let profileVersion = 0
 const entries = demoMode ? null : createEntryQueue({ storage: uni, sessionKey: storageKey, submit: postVisit })
-if (saved?.token) entries?.activate(saved.user_no)
+if (saved?.token) {
+  if (saved.user_no) entries?.activate(saved.user_no)
+  else entries?.pruneSessions(saved.session_id)
+} else {
+  entries?.pruneSessions()
+}
 
 function save(value) {
   if (value) uni.setStorageSync(storageKey, value)
@@ -35,25 +41,34 @@ const client = createSessionClient({
       throw error
     }
   },
-  changed: (active, reason) => {
+  changed: (active, detail) => {
     signedIn.value = active
     if (active) {
-      entries?.activate(client.userNo)
+      if (client.userNo) entries?.activate(client.userNo, detail)
+      else entries?.pruneSessions(client.pendingSessionId)
     } else {
       profileVersion++
       profile.value = null
       entries?.leave()
-      if (reason === 'account_disabled') uni.showToast({ title: '账号已停用', icon: 'none' })
+      if (detail === 'account_disabled') uni.showToast({ title: '账号已停用', icon: 'none' })
     }
   },
 })
+
+if (!demoMode) {
+  // Configuration and private-endpoint disablement share the same session invalidation path.
+  onAppDisabled(() => {
+    client.signOut('app_disabled').catch(() => {})
+  })
+}
 
 export async function readProfile() {
   if (demoMode) return profile.value
   const version = profileVersion
   const result = await client.request('me')
   if (!result?.user_no) throw new Error('未取得本人资料，请重试')
-  if (version === profileVersion) profile.value = result
+  if (version !== profileVersion) throw new Error('登录状态已更新，请重试')
+  profile.value = result
   return profile.value
 }
 
@@ -64,6 +79,7 @@ export async function signIn() {
     signedIn.value = true
     return
   }
+  if (configurationStatus.value === 'disabled') throw new Error('当前小程序已暂停服务')
   await client.signIn()
   try { await readProfile() }
   finally { retryEntryReports() }
@@ -90,7 +106,19 @@ export function retryRevocations() {
 }
 
 export function retryEntryReports() {
-  if (signedIn.value) entries?.retry().catch(() => {})
+  if (!signedIn.value || !entries) return
+  if (client.userNo) {
+    entries.retry().catch(() => {})
+  } else if (entries.hasPendingSession(client.pendingSessionId)) {
+    identifyAndFlushEntries().catch(() => {})
+  }
+}
+
+async function identifyAndFlushEntries() {
+  const version = profileVersion
+  const owner = await client.identifySavedSession()
+  if (!owner || owner !== client.userNo || version !== profileVersion) return
+  if (entries.pending) await entries.retry()
 }
 
 export async function noteEntry(options) {
@@ -100,12 +128,23 @@ export async function noteEntry(options) {
     entries.add(entry)
     return
   }
+  if (client.userNo) {
+    entries.add(entry)
+    try {
+      if (entries.pending) await entries.retry()
+      else await postVisit({ intended_user_no: client.userNo })
+    } catch { /* A pending source is retried on the next foreground entry or reconnection. */ }
+    return
+  }
   const version = profileVersion
+  if (entry) {
+    const pendingSession = client.ensurePendingSession()
+    if (pendingSession) entries.addForSession(pendingSession, entry)
+  }
   try {
     // An older saved credential has no owner until its authenticated profile is read.
-    const owner = client.userNo || await client.identifySavedSession()
+    const owner = await client.identifySavedSession()
     if (!owner || owner !== client.userNo || version !== profileVersion) return
-    entries.add(entry)
     if (entries.pending) await entries.retry()
     else await postVisit({ intended_user_no: client.userNo })
   } catch { /* A pending source is retried on the next foreground entry or reconnection. */ }

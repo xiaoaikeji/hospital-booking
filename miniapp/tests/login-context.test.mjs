@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { deviceContext, entrySource } from '../utils/login-context.js'
+import { deviceContext, entrySource, loginFailureState } from '../utils/login-context.js'
 import { createSessionClient } from '../request/session.js'
 
 test('a real scan carries its launch code and decoded channel, silent renewal has no entry', async () => {
@@ -31,4 +31,22 @@ test('device context drops tools, errors and unknown fields independently', () =
     { device_platform: 'ios', operating_system: 'iOS 17' })
   assert.deepEqual(deviceContext(() => ({ platform: 'android', model: 'Fixture', osName: 'Android', osVersion: '14' })),
     { device_platform: 'android', device_model: 'Fixture', operating_system: 'Android 14' })
+})
+
+test('loginFailureState offers profile retry only for temporary failures after login succeeded', () => {
+  const unavailable = Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 503 })
+  assert.deepEqual(loginFailureState(unavailable, true), { profileRetry: true, feedback: '已登录，暂时无法读取资料' })
+  assert.deepEqual(loginFailureState(unavailable, false), { profileRetry: false, feedback: '服务暂不可用，请重试' })
+  assert.deepEqual(
+    loginFailureState(Object.assign(new Error('请重新登录'), { statusCode: 401, code: 'session_expired' }), true),
+    { profileRetry: false, feedback: '请重新登录' },
+  )
+  assert.deepEqual(
+    loginFailureState(Object.assign(new Error('账号已停用'), { statusCode: 403, code: 'account_disabled' }), false),
+    { profileRetry: false, feedback: '账号已停用' },
+  )
+  assert.deepEqual(
+    loginFailureState(Object.assign(new Error('服务暂不可用，请重试'), { statusCode: 403, appDisabled: true }), false),
+    { profileRetry: false, feedback: '服务暂不可用，请重试' },
+  )
 })

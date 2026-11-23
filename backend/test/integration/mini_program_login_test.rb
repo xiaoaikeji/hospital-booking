@@ -145,6 +145,24 @@ class MiniProgramLoginTest < ActionDispatch::IntegrationTest
     me(@b, b)
   end
 
+  test "a session issued before app disablement can be revoked while disabled and stays invalid after recovery" do
+    a = login(@a)
+    receipt = response.parsed_body.fetch("logout_token")
+    b = login(@b)
+    @a.update!(status: "disabled")
+    get api_app_configuration_path("wechat", @a.appid)
+    assert_response :forbidden
+    assert_equal "disabled", response.parsed_body.fetch("status")
+    delete api_mini_program_session_path(@a.appid), headers: bearer(receipt)
+    assert_response :no_content
+    me(@b, b)
+    @a.update!(status: "active")
+    get api_mini_program_me_path(@a.appid), headers: bearer(a)
+    assert_response :unauthorized
+    assert_equal "session_expired", response.parsed_body.fetch("code")
+    assert_equal me(@a, login(@a)).fetch("user_no"), UserApp.for_app(@a).sole.user.user_no
+  end
+
   test "booking policy and verified account mobile come from the server, independent of the contact" do
     token = login(@a)
     assert_equal false, me(@a, token)["booking_phone_required"]
