@@ -41,7 +41,8 @@ if (form) {
       label.classList.toggle("required", required);
       input.required = required;
       if (badge) badge.hidden = changing || !originalForm;
-      input.placeholder = changing || !originalForm ? "" : placeholder;
+      const originalPlaceholder = originalForm || required ? placeholder : "留空保留原商户配置";
+      input.placeholder = changing ? "" : originalPlaceholder;
     });
     showBackup();
   };
