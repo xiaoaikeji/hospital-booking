@@ -9,7 +9,7 @@ class OperationLogDetails
 
   ADMIN = { "fields" => %w[username name role enabled password], "reason" => %w[账号校验失败 数据库写入失败] }.freeze
   APP = { "fields" => %w[provider app_type appid nickname memo status wechat_original_id appsecret callback_token callback_encoding_aes_key],
-    "reason" => [ "请核对标出的应用资料", "保存失败，请刷新页面", "配置已变更，请刷新页面后重新填写", AppConfiguration::ENCRYPTION_UNAVAILABLE ] }.freeze
+    "reason" => :app_reason }.freeze
   APPEARANCE = { "fields" => AppearanceSettings::OPTIONS.keys,
     "reason" => [ "外观已发生变化，请刷新页面后重试", "外观选项无效", "外观未保存，数据库写入失败，请重试" ] }.freeze
   LINK = { "app_id" => ID, "position" => Link::POSITIONS.keys, "reason" => [ "保存失败", "状态未能保存，请重试" ] }.freeze
@@ -29,6 +29,7 @@ class OperationLogDetails
     "admin.create" => ADMIN, "admin.update" => ADMIN,
     "admin.password" => ADMIN.merge("fields" => %w[password]),
     "app.create" => APP, "app.update" => APP,
+    "app.destroy" => { "reason" => AppConfiguration::DELETE_AUDIT_REASONS },
     "app.user_sharing" => { "fields" => %w[unionid_app_groups] },
     "appointment.phone_policy" => { "fields" => %w[require_mobile_auth] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
@@ -125,6 +126,7 @@ class OperationLogDetails
     when Regexp then value if value.is_a?(String) && rule.match?(value)
     when :boolean then value if value == true || value == false
     when :count then value.size if value.is_a?(Array)
+    when :app_reason then AppConfiguration.audit_reason(value)
     end
   end
 

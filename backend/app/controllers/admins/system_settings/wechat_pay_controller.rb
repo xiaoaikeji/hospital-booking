@@ -24,6 +24,7 @@ module Admins
     def load_settings
       @settings = WechatPaySettings.new
       @gateway_error = Log.where(source: "system", category: "payment", action: "wechat_pay.gateway_error").order(id: :desc).first
+      @gateway_diagnostic = Wechat::PaymentV3Client.diagnostic_details(@gateway_error.details) if @gateway_error
     end
   end
 end

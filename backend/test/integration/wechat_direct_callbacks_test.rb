@@ -90,6 +90,28 @@ class WechatDirectCallbacksTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "回调校验失败的固定原因可见，附加凭据的历史原因只显示摘要" do
+    reason = "请核对公众号原始 ID、回调 Token 和消息加解密密钥"
+    previous = @a.appsecret
+    draft = "draft-app-secret-fixture"
+    patch admins_app_path(@a), params: { app: {
+      revision: AppConfiguration.new(@a).revision, appsecret: draft, callback_token: "invalid token" } }
+    assert_response :unprocessable_content
+    assert_includes response.body, reason
+    [ previous, draft ].each { |value| assert_not_includes response.body, value }
+    assert_equal previous, @a.reload.appsecret
+    failure = Log.where(action: "app.update", target_id: @a.id, status: "failed").sole
+    assert_equal({ "reason" => reason }, failure.details)
+
+    get admins_operation_log_path(failure)
+    assert_select "dd", text: reason
+    legacy = Log.create!(category: "app", action: "app.update", source: "admin", status: "failed",
+      actor_type: "Admin", actor_id: @admin.id, details: { "reason" => "#{reason} #{previous}" })
+    get admins_operation_log_path(legacy)
+    assert_select "p", text: "历史详情已隐藏"
+    assert_not_includes response.body, previous
+  end
+
   test "代管读写路由和定时任务退出，直连、通知、页面配置及监控入口保留" do
     routes = Rails.application.routes
     legacy = {

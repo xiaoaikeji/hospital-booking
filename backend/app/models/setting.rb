@@ -1,6 +1,6 @@
 class Setting < ApplicationRecord
   INTEGRATION_GROUPS = %w[active_storage tencent_cos].freeze
-  SECRET_FIELDS = { "baidu_map" => %w[ak], "tencent_map" => %w[key], "wechat_component" => %w[appsecret token encoding_aes_key], "tencent_cos" => %w[secret_id secret_key],
+  SECRET_FIELDS = { "baidu_map" => %w[ak], "tencent_map" => %w[key], "wechat_component" => %w[appsecret token encoding_aes_key], "tencent_cos" => %w[secret_id secret_key endpoint],
                     "wechat_notifications" => %w[webhook_key],
                     "wechat_pay" => %w[v2_api_key v2_certificate v2_private_key v3_api_key v3_private_key verification_pem backup_verification_pem] }.freeze
   self.filter_attributes += [ :settings ]
@@ -10,6 +10,10 @@ class Setting < ApplicationRecord
     errors.add(:settings, "必须是 JSON 对象") unless settings.is_a?(Hash)
     self.class.secret_fields(key).each do |field|
       value = settings[field] if settings.is_a?(Hash)
+      if persisted? && self.class.legacy_storage_endpoint?(key, field, value) && settings_in_database.is_a?(Hash) &&
+          settings_in_database[field] == value
+        next
+      end
       if !value.nil? && !(value.is_a?(Hash) && value.keys == [ "ciphertext" ] && value["ciphertext"].is_a?(String))
         errors.add(:settings, "敏感字段必须加密保存")
       end
@@ -35,12 +39,20 @@ class Setting < ApplicationRecord
 
   def self.decode_value(section, field, value)
     return value unless secret_fields(section).include?(field) && !value.nil?
+    return value if legacy_storage_endpoint?(section, field, value)
+
     unless value.is_a?(Hash) && value.keys == [ "ciphertext" ] && value["ciphertext"].is_a?(String)
       raise IntegrationSettings::ConfigurationError, "#{section}.#{field} 密文格式无效"
     end
     ActiveRecord::Encryption.encryptor.decrypt(value.fetch("ciphertext"))
   rescue ActiveRecord::Encryption::Errors::Base
     raise IntegrationSettings::ConfigurationError, "#{section}.#{field} 解密失败，请核对加密主密钥", cause: nil
+  end
+
+  # Older releases stored the endpoint as a public value. Continue reading it
+  # while requiring encryption for any new value.
+  def self.legacy_storage_endpoint?(section, field, value)
+    section == "tencent_cos" && field == "endpoint" && !(value.nil? || (value.is_a?(Hash) && value.key?("ciphertext")))
   end
 
   def write_value(field, value)

@@ -66,6 +66,24 @@ class TencentCosServiceTest < ActiveSupport::TestCase
     assert_not_includes service.inspect, "test-secret"
   end
 
+  test "provider error details and causes stay behind the storage boundary" do
+    service = ActiveStorage::Service::TencentCosService.new(env: @env, credentials: {}, stub_responses: true)
+    client = service.client.client
+    context = Seahorse::Client::RequestContext.new
+    marker = @env.fetch("TENCENT_COS_SECRET_ID")
+    client.stub_responses(:delete_object, Aws::S3::Errors::AccessDenied.new(context, marker))
+
+    error = assert_raises(ActiveStorage::Service::TencentCosService::RequestFailed) { service.delete("fixture-key") }
+    assert_equal "腾讯云 COS 请求失败，请稍后重试", error.message
+    assert_nil error.cause
+    assert_not_includes error.full_message, marker
+
+    client.stub_responses(:get_object, Aws::S3::Errors::NoSuchKey.new(context, marker))
+    missing = assert_raises(ActiveStorage::FileNotFoundError) { service.download("fixture-key") }
+    assert_nil missing.cause
+    assert_not_includes missing.full_message, marker
+  end
+
   private
 
   def settings

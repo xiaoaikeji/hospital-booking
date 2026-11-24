@@ -88,8 +88,8 @@
 <% if @gateway_error %>
   <aside class="alert alert-warning mt-3">
     <div><h3 class="alert-title">最近一次 V3 签名错误或查无记录提示 · <%= admin_list_time(@gateway_error.created_at) %></h3>
-      <div><%= @gateway_error.details.fetch("reason") %></div>
-      <div class="text-secondary text-break">收到的微信签名头：<%= @gateway_error.details.fetch("headers_present").presence&.join("、") || "无" %></div>
+      <div><%= @gateway_diagnostic[:reason] || "历史诊断详情已隐藏" %></div>
+      <div class="text-secondary text-break">收到的微信签名头：<%= @gateway_diagnostic[:headers_present].presence&.join("、") || "无" %></div>
     </div>
   </aside>
 <% end %>

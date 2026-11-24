@@ -17,6 +17,14 @@
       <% StorageSettings::LABELS.except("service").each do |field, label| %>
         <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields <%= tag.attributes(hidden: !cos_enabled, disabled: !cos_enabled) %>>
           <%= render "admins/shared/configuration_field", form: form, record: @settings, field: field, label: label, field_data: fields.fetch(field), placeholder: ({"secret_id" => "请输入 SecretId", "secret_key" => "请输入 SecretKey", "region" => "例如 ap-shanghai", "bucket" => "例如 booking-1234567890", "endpoint" => "留空按地域生成 HTTPS API 地址"}.fetch(field)) %>
+          <% if field == "endpoint" %>
+            <div class="mt-2">
+              <%= form.label :endpoint_visibility, "API 地址回显", class: "form-label" %>
+              <%= form.select :endpoint_visibility, [["沿用当前设置", ""], ["回显本次填写的公开地址", "public"], ["仅显示配置状态", "private"]],
+                    { selected: "" }, class: "form-select", autocomplete: "off" %>
+              <small class="form-hint">自定义地址默认仅显示配置状态。确认地址可公开后，可填写完整地址并允许回显。</small>
+            </div>
+          <% end %>
         </fieldset>
       <% end %>
     </div>

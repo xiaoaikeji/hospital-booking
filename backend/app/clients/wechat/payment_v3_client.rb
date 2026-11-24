@@ -11,6 +11,22 @@ module Wechat
       "RESOURCE_NOT_EXISTS" => [ 404, "查询的记录不存在，请核对原单号" ]
     }.freeze
     SIGNATURE_HEADERS = %w[Wechatpay-Timestamp Wechatpay-Nonce Wechatpay-Serial Wechatpay-Signature Wechatpay-Signature-Type].freeze
+    GATEWAY_VERIFICATION = {
+      invalid: "回包验签失败，错误内容未经验证",
+      verified: "验签通过",
+      unsigned: "未经验证，请按原单号核实"
+    }.freeze
+    GATEWAY_MESSAGES = GATEWAY_ERRORS.to_h do |code, (status, reason)|
+      [ code, GATEWAY_VERIFICATION.transform_values { |state| "HTTP #{status} · #{code} · #{reason}（#{state}）" }.freeze ]
+    end.freeze
+
+    def self.diagnostic_details(details)
+      details = {} unless details.is_a?(Hash)
+      reason = details["reason"]
+      reason = nil unless GATEWAY_MESSAGES.each_value.any? { |messages| messages.value?(reason) }
+      headers = details["headers_present"]
+      { reason: reason, headers_present: headers.is_a?(Array) ? SIGNATURE_HEADERS & headers : [] }
+    end
 
     def initialize(config, http: HttpConnection)
       @config = config
@@ -158,17 +174,17 @@ module Wechat
 
     def response_error!(response, raw)
       code = error_code(raw)
-      expected_status, reason = GATEWAY_ERRORS[code]
+      expected_status = GATEWAY_ERRORS[code]&.first
       known_error = expected_status == response.status
       signed = response.headers["Wechatpay-Signature"].present?
       begin
         verify!(raw, response.headers) if signed
       rescue Payments::InvalidResult
-        gateway_diagnostic(response, code, reason, "回包验签失败，错误内容未经验证") if known_error
+        gateway_diagnostic(response, code, :invalid) if known_error
         raise
       end
       raise Payments::Unavailable if response.status >= 500 || response.status == 429
-      message = gateway_diagnostic(response, code, reason, signed ? "验签通过" : "未经验证，请按原单号核实") if known_error
+      message = gateway_diagnostic(response, code, signed ? :verified : :unsigned) if known_error
       raise Payments::Unavailable, message unless signed
       raise Payments::InvalidResult if code.nil? || (expected_status && !known_error)
       raise Payments::ChannelError.new(code, message)
@@ -182,8 +198,8 @@ module Wechat
       nil
     end
 
-    def gateway_diagnostic(response, code, reason, verification)
-      message = "HTTP #{response.status} · #{code} · #{reason}（#{verification}）"
+    def gateway_diagnostic(response, code, verification)
+      message = GATEWAY_MESSAGES.fetch(code).fetch(verification)
       headers = SIGNATURE_HEADERS.select { |name| response.headers.key?(name) }
       begin
         Log.record!(source: "system", category: "payment", action: "wechat_pay.gateway_error", status: "failed",

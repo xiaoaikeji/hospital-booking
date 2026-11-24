@@ -314,6 +314,9 @@ class AppsTest < ActionDispatch::IntegrationTest
     delete admins_app_path(account)
     assert_includes flash[:alert], "已有公众号通知配置"
     assert App.exists?(account.id)
+    log = Log.find_by!(action: "app.destroy", target_id: account.id, status: "failed")
+    get admins_operation_log_path(log)
+    assert_select "dd", text: "已有公众号通知配置，只能停用"
   end
 
   private

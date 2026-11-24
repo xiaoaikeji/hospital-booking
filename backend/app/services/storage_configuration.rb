@@ -16,10 +16,10 @@ module StorageConfiguration
 
   def self.default_cos_endpoint(region)
     region = region.strip if region.is_a?(String)
-    "https://cos.#{region}.myqcloud.com" if valid_public_value?("region", region)
+    "https://cos.#{region}.myqcloud.com" if valid_value?("region", region)
   end
 
-  def self.valid_public_value?(field, value)
+  def self.valid_value?(field, value)
     return false unless value.is_a?(String)
 
     case field

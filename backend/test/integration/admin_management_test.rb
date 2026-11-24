@@ -149,9 +149,10 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "endpoint-fixture-only"
   end
 
-  test "storage rejects robot endpoint paths and displays ordinary HTTPS paths" do
+  test "storage rejects known robot paths and displays an explicitly public HTTPS address" do
     reader = Admin.create!(username: "storage_reader", role: "super_admin")
-    legacy = Setting.create!(key: "tencent_cos", settings: {
+    legacy = Setting.create!(key: "tencent_cos")
+    legacy.update_columns(settings: {
       "region" => "https://example.invalid/?key=legacy-region-fixture",
       "bucket" => { "value" => "legacy-bucket-fixture" },
       "endpoint" => "https://hooks.slack.com/services/demo-workspace/demo-channel/legacy-endpoint-fixture"
@@ -167,22 +168,70 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     endpoint = "https://storage.example.invalid/services/preview/channel/cos-api"
     patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision,
       service: "tencent_cos", secret_id: "fixture-cos-id", secret_key: "fixture-cos-key",
-      region: "ap-shanghai", bucket: "fixture-bucket-123", endpoint: " #{endpoint} " } }
+      region: "ap-shanghai", bucket: "fixture-bucket-123", endpoint: " #{endpoint} ", endpoint_visibility: "public" } }
     assert_redirected_to edit_admins_system_settings_storage_path
-    assert_equal endpoint, legacy.reload.settings.fetch("endpoint")
+    assert_not_includes legacy.reload.settings.fetch("endpoint").to_json, endpoint
+    assert_equal endpoint, Setting.read_integration_value(:tencent_cos, :endpoint)
     follow_redirect!
     assert_select "#storage_settings_endpoint[value=?]", endpoint
     assert_select "#storage_settings_region[value='ap-shanghai']"
     assert_select "#storage_settings_bucket[value='fixture-bucket-123']"
 
     webhook = "https://hooks.slack.com/services/demo-workspace/demo-channel/rejected-endpoint-fixture"
-    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, endpoint: webhook } }
+    patch admins_system_settings_storage_path, params: { storage_settings: {
+      revision: StorageSettings.new.revision, endpoint: webhook, endpoint_visibility: "public" } }
     assert_response :unprocessable_content
     assert_select "#storage_settings_endpoint.is-invalid:not([value])"
     assert_select "#endpoint-error", text: "须为有效的 HTTPS API 地址"
     assert_not_includes response.body, "rejected-endpoint-fixture"
-    assert_equal endpoint, legacy.reload.settings.fetch("endpoint")
+    assert_equal endpoint, Setting.read_integration_value(:tencent_cos, :endpoint)
     assert_equal({ "fields" => [ "endpoint" ], "reason" => "配置校验失败" }, Log.last.details)
+  end
+
+  test "legacy custom endpoints stay usable and private across updates and SQL logging" do
+    previous = "https://automation.example.invalid/hooks/legacy-private-fixture"
+    replacement = "https://storage.example.invalid/s3/new-private-fixture"
+    legacy = Setting.create!(key: "tencent_cos")
+    legacy.update_columns(settings: { "endpoint" => previous })
+    reader = Admin.create!(username: "private_endpoint_reader", role: "super_admin")
+    login(@root)
+    buffer = StringIO.new
+    logger = ActiveSupport::Logger.new(buffer)
+    Rails.logger.broadcast_to(logger)
+
+    get edit_admins_system_settings_path
+    assert_response :success
+    assert_select "#storage_settings_endpoint[data-write-only]:not([value])"
+    assert_not_includes response.body, previous
+    patch admins_system_settings_path, params: { storage_settings: {
+      revision: StorageSettings.new.revision, bucket: "fixture-bucket-123" } }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    assert_equal previous, Setting.read_integration_value(:tencent_cos, :endpoint)
+
+    patch admins_system_settings_storage_path, params: { storage_settings: {
+      revision: StorageSettings.new.revision, endpoint: replacement, endpoint_visibility: "public", region: "invalid region" } }
+    assert_response :unprocessable_content
+    assert_select "#storage_settings_endpoint[data-write-only]:not([value])"
+    [ previous, replacement ].each { |value| assert_not_includes response.body, value }
+    assert_equal previous, Setting.read_integration_value(:tencent_cos, :endpoint)
+
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, endpoint: replacement } }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    assert_equal replacement, Setting.read_integration_value(:tencent_cos, :endpoint)
+    assert_predicate legacy.reload.settings.dig("endpoint", "ciphertext"), :present?
+    assert_match(/Setting Update.*\[FILTERED\]/, buffer.string)
+    [ previous, replacement ].each { |value| assert_not_includes buffer.string, value }
+
+    open_session do |other|
+      other.post admin_session_path, params: { admin: { username: reader.username, password: "123456" } }
+      other.get edit_admins_system_settings_storage_path
+      other.assert_response :success
+      other.assert_select "#storage_settings_endpoint[data-write-only]:not([value])"
+      other.assert_select "label[for=storage_settings_endpoint] ~ [data-credential-status]", text: "已配置"
+      other.assert_not_includes other.response.body, replacement
+    end
+  ensure
+    Rails.logger.stop_broadcasting_to(logger) if logger
   end
 
   test "malformed storage submissions retain their bad request status and a redacted audit" do

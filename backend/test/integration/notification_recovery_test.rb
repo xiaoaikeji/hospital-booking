@@ -259,4 +259,26 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     Rails.logger.stop_broadcasting_to(logger)
   end
 
+  test "旧回执补发时保留历史但不把渠道原文写入 SQL 日志" do
+    marker = "legacy-wecom-receipt-fixture"
+    task = dispatch_activity
+    task.update!(status: "failed", response_data: { messages: [
+      { message_id: "msg_0", status: "failed", stage: "channel_rejected", error_message: marker,
+        response: { errcode: 93000, errmsg: marker } }
+    ] })
+    buffer = StringIO.new
+    logger = ActiveSupport::Logger.new(buffer)
+    Rails.logger.broadcast_to(logger)
+
+    post retry_failed_admins_notification_path(task), params: { message_ids: [ "msg_0" ] }
+    assert_redirected_to admins_notification_path(task)
+    assert_match(/Notification Update.*\[FILTERED\]/, buffer.string)
+    assert_not_includes buffer.string, marker
+    assert_equal marker, task.reload.result_for("msg_0").fetch("history").sole.dig("response", "errmsg")
+    follow_redirect!
+    assert_includes response.body, "请核对群机器人设置"
+    assert_not_includes response.body, marker
+  ensure
+    Rails.logger.stop_broadcasting_to(logger) if logger
+  end
 end

@@ -215,6 +215,19 @@ class WechatPaymentsTest
     get edit_admins_system_settings_wechat_pay_path
     assert_select "aside.alert", text: /回包验签失败.*Wechatpay-Signature/m
     assert_equal 0, @order.credits
+    known_reason = Log.where(action: "wechat_pay.gateway_error").last!.details.fetch("reason")
+    legacy_value = "historic-payment-secret-fixture"
+    Log.create!(source: "system", category: "payment", action: "wechat_pay.gateway_error", status: "failed",
+      details: { reason: "#{known_reason} #{legacy_value}", headers_present: [ "Wechatpay-Nonce", legacy_value ] })
+    get edit_admins_system_settings_wechat_pay_path
+    assert_response :success
+    assert_select "aside.alert", text: /历史诊断详情已隐藏.*Wechatpay-Nonce/m
+    assert_not_includes response.body, legacy_value
+    Log.create!(source: "system", category: "payment", action: "wechat_pay.gateway_error", status: "failed", details: [ legacy_value ])
+    get edit_admins_system_settings_wechat_pay_path
+    assert_response :success
+    assert_select "aside.alert", text: /历史诊断详情已隐藏.*无/m
+    assert_not_includes response.body, legacy_value
     signed, status = true, 403
     assert_raises(Payments::InvalidResult) { @payments.query(PAYMENT) }
   end

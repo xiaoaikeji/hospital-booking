@@ -7,6 +7,31 @@ class AppConfiguration
   SECRET_FIELDS = [:appsecret, *CALLBACK_FIELDS].freeze
   DAMAGED_SOURCE = IntegrationSettings::DAMAGED_SOURCE
   ENCRYPTION_UNAVAILABLE = "无法确认系统加密主密钥，请核对部署配置"
+  SAVE_FAILED = "保存失败，请刷新页面"
+  DISABLE_FAILED = "停用失败，请刷新页面后重试"
+  DELETE_FAILED = "删除失败，请重试"
+  DELETE_REFERENCED = "已有业务引用记录，只能停用"
+  DELETE_AUDIT_REASONS = (App::DELETION_REASONS.values + [ DELETE_FAILED, DELETE_REFERENCED ]).freeze
+  AUDIT_REASONS = [
+    SAVE_FAILED, DISABLE_FAILED, ENCRYPTION_UNAVAILABLE,
+    "请核对标出的应用资料", "配置已变更，请刷新页面后重新填写", "停用请求只能提交页面版本，请刷新后重试",
+    "应用状态或资料已变化，请刷新页面后重试", "部署凭据格式无效", "应用凭据解密失败，请核对加密主密钥",
+    "请核对公众号原始 ID、回调 Token 和消息加解密密钥", "请先配置本应用的 AppSecret", "应用平台无效",
+    "应用凭据格式无效", "AppSecret 格式无效", "平台暂不可达或响应无效", "平台暂不可达，请稍后核实结果",
+    "平台返回格式无效", "平台响应无效", "微信未返回有效令牌", "微信未返回有效的令牌有效期",
+    "微信平台暂不可达", "微信响应无效", "微信响应缺少必要字段"
+  ].freeze
+
+  def self.audit_reason(value)
+    return unless value.is_a?(String)
+    return value if AUDIT_REASONS.include?(value) || value.match?(/\A抖音凭据校验失败（-?[0-9]{1,10}）\z/)
+
+    code = value[/\A微信返回错误码 (-?[0-9]{1,10})(?:，|\z)/, 1]
+    return unless code
+
+    expected = Wechat::BaseClient::Rejected.new(code.to_i).message
+    expected if expected == value
+  end
 
   def initialize(app)
     @app = app

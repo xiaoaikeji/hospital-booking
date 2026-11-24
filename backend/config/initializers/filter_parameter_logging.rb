@@ -6,6 +6,8 @@
 Rails.application.config.filter_parameters += [
   # Filter the entire form payload, including newly added fields and query-string variants.
   /\A(?:app|map|notification_settings|storage_settings|wechat_pay|credentials)(?:\z|\[|%5b)/i,
+  # SQL bind logging sees these JSON columns as a whole, including legacy values.
+  /\A(?:settings|details|response_data|error_message)\z/i,
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,
   :mobile, :phone, :authorization, :private_key, :auth_code, :pre_auth_code, :state, :signature, :echostr, :ticket, :xml, :database_url, :redis_url,
   :ciphertext, :req_info, :webhook, :verification_pem, :wechatid, :userstr, /\Aprivacy\z/i, :buttons, :media_id, :qualification, :head_image, :location_application,

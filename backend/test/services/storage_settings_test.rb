@@ -178,7 +178,8 @@ class StorageSettingsTest < ActiveSupport::TestCase
   end
 
   test "existing COS attachments prevent changing their storage location but allow key rotation" do
-    assert StorageSettings.new.save(@input, actor: @admin)
+    endpoint = "https://storage.example.invalid/cos/current"
+    assert StorageSettings.new.save(@input.merge("endpoint" => endpoint, "endpoint_visibility" => "public"), actor: @admin)
     blob = ActiveStorage::Blob.create!(key: "retained-cos-file", filename: "retained.txt", byte_size: 1,
       checksum: Digest::MD5.base64digest("a"), content_type: "text/plain", service_name: "tencent_cos")
     form = StorageSettings.new
@@ -186,7 +187,33 @@ class StorageSettingsTest < ActiveSupport::TestCase
     assert_includes form.errors.full_messages.join, "先迁移文件"
     assert_equal "test-bucket-123", Setting.read_integration_value(:tencent_cos, :bucket)
     assert StorageSettings.new.save({ "secret_key" => "rotated-test-secret" }, actor: @admin)
+    assert StorageSettings.new.save({ "endpoint_visibility" => "private" }, actor: @admin)
+    assert_nil StorageSettings.new.form_field("endpoint").value
+    assert_equal endpoint, Setting.read_integration_value(:tencent_cos, :endpoint)
   ensure
     ActiveStorage::Blob.where(id: blob.id).delete_all if blob
+  end
+
+  test "approval of a deployment address does not persist an override or carry over to a replacement" do
+    previous = ENV["TENCENT_COS_ENDPOINT"]
+    endpoint = "https://gateway.example.invalid/s3/v1"
+    ENV["TENCENT_COS_ENDPOINT"] = endpoint
+    assert_nil StorageSettings.new.form_field("endpoint").value
+
+    assert StorageSettings.new.save({ "endpoint" => endpoint, "endpoint_visibility" => "public" }, actor: @admin)
+    assert_equal endpoint, StorageSettings.new.form_field("endpoint").value
+    assert_nil Setting.read_integration_value(:tencent_cos, :endpoint)
+    assert_equal [ "endpoint" ], Log.last.details.fetch("fields")
+
+    replacement = "https://gateway.example.invalid/s3/v2"
+    ENV["TENCENT_COS_ENDPOINT"] = replacement
+    assert_nil StorageSettings.new.form_field("endpoint").value
+    assert_equal replacement, StorageSettings.new.read("endpoint")
+    assert StorageSettings.new.save({ "clear_fields" => [ "endpoint" ] }, actor: @admin)
+    assert_equal [ "endpoint" ], Log.last.details.fetch("fields")
+    ENV["TENCENT_COS_ENDPOINT"] = endpoint
+    assert_nil StorageSettings.new.form_field("endpoint").value
+  ensure
+    ENV["TENCENT_COS_ENDPOINT"] = previous
   end
 end

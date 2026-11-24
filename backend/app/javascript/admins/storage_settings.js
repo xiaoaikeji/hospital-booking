@@ -15,3 +15,14 @@ document.addEventListener("change", (event) => {
   const container = event.target.closest("[data-storage-settings]");
   if (container && event.target.matches("[data-storage-service] select")) updateStorageFields(container);
 });
+
+window.addEventListener("pageshow", (event) => {
+  if (!event.persisted && performance.getEntriesByType("navigation")[0]?.type !== "back_forward") return;
+
+  document.querySelectorAll("form[data-storage-settings]").forEach((form) => {
+    const endpoint = form.elements.namedItem("storage_settings[endpoint]");
+    const visibility = form.elements.namedItem("storage_settings[endpoint_visibility]");
+    endpoint.value = endpoint.defaultValue;
+    visibility.value = "";
+  });
+});

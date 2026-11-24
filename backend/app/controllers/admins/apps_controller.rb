@@ -65,7 +65,8 @@ module Admins
       end
       redirect_to admins_app_path(@app, helpers.application_context_params), notice: "应用已停用", status: :see_other
     rescue AppConfiguration::Invalid, ActiveRecord::ActiveRecordError => error
-      reason = error.is_a?(AppConfiguration::Invalid) ? error.message : "停用失败，请刷新页面后重试"
+      reason = AppConfiguration.audit_reason(error.message) if error.is_a?(AppConfiguration::Invalid)
+      reason ||= AppConfiguration::DISABLE_FAILED
       audit("update", status: "failed", details: { reason: reason })
       redirect_to edit_admins_app_path(@app, helpers.application_context_params), alert: reason, status: :see_other
     end
@@ -79,8 +80,10 @@ module Admins
     rescue ActiveRecord::ActiveRecordError => error
       message = @app.errors[:base].first
       message ||= error.record.errors[:base].first if error.is_a?(ActiveRecord::RecordNotDestroyed) && error.record
-      message ||= error.is_a?(ActiveRecord::InvalidForeignKey) ? "已有业务引用记录，只能停用" : "删除失败，请重试"
-      audit("destroy", status: "failed", details: { reason: message })
+      fallback = error.is_a?(ActiveRecord::InvalidForeignKey) ? AppConfiguration::DELETE_REFERENCED : AppConfiguration::DELETE_FAILED
+      message ||= fallback
+      reason = message.presence_in(AppConfiguration::DELETE_AUDIT_REASONS) || fallback
+      audit("destroy", status: "failed", details: { reason: reason })
       redirect_to admins_app_path(@app, helpers.application_context_params), alert: message
     end
 
@@ -146,9 +149,9 @@ module Admins
       ActiveRecord::ActiveRecordError, ActiveRecord::Encryption::Errors::Base => error
       reason = case error
       when ActiveRecord::RecordInvalid then "请核对标出的应用资料"
-      when ActiveRecord::ActiveRecordError then "保存失败，请刷新页面"
+      when ActiveRecord::ActiveRecordError then AppConfiguration::SAVE_FAILED
       when ActiveRecord::Encryption::Errors::Base then AppConfiguration::ENCRYPTION_UNAVAILABLE
-      else error.message
+      else AppConfiguration.audit_reason(error.message) || AppConfiguration::SAVE_FAILED
       end
       audit(action, status: "failed", details: { reason: reason })
       if @app.persisted?
