@@ -64,4 +64,14 @@ end
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # Capistrano 部署工具链（服务器用 rbenv，本地开发机不限 Ruby 版本管理器）
+  gem "capistrano", "~> 3.20", require: false
+  gem "capistrano-rails", "~> 1.7", require: false
+  gem "capistrano-bundler", "~> 2.2", require: false
+  gem "capistrano-rbenv", "~> 2.2", require: false
+
+  # net-ssh 处理 ed25519 私钥需要这两个扩展，显式声明以支持本机 ~/.ssh/id_ed25519 等私钥
+  gem "ed25519", require: false
+  gem "bcrypt_pbkdf", require: false
 end

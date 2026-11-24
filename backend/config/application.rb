@@ -15,7 +15,7 @@ module BookingWeb
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     # 存储适配器由 Active Storage 按 storage.yml 加载。
-    config.autoload_lib(ignore: %w[assets tasks active_storage])
+    config.autoload_lib(ignore: %w[assets tasks active_storage capistrano])
 
     config.i18n.default_locale = :"zh-CN"
     config.i18n.available_locales = [ :"zh-CN", :en ]

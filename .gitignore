@@ -80,6 +80,9 @@ certs
 /backend/config/database.yml
 /backend/config/application.yml
 /backend/config/deploy/*.rb
+!/backend/config/deploy/production.rb
+/backend/config/deploy/*.local.rb
+/backend/config/deploy/*.local.yml
 /backend/config/code_templates.yml
 
 # Local environment settings and dependencies.
