@@ -142,6 +142,96 @@ class BookingCapistranoDeployVerifierTest < Minitest::Test
     refute missing_queue.ok?
   end
 
+  def test_rejects_exited_sidekiq_or_restarted_pid_until_new_worker_emits_fresh_beat
+    exited_unit = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload.to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4321,
+      jobs_service_active: false,
+      restarted_at: 1_795_485_600
+    )
+    refute exited_unit.ok?
+    assert_includes exited_unit.reason, "active"
+
+    zero_pid = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload.to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 0,
+      jobs_service_active: true,
+      restarted_at: 1_795_485_600
+    )
+    refute zero_pid.ok?
+    assert_includes zero_pid.reason, "MainPID=0"
+
+    round_one_old_pid_lingering = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload(process: { pid: 4321, tag: "booking:20261124100001", started_at: 1_795_485_602, beat: 1_795_485_604, stopping: false, queues: %w[default] }).to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4500,
+      jobs_service_active: true,
+      restarted_at: 1_795_485_600
+    )
+    refute round_one_old_pid_lingering.ok?
+    assert_includes round_one_old_pid_lingering.reason, "pid=4500"
+
+    round_two_restarted_fresh_pid = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload(
+        checked_at: 1_795_485_612.0,
+        process: { pid: 4500, tag: "booking:20261124100001", started_at: 1_795_485_608, beat: 1_795_485_610, stopping: false, queues: %w[default] }
+      ).to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4500,
+      jobs_service_active: true,
+      restarted_at: 1_795_485_600
+    )
+    assert round_two_restarted_fresh_pid.ok?
+    assert_includes round_two_restarted_fresh_pid.summary, "sidekiq_pid=4500"
+
+    pre_restart_beat = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload(
+        checked_at: 1_795_485_605.0,
+        process: { pid: 4321, tag: "booking:20261124100001", started_at: 1_795_485_598.5, beat: 1_795_485_599.0, stopping: false, queues: %w[default] }
+      ).to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4321,
+      restarted_at: 1_795_485_600
+    )
+    refute pre_restart_beat.ok?
+
+    stale_beat = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload(
+        checked_at: 1_795_485_630.0,
+        process: { pid: 4321, tag: "booking:20261124100001", started_at: 1_795_485_602.5, beat: 1_795_485_603.0, stopping: false, queues: %w[default] }
+      ).to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4321,
+      restarted_at: 1_795_485_600
+    )
+    refute stale_beat.ok?
+
+    missing_checked_at = BookingCapistrano::DeployVerifier.verify(
+      up_http_code: "200",
+      deploy_http_code: "200",
+      deploy_body: valid_payload(checked_at: nil).to_json,
+      expected_release: "20261124100001",
+      expected_jobs_pid: 4321,
+      restarted_at: 1_795_485_600
+    )
+    refute missing_checked_at.ok?
+    assert_includes missing_checked_at.reason, "checked_at"
+  end
+
   def test_builds_deploy_check_url_and_parses_curl_output
     assert_equal "http://127.0.0.1:3000/up/deploy", BookingCapistrano::DeployVerifier.deploy_check_url("http://127.0.0.1:3000/up")
     assert_equal [ "{\"ok\":true}", "200" ], BookingCapistrano::DeployVerifier.parse_curl_output("{\"ok\":true}\n200\n")
@@ -150,7 +240,7 @@ class BookingCapistranoDeployVerifierTest < Minitest::Test
 
   private
 
-  def valid_payload(app: "booking", release: "20261124100001", revision: "abc1234", database: "ok", process: nil)
+  def valid_payload(app: "booking", release: "20261124100001", revision: "abc1234", database: "ok", checked_at: 1_795_485_605.0, process: nil)
     proc_entry = process || {
       pid: 4321,
       tag: "booking:20261124100001",
@@ -160,7 +250,7 @@ class BookingCapistranoDeployVerifierTest < Minitest::Test
       stopping: false,
       queues: %w[default]
     }
-    {
+    payload = {
       app:,
       release:,
       revision:,
@@ -172,5 +262,7 @@ class BookingCapistranoDeployVerifierTest < Minitest::Test
         processes: [ proc_entry ]
       }
     }
+    payload[:checked_at] = checked_at unless checked_at.nil?
+    payload
   end
 end

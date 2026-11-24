@@ -1,14 +1,37 @@
 class Admin < ApplicationRecord
   ROLES = { "super_admin" => "超级管理员", "operator" => "运营管理员", "customer_service" => "客服" }.freeze
   DEFAULT_PASSWORD = "123456".freeze
+  BLANK_PASSWORD_PATTERN = /\A[[:space:]\u180E\u200B-\u200D\u2060\uFEFF]*\z/
+  EDGE_WHITESPACE_PATTERN = /\A[[:space:]\u180E\u200B-\u200D\u2060\uFEFF]+|[[:space:]\u180E\u200B-\u200D\u2060\uFEFF]+\z/
+
+  attr_accessor :require_explicit_password
+
+  def self.blank_password?(value)
+    return true if value.nil?
+
+    text = value.to_s
+    text.blank? || (text.valid_encoding? && text.match?(BLANK_PASSWORD_PATTERN))
+  end
+
+  def self.default_password?(value)
+    text = value.to_s
+    return true if text == DEFAULT_PASSWORD
+    return false unless text.valid_encoding?
+
+    text.gsub(EDGE_WHITESPACE_PATTERN, "") == DEFAULT_PASSWORD
+  end
+
   devise :database_authenticatable, :rememberable, :trackable
   normalizes :username, with: ->(value) { value.to_s.strip.downcase }
-  before_validation(on: :create) { self.password = DEFAULT_PASSWORD if password.blank? }
+  before_validation(on: :create) do
+    self.password = DEFAULT_PASSWORD if self.class.blank_password?(password) && !explicit_password_required?
+  end
   validates :username, presence: true, uniqueness: true, length: { maximum: 100 }, format: { with: /\A[a-z0-9_]+\z/, message: "只能包含字母、数字和下划线" }
   validates :name, length: { maximum: 100 }
   validates :role, inclusion: { in: ROLES.keys }
   validates :enabled, inclusion: { in: [ true, false ] }
   validates :password, length: { in: 6..128 }, confirmation: true, allow_blank: true
+  validate :ensure_explicit_password, on: :create, if: :explicit_password_required?
   validate :retain_enabled_super_admin, on: :update
 
   def super_admin? = role == "super_admin"
@@ -47,6 +70,18 @@ class Admin < ApplicationRecord
   end
 
   private
+
+  def explicit_password_required?
+    require_explicit_password || (Rails.env.production? && password.is_a?(String) && self.class.blank_password?(password))
+  end
+
+  def ensure_explicit_password
+    if self.class.blank_password?(password)
+      errors.add(:password, "不能为空或全空白")
+    elsif self.class.default_password?(password)
+      errors.add(:password, "不能使用公开默认密码")
+    end
+  end
 
   def retain_enabled_super_admin
     return unless role_in_database == "super_admin" && enabled_in_database && (!super_admin? || !enabled?)

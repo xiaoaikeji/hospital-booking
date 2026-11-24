@@ -19,6 +19,7 @@ class DeployChecksController < ActionController::API
       release: DeployIdentity.release,
       revision: DeployIdentity.revision,
       pid: Process.pid,
+      checked_at: Time.now.to_f,
       database: db_ok ? "ok" : "error",
       sidekiq: {
         ok: sidekiq_ok,

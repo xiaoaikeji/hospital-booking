@@ -29,14 +29,13 @@ namespace :systemd do
 
       execute(*prefix, :systemctl, "restart", jobs_unit)
       execute(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
-
-      jobs_pid_raw = capture(*prefix, :systemctl, "show", "-p", "MainPID", "--value", jobs_unit).to_s.strip
-      set :booking_jobs_main_pid, (jobs_pid_raw.empty? ? nil : jobs_pid_raw.to_i)
     end
   end
 
   desc "Poll /up and /up/deploy until Booking release, DB readability, and fresh Sidekiq are verified"
   task :health_check do
+    set :booking_health_check_passed, false
+
     web_unit = fetch(:booking_web_service)
     jobs_unit = fetch(:booking_jobs_service)
     up_url = fetch(:booking_health_check_url)
@@ -54,16 +53,20 @@ namespace :systemd do
     retry_pause = 2
     dry_run = fetch(:sshkit_backend) == SSHKit::Backend::Printer
     expected_release = release_path.basename.to_s
-    expected_jobs_pid = fetch(:booking_jobs_main_pid, nil)
     restarted_at = fetch(:booking_restart_started_at, nil)
 
     on roles(:app), in: :sequence do
+      prefix = use_sudo ? [ :sudo, "-n" ] : []
+
       if dry_run
         execute :curl, "-s", "-o", "/dev/null", "-w", "'%{http_code}'",
                 "--max-time", "5", up_url
         execute :curl, "-s", "-w", "'\\n%{http_code}'",
                 "--max-time", "5", deploy_url
-        info "[systemd:health_check] dry-run: skipped real polling (would verify /up and #{deploy_url} for release #{expected_release})"
+        execute(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
+        execute(*prefix, :systemctl, "show", "-p", "MainPID", "--value", jobs_unit)
+        set :booking_health_check_passed, true
+        info "[systemd:health_check] dry-run: skipped real polling (would verify /up, #{deploy_url}, and live #{jobs_unit} MainPID/heartbeat for release #{expected_release})"
         next
       end
 
@@ -89,17 +92,26 @@ namespace :systemd do
         )
         deploy_body, deploy_code = BookingCapistrano::DeployVerifier.parse_curl_output(deploy_raw)
 
+        jobs_active = test(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
+        jobs_pid_raw = capture(
+          *prefix, :systemctl, "show", "-p", "MainPID", "--value", jobs_unit,
+          raise_on_non_zero_exit: false
+        ).to_s.strip
+        current_jobs_pid = jobs_pid_raw.match?(/\A\d+\z/) ? jobs_pid_raw.to_i : 0
+
         result = BookingCapistrano::DeployVerifier.verify(
           up_http_code: up_code,
           deploy_http_code: deploy_code,
           deploy_body:,
           expected_release:,
           expected_revision:,
-          expected_jobs_pid:,
+          expected_jobs_pid: current_jobs_pid,
+          jobs_service_active: jobs_active,
           restarted_at:
         )
 
         if result.ok?
+          set :booking_health_check_passed, true
           info "[systemd:health_check] OK (#{attempt}/#{max_attempts}): #{result.summary}"
           break
         end
@@ -107,7 +119,6 @@ namespace :systemd do
         last_reason = result.reason
 
         if attempt >= max_attempts
-          prefix = use_sudo ? [ :sudo, "-n" ] : []
           error "[systemd:health_check] FAILED after #{max_attempts} attempts: #{last_reason}. Recent journal for both units follows:"
           execute(*prefix, :journalctl, "-u", web_unit, "-n", "30",
                   "--no-pager", raise_on_non_zero_exit: false)

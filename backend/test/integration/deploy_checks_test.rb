@@ -17,6 +17,8 @@ class DeployChecksTest < ActionDispatch::IntegrationTest
     body = response.parsed_body
     assert_equal "booking", body["app"]
     assert_equal DeployIdentity.release, body["release"]
+    assert_kind_of Numeric, body["checked_at"]
+    assert_operator body["checked_at"], :>, 0
     assert_equal "ok", body["database"]
     assert_equal true, body.dig("sidekiq", "ok")
     assert_equal "booking:#{DeployIdentity.release}", body.dig("sidekiq", "expected_tag")

@@ -48,7 +48,7 @@ module Admins
 
     def administrator_params
       values = params.require(:administrator).permit(:username, :name, :role, :enabled, :password, :password_confirmation).to_h
-      values.except!("password", "password_confirmation") if values["password"].blank?
+      values.except!("password", "password_confirmation") if Admin.blank_password?(values["password"])
       values
     end
   end

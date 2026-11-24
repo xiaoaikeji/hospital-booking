@@ -20,7 +20,13 @@ module Admins
       password = resolve_password
 
       Admin.transaction do
-        admin = Admin.create!(username:, password:, role: "super_admin", name: "超级管理员")
+        admin = Admin.create!(
+          username:,
+          password:,
+          role: "super_admin",
+          name: "超级管理员",
+          require_explicit_password: production
+        )
         Log.record!(action: "admin.create", category: "security", actor: admin, target: admin, source: "console")
         output.puts "已创建超级管理员：#{admin.username}"
         admin
@@ -38,7 +44,10 @@ module Admins
     end
 
     def resolve_password
-      return env["ADMIN_PASSWORD"].presence || Admin::DEFAULT_PASSWORD unless production
+      unless production
+        raw = env["ADMIN_PASSWORD"]
+        return Admin.blank_password?(raw) ? Admin::DEFAULT_PASSWORD : raw
+      end
 
       password = if env.key?("ADMIN_PASSWORD")
         env["ADMIN_PASSWORD"].to_s
@@ -69,10 +78,10 @@ module Admins
     end
 
     def validate_production_password!(password)
-      if password.nil? || password.strip.empty?
+      if Admin.blank_password?(password)
         raise Error, "生产环境创建首个超级管理员必须显式设置密码，不能为空或全空白"
       end
-      if password == Admin::DEFAULT_PASSWORD || password.strip == Admin::DEFAULT_PASSWORD
+      if Admin.default_password?(password)
         raise Error, "生产环境禁止使用公开默认密码，请设置独立密码"
       end
       if password.length < 6 || password.length > 128

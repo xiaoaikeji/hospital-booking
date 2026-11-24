@@ -40,4 +40,41 @@ class AdminTest < ActiveSupport::TestCase
     assert_not_includes log.attributes.to_json, "changed-pass"
     assert_raises(ActiveRecord::ReadOnlyRecord) { log.update!(status: "failed") }
   end
+
+  test "blank_password? and default_password? detect ASCII and Unicode whitespace uniformly" do
+    [ nil, "", "      ", "\t\n\r ", "\u00A0" * 6, "\u3000" * 6, "\u2003" * 6, "\u200B" * 6, "\uFEFF" * 6 ].each do |sample|
+      assert Admin.blank_password?(sample), "expected #{sample.inspect} to be treated as blank"
+    end
+
+    assert_not Admin.blank_password?("Strong#Pass1")
+    assert Admin.default_password?(Admin::DEFAULT_PASSWORD)
+    assert Admin.default_password?("\u3000#{Admin::DEFAULT_PASSWORD}\u3000")
+    assert_not Admin.default_password?("Strong#Pass1")
+  end
+
+  test "explicit password mode and production env reject Unicode blank passwords without falling back to default" do
+    [ "", "      ", "\u3000" * 6, "\u00A0" * 6, "\u200B" * 6, "\u3000#{Admin::DEFAULT_PASSWORD}\u3000" ].each_with_index do |bad_pass, idx|
+      admin = Admin.new(
+        username: "explicit_bad_#{idx}",
+        password: bad_pass,
+        role: "super_admin",
+        require_explicit_password: true
+      )
+      assert_no_difference "Admin.count" do
+        assert_not admin.save
+      end
+      assert_not admin.valid_password?(Admin::DEFAULT_PASSWORD)
+      assert_predicate admin.errors[:password], :any?
+    end
+
+    original_env = Rails.env
+    Rails.env = ActiveSupport::EnvironmentInquirer.new("production")
+    assert_no_difference "Admin.count" do
+      prod_admin = Admin.create(username: "prod_unicode_blank", password: "\u3000" * 6, role: "super_admin")
+      assert_not prod_admin.persisted?
+      assert_predicate prod_admin.errors[:password], :any?
+    end
+  ensure
+    Rails.env = original_env if original_env
+  end
 end

@@ -9,9 +9,19 @@ class AdminsInitialCreatorTest < ActiveSupport::TestCase
       [ {}, "" ],
       [ { "ADMIN_PASSWORD" => "" }, "" ],
       [ { "ADMIN_PASSWORD" => "   " }, "" ],
+      [ { "ADMIN_PASSWORD" => "\u3000" * 6 }, "" ],
+      [ { "ADMIN_PASSWORD" => "\u00A0" * 6 }, "" ],
+      [ { "ADMIN_PASSWORD" => "\u2003" * 6 }, "" ],
+      [ { "ADMIN_PASSWORD" => "\u200B" * 6 }, "" ],
+      [ { "ADMIN_PASSWORD" => "\uFEFF" * 6 }, "" ],
       [ {}, "   \n" ],
+      [ {}, "#{"\u3000" * 6}\n" ],
+      [ {}, "#{"\u00A0" * 6}\n" ],
+      [ {}, "#{"\u200B" * 6}\n" ],
       [ { "ADMIN_PASSWORD" => Admin::DEFAULT_PASSWORD }, "" ],
-      [ {}, "#{Admin::DEFAULT_PASSWORD}\n" ]
+      [ { "ADMIN_PASSWORD" => "\u3000#{Admin::DEFAULT_PASSWORD}\u3000" }, "" ],
+      [ {}, "#{Admin::DEFAULT_PASSWORD}\n" ],
+      [ {}, "\u00A0#{Admin::DEFAULT_PASSWORD}\u00A0\n" ]
     ].each do |env, stdin_text|
       out = StringIO.new
       err = StringIO.new

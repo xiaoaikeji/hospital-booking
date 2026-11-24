@@ -8,6 +8,8 @@ module BookingCapistrano
   class DeployVerifier
     APP_NAME = "booking"
     DEFAULT_REQUIRED_QUEUES = %w[default].freeze
+    CLOCK_SKEW_SECONDS = 2.0
+    MAX_BEAT_AGE_SECONDS = 20.0
 
     Result = Data.define(:ok, :reason, :summary) do
       def ok? = ok
@@ -42,7 +44,10 @@ module BookingCapistrano
       expected_release:,
       expected_revision: nil,
       expected_jobs_pid: nil,
+      jobs_service_active: true,
       restarted_at: nil,
+      checked_at: nil,
+      max_beat_age: MAX_BEAT_AGE_SECONDS,
       required_queues: DEFAULT_REQUIRED_QUEUES
     )
       up_code = up_http_code.to_s.strip
@@ -79,11 +84,30 @@ module BookingCapistrano
         return fail_result("Sidekiq 任务队列状态读取失败")
       end
 
+      unless jobs_service_active
+        return fail_result("任务服务当前未处于 active 状态，Sidekiq 进程可能已退出")
+      end
+
+      expected_pid = nil
+      unless expected_jobs_pid.nil?
+        expected_pid = expected_jobs_pid.to_i
+        unless expected_pid.positive?
+          return fail_result("任务服务当前无运行中的主进程（MainPID=#{expected_pid}），Sidekiq 进程可能已退出")
+        end
+      end
+
+      reference_time = (checked_at || payload["checked_at"]).to_f
+      unless reference_time.positive?
+        return fail_result("/up/deploy 缺少有效的检查时间（checked_at），无法确认 Sidekiq 心跳是否新鲜")
+      end
+
       verify_sidekiq_process(
         processes: Array(payload.dig("sidekiq", "processes")),
         expected_release:,
-        expected_jobs_pid:,
+        expected_pid:,
         restarted_at:,
+        reference_time:,
+        max_beat_age:,
         required_queues:
       )
     end
@@ -91,20 +115,20 @@ module BookingCapistrano
     class << self
       private
 
-      def verify_sidekiq_process(processes:, expected_release:, expected_jobs_pid:, restarted_at:, required_queues:)
+      def verify_sidekiq_process(processes:, expected_release:, expected_pid:, restarted_at:, reference_time:, max_beat_age:, required_queues:)
         expected_tag = "#{APP_NAME}:#{expected_release}"
         required = Array(required_queues).map(&:to_s)
-        expected_pid = expected_jobs_pid.to_i
 
         matched = processes.find do |proc|
-          next false unless proc.is_a?(Hash)
-          next false unless proc["tag"].to_s == expected_tag
-          next false unless proc["stopping"] == false
-          next false if expected_pid.positive? && proc["pid"].to_i != expected_pid
-          next false if restarted_at && proc["started_at"].to_f < restarted_at.to_f - 2.0
-          next false unless proc["beat"].to_f.positive?
-
-          (required - Array(proc["queues"]).map(&:to_s)).empty?
+          fresh_matching_worker?(
+            proc:,
+            expected_tag:,
+            expected_pid:,
+            restarted_at:,
+            reference_time:,
+            max_beat_age:,
+            required_queues: required
+          )
         end
 
         if matched
@@ -122,13 +146,34 @@ module BookingCapistrano
         seen = processes.map do |proc|
           next proc.inspect unless proc.is_a?(Hash)
 
-          "pid=#{proc['pid']},tag=#{proc['tag']},stopping=#{proc['stopping']},started_at=#{proc['started_at']},queues=#{Array(proc['queues']).join(',')}"
+          "pid=#{proc['pid']},tag=#{proc['tag']},stopping=#{proc['stopping']},started_at=#{proc['started_at']},beat=#{proc['beat']},queues=#{Array(proc['queues']).join(',')}"
         end.join("; ")
 
         fail_result(
           "未检测到本次新启动的 Booking Sidekiq 心跳（预期 tag=#{expected_tag}" \
-          "#{expected_pid.positive? ? ", pid=#{expected_pid}" : ''}；当前队列进程：#{seen}）"
+          "#{expected_pid ? ", pid=#{expected_pid}" : ''}；当前队列进程：#{seen}）"
         )
+      end
+
+      def fresh_matching_worker?(proc:, expected_tag:, expected_pid:, restarted_at:, reference_time:, max_beat_age:, required_queues:)
+        return false unless proc.is_a?(Hash)
+        return false unless proc["tag"].to_s == expected_tag
+        return false unless proc["stopping"] == false
+        return false if expected_pid && proc["pid"].to_i != expected_pid
+
+        started_at = proc["started_at"].to_f
+        beat = proc["beat"].to_f
+        return false unless beat.positive? && beat >= started_at - 1.0
+
+        if restarted_at
+          restart_ts = restarted_at.to_f
+          return false if started_at < restart_ts - CLOCK_SKEW_SECONDS
+          return false if beat < restart_ts
+        end
+
+        return false if reference_time - beat > max_beat_age.to_f
+
+        (required_queues - Array(proc["queues"]).map(&:to_s)).empty?
       end
 
       def parse_json_hash(raw)
