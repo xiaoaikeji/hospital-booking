@@ -32,6 +32,7 @@ class Admin < ApplicationRecord
   validates :enabled, inclusion: { in: [ true, false ] }
   validates :password, length: { in: 6..128 }, confirmation: true, allow_blank: true
   validate :ensure_explicit_password, on: :create, if: :explicit_password_required?
+  validate :ensure_secure_super_admin_update, on: :update, if: :production_super_admin?
   validate :retain_enabled_super_admin, on: :update
 
   def super_admin? = role == "super_admin"
@@ -71,8 +72,13 @@ class Admin < ApplicationRecord
 
   private
 
+  def production_super_admin?
+    Rails.env.production? && super_admin?
+  end
+
   def explicit_password_required?
-    require_explicit_password || (Rails.env.production? && password.is_a?(String) && self.class.blank_password?(password))
+    require_explicit_password || production_super_admin? ||
+      (Rails.env.production? && password.is_a?(String) && self.class.blank_password?(password))
   end
 
   def ensure_explicit_password
@@ -80,6 +86,14 @@ class Admin < ApplicationRecord
       errors.add(:password, "不能为空或全空白")
     elsif self.class.default_password?(password)
       errors.add(:password, "不能使用公开默认密码")
+    end
+  end
+
+  def ensure_secure_super_admin_update
+    if will_save_change_to_encrypted_password?
+      ensure_explicit_password
+    elsif will_save_change_to_role? && valid_password?(DEFAULT_PASSWORD)
+      errors.add(:password, "设为超级管理员时须更换公开默认密码")
     end
   end
 

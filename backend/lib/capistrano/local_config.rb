@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "open3"
+require "uri"
 require "yaml"
 
 module BookingCapistrano
@@ -16,7 +17,7 @@ module BookingCapistrano
 
     UNIT_NAME_PATTERN = /\A[A-Za-z0-9@_.-]+\z/
     ABS_NO_SPACE_PATTERN = /\A\/\S+\z/
-    HTTP_URL_PATTERN = /\Ahttps?:\/\/\S+\z/
+    LOOPBACK_HOSTS = %w[127.0.0.1 ::1 localhost].freeze
     REL_FILE_PATTERN = /\A[A-Za-z0-9_.\-\/]+\z/
 
     Config = Data.define(
@@ -209,8 +210,8 @@ module BookingCapistrano
       unless cap_wrapper.match?(ABS_NO_SPACE_PATTERN)
         invalid << "cap_wrapper 必须是无空格的绝对路径，例如 /usr/local/bin/booking-cap"
       end
-      unless health_check_url.match?(HTTP_URL_PATTERN)
-        invalid << "health_check_url 必须是有效的 http:// 或 https:// 地址"
+      unless valid_health_check_url?(health_check_url)
+        invalid << "health_check_url 必须是有效的服务器本机回环 HTTP(S) 地址，例如 http://127.0.0.1:3000/up"
       end
       invalid << sudo_error if sudo_error
       invalid << linked_files_error if linked_files_error
@@ -223,6 +224,14 @@ module BookingCapistrano
       return if missing.empty? && invalid.empty?
 
       raise Error, build_error_message(missing:, invalid:, include_repo_hint: repo_url.nil?)
+    end
+
+    def valid_health_check_url?(value)
+      uri = URI.parse(value)
+      uri.is_a?(URI::HTTP) && LOOPBACK_HOSTS.include?(uri.hostname) && uri.userinfo.nil? &&
+        (1..65_535).cover?(uri.port)
+    rescue URI::Error
+      false
     end
 
     def build_error_message(missing:, invalid:, include_repo_hint:)

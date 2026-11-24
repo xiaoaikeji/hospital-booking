@@ -1,7 +1,8 @@
+require "shellwords"
 require_relative "../deploy_verifier"
 
 # 每次发布切换 current 后重启 Booking 的 Web 与 Sidekiq 服务，再联合校验 /up 与 /up/deploy。
-# 首次部署（systemd unit 尚未启动或需要先初始化账号）或维护窗口可传 SKIP_SYSTEMD_RESTART=1 跳过。
+# 维护窗口可传 SKIP_SYSTEMD_RESTART=1 跳过重启与验证。
 namespace :systemd do
   desc "Restart Booking web and jobs systemd units and verify both are active " \
        "(set SKIP_SYSTEMD_RESTART=1 to skip)"
@@ -28,7 +29,6 @@ namespace :systemd do
       set :booking_restart_started_at, (restarted_at_raw.empty? ? nil : restarted_at_raw.to_i)
 
       execute(*prefix, :systemctl, "restart", jobs_unit)
-      execute(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
     end
   end
 
@@ -54,15 +54,16 @@ namespace :systemd do
     dry_run = fetch(:sshkit_backend) == SSHKit::Backend::Printer
     expected_release = release_path.basename.to_s
     restarted_at = fetch(:booking_restart_started_at, nil)
+    curl_options = [ "-s", "--noproxy", "'*'", "--max-time", "5" ]
+    up_arguments = curl_options + [ "-o", "/dev/null", "-w", "'%{http_code}'", up_url.shellescape ]
+    deploy_arguments = curl_options + [ "-w", "'\\n%{http_code}'", deploy_url.shellescape ]
 
     on roles(:app), in: :sequence do
       prefix = use_sudo ? [ :sudo, "-n" ] : []
 
       if dry_run
-        execute :curl, "-s", "-o", "/dev/null", "-w", "'%{http_code}'",
-                "--max-time", "5", up_url
-        execute :curl, "-s", "-w", "'\\n%{http_code}'",
-                "--max-time", "5", deploy_url
+        execute :curl, *up_arguments
+        execute :curl, *deploy_arguments
         execute(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
         execute(*prefix, :systemctl, "show", "-p", "MainPID", "--value", jobs_unit)
         set :booking_health_check_passed, true
@@ -79,17 +80,8 @@ namespace :systemd do
       last_reason = "no verification attempt executed"
       loop do
         attempt += 1
-        up_code = capture(
-          :curl, "-s", "-o", "/dev/null", "-w", "'%{http_code}'",
-          "--max-time", "5", up_url,
-          raise_on_non_zero_exit: false
-        ).to_s.strip
-
-        deploy_raw = capture(
-          :curl, "-s", "-w", "'\\n%{http_code}'",
-          "--max-time", "5", deploy_url,
-          raise_on_non_zero_exit: false
-        )
+        up_code = capture(:curl, *up_arguments, raise_on_non_zero_exit: false).to_s.strip
+        deploy_raw = capture(:curl, *deploy_arguments, raise_on_non_zero_exit: false)
         deploy_body, deploy_code = BookingCapistrano::DeployVerifier.parse_curl_output(deploy_raw)
 
         jobs_active = test(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)

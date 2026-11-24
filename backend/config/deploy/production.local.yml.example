@@ -23,7 +23,7 @@ deploy_to:
 # [可选] 服务器环境注入 wrapper 脚本路径，默认 /usr/local/bin/booking-cap
 # cap_wrapper: /usr/local/bin/booking-cap
 
-# [可选] 服务器本机健康检查地址，默认 http://127.0.0.1:3000/up
+# [可选] 服务器本机回环直连健康检查地址，默认 http://127.0.0.1:3000/up
 # health_check_url: http://127.0.0.1:3000/up
 
 # [可选] 若 SSH 登录用户不是 root，需要免密 sudo -n 执行 systemctl / journalctl，请设为 true

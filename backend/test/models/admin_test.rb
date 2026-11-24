@@ -77,4 +77,29 @@ class AdminTest < ActiveSupport::TestCase
   ensure
     Rails.env = original_env if original_env
   end
+
+  test "production super admins need a nondefault password on creation, promotion and password changes" do
+    original_env = Rails.env
+    Rails.env = ActiveSupport::EnvironmentInquirer.new("production")
+
+    [ nil, Admin::DEFAULT_PASSWORD ].each do |password|
+      admin = Admin.create(username: "new_super_admin", role: "super_admin", password:)
+      assert_not admin.persisted?
+      assert_predicate admin.errors[:password], :any?
+    end
+
+    operator = Admin.create!(username: "promotion_candidate", role: "operator")
+    assert operator.valid_password?(Admin::DEFAULT_PASSWORD)
+    assert_not operator.update(role: "super_admin")
+    assert_predicate operator.errors[:password], :any?
+    assert_equal "operator", operator.reload.role
+
+    password = "a-new-test-only-password"
+    assert operator.update(role: "super_admin", password:)
+    assert_not operator.update(password: Admin::DEFAULT_PASSWORD)
+    assert operator.reload.valid_password?(password)
+    assert operator.update(name: "Promoted admin")
+  ensure
+    Rails.env = original_env
+  end
 end

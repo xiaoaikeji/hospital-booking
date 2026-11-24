@@ -202,6 +202,24 @@ class BookingCapistranoLocalConfigTest < Minitest::Test
     end
   end
 
+  def test_health_check_target_must_be_a_loopback_url_before_ssh
+    with_fake_repo(origin: "https://example.com/hospital/booking.git") do |backend_root|
+      env = { "DEPLOY_SSH_TARGET" => "hospital-booking", "DEPLOY_TO" => "/srv/booking" }
+      error = assert_raises(BookingCapistrano::LocalConfig::Error) do
+        BookingCapistrano::LocalConfig.load!(
+          stage: :production, backend_root:, env: env.merge("DEPLOY_HEALTH_CHECK_URL" => "https://booking.example.org/up")
+        )
+      end
+      assert_includes error.message, "服务器本机回环"
+
+      url = "http://[::1]:3100/up"
+      config = BookingCapistrano::LocalConfig.load!(
+        stage: :production, backend_root:, env: env.merge("DEPLOY_HEALTH_CHECK_URL" => url)
+      )
+      assert_equal url, config.health_check_url
+    end
+  end
+
   def test_supports_optional_linked_files_and_rejects_unsafe_paths
     with_fake_repo(origin: "https://example.com/hospital/booking.git") do |backend_root|
       File.write(
