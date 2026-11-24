@@ -86,6 +86,49 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "historical details show only event-specific values while keeping the original audit record" do
+    admin = Admin.create!(username: "history", role: "operator")
+    login(admin)
+    payloads = {
+      "wechat.channel_qrcode_create" => [ "wechat", {
+        "channel_id" => 57, "reason" => "provider error https://example.invalid/?key=history-reason-fixture",
+        "fields" => %w[secret_key], "provider" => { "message" => "history-nested-fixture" }
+      } ],
+      "storage_settings.update" => [ "security", {
+        "fields" => [ "bucket", "theme", "history-field-fixture", { "name" => "history-field-fixture" } ],
+        "reason" => "配置校验失败", "channel_id" => 57
+      } ],
+      "wechat.publish" => [ "wechat", [ "history-array-fixture", { "reason" => "history-nested-fixture" } ] ]
+    }
+    records = payloads.to_h do |action, (category, details)|
+      [ action, Log.create!(category: category, source: "admin", action: action, status: "failed",
+        actor_type: "Admin", actor_id: admin.id, details: details) ]
+    end
+
+    get admins_operation_log_path(records.fetch("wechat.channel_qrcode_create"))
+    assert_response :success
+    assert_select "dt", text: "渠道编号"
+    assert_select "dd", text: "57"
+    assert_select "dt", text: "变更字段", count: 0
+    assert_select "p", text: "其余详情已隐藏"
+    assert_not_includes response.body, "history-reason-fixture"
+    assert_not_includes response.body, "history-nested-fixture"
+
+    get admins_operation_log_path(records.fetch("storage_settings.update"))
+    assert_response :success
+    assert_select "dd", text: "bucket"
+    assert_select "dd", text: "配置校验失败"
+    assert_select "dt", text: "渠道编号", count: 0
+    assert_not_includes response.body, "history-field-fixture"
+
+    get admins_operation_log_path(records.fetch("wechat.publish"))
+    assert_response :success
+    assert_select "p", text: "历史详情已隐藏"
+    assert_not_includes response.body, "history-array-fixture"
+    assert_not_includes response.body, "history-nested-fixture"
+    records.each { |action, record| assert_equal payloads.fetch(action).last, record.reload.details }
+  end
+
   test "date and result filters and pagination preserve the authorized list" do
     admin = Admin.create!(username: "op", role: "operator")
     other = Admin.create!(username: "cs", role: "customer_service")

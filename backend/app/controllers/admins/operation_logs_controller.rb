@@ -33,6 +33,7 @@ module Admins
 
     def show
       @log = Log.operations_visible_to(current_admin).find(params[:id])
+      @details = OperationLogDetails.for(@log)
       @actor = Admin.find_by(id: @log.actor_id) if @log.actor_type == "Admin"
       @list_context = filter_params.merge(params.permit(:page).to_h)
     end

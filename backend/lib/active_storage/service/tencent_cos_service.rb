@@ -1,5 +1,4 @@
 require "active_storage/service/s3_service"
-require "uri"
 
 module ActiveStorage
   # 沿用 Rails S3Service 的上传、下载、删除和签名 URL；仅适配 COS 配置与校验和兼容性。
@@ -19,17 +18,14 @@ module ActiveStorage
       raise IntegrationSettings::ConfigurationError, "腾讯云 COS 配置无效：#{invalid.join('、')}" if invalid.any?
 
       values.transform_values! { |value| value&.strip }
-      unless values[:region].match?(/\A[a-z][a-z0-9-]*\z/) && values[:bucket].match?(/\A[a-z0-9][a-z0-9-]*\z/)
+      unless %i[region bucket].all? { |field| StorageConfiguration.valid_public_value?(field.to_s, values[field]) }
         raise IntegrationSettings::ConfigurationError, "腾讯云 COS region 或 bucket 配置无效"
       end
       values[:endpoint] ||= StorageConfiguration.default_cos_endpoint(values[:region])
-      endpoint = URI.parse(values[:endpoint])
-      unless endpoint.is_a?(URI::HTTPS) && endpoint.host.present? && endpoint.userinfo.nil? && endpoint.query.nil? && endpoint.fragment.nil?
+      unless StorageConfiguration.valid_public_value?("endpoint", values[:endpoint])
         raise IntegrationSettings::ConfigurationError, "腾讯云 COS endpoint 配置无效，须为 HTTPS API 地址"
       end
       values
-    rescue URI::InvalidURIError
-      raise IntegrationSettings::ConfigurationError, "腾讯云 COS endpoint 配置无效", cause: nil
     end
 
     def initialize(env: ENV, credentials: Rails.application.credentials, **options)

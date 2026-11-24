@@ -11,13 +11,18 @@ class StorageSettings
   LABELS = { "service" => "存储方式", "secret_id" => "SecretId", "secret_key" => "SecretKey", "region" => "地域", "bucket" => "桶名", "endpoint" => "API 地址" }.freeze
 
   def form_field(field)
-    public_field = PUBLIC_FIELDS.include?(field)
     value, source = effective_field(field)
-    value = @display_values.fetch(field, value) if @display_values
-    if field == "endpoint" && value && !IntegrationSettings.https_origin?(value)
-      value = nil
+    return IntegrationSettings.form_field(value, source) unless PUBLIC_FIELDS.include?(field)
+
+    if @display_values&.key?(field)
+      value = @display_values[field]
+    elsif field != "service" && value.is_a?(String)
+      value = value.strip
     end
-    IntegrationSettings.form_field(value, source, public: public_field)
+    unless value.nil? || StorageConfiguration.valid_public_value?(field, value)
+      value, source = nil, IntegrationSettings::INVALID_SOURCE
+    end
+    IntegrationSettings.form_field(value, source, public: true)
   end
 
   def revision = StorageConfiguration.fingerprint(Setting.raw_snapshot)
@@ -69,6 +74,7 @@ class StorageSettings
     unless clear.is_a?(Array) && (clear - FIELDS.keys).empty? && input.except("clear_fields").values.all? { |value| value.is_a?(String) }
       raise IntegrationSettings::ConfigurationError, "配置格式无效"
     end
+    submitted = input.except("clear_fields", *clear).transform_values(&:strip).compact_blank
     Setting.transaction(requires_new: true) do
       anchor = Setting.find_or_create_by!(key: "active_storage")
       anchor.lock!
@@ -77,6 +83,7 @@ class StorageSettings
       if !expected_revision.nil? && expected_revision != StorageConfiguration.fingerprint(old_raw)
         raise StaleRevision, "配置已被其他操作修改，请刷新页面后重新填写"
       end
+      validate_inputs!(submitted)
       changed = []
       FIELDS.each do |field, (section, key)|
         record = records.fetch(section)
@@ -86,10 +93,7 @@ class StorageSettings
           record.write_value(key, nil)
           @display_values[field] = nil if field != "service" && PUBLIC_FIELDS.include?(field)
           changed << field
-        elsif input.key?(field) && input[field].strip.present?
-          value = input[field].strip
-          @display_values[field] = value if PUBLIC_FIELDS.include?(field)
-          validate_value!(field, value)
+        elsif (value = submitted[field])
           next if unchanged_value?(field, value)
 
           value = nil if field == "service" && value == IntegrationSettings.with_snapshot({}) { read("service") }
@@ -136,24 +140,18 @@ class StorageSettings
     false
   end
 
-  def validate_value!(field, value)
-    valid = case field
-    when "region" then value.match?(/\A[a-z][a-z0-9-]*\z/)
-    when "bucket" then value.match?(/\A[a-z0-9][a-z0-9-]*\z/)
-    when "endpoint"
-      uri = URI.parse(value)
-      uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
-    when *Setting.secret_fields("tencent_cos")
-      value.length <= 4096 && !value.match?(/\s|\A\*{3,}/) && !IntegrationSettings.redacted_value?(value)
-    else true
+  def validate_inputs!(submitted)
+    submitted.each do |field, value|
+      if PUBLIC_FIELDS.include?(field)
+        valid = StorageConfiguration.valid_public_value?(field, value)
+        @display_values[field] = valid ? value : nil
+      else
+        valid = value.length <= 4096 && !value.match?(/\s|\A\*{3,}/) && !IntegrationSettings.redacted_value?(value)
+      end
+      errors.add(field, field == "endpoint" ? "须为有效的 HTTPS API 地址" : "配置无效") unless valid
     end
-    unless valid
-      errors.add(field, "配置无效")
-      raise IntegrationSettings::ConfigurationError, "#{LABELS.fetch(field)}配置无效"
-    end
-  rescue URI::InvalidURIError
-    errors.add(field, "须为有效的 HTTPS API 地址")
-    raise IntegrationSettings::ConfigurationError, "API 地址无效", cause: nil
+    field = errors.attribute_names.first
+    raise IntegrationSettings::ConfigurationError, "#{LABELS.fetch(field.to_s)}配置无效" if field
   end
 
   def protect_existing_files!(old_raw, values)

@@ -110,7 +110,7 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_admin_session_path
   end
 
-  test "storage shows status and omits saved and rejected credentials and credential-bearing endpoints" do
+  test "storage shows status and blanks all rejected public fields without echoing credentials" do
     login(@root)
     patch admins_system_settings_path, params: { storage_settings: { revision: StorageSettings.new.revision, service: "local", secret_id: "fake-secret-id", secret_key: "fake-secret-key", region: "ap-shanghai", bucket: "test-bucket-123" } }
     assert_redirected_to edit_admins_system_settings_storage_path
@@ -121,17 +121,25 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "fake-secret-key"
     assert_not_includes response.body, "fake-secret-id"
     assert_includes response.headers.fetch("Cache-Control"), "no-store"
-    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision,
-      secret_key: "another-test-secret", endpoint: "https://example.invalid/?key=endpoint-fixture-only" } }
+    invalid = {
+      region: "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=region-fixture-only",
+      bucket: "https://bucket-fixture-only:demo@storage.example.invalid",
+      endpoint: "https://storage.example.invalid/?key=endpoint-fixture-only"
+    }
+    patch admins_system_settings_storage_path, params: { storage_settings: invalid.merge(revision: StorageSettings.new.revision,
+      secret_key: "another-test-secret") }
     assert_response :unprocessable_content
     assert_select "#sidebar-menu a[aria-current=page][href=?]", edit_admins_system_settings_storage_path
     assert_not_includes response.body, "another-test-secret"
     assert_not_includes response.body, "fake-secret-key"
-    assert_not_includes response.body, "endpoint-fixture-only"
+    invalid.each_key do |field|
+      assert_not_includes response.body, "#{field}-fixture-only"
+      assert_select "#storage_settings_#{field}.is-invalid:not([value])"
+    end
     assert_select "#storage_settings_secret_key[type=text][data-write-only][autocomplete=off]:not([value])"
     assert_equal "fake-secret-key", Setting.read_integration_value(:tencent_cos, :secret_key)
     failure = Log.find_by!(action: "storage_settings.update", status: "failed", actor_id: @root.id)
-    assert_equal({ "fields" => %w[secret_key endpoint], "reason" => "配置校验失败" }, failure.details)
+    assert_equal({ "fields" => %w[secret_key region bucket endpoint], "reason" => "配置校验失败" }, failure.details)
     get admins_operation_logs_path
     assert_response :success
     get admins_operation_log_path(failure)
@@ -139,6 +147,32 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "fake-secret-key"
     assert_not_includes response.body, "another-test-secret"
     assert_not_includes response.body, "endpoint-fixture-only"
+  end
+
+  test "storage displays a saved HTTPS endpoint with a path and hides invalid legacy public values" do
+    login(@root)
+    legacy = Setting.create!(key: "tencent_cos", settings: {
+      "region" => "https://example.invalid/?key=legacy-region-fixture",
+      "bucket" => { "value" => "legacy-bucket-fixture" },
+      "endpoint" => "https://legacy-endpoint-fixture:demo@example.invalid"
+    })
+    get edit_admins_system_settings_storage_path
+    assert_response :success
+    %w[region bucket endpoint].each do |field|
+      assert_select "#storage_settings_#{field}:not([value])"
+      assert_not_includes response.body, "legacy-#{field}-fixture"
+    end
+
+    endpoint = "https://storage.example.invalid/cos/api"
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision,
+      service: "tencent_cos", secret_id: "fixture-cos-id", secret_key: "fixture-cos-key",
+      region: "ap-shanghai", bucket: "fixture-bucket-123", endpoint: " #{endpoint} " } }
+    assert_redirected_to edit_admins_system_settings_storage_path
+    assert_equal endpoint, legacy.reload.settings.fetch("endpoint")
+    follow_redirect!
+    assert_select "#storage_settings_endpoint[value=?]", endpoint
+    assert_select "#storage_settings_region[value='ap-shanghai']"
+    assert_select "#storage_settings_bucket[value='fixture-bucket-123']"
   end
 
   test "malformed storage submissions retain their bad request status and a redacted audit" do

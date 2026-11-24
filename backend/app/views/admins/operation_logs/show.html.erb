@@ -8,7 +8,11 @@
         "对象" => log_subject_label(@log.target_type, @log.target_id), "结果" => render("status", status: @log.status),
         "来源" => @log.source, "IP" => @log.ip_address, "请求编号" => @log.request_id, "操作时间" => admin_list_time(@log.created_at)
       } %>
-  <% if @log.details.present? %>
-    <h2 class="h3 mt-4">变更记录</h2><pre class="mb-0 admin-detail-text"><%= JSON.pretty_generate(@log.details) %></pre>
+  <% if @details.rows.any? || @details.omitted %>
+    <h2 class="h3 mt-4">操作详情</h2>
+    <%= render "admins/shared/field_rows", fields: @details.rows, columns: 3 if @details.rows.any? %>
+    <% if @details.omitted %>
+      <p class="text-secondary mb-0 <%= "mt-2" if @details.rows.any? %>"><%= @details.rows.any? ? "其余详情已隐藏" : "历史详情已隐藏" %></p>
+    <% end %>
   <% end %>
 </div></section>

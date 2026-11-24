@@ -76,9 +76,11 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     assert_predicate row.settings.fetch("ak").fetch("ciphertext"), :present?
     refute_includes row.settings.to_json, first
     newer = edit_revision(path)
-    assert_select "input[name='map[ak]'][value=?]", first
+    assert_select "#map_ak[data-write-only]:not([value])"
+    assert_not_includes response.body, first
     patch admins_system_settings_map_path, params: { map: { ak: second, revision: revision } }
     assert_response :unprocessable_content
+    [ first, second ].each { |key| assert_not_includes response.body, key }
     patch admins_system_settings_map_path, params: { map: { ak: second, revision: newer } }
     assert_redirected_to path
     assert_equal second, MapSettings.new.key

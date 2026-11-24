@@ -1,3 +1,5 @@
+require "uri"
+
 module StorageConfiguration
   MUTEX = Mutex.new
   SERVICES = %w[local tencent_cos].freeze
@@ -13,7 +15,23 @@ module StorageConfiguration
   end
 
   def self.default_cos_endpoint(region)
-    "https://cos.#{region.strip}.myqcloud.com" if region.is_a?(String) && region.strip.match?(/\A[a-z][a-z0-9-]*\z/)
+    region = region.strip if region.is_a?(String)
+    "https://cos.#{region}.myqcloud.com" if valid_public_value?("region", region)
+  end
+
+  def self.valid_public_value?(field, value)
+    return false unless value.is_a?(String)
+
+    case field
+    when "service" then SERVICES.include?(value)
+    when "region" then value.match?(/\A[a-z][a-z0-9-]*\z/)
+    when "bucket" then value.match?(/\A[a-z0-9][a-z0-9-]*\z/)
+    when "endpoint"
+      uri = URI.parse(value)
+      uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
+    end
+  rescue URI::InvalidURIError
+    false
   end
 
   def self.validate!(values)
