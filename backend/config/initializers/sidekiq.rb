@@ -11,6 +11,10 @@ redis_options = redis_url ? { url: redis_url } : {}
 
 Sidekiq.configure_client { |config| config.redis = redis_options }
 Sidekiq.configure_server do |config|
+  Rails.application.config.after_initialize do
+    DeployIdentity.boot!
+    config[:tag] = DeployIdentity.sidekiq_tag
+  end
   config.redis = redis_options
   config.on(:beat) { BackgroundJobHistory.sample_queue }
   config.on(:startup) do
@@ -18,7 +22,7 @@ Sidekiq.configure_server do |config|
     config.server_middleware { |chain| chain.add StorageConfiguration::JobMiddleware }
     pool = ActiveRecord::Base.connection_db_config.max_connections
     if config.total_concurrency > pool
-      raise "Sidekiq 并发 #{config.total_concurrency} 超过数据库连接池 #{pool}，请调低 SIDEKIQ_CONCURRENCY 或调大 DB_POOL"
+      raise "Sidekiq 并发 #{config.total_concurrency} 超过数据库连接池 #{pool}，请调低 SIDEKIQ_CONCURRENCY 或调大数据库连接池（DATABASE_URL 的 max_connections 参数或 database.yml 的 max_connections）"
     end
   end
 end

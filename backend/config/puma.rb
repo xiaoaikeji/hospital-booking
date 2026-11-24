@@ -28,8 +28,13 @@
 threads_count = ENV.fetch("RAILS_MAX_THREADS", 3)
 threads threads_count, threads_count
 
-# Specifies the `port` that Puma will listen on to receive requests; default is 3000.
-port ENV.fetch("PORT", 3000)
+# 生产经 Nginx 反代时可在服务器环境配置 PUMA_BIND=tcp://127.0.0.1:<端口>；
+# 未设置时沿用 PORT（默认 3000），兼容本地开发与 Docker 运行。
+if !ENV["PUMA_BIND"].to_s.empty?
+  bind ENV["PUMA_BIND"]
+else
+  port ENV.fetch("PORT", 3000)
+end
 
 # Allow puma to be restarted by `bin/rails restart` command.
 plugin :tmp_restart

@@ -1,0 +1,35 @@
+# 复制本文件为 config/deploy/production.local.yml 后填写本机部署配置。
+# production.local.yml 已加入 .gitignore，不会提交到 Git 仓库。
+# 所有字段也可通过同名环境变量覆盖（DEPLOY_SSH_TARGET、DEPLOY_TO 等）。
+
+# [必填] SSH 目标：支持本机 ~/.ssh/config 中定义的别名（如 hospital-booking），
+# 也可填写 user@host；账号、端口与私钥位置自动沿用 ~/.ssh/config。
+ssh_target:
+
+# [必填] 服务器发布根目录的绝对路径，例如 /home/booking.capistrano
+deploy_to:
+
+# [可选] 源码 Git 仓库地址；默认自动读取当前仓库的 origin。
+# 如果你是下载源码 ZIP 包（本地没有 .git 或 origin），请取消注释并填写：
+# repo_url:
+
+# [可选] 部署分支，默认 main
+# branch: main
+
+# [可选] 服务器 systemd 服务名，默认如下；与服务器 unit 文件保持一致即可
+# web_service: booking.web.service
+# jobs_service: booking.jobs.service
+
+# [可选] 服务器环境注入 wrapper 脚本路径，默认 /usr/local/bin/booking-cap
+# cap_wrapper: /usr/local/bin/booking-cap
+
+# [可选] 服务器本机回环直连健康检查地址，默认 http://127.0.0.1:3000/up
+# health_check_url: http://127.0.0.1:3000/up
+
+# [可选] 若 SSH 登录用户不是 root，需要免密 sudo -n 执行 systemctl / journalctl，请设为 true
+# systemd_use_sudo: false
+
+# [可选] 默认不挂载 linked_files（全部配置走 /etc/booking.web.env）；
+# 若改用 Rails credentials 存放密文，可取消注释并把密文放到 <deploy_to>/shared/config/credentials.yml.enc：
+# linked_files:
+#   - config/credentials.yml.enc

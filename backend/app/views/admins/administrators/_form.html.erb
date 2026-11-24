@@ -26,7 +26,13 @@
         <%= form.select :enabled, [["启用", true], ["停用", false]], {}, class: admin_field_class(administrator, :enabled, "form-select"), data: { enhanced_select: "single" }, aria: { required: true, describedby: ("enabled-error" if administrator.errors[:enabled].any?) } %>
         <%= admin_field_errors(administrator, :enabled) %>
       </div>
-      <% password_hint = administrator.persisted? ? "留空保留原密码" : "留空使用默认密码 123456" %>
+      <% password_hint = if administrator.persisted?
+        "留空保留原密码"
+      elsif Rails.env.production?
+        "超级管理员须设置独立密码"
+      else
+        "留空使用默认密码 123456"
+      end %>
       <% [[:password, administrator.persisted? ? "重置密码" : "初始密码"], [:password_confirmation, "确认新密码"]].each do |field, label| %>
         <div class="col-md-6">
           <%= form.label field, label, class: "form-label" %>

@@ -1,0 +1,20 @@
+# Load DSL and set up stages
+require "capistrano/setup"
+
+# Include default deployment tasks
+require "capistrano/deploy"
+
+# Load the SCM plugin appropriate to your project:
+require "capistrano/scm/git"
+install_plugin Capistrano::SCM::Git
+
+# 服务器使用 rbenv 管理与 .ruby-version 一致的 Ruby，本地开发机不限制版本管理器。
+require "capistrano/rbenv"
+require "capistrano/bundler"
+# 只加载 assets。不加载 capistrano/rails/migrations：
+# 部署 SSH 会话不加载服务器环境文件，数据库准备由自定义任务 booking:db_prepare
+# （lib/capistrano/tasks/db_prepare.rake）经服务器 wrapper 在新 release 内执行。
+require "capistrano/rails/assets"
+
+# Load custom tasks from `lib/capistrano/tasks` if you have any defined
+Dir.glob("lib/capistrano/tasks/*.rake").each { |r| import r }
