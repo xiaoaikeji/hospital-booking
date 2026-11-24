@@ -67,6 +67,7 @@ certs
 /backend/storage/*
 !/backend/storage/.keep
 /backend/public/assets
+/backend/config/assets-manifest.json
 /backend/public/uploads/*
 !/backend/public/uploads/.keep
 /backend/public/tmp/*

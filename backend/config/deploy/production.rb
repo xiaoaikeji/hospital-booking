@@ -23,3 +23,4 @@ set :booking_jobs_service, local_config.jobs_service
 set :booking_cap_wrapper, local_config.cap_wrapper
 set :booking_health_check_url, local_config.health_check_url
 set :booking_systemd_use_sudo, local_config.systemd_use_sudo
+append :linked_files, *local_config.linked_files if local_config.linked_files.any?

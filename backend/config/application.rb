@@ -45,6 +45,8 @@ module BookingWeb
     # Publish compiled CSS only; SCSS remains build input.
     config.assets.excluded_paths << Rails.root.join("app/assets/stylesheets").to_s
 
+    config.after_initialize { DeployIdentity.boot! }
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

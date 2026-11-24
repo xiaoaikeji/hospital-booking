@@ -17,6 +17,7 @@ module BookingCapistrano
     UNIT_NAME_PATTERN = /\A[A-Za-z0-9@_.-]+\z/
     ABS_NO_SPACE_PATTERN = /\A\/\S+\z/
     HTTP_URL_PATTERN = /\Ahttps?:\/\/\S+\z/
+    REL_FILE_PATTERN = /\A[A-Za-z0-9_.\-\/]+\z/
 
     Config = Data.define(
       :ssh_target,
@@ -28,6 +29,7 @@ module BookingCapistrano
       :cap_wrapper,
       :health_check_url,
       :systemd_use_sudo,
+      :linked_files,
       :config_path
     )
 
@@ -56,6 +58,7 @@ module BookingCapistrano
       cap_wrapper = pick_string("DEPLOY_CAP_WRAPPER", yaml_values["cap_wrapper"]) || DEFAULT_CAP_WRAPPER
       health_check_url = pick_string("DEPLOY_HEALTH_CHECK_URL", yaml_values["health_check_url"]) || DEFAULT_HEALTH_CHECK_URL
       systemd_use_sudo, sudo_error = resolve_boolean("DEPLOY_SYSTEMD_USE_SUDO", yaml_values["systemd_use_sudo"], default: false)
+      linked_files, linked_files_error = resolve_linked_files("DEPLOY_LINKED_FILES", yaml_values["linked_files"])
 
       validate!(
         ssh_target:,
@@ -66,7 +69,9 @@ module BookingCapistrano
         jobs_service:,
         cap_wrapper:,
         health_check_url:,
-        sudo_error:
+        sudo_error:,
+        linked_files:,
+        linked_files_error:
       )
 
       Config.new(
@@ -79,6 +84,7 @@ module BookingCapistrano
         cap_wrapper:,
         health_check_url:,
         systemd_use_sudo:,
+        linked_files:,
         config_path: path
       )
     end
@@ -146,6 +152,22 @@ module BookingCapistrano
       end
     end
 
+    def resolve_linked_files(env_key, yaml_value)
+      raw_env = env[env_key]
+      if env.key?(env_key) && !raw_env.to_s.strip.empty?
+        entries = raw_env.to_s.split(",").map(&:strip).reject(&:empty?)
+        return [ entries.freeze, nil ]
+      end
+
+      return [ [].freeze, nil ] if yaml_value.nil?
+      unless yaml_value.is_a?(Array)
+        return [ [].freeze, "linked_files 必须是相对路径列表，例如 [config/credentials.yml.enc]" ]
+      end
+
+      entries = yaml_value.map { |item| item.to_s.strip }.reject(&:empty?)
+      [ entries.freeze, nil ]
+    end
+
     def detect_origin_url
       repo_root = File.expand_path("..", backend_root)
       return nil unless File.exist?(File.join(repo_root, ".git"))
@@ -158,7 +180,7 @@ module BookingCapistrano
       nil
     end
 
-    def validate!(ssh_target:, deploy_to:, repo_url:, branch:, web_service:, jobs_service:, cap_wrapper:, health_check_url:, sudo_error:)
+    def validate!(ssh_target:, deploy_to:, repo_url:, branch:, web_service:, jobs_service:, cap_wrapper:, health_check_url:, sudo_error:, linked_files:, linked_files_error:)
       missing = []
       invalid = []
 
@@ -191,6 +213,12 @@ module BookingCapistrano
         invalid << "health_check_url 必须是有效的 http:// 或 https:// 地址"
       end
       invalid << sudo_error if sudo_error
+      invalid << linked_files_error if linked_files_error
+      linked_files.each do |entry|
+        if !entry.match?(REL_FILE_PATTERN) || entry.start_with?("/") || entry.end_with?("/") || entry.split("/").include?("..")
+          invalid << "linked_files 只能填写不含空格、不以 / 开头且不包含 .. 的相对路径：#{entry.inspect}"
+        end
+      end
 
       return if missing.empty? && invalid.empty?
 

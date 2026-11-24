@@ -22,6 +22,12 @@ set :bundle_jobs, 1
 # shared/public/assets 由所有 release 共用；保留与 keep_releases 一致的旧摘要供回滚使用。
 set :keep_assets, 5
 
+# 静态资源预编译与清理不连接数据库；干净源码无 config/database.yml 时仅在这两条构建命令里提供占位 DATABASE_URL。
+set :booking_assets_database_url, "postgresql://127.0.0.1/booking_assets_dummy"
+
+# 与 config/environments/production.rb 的 config.assets.manifest_path 保持一致，清单随 release 隔离。
+set :assets_manifests, -> { [ release_path.join("config", "assets-manifest.json") ] }
+
 # 服务与健康检查默认值；可在 config/deploy/<stage>.local.yml 或 DEPLOY_* 环境变量覆盖。
 set :booking_web_service, "booking.web.service"
 set :booking_jobs_service, "booking.jobs.service"

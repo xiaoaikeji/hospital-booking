@@ -202,6 +202,34 @@ class BookingCapistranoLocalConfigTest < Minitest::Test
     end
   end
 
+  def test_supports_optional_linked_files_and_rejects_unsafe_paths
+    with_fake_repo(origin: "https://example.com/hospital/booking.git") do |backend_root|
+      File.write(
+        File.join(backend_root, "config/deploy/production.local.yml"),
+        <<~YAML
+          ssh_target: hospital-booking
+          deploy_to: /home/booking.capistrano
+          linked_files:
+            - config/credentials.yml.enc
+        YAML
+      )
+
+      config = BookingCapistrano::LocalConfig.load!(stage: :production, backend_root:, env: {})
+      assert_equal [ "config/credentials.yml.enc" ], config.linked_files
+
+      %w[/etc/passwd ../secret config/../master.key].each do |unsafe_path|
+        error = assert_raises(BookingCapistrano::LocalConfig::Error) do
+          BookingCapistrano::LocalConfig.load!(
+            stage: :production,
+            backend_root:,
+            env: { "DEPLOY_LINKED_FILES" => unsafe_path }
+          )
+        end
+        assert_includes error.message, "linked_files 只能填写"
+      end
+    end
+  end
+
   private
 
   def with_fake_repo(origin: nil)

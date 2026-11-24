@@ -1,4 +1,6 @@
-# 每次发布切换 current 后重启 Booking 的 Web 与 Sidekiq 服务，再轮询 /up 确认 HTTP 200。
+require_relative "../deploy_verifier"
+
+# 每次发布切换 current 后重启 Booking 的 Web 与 Sidekiq 服务，再联合校验 /up 与 /up/deploy。
 # 首次部署（systemd unit 尚未启动或需要先初始化账号）或维护窗口可传 SKIP_SYSTEMD_RESTART=1 跳过。
 namespace :systemd do
   desc "Restart Booking web and jobs systemd units and verify both are active " \
@@ -22,16 +24,23 @@ namespace :systemd do
       execute(*prefix, :systemctl, "restart", web_unit)
       execute(*prefix, :systemctl, "is-active", "--quiet", web_unit)
 
+      restarted_at_raw = capture(:date, "+%s").to_s.strip
+      set :booking_restart_started_at, (restarted_at_raw.empty? ? nil : restarted_at_raw.to_i)
+
       execute(*prefix, :systemctl, "restart", jobs_unit)
       execute(*prefix, :systemctl, "is-active", "--quiet", jobs_unit)
+
+      jobs_pid_raw = capture(*prefix, :systemctl, "show", "-p", "MainPID", "--value", jobs_unit).to_s.strip
+      set :booking_jobs_main_pid, (jobs_pid_raw.empty? ? nil : jobs_pid_raw.to_i)
     end
   end
 
-  desc "Poll booking_health_check_url until it answers HTTP 200, with a bounded retry budget"
+  desc "Poll /up and /up/deploy until Booking release, DB readability, and fresh Sidekiq are verified"
   task :health_check do
     web_unit = fetch(:booking_web_service)
     jobs_unit = fetch(:booking_jobs_service)
-    health_check_url = fetch(:booking_health_check_url)
+    up_url = fetch(:booking_health_check_url)
+    deploy_url = BookingCapistrano::DeployVerifier.deploy_check_url(up_url)
     use_sudo = fetch(:booking_systemd_use_sudo)
 
     if ENV["SKIP_SYSTEMD_RESTART"] == "1"
@@ -41,46 +50,70 @@ namespace :systemd do
       next
     end
 
-    max_attempts = 10
+    max_attempts = 15
     retry_pause = 2
     dry_run = fetch(:sshkit_backend) == SSHKit::Backend::Printer
+    expected_release = release_path.basename.to_s
+    expected_jobs_pid = fetch(:booking_jobs_main_pid, nil)
+    restarted_at = fetch(:booking_restart_started_at, nil)
 
     on roles(:app), in: :sequence do
       if dry_run
         execute :curl, "-s", "-o", "/dev/null", "-w", "'%{http_code}'",
-                "--max-time", "5", health_check_url
-        info "[systemd:health_check] dry-run: skipped real polling (would " \
-             "try up to #{max_attempts} times, #{retry_pause}s apart)"
+                "--max-time", "5", up_url
+        execute :curl, "-s", "-w", "'\\n%{http_code}'",
+                "--max-time", "5", deploy_url
+        info "[systemd:health_check] dry-run: skipped real polling (would verify /up and #{deploy_url} for release #{expected_release})"
         next
       end
 
+      expected_revision = fetch(:current_revision).to_s.strip
+      if expected_revision.empty? && test("[ -f #{release_path.join('REVISION')} ]")
+        expected_revision = capture(:cat, release_path.join("REVISION")).to_s.strip
+      end
+
       attempt = 0
+      last_reason = "no verification attempt executed"
       loop do
         attempt += 1
-        http_code = capture(
+        up_code = capture(
           :curl, "-s", "-o", "/dev/null", "-w", "'%{http_code}'",
-          "--max-time", "5", health_check_url,
+          "--max-time", "5", up_url,
           raise_on_non_zero_exit: false
         ).to_s.strip
 
-        if http_code == "200"
-          info "[systemd:health_check] OK: #{health_check_url} " \
-               "answered HTTP 200 (attempt #{attempt}/#{max_attempts})"
+        deploy_raw = capture(
+          :curl, "-s", "-w", "'\\n%{http_code}'",
+          "--max-time", "5", deploy_url,
+          raise_on_non_zero_exit: false
+        )
+        deploy_body, deploy_code = BookingCapistrano::DeployVerifier.parse_curl_output(deploy_raw)
+
+        result = BookingCapistrano::DeployVerifier.verify(
+          up_http_code: up_code,
+          deploy_http_code: deploy_code,
+          deploy_body:,
+          expected_release:,
+          expected_revision:,
+          expected_jobs_pid:,
+          restarted_at:
+        )
+
+        if result.ok?
+          info "[systemd:health_check] OK (#{attempt}/#{max_attempts}): #{result.summary}"
           break
         end
 
+        last_reason = result.reason
+
         if attempt >= max_attempts
           prefix = use_sudo ? [ :sudo, "-n" ] : []
-          error "[systemd:health_check] FAILED: #{health_check_url} " \
-                "did not answer HTTP 200 after #{max_attempts} attempts " \
-                "(last code: #{http_code.empty? ? 'no response' : http_code})." \
-                " Recent journal for both units follows:"
+          error "[systemd:health_check] FAILED after #{max_attempts} attempts: #{last_reason}. Recent journal for both units follows:"
           execute(*prefix, :journalctl, "-u", web_unit, "-n", "30",
                   "--no-pager", raise_on_non_zero_exit: false)
           execute(*prefix, :journalctl, "-u", jobs_unit, "-n", "30",
                   "--no-pager", raise_on_non_zero_exit: false)
-          raise "[systemd:health_check] #{health_check_url} still " \
-                "not healthy after #{max_attempts} attempts; deploy failed. " \
+          raise "[systemd:health_check] deploy verification failed (#{last_reason}). " \
                 "The new release IS already published — inspect the server " \
                 "manually (no automatic rollback is performed)."
         end

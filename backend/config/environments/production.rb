@@ -18,6 +18,9 @@ Rails.application.configure do
   # Cache assets for far-future expiry since they are all digest stamped.
   config.public_file_server.headers = { "cache-control" => "public, max-age=#{1.year.to_i}" }
 
+  # 静态资源清单写入各 release 自己的 config/ 目录，避免新版 precompile 在切流前覆盖旧版清单。
+  config.assets.manifest_path = Rails.root.join("config", "assets-manifest.json")
+
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.asset_host = "http://assets.example.com"
 
@@ -30,8 +33,9 @@ Rails.application.configure do
   # Force all access to the app over SSL, use Strict-Transport-Security, and use secure cookies.
   config.force_ssl = true
 
-  # Skip http-to-https redirect for the default health check endpoint.
-  config.ssl_options = { redirect: { exclude: ->(request) { request.path == "/up" } } }
+  # Skip http-to-https redirect for health check endpoints.
+  health_check_path = ->(request) { request.path == "/up" || request.path == "/up/deploy" }
+  config.ssl_options = { redirect: { exclude: health_check_path } }
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
@@ -64,7 +68,7 @@ Rails.application.configure do
   app_host = ENV["APP_HOST"].to_s.strip.sub(%r{\Ahttps?://}, "").sub(%r{/.*\z}, "").presence
   if app_host
     config.hosts << app_host
-    config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
+    config.host_authorization = { exclude: health_check_path }
     config.action_mailer.default_url_options = { host: app_host, protocol: "https" }
   else
     config.action_mailer.default_url_options = { host: "example.com", protocol: "https" }

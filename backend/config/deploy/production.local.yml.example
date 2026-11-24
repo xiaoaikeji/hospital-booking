@@ -28,3 +28,8 @@ deploy_to:
 
 # [可选] 若 SSH 登录用户不是 root，需要免密 sudo -n 执行 systemctl / journalctl，请设为 true
 # systemd_use_sudo: false
+
+# [可选] 默认不挂载 linked_files（全部配置走 /etc/booking.web.env）；
+# 若改用 Rails credentials 存放密文，可取消注释并把密文放到 <deploy_to>/shared/config/credentials.yml.enc：
+# linked_files:
+#   - config/credentials.yml.enc
