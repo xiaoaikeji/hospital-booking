@@ -319,7 +319,7 @@ class AppsTest < ActionDispatch::IntegrationTest
   private
 
   def assert_app_secret(status, *secrets)
-    assert_select "#app_appsecret[type=password]:not([value])"
+    assert_select "#app_appsecret[type=text][data-write-only][autocomplete=off]:not([value])"
     assert_select "label[for=app_appsecret] ~ [data-credential-status]", text: status
     secrets.each { |secret| assert_not_includes response.body, secret }
   end

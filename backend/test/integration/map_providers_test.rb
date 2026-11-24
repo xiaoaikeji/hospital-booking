@@ -20,8 +20,8 @@ class MapProvidersTest < ActionDispatch::IntegrationTest
     get edit_admins_system_settings_map_path
     assert_response :success
     assert_select "select[name='map[provider]'] option[value=baidu][selected]"
-    assert_select "fieldset[data-map-credential=baidu]:not([hidden]) input[type=password]:not([value])"
-    assert_select "fieldset[data-map-credential=tencent][disabled] input[type=password]:not([value])"
+    assert_select "fieldset[data-map-credential=baidu]:not([hidden]) input[type=text][data-write-only][autocomplete=off]:not([value])"
+    assert_select "fieldset[data-map-credential=tencent][disabled] input[type=text][data-write-only][autocomplete=off]:not([value])"
     assert_select "[data-map-credential] [data-credential-status]", text: "已配置", count: 2
     [ old, external ].each { |key| assert_not_includes response.body, key }
     assert_equal "加密数据库", MapSettings.new.source("ak")
@@ -43,7 +43,7 @@ class MapProvidersTest < ActionDispatch::IntegrationTest
     patch_settings(provider: "tencent", tencent_key: replacement, ak: SecureRandom.hex)
     assert_redirected_to edit_admins_system_settings_map_path
     get edit_admins_system_settings_map_path
-    assert_select "fieldset[data-map-credential=tencent]:not([hidden]) input[type=password]:not([value])"
+    assert_select "fieldset[data-map-credential=tencent]:not([hidden]) input[type=text][data-write-only][autocomplete=off]:not([value])"
     assert_not_includes response.body, replacement
     assert_equal "加密数据库", MapSettings.new.source("tencent_key")
     assert_predicate Setting.find_by!(key: "tencent_map").settings.fetch("key").fetch("ciphertext"), :present?

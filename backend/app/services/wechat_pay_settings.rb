@@ -294,7 +294,7 @@ class WechatPaySettings
     value = value.gsub("\r\n", "\n").strip
     return value unless PEM_FIELDS.include?(field) && !value.include?("\n")
 
-    # Password controls submit pasted PEM as a single line.
+    # Single-line controls submit pasted PEM without its original line breaks.
     value.gsub(%r{(-----BEGIN ([A-Z0-9 ]+)-----)([A-Za-z0-9+/= \t]+?)(-----END \2-----)}) do
       opening, _label, body, closing = Regexp.last_match.captures
       [ opening, *body.delete(" \t").scan(/.{1,64}/), closing ].join("\n")

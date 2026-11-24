@@ -16,7 +16,7 @@ if (form) {
     const input = group.querySelector("input");
     const label = group.querySelector("label");
     const badge = group.querySelector(".badge");
-    return { input, label, badge, warning: group.querySelector("[data-credential-warning]"),
+    return { input, label, badge, writeOnly: input.hasAttribute("data-write-only"), warning: group.querySelector("[data-credential-warning]"),
       configured: group.dataset.credentialConfigured === "true", placeholder: input.placeholder,
       requirement: group.dataset.credentialRequirement };
   });
@@ -39,11 +39,11 @@ if (form) {
       fieldset.hidden = !active;
       fieldset.disabled = !active;
     });
-    credentials.forEach(({ input, label, badge, warning, configured, placeholder, requirement }) => {
+    credentials.forEach(({ input, label, badge, writeOnly, warning, configured, placeholder, requirement }) => {
       const required = requirement === "always" || (changing && requirement === "new-merchant");
       label.classList.toggle("required", required);
       input.required = required;
-      if (input.type === "password") {
+      if (writeOnly) {
         const effective = configured && !changing;
         badge.textContent = effective ? "已配置" : "未配置";
         badge.classList.toggle("bg-success-lt", effective);
@@ -58,8 +58,8 @@ if (form) {
   const changeMerchant = () => {
     const owner = currentMerchant();
     if (configuredMerchant && owner !== lastMerchant) {
-      credentials.forEach(({ input }) => {
-        input.value = input.type !== "password" && owner === configuredMerchant && originalForm ? input.defaultValue : "";
+      credentials.forEach(({ input, writeOnly }) => {
+        input.value = !writeOnly && owner === configuredMerchant && originalForm ? input.defaultValue : "";
       });
       form.querySelectorAll("input[type=checkbox]").forEach((input) => { input.checked = false; });
     }

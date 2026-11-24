@@ -25,7 +25,7 @@
          local_assigns[:placeholder]
        end %>
   <% end %>
-  <%= form.password_field field, value: nil, class: input_class, autocomplete: "new-password", spellcheck: false,
+  <%= form.text_field field, value: nil, class: input_class, autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: false,
         placeholder: placeholder, disabled: local_assigns[:disabled], required: required,
         data: { write_only: true, credential_pem: (true if local_assigns[:pem]) },
         aria: { describedby: error_id, invalid: (true if error_id) } %>

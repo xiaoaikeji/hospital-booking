@@ -77,7 +77,7 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "blank passwords retain active keys and pasted PEM works across invalid or stale saves and clearing" do
+  test "blank credential fields retain active keys and pasted PEM works across invalid or stale saves and clearing" do
     field = "WECHAT_PAY_V2_API_KEY"
     previous = ENV[field]
     previous_pem = ENV["WECHAT_PAY_V2_CERTIFICATE"]
@@ -196,7 +196,7 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
   private
 
   def assert_private_field(field, status)
-    assert_select "#wechat_pay_#{field}[type=password]:not([value])"
+    assert_select "#wechat_pay_#{field}[type=text][data-write-only][autocomplete=off]:not([value])"
     assert_select "label[for=wechat_pay_#{field}] ~ [data-credential-status]", text: status
   end
 

@@ -60,7 +60,7 @@ class WechatDirectCallbacksTest < ActionDispatch::IntegrationTest
     get edit_admins_app_path(@a)
     assert_response :success
     assert_match(/no-store/, response.headers["Cache-Control"])
-    assert_select "#app_callback_token[type=password]:not([value]), #app_callback_encoding_aes_key[type=password]:not([value])", count: 2
+    assert_select "#app_callback_token[type=text][data-write-only][autocomplete=off]:not([value]), #app_callback_encoding_aes_key[type=text][data-write-only][autocomplete=off]:not([value])", count: 2
     [ @a.callback_token, @a.callback_encoding_aes_key, @a.appsecret ].each { |secret| assert_not_includes response.body, secret }
     @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "demo", expires_in: 7200) }
     patch admins_app_path(@a), params: { app: { revision: revision, callback_token: value } }

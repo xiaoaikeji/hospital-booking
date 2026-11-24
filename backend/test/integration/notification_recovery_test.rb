@@ -170,7 +170,7 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     read_form = -> do
       get edit_admins_system_settings_wecom_notifications_path
       assert_response :success
-      assert_select "#notification_settings_webhook_key[type=password]:not([value])"
+      assert_select "#notification_settings_webhook_key[type=text][data-write-only][autocomplete=off]:not([value])"
       assert_select "[data-credential-status]", text: "已配置"
       [ original, replacement, rejected, endpoint ].each { |value| assert_not_includes response.body, value }
       css_select("#notification_settings_revision").sole["value"]
@@ -188,7 +188,7 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     } }
     assert_response :unprocessable_content
     assert_includes response.body, "新 Key 已登记在其他通知群"
-    assert_select "#notification_settings_webhook_key[type=password]:not([value])"
+    assert_select "#notification_settings_webhook_key[type=text][data-write-only][autocomplete=off]:not([value])"
     [ original, rejected, endpoint ].each { |value| assert_not_includes response.body, value }
     assert_not Notifications::WecomSettings.new.stored_key?
 
