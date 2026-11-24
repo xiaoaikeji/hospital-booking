@@ -3,11 +3,15 @@
 <%= javascript_include_tag "admins/poster_layout", defer: true %>
 <%= javascript_include_tag "admins/poster_editor", defer: true %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "编辑海报", icon: :templates } do %>
-  <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+  <%= link_to admins_posters_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
   <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#delete-poster-confirmation"><%= render "layouts/admins/icon", name: :trash %>删除</button>
 <% end %>
 <%= form_with model: @poster, url: admins_poster_path(@poster), class: "card", html: { id: "poster-editor" }, data: { admin_form: true, background: background_admins_poster_path(@poster), code_url: admins_poster_code_path } do |f| %>
-  <div class="card-header"><h2 class="card-title">底图与扫码目标</h2></div>
+  <div class="card-header flex-wrap gap-2">
+    <h2 class="card-title">底图与扫码目标</h2>
+    <%= render "admins/shared/field_help", label: "查看二维码位置和导出说明",
+          text: "拖动码框调整位置，拖右下角调整大小，也可输入原图像素。预览按可用空间缩放，导出的 PNG 保留原图分辨率和码框位置。" %>
+  </div>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @poster %>
     <div class="row g-4">
@@ -44,7 +48,6 @@
             <div class="col-4"><%= f.label field, label, class: "form-label" %><%= f.number_field field, min: (field == :qr_size ? 1 : 0), max: 6000, step: 1, class: admin_field_class(@poster, field), data: { layout_input: true } %><%= admin_field_errors(@poster, field) %></div>
           <% end %>
         </div>
-        <p class="form-hint">拖动码框调整位置，拖右下角调整大小，也可输入原图像素。PNG 与预览使用同一位置及原图分辨率。</p>
         <div class="d-flex gap-2 flex-wrap">
           <button type="button" class="btn btn-primary" data-poster-preview disabled>预览海报</button>
           <button type="button" class="btn btn-outline-secondary" data-poster-download disabled><%= render "layouts/admins/icon", name: :export %>下载 PNG</button>
@@ -58,12 +61,12 @@
             <div class="poster-code-box" data-poster-box role="img" aria-label="拖动调整二维码位置" hidden><span data-poster-placeholder>码的位置</span><span class="poster-code-handle"></span></div>
           </div>
         </div>
-        <div class="form-hint mt-2">原图 <%= @poster.image_width %> × <%= @poster.image_height %> 像素 · 预览按可用空间缩放</div>
+        <div class="text-secondary small mt-2">原图 <%= @poster.image_width %> × <%= @poster.image_height %> 像素</div>
       </div>
     </div>
   </div>
   <div class="card-footer btn-list justify-content-end">
-    <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+    <%= link_to admins_posters_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
   </div>
 <% end %>

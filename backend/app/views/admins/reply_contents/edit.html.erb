@@ -2,7 +2,9 @@
 <% content_for :head do %><%= javascript_include_tag "admins/reply_composer", defer: true %><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "#{params[:id] ? '编辑' : '新增'}回复内容", icon: :templates } do %>
-  <% unless params[:inline] == '1' %><%= link_to "返回列表", admins_reply_contents_path(app_id: @app.id), class: "btn" %><% end %>
+  <% unless params[:inline] == '1' %>
+    <%= link_to admins_reply_contents_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+  <% end %>
 <% end %>
 <% cover = MediaUpload::PURPOSES.fetch(:reply_card_cover) %>
 <div data-reply-editor data-variables="<%= @variable_fields.to_json %>" data-examples="<%= @variable_examples.to_json %>" data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-inline="<%= params[:inline] == '1' %>"

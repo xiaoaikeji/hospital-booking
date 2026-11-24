@@ -89,12 +89,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   function enhance(select) {
     if (window.TomSelect && !select.tomselect) {
-      new window.TomSelect(select, {
+      const enhanced = new window.TomSelect(select, {
         create: false,
         allowEmptyOption: true,
         controlInput: select.id === "menu-appid" ? undefined : null,
         dropdownParent: "body"
       });
+      if (select.required) enhanced.focus_node.setAttribute("aria-required", "true");
     }
   }
   function setValue(input, value) {

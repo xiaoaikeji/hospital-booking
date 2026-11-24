@@ -32,11 +32,11 @@
           </div>
           <div id="menu-type-group"><label for="menu-type" class="form-label">菜单动作</label><select id="menu-type" class="form-select"></select></div>
           <div data-panel="miniprogram" class="mt-3">
-            <label class="form-label" for="menu-appid">目标小程序</label><select id="menu-appid" data-field="appid" class="form-select">
+            <label class="form-label required" for="menu-appid">目标小程序</label><select id="menu-appid" data-field="appid" class="form-select" required>
               <option value="">请选择小程序</option><% @targets.each do |app| %><%= tag.option "#{app.display_name} · #{app.appid}", value: app.appid %><% end %>
             </select>
             <div class="invalid-feedback d-block" id="menu-appid-error" hidden></div>
-            <label class="form-label mt-3" for="menu-page">页面路径</label><input id="menu-page" data-field="pagepath" class="form-control" list="booking-menu-paths" placeholder="pages/booking/index">
+            <label class="form-label required mt-3" for="menu-page">页面路径</label><input id="menu-page" data-field="pagepath" class="form-control" list="booking-menu-paths" placeholder="pages/booking/index" required>
             <div class="invalid-feedback d-block" id="menu-page-error" hidden></div>
             <datalist id="booking-menu-paths"><option value="pages/index/index">首页</option><option value="pages/booking/index">预约挂号</option><option value="pages/ucenter/appointments">预约记录</option></datalist>
           </div>

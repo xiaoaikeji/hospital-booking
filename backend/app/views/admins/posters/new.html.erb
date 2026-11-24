@@ -1,6 +1,6 @@
 <% content_for :title, "新增海报 · Booking 管理后台" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "新增海报", icon: :templates } do %>
-  <%= link_to "返回列表", admins_posters_path, class: "btn" %>
+  <%= link_to admins_posters_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <%= form_with model: @poster, url: admins_posters_path, class: "card", data: { admin_form: true } do |f| %>
   <div class="card-header"><h2 class="card-title">上传底图</h2></div>

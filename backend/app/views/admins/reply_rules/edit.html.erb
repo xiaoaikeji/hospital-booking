@@ -1,13 +1,17 @@
 <% content_for :title, "自动回复规则 · Booking 管理后台" %>
 <%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "tabler/libs/sortablejs/Sortable.min", "admins/reply_rules", defer: true %><% end %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "自动回复规则", icon: :templates } do %><%= link_to "返回回复内容", admins_reply_contents_path(app_id: @app.id), class: "btn" %><% end %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "自动回复规则", icon: :templates } do %>
+  <%= link_to admins_reply_contents_path(app_id: @app.id), class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回回复内容<% end %>
+<% end %>
 <%= form_with url: admins_app_reply_rules_path(@app), method: :patch, scope: :reply_rules, class: "card", data: { reply_rules: true, admin_form: true } do |form| %>
   <div class="card-header"><h2 class="card-title"><%= @app.display_name %></h2></div><div class="card-body">
     <%= form.hidden_field :revision, value: @data['revision'] || @config.revision %>
     <div class="row g-3 mb-4"><% [['follow_first', '首次关注'], ['follow_again', '再次关注']].each do |key, label| %><div class="col-12 col-md-6"><%= form.label key, label, class: 'form-label' %><%= form.select key, @config.replies.map { |id, r| [r['name'], id] }, { include_blank: '不回复', selected: @data[key] }, class: 'form-select', data: { enhanced_select: "single" } %></div><% end %></div>
-    <h3 class="mb-1">文字关键词</h3>
-    <p class="text-secondary small mb-3">从上往下匹配，命中第一条后执行。多个关键词用逗号分隔。</p>
+    <div class="d-flex align-items-center gap-1 mb-3">
+      <h3 class="mb-0">文字关键词</h3>
+      <%= render "admins/shared/field_help", label: "查看关键词匹配说明", text: "从上往下匹配，命中第一条后执行。多个关键词用逗号分隔。" %>
+    </div>
     <% rules = @data.fetch("keywords", []) %>
     <div class="list-group mb-3" data-keyword-rows data-next-index="<%= rules.size %>">
       <% rules.each_with_index do |rule, index| %><%= render "keyword", rule: rule, index: index %><% end %>

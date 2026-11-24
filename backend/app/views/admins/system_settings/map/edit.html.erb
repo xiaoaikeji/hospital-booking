@@ -17,7 +17,7 @@
           ["tencent", "tencent_key", "腾讯地图 WebService Key", "开通 WebService IP 定位，并将任务服务器的公网出口 IP 加入授权名单。"]].each do |provider, field, label, help| %>
         <fieldset class="col-md-6 col-xl-6" data-map-credential="<%= provider %>" <%= tag.attributes(hidden: @settings.provider != provider, disabled: @settings.provider != provider) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
-                source: @settings.source(field), value: @settings.value(field), help: help %>
+                source: @settings.source(field), value: @settings.value(field), placeholder: "", help: help %>
         </fieldset>
       <% end %>
     </div>

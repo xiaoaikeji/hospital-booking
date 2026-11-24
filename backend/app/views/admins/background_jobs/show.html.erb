@@ -36,7 +36,10 @@
     <% end %>
   </section>
   <section class="card mb-3" aria-label="定时任务">
-    <div class="card-header"><div><h2 class="card-title">定时任务</h2><div class="card-subtitle">上次入队由调度器记录，执行完成及结果由工作进程记录。</div></div></div>
+    <div class="card-header flex-wrap gap-2">
+      <h2 class="card-title">定时任务</h2>
+      <%= render "admins/shared/field_help", label: "查看定时任务记录说明", text: "上次入队由调度器记录，执行完成及结果由工作进程记录。" %>
+    </div>
     <% if @overview.cron_jobs.empty? %><div class="card-body text-secondary">本项目尚未配置定时任务。</div><% else %>
       <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>任务 / 规则</th><th class="d-none d-lg-table-cell">上次入队</th><th class="d-none d-lg-table-cell">上次执行完成</th><th>最近执行结果</th></tr></thead><tbody>
         <% @overview.cron_jobs.each do |job| %><tr data-job-cron="<%= job.name %>"><td><div class="fw-medium"><%= job.label %></div><div class="text-secondary small text-break"><%= job.name %></div><div class="text-secondary small text-break"><%= job.cron %> · <%= job.queue %></div><div class="d-lg-none small mt-1">上次入队：<%= admin_list_time(job.enqueued_at) %><br>执行完成：<%= admin_list_time(job.finished_at) %></div></td><td class="d-none d-lg-table-cell"><%= admin_list_time(job.enqueued_at) %></td><td class="d-none d-lg-table-cell"><%= admin_list_time(job.finished_at) %></td><td>
@@ -47,7 +50,11 @@
     <% end %>
   </section>
   <section class="card" id="job-current-failures" aria-label="最近失败详情">
-    <div class="card-header"><div><h2 class="card-title">最近失败详情</h2><div class="card-subtitle">重试集合前 1000 条与最终失败集合最新 20 条中，按最近失败时间显示最多 20 条。隐藏参数、报错正文及回溯。</div></div></div>
+    <div class="card-header flex-wrap gap-2">
+      <h2 class="card-title">最近失败详情</h2>
+      <%= render "admins/shared/field_help", label: "查看失败详情统计范围",
+            text: "重试集合前 1000 条与最终失败集合最新 20 条中，按最近失败时间显示最多 20 条。隐藏参数、报错正文及回溯。" %>
+    </div>
     <% if @overview.failures.empty? %><div class="card-body text-secondary">当前没有等待重试或最终失败的任务。</div><% else %>
       <table class="table table-fixed table-vcenter card-table job-monitor-table mb-0"><thead><tr><th>任务 / 错误类型</th><th class="d-none d-md-table-cell">最近失败</th><th>状态 / 已重试</th></tr></thead><tbody>
         <% @overview.failures.each do |job| %><tr><td><div class="fw-medium text-break"><%= job.job_class %></div><div class="text-danger small text-break"><%= job.error_class %></div><div class="text-secondary small text-break">队列 <%= job.queue %></div><div class="d-md-none text-secondary small"><%= admin_list_time(job.failed_at) %></div></td><td class="d-none d-md-table-cell"><%= admin_list_time(job.failed_at) %></td><td><span class="badge bg-<%= job.state == 'retry' ? 'warning' : 'danger' %>-lt"><%= job.state == 'retry' ? "等待重试" : "最终失败" %></span><div class="text-secondary small mt-1">已重试 <%= job.retry_count %> 次</div></td></tr><% end %>

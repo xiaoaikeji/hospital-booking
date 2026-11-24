@@ -1,9 +1,25 @@
 <% content_for :title, '配置渠道码回复 · Booking 管理后台' %>
-<%= render layout: 'admins/shared/list_page_header', locals: { title: '配置渠道码回复', icon: :qrcode } do %><%= link_to '返回列表', list_path, class: 'btn' %><% end %>
+<%= render layout: 'admins/shared/list_page_header', locals: { title: '配置渠道码回复', icon: :qrcode } do %>
+  <%= link_to list_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
 <%= form_with url: admins_app_channel_qrcode_path(@app, @code), method: :patch, class: 'card', data: { admin_form: true } do %>
-  <div class="card-header"><h2 class="card-title"><%= @code.name %></h2></div><div class="card-body">
-    <p class="text-secondary"><%= @app.display_name %> · 原二维码继续可扫。</p>
-    <label class="form-label" for="scan-mode">扫码时发送</label><%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding['mode']), class: 'form-select', id: 'scan-mode', data: { enhanced_select: "single" } %>
-    <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding, code_id: @code.id %>
+  <div class="card-header">
+    <div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <h2 class="card-title"><%= @code.name %></h2>
+        <%= render "admins/shared/field_help", label: "查看渠道码配置说明", text: "修改回复后，原二维码继续可扫。" %>
+      </div>
+      <div class="card-subtitle"><%= @app.display_name %></div>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="row">
+      <div class="col-12 col-lg-7">
+        <label class="form-label" for="scan-mode">扫码时发送</label>
+        <%= select_tag 'reply_binding[mode]', options_for_select(Notifications::AccountConfiguration::MODES.map { |key, label| [label, key] }, @binding['mode']),
+              class: 'form-select', id: 'scan-mode', data: { enhanced_select: "single" } %>
+        <%= render 'admins/shared/reply_picker', config: @reply_config, binding: @binding, code_id: @code.id %>
+      </div>
+    </div>
   </div><div class="card-footer btn-list justify-content-end"><%= render 'admins/shared/submit_button', label: '保存', icon: :save %></div>
 <% end %>

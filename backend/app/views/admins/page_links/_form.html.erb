@@ -32,7 +32,12 @@
         <%= admin_field_errors(@link, :sort_order) %>
       </div>
       <div class="col-md-6 col-xl-4">
-        <%= f.label :link_type, "点击行为", class: "form-label required" %>
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :link_type, "点击行为", class: "form-label required mb-0" %>
+          <span data-page-link-fields="contact" <%= tag.attributes(hidden: @link.link_type != "contact") %>>
+            <%= render "admins/shared/field_help", label: "查看客服使用说明", text: "打开当前小程序的客服会话。请先在微信公众平台配置小程序客服。" %>
+          </span>
+        </div>
         <%= f.select :link_type, Link::TYPES.invert, {}, class: admin_field_class(@link, :link_type, "form-select"), required: true,
           data: { enhanced_select: "single", page_link_type: true }, aria: { describedby: ("link_type-error" if @link.errors[:link_type].any?) } %>
         <%= admin_field_errors(@link, :link_type) %>

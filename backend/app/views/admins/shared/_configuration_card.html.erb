@@ -1,6 +1,7 @@
 <%# Render as a layout inside a card form/section. The preview uses a non-submitting button. %>
 <div class="card-header flex-wrap gap-2">
   <h2 class="card-title"><%= title %></h2>
+  <% if local_assigns[:title_help] %><%= render "admins/shared/field_help", label: "查看#{title}说明", text: title_help %><% end %>
   <% if local_assigns[:header_actions] %><div class="card-actions"><%= header_actions %></div><% end %>
 </div>
 <div class="card-body">
