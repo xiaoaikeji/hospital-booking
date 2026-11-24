@@ -5,13 +5,14 @@
 <% version = @submitted&.[]("version") || @settings.value("version") %>
 <% form_fields = @settings.form_fields(@submitted)
    changing_merchant = @settings.changing_merchant?(@submitted&.[]("merchant_id"))
-   has_backup = WechatPaySettings::BACKUP.any? { |field| form_fields.fetch(field).first.present? } %>
+   has_backup = WechatPaySettings::BACKUP.any? { |field| form_fields.fetch(field).first.present? }
+   backup_open = has_backup || WechatPaySettings::BACKUP.any? { |field| @settings.errors[field].any? } %>
 <% versions = WechatPaySettings::VERSIONS.map { |id, name| [name, id] }
    versions.unshift(["请选择接口版本", "", { disabled: true }]) unless WechatPaySettings::VERSIONS.key?(version) %>
 <% help = {
   "version" => "新单使用所选版本。旧单保留原商户和版本，使用该商户更新后的凭据。",
-  "merchant_id" => "更换商户号时，请从新商户的微信支付商户平台取得密钥、证书和验签材料。",
-  "notify_origin" => "填写微信服务器可访问的医院后台 HTTPS 域名，例如 https://booking.example.org。",
+  "merchant_id" => "保留原商户时，凭据留空沿用原配置。更换商户号时，请从新商户的微信支付商户平台取得密钥、证书和验签材料。",
+  "notify_origin" => "填写微信服务器可访问的医院后台 HTTPS 域名。",
   "v2_certificate" => "收款时可留空。发起退款前粘贴有效的 apiclient_cert.pem 及配套私钥。",
   "v2_private_key" => "收款时可留空。发起退款前粘贴与商户 API 证书配套的 apiclient_key.pem。",
   "merchant_serial" => "填写签发商户私钥所对应的 API 证书序列号。",
@@ -32,10 +33,17 @@
            inactive = group && group != version
            multiline = %w[v2_certificate v2_private_key v3_private_key verification_pem].include?(field)
            value, source = form_fields.fetch(field)
-           optional = WechatPaySettings::V2_TLS.include?(field) %>
-        <fieldset <%= tag.attributes(class: ("col-xl-6" if multiline), data: { payment_version: group, merchant_credential: ((optional ? "发起退款时填写" : "请填写新商户的材料") if group) }, hidden: inactive, disabled: inactive) %>>
+           optional = WechatPaySettings::V2_TLS.include?(field)
+           configured = @settings.value(field).present?
+           required = !optional && (!configured || (group.present? && changing_merchant))
+           credential_requirement = if group && !optional
+             configured ? "new-merchant" : "always"
+           end %>
+        <fieldset <%= tag.attributes(class: ("col-xl-6" if multiline), hidden: inactive, disabled: inactive,
+              data: { payment_version: group, merchant_credential: (true if group), credential_requirement: credential_requirement }) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
-                source: source, optional: optional, value: value, help: help[field], rows: (4 if multiline), placeholder: (optional ? "发起退款时填写" : "未配置，请填写"),
+                source: source, optional: optional, required: required, value: value, help: help[field], rows: (4 if multiline),
+                placeholder: (field == "notify_origin" ? "https://booking.example.org" : ""),
                 choices: (versions if field == "version"), enhanced_select: "single" %>
         </fieldset>
       <% end %>
@@ -48,22 +56,32 @@
       </fieldset>
     <% end %>
     <fieldset <%= tag.attributes(class: "mt-3 border-top pt-3", data: { payment_version: "v3" }, hidden: version != "v3", disabled: version != "v3") %>>
-      <details <%= "open" if has_backup || WechatPaySettings::BACKUP.any? { |field| @settings.errors[field].any? } %>>
-        <summary class="form-label mb-0">备用验签材料（选填）</summary>
-        <p class="text-secondary my-2">换证期间可同时验证两套微信签名。过渡结束后可停用旧材料。</p>
-        <div class="row g-3">
-          <% WechatPaySettings::BACKUP.each do |field| %>
-            <div class="col-12 col-md-6" data-merchant-credential="换证期间填写">
-              <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: WechatPaySettings::LABELS.fetch(field),
-                    source: form_fields.fetch(field).last, optional: true, value: form_fields.fetch(field).first,
-                    rows: (4 if field.end_with?("_pem")), placeholder: "换证期间填写" %>
-            </div>
-          <% end %>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <button type="button" class="btn btn-sm" data-bs-toggle="collapse" data-bs-target="#wechat-pay-backup"
+                aria-expanded="<%= backup_open %>" aria-controls="wechat-pay-backup">
+          <span data-collapse-label="collapsed"><%= render "layouts/admins/icon", name: :chevron_down, icon_class: "me-1" %>展开备用验签材料</span>
+          <span data-collapse-label="expanded"><%= render "layouts/admins/icon", name: :chevron_up, icon_class: "me-1" %>收起备用验签材料</span>
+        </button>
+        <%= render "admins/shared/field_help", label: "查看备用验签材料说明",
+              text: "换证期间可同时验证两套微信签名。过渡结束后可停用旧材料。" %>
+        <span class="badge bg-secondary-lt">选填</span>
+      </div>
+      <div class="<%= class_names("collapse", show: backup_open) %>" id="wechat-pay-backup">
+        <div class="pt-3">
+          <div class="row g-3">
+            <% WechatPaySettings::BACKUP.each do |field| %>
+              <% value, source = form_fields.fetch(field) %>
+              <div class="col-12 col-md-6" data-merchant-credential>
+                <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: WechatPaySettings::LABELS.fetch(field),
+                      source: source, show_source: source != "未配置", value: value, rows: (4 if field.end_with?("_pem")), placeholder: "" %>
+              </div>
+            <% end %>
+          </div>
+          <label <%= tag.attributes(class: "form-check mt-3 mb-0", data: { remove_backup: true }, hidden: !has_backup) %>>
+            <%= f.check_box :remove_backup, class: "form-check-input", checked: @submitted&.[]("remove_backup") == "1" %>
+            <span class="form-check-label">停用备用验签材料</span></label>
         </div>
-        <label <%= tag.attributes(class: "form-check mt-3 mb-0", data: { remove_backup: true }, hidden: !has_backup) %>>
-          <%= f.check_box :remove_backup, class: "form-check-input", checked: @submitted&.[]("remove_backup") == "1" %>
-          <span class="form-check-label">停用备用验签材料</span></label>
-      </details>
+      </div>
     </fieldset>
   <% end %>
 <% end %>

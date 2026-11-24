@@ -7,15 +7,18 @@ if (form) {
   const backup = form.querySelector("[data-remove-backup]");
   const backupInputs = [...form.querySelectorAll('[name^="wechat_pay[backup_verification_"]')];
   const configuredMerchant = form.dataset.configuredMerchant;
-  const initialMerchant = merchant.value.trim();
+  const currentMerchant = () => merchant.value.trim() || configuredMerchant;
+  const initialMerchant = currentMerchant();
   const originalForm = !configuredMerchant || initialMerchant === configuredMerchant;
   let lastMerchant = initialMerchant;
 
   const credentials = [...form.querySelectorAll("[data-merchant-credential]")].map((group) => {
     const input = group.querySelector("input, textarea");
-    return { input, badge: group.querySelector(".badge"), placeholder: input.placeholder, hint: group.dataset.merchantCredential };
+    const label = group.querySelector("label");
+    const badge = group.querySelector(".badge");
+    return { input, label, badge, placeholder: input.placeholder, requirement: group.dataset.credentialRequirement };
   });
-  const changingMerchant = () => configuredMerchant && merchant.value.trim() !== configuredMerchant;
+  const changingMerchant = () => Boolean(configuredMerchant) && currentMerchant() !== configuredMerchant;
   const showBackup = () => {
     const saved = !changingMerchant() && initialMerchant === configuredMerchant && backupInputs.some((input) => input.defaultValue.trim());
     backup.hidden = !saved && !backupInputs.some((input) => input.value.trim()) && !backup.querySelector("input[type=checkbox]").checked;
@@ -33,14 +36,17 @@ if (form) {
       fieldset.hidden = !active;
       fieldset.disabled = !active;
     });
-    credentials.forEach(({ input, badge, placeholder, hint }) => {
-      badge.hidden = changing || !originalForm;
-      input.placeholder = changing ? hint : (originalForm ? placeholder : "留空保留原商户配置");
+    credentials.forEach(({ input, label, badge, placeholder, requirement }) => {
+      const required = requirement === "always" || (changing && requirement === "new-merchant");
+      label.classList.toggle("required", required);
+      input.required = required;
+      if (badge) badge.hidden = changing || !originalForm;
+      input.placeholder = changing || !originalForm ? "" : placeholder;
     });
     showBackup();
   };
   const changeMerchant = () => {
-    const owner = merchant.value.trim();
+    const owner = currentMerchant();
     if (configuredMerchant && owner !== lastMerchant) {
       credentials.forEach(({ input }) => {
         input.value = owner === configuredMerchant && initialMerchant === configuredMerchant ? input.defaultValue : "";

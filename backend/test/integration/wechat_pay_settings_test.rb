@@ -50,7 +50,8 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: input }
     assert_response :unprocessable_content
     assert_select "#backup_verification_id-error"
-    assert_select "details[open] input#wechat_pay_remove_backup[type=checkbox]"
+    assert_select "[aria-controls=wechat-pay-backup][aria-expanded=true]"
+    assert_select "#wechat-pay-backup.collapse.show input#wechat_pay_remove_backup[type=checkbox]"
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: input.merge("remove_backup" => "1") }
     assert_redirected_to edit_admins_system_settings_wechat_pay_path
     assert_nil WechatPaySettings.new.material!["backup_verification_pem"]

@@ -1,18 +1,23 @@
-<%# Required: form, field, label, source. Optional: record, value, choices, enhanced_select, placeholder, help, disabled. %>
+<%# Required: form, field, label, source. Optional: record, value, choices, enhanced_select, placeholder, help, disabled, required, optional, rows, show_source. %>
 <% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices] %>
 <% source_label, source_color = ["选填", "secondary"] if local_assigns[:optional] && source == "未配置" %>
 <% error_id = ("#{field}-error" if record && record.errors[field].any?) %>
+<% required = local_assigns[:required] %>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-  <%= form.label field, label, class: "form-label mb-0" %>
+  <%= form.label field, label, class: class_names("form-label mb-0", required: required) %>
   <% if local_assigns[:help] %><%= render "admins/shared/field_help", text: help, label: "查看#{label}说明" %><% end %>
-  <span class="badge bg-<%= source_color %>-lt" title="<%= source %>"><%= source_label %></span>
+  <% if local_assigns.fetch(:show_source, true) %>
+    <span class="badge bg-<%= source_color %>-lt" title="<%= source %>"><%= source_label %></span>
+  <% end %>
 </div>
 <% input_class = choices ? "form-select" : "form-control"; input_class = admin_field_class(record, field, input_class) if record %>
 <% if choices %>
-  <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, data: { enhanced_select: local_assigns[:enhanced_select] }, aria: { describedby: error_id } %>
+  <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, required: required,
+        data: { enhanced_select: local_assigns[:enhanced_select] }, aria: { describedby: error_id, required: ("true" if required) } %>
 <% else %>
   <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写")) unless local_assigns[:disabled] %>
-  <% options = { value: local_assigns[:value], class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder, disabled: local_assigns[:disabled], aria: { describedby: error_id, invalid: (true if error_id) } } %>
+  <% options = { value: local_assigns[:value], class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder,
+      disabled: local_assigns[:disabled], required: required, aria: { describedby: error_id, invalid: (true if error_id) } } %>
   <% if local_assigns[:rows] %>
     <%= form.text_area field, **options, rows: rows %>
   <% else %>
