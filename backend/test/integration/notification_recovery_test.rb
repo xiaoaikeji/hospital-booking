@@ -208,6 +208,41 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     ENV[env_key] = previous
   end
 
+  test "企微配置并发保存的固定失败原因可在操作日志查看" do
+    path = admins_system_settings_wecom_notifications_path
+    get edit_admins_system_settings_wecom_notifications_path
+    assert_response :success
+    revision = css_select("#notification_settings_revision").sole["value"]
+    writer = Admin.create!(username: "wecom_settings_writer", role: "super_admin")
+    saved, rejected = "demo-wecom-saved-by-writer", "demo-wecom-stale-input"
+    open_session do |other|
+      other.post admin_session_path, params: { admin: { username: writer.username, password: "123456" } }
+      other.patch path, params: { notification_settings: { revision: revision, webhook_key: saved } }
+      other.assert_redirected_to edit_admins_system_settings_wecom_notifications_path
+    end
+
+    reason = "配置已变化，请刷新后再保存"
+    patch path, params: { notification_settings: { revision: revision, webhook_key: rejected } }
+    assert_response :unprocessable_content
+    assert_includes response.body, reason
+    assert_select "#notification_settings_webhook_key[data-write-only]:not([value])"
+    assert_equal saved, Notifications::WecomSettings.new.key
+
+    failure = Log.find_by!(action: "wechat.notification_settings", status: "failed", actor_type: "Admin", actor_id: @admin.id)
+    assert_equal({ "reason" => reason }, failure.details)
+    get admins_operation_log_path(failure)
+    assert_response :success
+    assert_select "dd", text: reason
+    [ saved, rejected ].each { |key| assert_not_includes response.body, key }
+
+    raw = "#{reason} demo-historical-wecom-provider-error"
+    legacy = Log.create!(category: "wechat", action: "wechat.notification_settings", source: "admin",
+      actor_type: "Admin", actor_id: @admin.id, status: "failed", details: { "reason" => raw })
+    get admins_operation_log_path(legacy)
+    assert_select "p", text: "历史详情已隐藏"
+    assert_not_includes response.body, "demo-historical-wecom-provider-error"
+  end
+
   test "无效 JSON 请求体也不会进入日志" do
     key = "invalid-json-webhook-fixture"
     buffer = StringIO.new

@@ -149,13 +149,14 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "endpoint-fixture-only"
   end
 
-  test "storage displays a saved HTTPS endpoint with a path and hides invalid legacy public values" do
-    login(@root)
+  test "storage rejects robot endpoint paths and displays ordinary HTTPS paths" do
+    reader = Admin.create!(username: "storage_reader", role: "super_admin")
     legacy = Setting.create!(key: "tencent_cos", settings: {
       "region" => "https://example.invalid/?key=legacy-region-fixture",
       "bucket" => { "value" => "legacy-bucket-fixture" },
-      "endpoint" => "https://legacy-endpoint-fixture:demo@example.invalid"
+      "endpoint" => "https://hooks.slack.com/services/demo-workspace/demo-channel/legacy-endpoint-fixture"
     })
+    login(reader)
     get edit_admins_system_settings_storage_path
     assert_response :success
     %w[region bucket endpoint].each do |field|
@@ -163,7 +164,7 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
       assert_not_includes response.body, "legacy-#{field}-fixture"
     end
 
-    endpoint = "https://storage.example.invalid/cos/api"
+    endpoint = "https://storage.example.invalid/services/preview/channel/cos-api"
     patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision,
       service: "tencent_cos", secret_id: "fixture-cos-id", secret_key: "fixture-cos-key",
       region: "ap-shanghai", bucket: "fixture-bucket-123", endpoint: " #{endpoint} " } }
@@ -173,6 +174,15 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_select "#storage_settings_endpoint[value=?]", endpoint
     assert_select "#storage_settings_region[value='ap-shanghai']"
     assert_select "#storage_settings_bucket[value='fixture-bucket-123']"
+
+    webhook = "https://hooks.slack.com/services/demo-workspace/demo-channel/rejected-endpoint-fixture"
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, endpoint: webhook } }
+    assert_response :unprocessable_content
+    assert_select "#storage_settings_endpoint.is-invalid:not([value])"
+    assert_select "#endpoint-error", text: "须为有效的 HTTPS API 地址"
+    assert_not_includes response.body, "rejected-endpoint-fixture"
+    assert_equal endpoint, legacy.reload.settings.fetch("endpoint")
+    assert_equal({ "fields" => [ "endpoint" ], "reason" => "配置校验失败" }, Log.last.details)
   end
 
   test "malformed storage submissions retain their bad request status and a redacted audit" do

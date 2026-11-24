@@ -28,11 +28,34 @@ module StorageConfiguration
     when "bucket" then value.match?(/\A[a-z0-9][a-z0-9-]*\z/)
     when "endpoint"
       uri = URI.parse(value)
-      uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
+      uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil? &&
+        !bot_endpoint?(uri)
     end
   rescue URI::InvalidURIError
     false
   end
+
+  # Match bot paths on their providers' hosts so custom COS gateways can keep ordinary paths.
+  def self.bot_endpoint?(uri)
+    host = URI::RFC2396_PARSER.unescape(uri.host.b).downcase.delete_suffix(".")
+    path = URI::RFC2396_PARSER.unescape(uri.path.b)
+
+    case host
+    when "hooks.slack.com", "hooks.slack-gov.com", "webhook.office.com", /\.webhook\.office\.com\z/
+      true
+    when /\A(?:(?:canary|ptb|www)\.)?discord(?:app)?\.com\z/
+      %r{\A/api/(?:v[0-9]+/)?webhooks(?:/|\z)}i.match?(path)
+    when "open.feishu.cn", "open.larksuite.com"
+      %r{\A/open-apis/bot/(?:v[0-9]+/)?hook(?:/|\z)}i.match?(path)
+    when "outlook.office.com"
+      %r{\A/webhook(?:b2)?(?:/|\z)}i.match?(path)
+    when "api.telegram.org"
+      %r{\A/(?:file/)?bot}i.match?(path)
+    else
+      false
+    end
+  end
+  private_class_method :bot_endpoint?
 
   def self.validate!(values)
     IntegrationSettings.with_snapshot(values) do

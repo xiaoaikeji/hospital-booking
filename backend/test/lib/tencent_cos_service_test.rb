@@ -34,10 +34,21 @@ class TencentCosServiceTest < ActiveSupport::TestCase
   end
 
   test "unsafe or malformed endpoints fail without exposing the value" do
-    [ "http://example.test", "https://secret:password@example.test", "not a URL" ].each do |endpoint|
+    endpoints = [
+      "http://example.test", "https://secret:password@example.test", "not a URL",
+      "https://HOOKS.SLACK-GOV.COM./services/demo-workspace/demo-channel/demo-path-key",
+      "https://discord.com/api/v10/%77ebhooks/0000/demo-path-key",
+      "https://open.feishu.cn/open-apis/bot/hook/demo-path-key",
+      "https://open.larksuite.com/open-apis/bot/v2/hook/demo-path-key",
+      "https://fixture-tenant.webhook.office.com/webhookb2/demo/IncomingWebhook/demo-path-key",
+      "https://outlook.office.com/webhook/demo/IncomingWebhook/demo-path-key",
+      "https://api.telegram.org/file/bot0000:demo-path-key/test.png"
+    ]
+    endpoints.each do |endpoint|
       @env["TENCENT_COS_ENDPOINT"] = endpoint
       error = assert_raises(IntegrationSettings::ConfigurationError) { settings }
       assert_not_includes error.message, endpoint
+      assert_not_includes error.message, "demo-path-key"
     end
   end
 

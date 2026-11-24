@@ -49,7 +49,14 @@ class OperationLogDetails
     "notification.template_unbind" => { "fields" => %w[template_unbind] },
     "notification.wecom_content" => { "fields" => %w[messages send_interval],
       "event" => %w[passed rejected delayed published failed violation appeal_1 appeal_2 appeal_3 category_2 category_3] },
-    "wechat.notification_settings" => { "fields" => %w[webhook_key same_robot kinds pull_violations] },
+    "wechat.notification_settings" => {
+      "fields" => %w[webhook_key same_robot kinds pull_violations],
+      "reason" => [
+        "配置已变化，请刷新后再保存", "机器人 Key 格式无效", "请重新填写机器人 Key 或清除系统配置",
+        "请填写有效的机器人 Key 或完整 Webhook 地址", "新 Key 已登记在其他通知群",
+        "生效的机器人 Key 已轮换，请填写当前 Key 或更新部署配置", "通知类型无效", "通知设置未保存，请核对部署配置"
+      ]
+    },
     "wechat.fan_sync" => { "sync_id" => ID },
     "wechat.channel_qrcode_create" => { "channel_id" => ID },
     "wechat.menu_publish" => { "count" => COUNT, "code" => INTEGER },
