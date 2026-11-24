@@ -16,10 +16,11 @@
       <div class="<%= @app.code_capable? ? "col-12 col-xl-8" : "col-12" %>">
         <%= render "admins/shared/field_rows", fields: {
           "ID" => "##{@app.id}", "应用平台" => @app.platform_label, "应用名称" => @app.display_name,
-          "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "AppSecret" => AppConfiguration.new(@app).credential_status,
+          "AppID" => @app.appid, "运行状态" => app_status_badge(@app.status), "AppSecret" => @app_secret.status,
           **(@app.wechat_official_account? ? { "原始 ID" => @app.wechat_original_id, "服务器地址" => api_wechat_official_account_messages_url(appid: @app.appid) } : {}),
           "创建时间" => admin_list_time(@app.created_at), "更新时间" => admin_list_time(@app.updated_at), "备注" => @app.memo
         }, full: ["服务器地址", "备注"], columns: 2 %>
+        <% if @app_secret.source %><p class="text-danger mb-0 mt-2">AppSecret · <%= configuration_source(@app_secret.source).first %></p><% end %>
       </div>
       <% if @app.code_capable? %><div class="col-12 col-xl-4"><%= render "qrcode_panel", app: @app %></div><% end %>
     </div></div>

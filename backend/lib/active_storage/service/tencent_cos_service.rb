@@ -29,7 +29,7 @@ module ActiveStorage
       end
       values
     rescue URI::InvalidURIError
-      raise IntegrationSettings::ConfigurationError, "腾讯云 COS endpoint 配置无效"
+      raise IntegrationSettings::ConfigurationError, "腾讯云 COS endpoint 配置无效", cause: nil
     end
 
     def initialize(env: ENV, credentials: Rails.application.credentials, **options)

@@ -62,9 +62,6 @@ group :development, :test do
 end
 
 group :development do
-  # Use console on exceptions pages [https://github.com/rails/web-console]
-  gem "web-console"
-
   # Capistrano 部署工具链（服务器用 rbenv，本地开发机不限 Ruby 版本管理器）
   gem "capistrano", "~> 3.20", require: false
   gem "capistrano-rails", "~> 1.7", require: false

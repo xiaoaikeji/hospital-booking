@@ -32,16 +32,15 @@ module Notifications
       rescue Wechat::Error => error
         raise Error, error.message
       rescue Wechat::BaseClient::Rejected => error
-        receipt("errcode" => error.code, "errmsg" => error.message)
+        receipt("errcode" => error.code)
       end
 
       private
 
       def receipt(response)
         code = response["errcode"]
-        hint = code == 45015 ? "超出微信客服消息的可回复时限；" : ""
         { "status" => code == -1 ? "unknown" : (code.zero? ? "sent" : "failed"), "response" => response,
-          "error_message" => code.zero? ? nil : "微信拒绝（#{code}）：#{hint}#{response['errmsg']}" }
+          "error_message" => code.zero? ? nil : Notifications.rejection_message("wechat_official_account", code) }
       end
     end
   end

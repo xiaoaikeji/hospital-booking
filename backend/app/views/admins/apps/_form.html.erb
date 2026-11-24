@@ -4,9 +4,9 @@
 <% content_for :head do %><%= javascript_include_tag "admins/app_type", defer: true unless @app.persisted? %><% end %>
 <% confirm_id = "disable-app" if @app.persisted? && @app.status_in_database != "disabled" %>
 <% disable_only = confirm_id && @credential_unavailable %>
-<% clearable = ["加密数据库", AppConfiguration::DAMAGED_SOURCE]
-   can_clear = clearable.include?(@credentials.fetch(:appsecret).last)
-   can_clear_callback = AppConfiguration::CALLBACK_FIELDS.any? { |field| clearable.include?(@credentials[field]&.last) } %>
+<% clearable = Array(@clearable_credentials)
+   can_clear = clearable.include?(:appsecret)
+   can_clear_callback = clearable.intersect?(AppConfiguration::CALLBACK_FIELDS) %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :device_mobile } do %>
   <%= link_to admins_apps_path(application_list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
@@ -46,7 +46,7 @@
   <div class="card-header border-top"><h2 class="card-title">接入凭据</h2></div>
   <div class="card-body"><div class="row g-3">
       <div class="col-12 col-xl-8">
-        <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, value: @credentials.fetch(:appsecret).first, source: @credentials.fetch(:appsecret).last, disabled: @credential_unavailable %>
+        <%= render "admins/shared/configuration_field", form: f, field: :appsecret, label: "AppSecret", record: @app, field_data: @credential_fields.fetch(:appsecret), disabled: @credential_unavailable %>
         <% if @credential_revision %><%= f.hidden_field :revision, value: @credential_revision %><% end %>
       </div>
     </div>
@@ -69,9 +69,8 @@
         </div>
         <% { callback_token: ["回调 Token", "与微信公众平台填写的 Token 一致，使用 3 至 32 位英文字母或数字。"],
              callback_encoding_aes_key: ["消息加解密密钥", "填写该公众号服务器配置中的 43 位 EncodingAESKey。"] }.each do |field, (label, help)| %>
-          <% value, source = @credentials.fetch(field, [nil, "未配置"]) %>
           <div class="col-12 col-lg-6"><%= render "admins/shared/configuration_field", form: f, field: field, label: label,
-                record: @app, value: value, source: source, help: help, disabled: @credential_unavailable %></div>
+                record: @app, field_data: @credential_fields.fetch(field), help: help, disabled: @credential_unavailable %></div>
         <% end %>
       </div></div>
     <% end %>

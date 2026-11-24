@@ -16,7 +16,7 @@ module Admins
         redirect_to edit_admins_system_settings_wecom_notifications_path, status: :see_other,
           notice: (clearing ? "系统配置已清除" : "企微通知设置已保存")
       else
-        @input = input unless clearing
+        @rotate_same_robot = !clearing && input[:revision] == @settings.revision && input[:same_robot] == "1"
         render :edit, status: :unprocessable_content
       end
     end

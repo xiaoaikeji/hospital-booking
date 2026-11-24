@@ -9,7 +9,7 @@ module Wecom
       data = HttpConnection.json(response)
       code = Integer(data["errcode"].to_s, 10, exception: false)
       raise HttpConnection::Unavailable, "企业微信未确认发送结果" unless code
-      { "errcode" => code, "errmsg" => data["errmsg"].to_s.gsub(key, "[已过滤]").first(300) }
+      { "errcode" => code }
     end
   end
 end

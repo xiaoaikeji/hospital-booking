@@ -83,7 +83,10 @@ module Notifications
       else
         "sending"
       end
-      errors = @row.results.filter_map { |r| "#{r['message_id']}：#{r['error_message']}" if r["error_message"].present? }
+      errors = @row.results.filter_map do |result|
+        error = @row.delivery_error(result)
+        "#{result['message_id']}：#{error}" if error.present?
+      end
       @row.transaction do
         @row.update!(status: status, sent_at: all_sent ? Time.current : nil, error_message: errors.join("；").presence,
           response_data: @row.response_data.merge("finished_at" => Time.current.iso8601))

@@ -20,7 +20,11 @@ module Admins
 
     def show
       @tab = params[:tab] == "plugins" && @app.code_capable? ? "plugins" : "overview"
-      @plugins = Wechat::AppPlugins.new(@app).list if @tab == "plugins"
+      if @tab == "plugins"
+        @plugins = Wechat::AppPlugins.new(@app).list
+      else
+        @app_secret = AppConfiguration.new(@app).form_field
+      end
     rescue Wechat::Error, Wechat::BaseClient::Rejected, HttpConnection::Unavailable => error
       @tab_error = error.message
     end
@@ -85,8 +89,8 @@ module Admins
     def load_app = @app = App.find(params[:id])
 
     def input
-      params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :appsecret,
-        :wechat_original_id, :callback_token, :callback_encoding_aes_key, :clear_secret, :clear_callback, :revision)
+      params.require(:app).permit(:provider, :app_type, :appid, :nickname, :memo, :status, :wechat_original_id,
+        :clear_secret, :clear_callback, :revision, *AppConfiguration::SECRET_FIELDS)
     end
 
     def protect_credentials
@@ -94,16 +98,21 @@ module Admins
     end
 
     def load_form_credentials
+      @credential_fields = AppConfiguration::SECRET_FIELDS.index_with { IntegrationSettings.form_field }
+      return unless @app.persisted?
+
       config = AppConfiguration.new(@app)
-      @credentials = config.editable_credentials
-      @credential_revision = config.revision(@credentials) if @app.persisted?
-      @credentials.each do |field, (_, source)|
+      snapshot = config.editable_credentials
+      @credential_revision = config.revision(snapshot)
+      @clearable_credentials = snapshot.filter_map do |field, (_, source)|
         if source == AppConfiguration::DAMAGED_SOURCE
           @app.errors.add(field, "凭据密文已损坏。留空保留，或填写新值、清除系统配置。")
         end
+        field if source.in?(["加密数据库", AppConfiguration::DAMAGED_SOURCE])
       end
+      @credential_fields.merge!(snapshot.transform_values { |value, source| IntegrationSettings.form_field(value, source) })
     rescue AppConfiguration::Invalid => error
-      @credentials = { appsecret: [nil, "部署配置无效"] }
+      @credential_fields[:appsecret] = IntegrationSettings.form_field(nil, IntegrationSettings::INVALID_SOURCE)
       @credential_unavailable = true
       @app.errors.add(:appsecret, error.message)
     end
@@ -142,7 +151,11 @@ module Admins
       else error.message
       end
       audit(action, status: "failed", details: { reason: reason })
-      @app.reload if @app.persisted?
+      if @app.persisted?
+        @app.reload
+      else
+        @app.assign_attributes(AppConfiguration::SECRET_FIELDS.index_with(nil))
+      end
       load_form_credentials
       @app.errors.add(:base, reason) unless @credential_unavailable
       render(action == "create" ? :new : :edit, status: :unprocessable_content)
@@ -150,11 +163,8 @@ module Admins
 
     def verify_credential(config, damaged:, repaired:)
       return unless @app.accessible?
-      if damaged && !@app.status_changed?
-        return unless repaired
-        # An explicit clear may leave a previously unreadable credential unconfigured.
-        return if input[:clear_secret] == "1" && config.credential.first.blank?
-      end
+      return if damaged && !repaired && !@app.status_changed?
+      return if input[:clear_secret] == "1" && !@app.status_changed? && config.credential.first.blank?
       config.verify! if @app.status_changed? || config.credential_status != "已验证"
     end
 

@@ -22,7 +22,7 @@ class NotificationDeliveryTest < ActionDispatch::IntegrationTest
       text = JSON.parse(env.body).dig("text", "content")
       @sent << text
       raise Faraday::TimeoutError if @timeout
-      response_for(errcode: text == "第二条" && !@fixed ? 93000 : 0, errmsg: "invalid webhook url")
+      response_for(errcode: text == "第二条" && !@fixed ? 93000 : 0, errmsg: unsafe_receipt)
     end
   end
   teardown { remove_wechat_stubs }
@@ -34,15 +34,27 @@ class NotificationDeliveryTest < ActionDispatch::IntegrationTest
       idempotency_key: "audit:1")
   end
 
+  def unsafe_receipt
+    "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=demo-notification-key #{Base64.strict_encode64('demo-notification-key')}"
+  end
+
   test "两条消息部分成功后仅补失败条目，固定快照并审计" do
     row = task
     Notifications::Delivery.run(row.id)
     assert_equal "failed", row.reload.status
     assert_equal %w[sent failed], row.results.map { |r| r["status"] }
     assert_includes row.error_message, "93000"
+    assert_not_includes row.response_data.to_json, "demo-notification-key"
+    assert_not_includes row.response_data.to_json, Base64.strict_encode64("demo-notification-key")
+    # Older rows can still contain raw response text in the current attempt and its history.
+    last = row.results.last
+    legacy = last.merge("error_message" => unsafe_receipt)
+    row.update!(response_data: row.response_data.merge("messages" => [ row.results.first, legacy.merge("history" => [ legacy ]) ]))
     get admins_notification_path(row)
     assert_response :success
-    assert_includes response.body, "invalid webhook url"
+    assert_includes response.body, "请核对群机器人设置"
+    assert_not_includes response.body, "demo-notification-key"
+    assert_not_includes response.body, Base64.strict_encode64("demo-notification-key")
     @fixed = true
     post retry_failed_admins_notification_path(row), params: { message_ids: [ "msg_1" ] }
     assert_redirected_to admins_notification_path(row)

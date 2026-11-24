@@ -1,11 +1,10 @@
 <% content_for :title, "存储设置 · Booking 管理后台" %>
 <%= render "admins/shared/enhanced_select_assets" %>
-<% sources = StorageSettings::FIELDS.keys.index_with { |field| @settings.source(field) } %>
-<% revision = @settings.revision; can_clear = sources.values.any? { |source| source.start_with?("系统配置") } %>
-<% service = @settings.form_value("service"); cos_enabled = service == "tencent_cos" %>
+<% fields = StorageSettings::FIELDS.keys.index_with { |field| @settings.form_field(field) } %>
+<% revision = @settings.revision; can_clear = @settings.stored?; cos_enabled = fields.fetch("service").value == "tencent_cos" %>
 <% choices = [["本地存储", "local"], ["腾讯云 COS", "tencent_cos"]] %>
-<% unless StorageConfiguration::SERVICES.include?(service) %>
-  <% service = ""; choices.unshift(["存储方式无效，请重新选择", "", { disabled: true }]) %>
+<% unless StorageConfiguration::SERVICES.include?(fields.fetch("service").value) %>
+  <% choices.unshift(["存储方式无效，请重新选择", "", { disabled: true, selected: true }]) %>
 <% end %>
 <%= render "admins/system_settings/navigation", title: "存储设置" %>
 <%= form_with url: admins_system_settings_storage_path, scope: :storage_settings, method: :patch, class: "card", data: { admin_form: true, storage_settings: true } do |form| %>
@@ -13,11 +12,11 @@
   <%= render layout: "admins/shared/configuration_card", locals: { title: "文件存储", record: @settings, clear_target: "#clear-storage-settings-confirmation", clear_disabled: !can_clear } do %>
     <div class="row g-3">
       <div class="col-md-6 col-xl-4" data-storage-service>
-        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", source: sources.fetch("service"), value: service, choices: choices, enhanced_select: "single" %>
+        <%= render "admins/shared/configuration_field", form: form, record: @settings, field: "service", label: "存储方式", field_data: fields.fetch("service"), choices: choices, enhanced_select: "single" %>
       </div>
       <% StorageSettings::LABELS.except("service").each do |field, label| %>
         <fieldset class="col-md-6 col-xl-4" data-storage-cos-fields <%= tag.attributes(hidden: !cos_enabled, disabled: !cos_enabled) %>>
-          <%= render "admins/shared/configuration_field", form: form, record: @settings, field: field, label: label, source: sources.fetch(field), value: @settings.form_value(field), placeholder: ({"secret_id" => "请输入 SecretId", "secret_key" => "请输入 SecretKey", "region" => "例如 ap-shanghai", "bucket" => "例如 booking-1234567890", "endpoint" => "留空按地域生成 HTTPS API 地址"}.fetch(field)) %>
+          <%= render "admins/shared/configuration_field", form: form, record: @settings, field: field, label: label, field_data: fields.fetch(field), placeholder: ({"secret_id" => "请输入 SecretId", "secret_key" => "请输入 SecretKey", "region" => "例如 ap-shanghai", "bucket" => "例如 booking-1234567890", "endpoint" => "留空按地域生成 HTTPS API 地址"}.fetch(field)) %>
         </fieldset>
       <% end %>
     </div>

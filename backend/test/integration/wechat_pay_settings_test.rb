@@ -6,7 +6,7 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
 
   setup { generate_payment_keys }
 
-  test "switching merchants redisplays only the replacement credentials and names the required materials" do
+  test "switching merchants shows blank credential fields and names the required materials" do
     admin = Admin.create!(username: "switch_merchant", role: "super_admin")
     post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
     old = payment_settings("v3")
@@ -19,13 +19,14 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
       "revision" => WechatPaySettings.new.revision)
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: replacement }
     assert_response :unprocessable_content
-    assert_select "input#wechat_pay_v3_api_key[value=?]", replacement.fetch("v3_api_key")
+    assert_private_field "v3_api_key", "未配置"
     assert_select "input#wechat_pay_verification_id" do |inputs|
       assert_empty inputs.first["value"].to_s
       refute_match(/留空保留/, inputs.first["placeholder"])
     end
-    assert_empty css_select("#wechat_pay_verification_pem").first.text.strip
-    assert_empty css_select("#wechat_pay_v3_private_key").first.text.strip
+    assert_private_field "verification_pem", "未配置"
+    assert_private_field "v3_private_key", "未配置"
+    assert_no_payment_secrets(old.merge("replacement_key" => replacement.fetch("v3_api_key")))
     assert_select "[data-merchant-change]:not([hidden])", text: /新商户.*平台证书/m
     assert_equal @merchant_id, WechatPaySettings.new.value("merchant_id")
     generate_payment_keys
@@ -34,7 +35,8 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: new_fields }
     assert_response :unprocessable_content
     assert_select "#backup_verification_id-error", text: /新商户/
-    assert_empty css_select("#wechat_pay_backup_verification_pem").first.text.strip
+    assert_private_field "backup_verification_pem", "未配置"
+    assert_no_payment_secrets(new_fields.except("revision"))
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: new_fields.except(*WechatPaySettings::BACKUP) }
     assert_redirected_to edit_admins_system_settings_wechat_pay_path
     assert_equal "1900000002", WechatPaySettings.new.material!.fetch("merchant_id")
@@ -75,7 +77,7 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "active values and origins survive redisplay, invalid or stale saves, and clearing" do
+  test "blank passwords retain active keys and pasted PEM works across invalid or stale saves and clearing" do
     field = "WECHAT_PAY_V2_API_KEY"
     previous = ENV[field]
     previous_pem = ENV["WECHAT_PAY_V2_CERTIFICATE"]
@@ -88,12 +90,14 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     assert_select "nav[aria-label='系统设置'] a[href=?] + a[href=?]", edit_admins_system_settings_appointment_path, edit_admins_system_settings_wechat_pay_path
     revision = css_select("#wechat_pay_revision").first["value"]
     v2 = payment_settings("v2")
-    v2["v2_certificate"] = v2.fetch("v2_certificate").gsub("\n", "\r\n")
+    v2["v2_api_key"] = v2["v2_certificate"] = ""
+    v2["v2_private_key"] = v2.fetch("v2_private_key").tr("\n", " ")
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: v2.merge("revision" => revision) }
     assert_redirected_to edit_admins_system_settings_wechat_pay_path
     follow_redirect!
-    assert_select "input#wechat_pay_v2_api_key[value=?]", @v2_key
-    assert_select "span[title=环境变量]"
+    assert_private_field "v2_api_key", "已配置"
+    assert_private_field "v2_private_key", "已配置"
+    assert_no_payment_secrets(payment_settings("v2"))
     assert_select "fieldset[data-payment-version=v3][disabled][hidden]"
     settings = WechatPaySettings.new
     ref = settings.reserve!.fetch("config_ref")
@@ -108,6 +112,12 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     assert_equal [ "fields" ], log.details.keys
     assert_equal %w[version merchant_id notify_origin v2_private_key].sort, log.details.fetch("fields").sort
     refute_includes log.details.to_s, @v2_key
+    unsafe_origin = "https://booking.example.org/?key=payment-origin-fixture-only"
+    patch admins_system_settings_wechat_pay_path, params: { wechat_pay: payment_settings("v3").merge("revision" => first_revision, "notify_origin" => unsafe_origin) }
+    assert_response :unprocessable_content
+    assert_not_includes response.body, "payment-origin-fixture-only"
+    assert_no_payment_secrets(payment_settings("v3"))
+    assert_equal "v2", WechatPaySettings.new.value("version")
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: { revision: first_revision, version: "v3" } }
     assert_response :unprocessable_content
     assert_select ".invalid-feedback", text: /APIv3/
@@ -116,7 +126,9 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     assert_redirected_to edit_admins_system_settings_wechat_pay_path
     follow_redirect!
     assert_select "fieldset[data-payment-version=v2][hidden][disabled]"
-    assert_select "input#wechat_pay_v3_api_key[value=?]", @v3_key
+    assert_private_field "v3_api_key", "已配置"
+    assert_select "#wechat_pay_merchant_serial[value=?]", payment_settings("v3").fetch("merchant_serial")
+    assert_no_payment_secrets(payment_settings("v3"))
     patch admins_system_settings_wechat_pay_path, params: { wechat_pay: { revision: first_revision, clear_settings: "1" } }
     assert_response :unprocessable_content
     assert_equal "v3", WechatPaySettings.new.value("version")
@@ -179,5 +191,18 @@ class WechatPaySettingsTest < ActionDispatch::IntegrationTest
     ENV["WECHAT_PAY_MERCHANT_ID"] = old_merchant
     ENV["WECHAT_PAY_BACKUP_VERIFICATION_ID"] = old_id
     ENV["WECHAT_PAY_BACKUP_VERIFICATION_PEM"] = old_pem
+  end
+
+  private
+
+  def assert_private_field(field, status)
+    assert_select "#wechat_pay_#{field}[type=password]:not([value])"
+    assert_select "label[for=wechat_pay_#{field}] ~ [data-credential-status]", text: status
+  end
+
+  def assert_no_payment_secrets(values)
+    values.except(*WechatPaySettings::PUBLIC_FIELDS).each_value do |value|
+      value.lines.map(&:strip).reject(&:empty?).each { |part| assert_not_includes response.body, part }
+    end
   end
 end

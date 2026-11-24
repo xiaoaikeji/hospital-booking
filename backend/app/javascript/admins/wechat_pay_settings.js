@@ -13,14 +13,17 @@ if (form) {
   let lastMerchant = initialMerchant;
 
   const credentials = [...form.querySelectorAll("[data-merchant-credential]")].map((group) => {
-    const input = group.querySelector("input, textarea");
+    const input = group.querySelector("input");
     const label = group.querySelector("label");
     const badge = group.querySelector(".badge");
-    return { input, label, badge, placeholder: input.placeholder, requirement: group.dataset.credentialRequirement };
+    return { input, label, badge, warning: group.querySelector("[data-credential-warning]"),
+      configured: group.dataset.credentialConfigured === "true", placeholder: input.placeholder,
+      requirement: group.dataset.credentialRequirement };
   });
   const changingMerchant = () => Boolean(configuredMerchant) && currentMerchant() !== configuredMerchant;
+  const savedBackup = backupInputs.some((input) => input.closest("[data-merchant-credential]").dataset.credentialConfigured === "true");
   const showBackup = () => {
-    const saved = !changingMerchant() && initialMerchant === configuredMerchant && backupInputs.some((input) => input.defaultValue.trim());
+    const saved = !changingMerchant() && savedBackup;
     backup.hidden = !saved && !backupInputs.some((input) => input.value.trim()) && !backup.querySelector("input[type=checkbox]").checked;
   };
   const showFields = () => {
@@ -36,11 +39,17 @@ if (form) {
       fieldset.hidden = !active;
       fieldset.disabled = !active;
     });
-    credentials.forEach(({ input, label, badge, placeholder, requirement }) => {
+    credentials.forEach(({ input, label, badge, warning, configured, placeholder, requirement }) => {
       const required = requirement === "always" || (changing && requirement === "new-merchant");
       label.classList.toggle("required", required);
       input.required = required;
-      if (badge) badge.hidden = changing || !originalForm;
+      if (input.type === "password") {
+        const effective = configured && !changing;
+        badge.textContent = effective ? "已配置" : "未配置";
+        badge.classList.toggle("bg-success-lt", effective);
+        badge.classList.toggle("bg-secondary-lt", !effective);
+        if (warning) warning.hidden = changing;
+      } else if (badge) badge.hidden = changing || !originalForm;
       const originalPlaceholder = originalForm || required ? placeholder : "留空保留原商户配置";
       input.placeholder = changing ? "" : originalPlaceholder;
     });
@@ -50,7 +59,7 @@ if (form) {
     const owner = currentMerchant();
     if (configuredMerchant && owner !== lastMerchant) {
       credentials.forEach(({ input }) => {
-        input.value = owner === configuredMerchant && initialMerchant === configuredMerchant ? input.defaultValue : "";
+        input.value = input.type !== "password" && owner === configuredMerchant && originalForm ? input.defaultValue : "";
       });
       form.querySelectorAll("input[type=checkbox]").forEach((input) => { input.checked = false; });
     }
@@ -60,6 +69,16 @@ if (form) {
   merchant.addEventListener("input", changeMerchant);
   merchant.addEventListener("change", changeMerchant);
   version.addEventListener("change", showFields);
+  form.querySelectorAll("[data-credential-pem]").forEach((input) => {
+    input.addEventListener("paste", (event) => {
+      const pem = event.clipboardData?.getData("text/plain");
+      if (!pem || !/[\r\n]/.test(pem)) return;
+
+      event.preventDefault();
+      input.setRangeText(pem.replace(/[\r\n]+/g, " "), input.selectionStart, input.selectionEnd, "end");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  });
   backupInputs.forEach((input) => input.addEventListener("input", showBackup));
   showFields();
 }

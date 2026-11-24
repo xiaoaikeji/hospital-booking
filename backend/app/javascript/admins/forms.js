@@ -37,9 +37,12 @@ document.addEventListener("click", (event) => {
 });
 
 // Restore controls when a completed form is brought back from the browser's page cache.
-window.addEventListener("pageshow", () => {
+window.addEventListener("pageshow", (event) => {
   document.querySelectorAll("form[data-admin-form]").forEach((form) => {
     delete form.dataset.confirmed;
     window.adminForms.setBusy(form, false);
   });
+  if (event.persisted) {
+    document.querySelectorAll("input[data-write-only]").forEach((input) => { input.value = ""; });
+  }
 });

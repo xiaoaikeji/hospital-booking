@@ -13,7 +13,7 @@ module Wechat
       code = Integer(data["errcode"].to_s, exception: false)
       raise HttpConnection::Unavailable, "微信未确认发送结果" unless code
       raise Rejected, code if [ 40001, 40014, 42001 ].include?(code)
-      { "errcode" => code, "errmsg" => data["errmsg"].to_s.gsub(token, "[已过滤]").gsub(body[:touser].to_s, "[粉丝]").first(300), "msgid" => data["msgid"] }.compact
+      { "errcode" => code, "msgid" => Integer(data["msgid"].to_s, 10, exception: false) }.compact
     end
   end
 end

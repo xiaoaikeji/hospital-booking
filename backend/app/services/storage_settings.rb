@@ -7,17 +7,21 @@ class StorageSettings
   FIELDS = { "service" => [ "active_storage", "service" ], "secret_id" => [ "tencent_cos", "secret_id" ],
     "secret_key" => [ "tencent_cos", "secret_key" ], "region" => [ "tencent_cos", "region" ],
     "bucket" => [ "tencent_cos", "bucket" ], "endpoint" => [ "tencent_cos", "endpoint" ] }.freeze
-  SECRETS = %w[secret_id secret_key].freeze
+  PUBLIC_FIELDS = %w[service region bucket endpoint].freeze
   LABELS = { "service" => "存储方式", "secret_id" => "SecretId", "secret_key" => "SecretKey", "region" => "地域", "bucket" => "桶名", "endpoint" => "API 地址" }.freeze
 
-  def form_value(field)
-    return @display_values[field] if @display_values&.key?(field)
-    read(field)
-  rescue IntegrationSettings::ConfigurationError
-    nil # 来源标签提示解密失败，仍可重新填写或清除。
+  def form_field(field)
+    public_field = PUBLIC_FIELDS.include?(field)
+    value, source = effective_field(field)
+    value = @display_values.fetch(field, value) if @display_values
+    if field == "endpoint" && value && !IntegrationSettings.https_origin?(value)
+      value = nil
+    end
+    IntegrationSettings.form_field(value, source, public: public_field)
   end
 
   def revision = StorageConfiguration.fingerprint(Setting.raw_snapshot)
+  def stored? = Setting.raw_snapshot.values.any?(&:present?)
 
   def read(field)
     return StorageConfiguration.service_name if field == "service"
@@ -28,17 +32,7 @@ class StorageSettings
     value
   end
 
-  def source(field)
-    section, key = FIELDS.fetch(field)
-    value = Setting.read_integration_value(section, key)
-    return "系统配置" unless IntegrationSettings.unset?(value)
-    return "环境变量" unless IntegrationSettings.unset?(ENV[env_key(field)])
-    return "Rails credentials" unless IntegrationSettings.unset?(Rails.application.credentials.dig(section.to_sym, key.to_sym))
-    return "按地域生成" if field == "endpoint" && read(field)
-    field == "service" ? "默认本地" : "未配置"
-  rescue IntegrationSettings::ConfigurationError
-    "系统配置（解密失败）"
-  end
+  def source(field) = effective_field(field).last
 
   def save(input, actor:, request: nil, expected_revision: nil)
     errors.clear
@@ -53,6 +47,19 @@ class StorageSettings
   end
 
   private
+
+  def effective_field(field)
+    section, key = FIELDS.fetch(field)
+    value, source = IntegrationSettings.read_with_source(section.to_sym, key.to_sym, env_key: env_key(field))
+    return [ value, source ] unless value.nil?
+    return [ "local", "默认本地" ] if field == "service"
+    if field == "endpoint" && (endpoint = StorageConfiguration.default_cos_endpoint(read("region")))
+      return [ endpoint, "按地域生成" ]
+    end
+    [ nil, source ]
+  rescue IntegrationSettings::ConfigurationError
+    [ nil, IntegrationSettings::DAMAGED_SOURCE ]
+  end
 
   def persist(input, expected_revision, audit)
     unless input.is_a?(Hash) && (input.keys - FIELDS.keys - [ "clear_fields" ]).empty?
@@ -77,11 +84,11 @@ class StorageSettings
           next unless record.settings.key?(key)
 
           record.write_value(key, nil)
-          @display_values[field] = nil unless field == "service" || SECRETS.include?(field)
+          @display_values[field] = nil if field != "service" && PUBLIC_FIELDS.include?(field)
           changed << field
         elsif input.key?(field) && input[field].strip.present?
           value = input[field].strip
-          @display_values[field] = value unless SECRETS.include?(field)
+          @display_values[field] = value if PUBLIC_FIELDS.include?(field)
           validate_value!(field, value)
           next if unchanged_value?(field, value)
 
@@ -136,7 +143,8 @@ class StorageSettings
     when "endpoint"
       uri = URI.parse(value)
       uri.is_a?(URI::HTTPS) && uri.host.present? && uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
-    when *SECRETS then value.length <= 4096 && !value.match?(/\s|\A\*{3,}/)
+    when *Setting.secret_fields("tencent_cos")
+      value.length <= 4096 && !value.match?(/\s|\A\*{3,}/) && !IntegrationSettings.redacted_value?(value)
     else true
     end
     unless valid

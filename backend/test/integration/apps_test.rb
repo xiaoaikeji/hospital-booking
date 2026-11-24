@@ -194,9 +194,10 @@ class AppsTest < ActionDispatch::IntegrationTest
     get admins_app_path(app, list: params)
     assert_select "a[href=?]", admins_apps_path(params), text: /返回列表/
     assert_includes response.body, api_wechat_official_account_messages_path(appid: app.appid)
-    post admins_apps_path, params: { app: { provider: "douyin", app_type: "official_account", appid: "invalid" } }
+    post admins_apps_path, params: { app: { provider: "douyin", app_type: "official_account", appid: "invalid", appsecret: "new-app-fixture-only" } }
     assert_response :unprocessable_content
     assert_select "#app_type-error", text: /抖音仅支持小程序/
+    assert_app_secret "未配置", "new-app-fixture-only"
   end
 
   test "启用要求平台验证成功，清除覆盖后恢复本应用部署密钥" do
@@ -219,7 +220,16 @@ class AppsTest < ActionDispatch::IntegrationTest
     assert_nil app.appsecret
     assert_equal "已验证", AppConfiguration.new(app).credential_status
     get edit_admins_app_path(app)
-    assert_select "input[name='app[appsecret]'][value='fallback-demo']"
+    assert_app_secret "已配置", "fallback-demo", "database-demo"
+    ENV.delete(key)
+    # With no deployment fallback, explicit clear still works for an active app.
+    @stubs.post("/cgi-bin/stable_token") { response_for(access_token: "demo-stable", expires_in: 7200) }
+    change.call(appsecret: "temporary-fixture-secret")
+    assert_redirected_to admins_app_path(app)
+    change.call(clear_secret: "1")
+    assert_redirected_to edit_admins_app_path(app)
+    follow_redirect!
+    assert_app_secret "未配置", "temporary-fixture-secret"
   ensure
     ENV.delete(key)
   end
@@ -235,11 +245,16 @@ class AppsTest < ActionDispatch::IntegrationTest
     assert_response :success
     get admins_app_path(a)
     assert_response :success
+    assert_select "dd", text: "已配置"
+    assert_not_includes response.body, "demo-a"
     get edit_admins_app_path(b)
-    assert_select "input[name='app[appsecret]'][value='env-demo']"
-    assert_includes response.body, "环境变量"
+    assert_app_secret "已配置", "env-demo"
     revision = AppConfiguration.new(b).revision
-    patch admins_app_path(b), params: { app: { appid: "wxA", nickname: "B", revision: revision, appsecret: "env-demo" } }
+    patch admins_app_path(b), params: { app: { revision: revision, status: "invalid", appsecret: "rejected-app-fixture-only" } }
+    assert_response :unprocessable_content
+    assert_app_secret "已配置", "env-demo", "rejected-app-fixture-only"
+    assert_nil b.reload.appsecret
+    patch admins_app_path(b), params: { app: { appid: "wxA", nickname: "B", revision: revision, appsecret: "" } }
     assert_redirected_to admins_app_path(b)
     assert_nil b.reload.appsecret
     assert_equal "wxB", b.appid
@@ -247,6 +262,7 @@ class AppsTest < ActionDispatch::IntegrationTest
     ENV[key] = "new-demo"
     patch admins_app_path(b), params: { app: { revision: revision, appsecret: "env-demo" } }
     assert_response :unprocessable_content
+    assert_app_secret "已配置", "env-demo", "new-demo"
     assert_nil b.reload.appsecret
     [ a, b ].each { |app| Rails.cache.write(direct_token_key(app), "cached") }
     patch admins_app_path(a), params: { app: { revision: AppConfiguration.new(a).revision, appsecret: "rotated-demo" } }
@@ -301,6 +317,12 @@ class AppsTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def assert_app_secret(status, *secrets)
+    assert_select "#app_appsecret[type=password]:not([value])"
+    assert_select "label[for=app_appsecret] ~ [data-credential-status]", text: status
+    secrets.each { |secret| assert_not_includes response.body, secret }
+  end
 
   def damage_secret(app)
     envelope = JSON.parse(app.reload.ciphertext_for(:appsecret))

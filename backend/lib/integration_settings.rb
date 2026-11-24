@@ -1,6 +1,37 @@
+require "uri"
+
 # 仅用于密钥、证书及其配套参数，不缓存明文。
 module IntegrationSettings
   class ConfigurationError < StandardError; end
+
+  DAMAGED_SOURCE = "系统配置（解密失败）"
+  INVALID_SOURCE = "部署配置无效"
+  FormField = Data.define(:value, :source, :configured, :write_only) do
+    def status = configured ? "已配置" : "未配置"
+  end
+
+  # Views and administrative responses only receive this projection. Opt in for public fields.
+  def self.form_field(value = nil, source = "未配置", public: false)
+    configured = !unset?(value)
+    return FormField.new(value:, source:, configured:, write_only: false) if public
+
+    warning = source.presence_in([ DAMAGED_SOURCE, INVALID_SOURCE ])
+    FormField.new(value: nil, source: warning, configured:, write_only: true)
+  end
+
+  def self.redacted_value?(value)
+    value.is_a?(String) && value.strip.match?(/\A(?:已配置|未配置|\[FILTERED\]|[^\s]{0,4}[*•●]{3,}[^\s]{0,4})\z/i)
+  end
+
+  def self.https_origin?(value)
+    return false unless value.is_a?(String)
+
+    uri = URI.parse(value)
+    uri.is_a?(URI::HTTPS) && uri.host.present? && uri.path.in?([ "", "/" ]) &&
+      uri.userinfo.nil? && uri.query.nil? && uri.fragment.nil?
+  rescue URI::InvalidURIError
+    false
+  end
 
   def self.read(...) = read_with_source(...).first
 

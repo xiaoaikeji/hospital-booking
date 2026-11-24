@@ -12,6 +12,16 @@ module Notifications
     def feedback = { error: message, field: @field, message_index: @message_index }.compact
   end
 
+  def self.rejection_message(channel, code)
+    code = Integer(code.to_s, 10, exception: false)
+    provider = channel == "wecom_group" ? "企业微信" : "微信"
+    hint = case [ channel, code ]
+    when [ "wecom_group", 93000 ] then "请核对群机器人设置"
+    when [ "wechat_official_account", 45015 ] then "超出微信客服消息的可回复时限"
+    end
+    [ "#{provider}拒绝发送#{"（#{code}）" if code}", hint ].compact.join("，")
+  end
+
   def self.dispatch(event:, subject:, target:, messages:, idempotency_key:, scheduled_at: nil, data: nil)
     return if target.blank?
     raise Error, "请提供事件去重标识" if idempotency_key.blank?

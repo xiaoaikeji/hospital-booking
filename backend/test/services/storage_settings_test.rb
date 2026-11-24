@@ -128,10 +128,12 @@ class StorageSettingsTest < ActiveSupport::TestCase
     end
     assert_includes error.message, "解密失败"
     form = StorageSettings.new
-    assert_equal "系统配置（解密失败）", form.source("secret_key")
-    assert_nil form.form_value("secret_key")
+    field = form.form_field("secret_key")
+    assert_equal IntegrationSettings::DAMAGED_SOURCE, field.source
+    assert_nil field.value
     assert form.save({ "secret_key" => "test-repaired-key" }, actor: @admin)
-    assert_equal "test-repaired-key", form.form_value("secret_key")
+    assert_equal "test-repaired-key", form.read("secret_key")
+    assert_equal "已配置", form.form_field("secret_key").status
   end
 
   test "an open form cannot copy an old inherited secret over an external rotation" do
@@ -139,12 +141,12 @@ class StorageSettingsTest < ActiveSupport::TestCase
     ENV["TENCENT_COS_SECRET_KEY"] = "test-first-key"
     form = StorageSettings.new
     revision = form.revision
-    displayed = form.form_value("secret_key")
+    assert_nil form.form_field("secret_key").value
     ENV["TENCENT_COS_SECRET_KEY"] = "test-next-key"
-    assert_not form.save({ "secret_key" => displayed }, actor: @admin, expected_revision: revision)
+    assert_not form.save({ "secret_key" => "" }, actor: @admin, expected_revision: revision)
     assert_includes form.errors[:base].join, "刷新页面"
     assert_nil Setting.read_integration_value(:tencent_cos, :secret_key)
-    assert_equal "test-next-key", form.form_value("secret_key")
+    assert_equal "test-next-key", form.read("secret_key")
   ensure
     ENV["TENCENT_COS_SECRET_KEY"] = previous
   end

@@ -24,6 +24,7 @@ module Notifications
 
     def stored_key? = @stored_key_present
     def key_unreadable? = @key_unreadable
+    def webhook_field = IntegrationSettings.form_field(key, source)
 
     def revision
       OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, [@stored_key, key, source].to_json)
@@ -41,11 +42,13 @@ module Notifications
           changed << "webhook_key" if row.settings.key?("webhook_key")
           row.write_value("webhook_key", nil)
         else
-          if current.key_unreadable? && input[:webhook_key].blank?
+          webhook = input[:webhook_key]
+          raise InvalidKey, "机器人 Key 格式无效" unless webhook.nil? || webhook.is_a?(String)
+          if current.key_unreadable? && webhook.blank?
             raise InvalidKey, "请重新填写机器人 Key 或清除系统配置"
           end
-          if input[:webhook_key].present? && input[:webhook_key].strip != current.key
-            replacement = normalize_key(input[:webhook_key])
+          if webhook.present? && webhook.strip != current.key
+            replacement = normalize_key(webhook)
             if replacement != current.key
               if current.key.present? && input[:same_robot] == "1"
                 Notifications::Channels::WecomGroup.rotate!(current.key, replacement)

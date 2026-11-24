@@ -38,6 +38,20 @@ class IntegrationSettingsTest < ActiveSupport::TestCase
     assert_raises(RuntimeError) { read_value }
   end
 
+  test "form projection defaults to write-only for every source" do
+    [ "系统配置", "环境变量", "Rails credentials" ].each do |source|
+      value = "demo-projection-key"
+      field = IntegrationSettings.form_field(value, source)
+      assert field.write_only
+      assert_equal "已配置", field.status
+      assert_nil field.value
+      assert_nil field.source
+    end
+    field = IntegrationSettings.form_field("public-id", "系统配置", public: true)
+    assert_equal "public-id", field.value
+    assert_not field.write_only
+  end
+
   private
 
   def read_value(env: {}, credentials: { tencent_cos: { secret_key: "credentials-value" } })

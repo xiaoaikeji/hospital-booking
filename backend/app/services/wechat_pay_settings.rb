@@ -14,6 +14,8 @@ class WechatPaySettings
   COMMON = %w[version merchant_id notify_origin].freeze
   V2_TLS = %w[v2_certificate v2_private_key].freeze
   BACKUP = %w[backup_verification_id backup_verification_pem].freeze
+  PEM_FIELDS = %w[v2_certificate v2_private_key v3_private_key verification_pem backup_verification_pem].freeze
+  PUBLIC_FIELDS = (COMMON + %w[merchant_serial verification_id backup_verification_id]).freeze
   MATERIAL = {
     "v2" => %w[v2_api_key v2_certificate v2_private_key],
     "v3" => %w[v3_api_key merchant_serial v3_private_key verification_id verification_pem] + BACKUP
@@ -38,15 +40,23 @@ class WechatPaySettings
     value("merchant_id").present? && merchant.is_a?(String) && merchant.present? && merchant.strip != value("merchant_id")
   end
 
-  def form_fields(input)
-    return @fields unless input
-    changing = changing_merchant?(input["merchant_id"])
+  def form_fields(input = nil)
+    merchant = input&.[]("merchant_id")
+    changing = public_value?("merchant_id", merchant) && changing_merchant?(merchant)
     @fields.to_h do |field, (active, source)|
-      entry = input[field].presence if input[field].is_a?(String)
-      if changing && !COMMON.include?(field)
-        [ field, [ (entry unless previous_credential?(field, entry)), "未配置" ] ]
+      new_merchant_field = changing && !COMMON.include?(field)
+      if PUBLIC_FIELDS.include?(field)
+        entry = input&.[](field)
+        entry = nil unless public_value?(field, entry)
+        if new_merchant_field
+          value = (entry unless previous_credential?(field, entry))
+          source = "未配置"
+        else
+          value = entry || (active if public_value?(field, active))
+        end
+        [ field, IntegrationSettings.form_field(value, source, public: true) ]
       else
-        [ field, [ entry || active, source ] ]
+        [ field, new_merchant_field ? IntegrationSettings.form_field : IntegrationSettings.form_field(active, source) ]
       end
     end
   end
@@ -63,8 +73,8 @@ class WechatPaySettings
       previous = current.configured_material
       remember!(previous) if previous
       if input["clear_settings"] == "1"
-        fields = record.settings.keys
-        fields.each { |field| record.write_value(field, nil) }
+        fields = LABELS.keys & record.settings.keys
+        record.settings.keys.each { |field| record.write_value(field, nil) }
       else
         fields = update_fields!(record, current, input)
         remember!(self.class.new(record).material!)
@@ -143,8 +153,7 @@ class WechatPaySettings
       item
     end.compact
     raise Invalid, "普通商户号格式无效" unless material["merchant_id"].match?(/\A[0-9]{1,32}\z/)
-    origin = URI.parse(material["notify_origin"])
-    unless origin.is_a?(URI::HTTPS) && origin.host.present? && !origin.userinfo && [ "", "/" ].include?(origin.path) && !origin.query && !origin.fragment
+    unless IntegrationSettings.https_origin?(material["notify_origin"])
       raise Invalid, "回调域名须为医院公网 HTTPS 地址"
     end
     material["notify_origin"] = material["notify_origin"].delete_suffix("/")
@@ -156,8 +165,6 @@ class WechatPaySettings
       validate_v3!(material, check_dates: check_optional)
     end
     material
-  rescue URI::InvalidURIError
-    raise Invalid, "回调域名格式无效", cause: nil
   end
 
   def self.refund_tls!(material)
@@ -212,8 +219,10 @@ class WechatPaySettings
       record.write_value("deployment_merchant", current.value("merchant_id")) unless record.settings["deployment_merchant"]
       (MATERIAL.values.flatten + %w[backup_disabled v2_tls_disabled]).each { |field| record.write_value(field, nil) }
     end
-    fields = fields.select { |field| normalize(input.fetch(field)).present? && normalize(input.fetch(field)) != current.value(field) }
-    fields.each { |field| record.write_value(field, normalize(input.fetch(field))) }
+    replacements = fields.index_with { |field| normalize(field, input.fetch(field)) }
+      .select { |field, candidate| candidate.present? && candidate != current.value(field) }
+    replacements.each { |field, candidate| record.write_value(field, candidate) }
+    fields = replacements.keys
     optional, flag, remove = if version == "v2"
       [ V2_TLS, "v2_tls_disabled", "remove_v2_certificate" ]
     else
@@ -261,7 +270,7 @@ class WechatPaySettings
     end
     return [ "v3", "系统默认" ] if field == "version" && value.nil?
     return [ nil, "部署配置无效" ] if !value.nil? && !value.is_a?(String)
-    value = normalize(value) if value
+    value = normalize(field, value) if value
     return [ nil, "部署配置无效" ] if field == "version" && !VERSIONS.key?(value)
     source = "加密数据库" if source == "系统配置" && Setting.secret_fields(SECTION).include?(field)
     [ value, source ]
@@ -269,15 +278,35 @@ class WechatPaySettings
     [ nil, "系统配置（解密失败）" ]
   end
 
-  # Browsers submit textarea line endings as CRLF, including PEMs inherited from ENV.
-  def normalize(value) = value.gsub("\r\n", "\n").strip
+  def public_value?(field, value)
+    return false unless value.is_a?(String)
+
+    case field
+    when "version" then VERSIONS.key?(value)
+    when "merchant_id" then value.match?(/\A[0-9]{1,32}\z/)
+    when "notify_origin" then IntegrationSettings.https_origin?(value)
+    when "merchant_serial" then value.match?(/\A[0-9A-Fa-f]{1,64}\z/)
+    else value.match?(/\A(?:PUB_KEY_ID_\d+|[0-9A-Fa-f]+)\z/)
+    end
+  end
+
+  def normalize(field, value)
+    value = value.gsub("\r\n", "\n").strip
+    return value unless PEM_FIELDS.include?(field) && !value.include?("\n")
+
+    # Password controls submit pasted PEM as a single line.
+    value.gsub(%r{(-----BEGIN ([A-Z0-9 ]+)-----)([A-Za-z0-9+/= \t]+?)(-----END \2-----)}) do
+      opening, _label, body, closing = Regexp.last_match.captures
+      [ opening, *body.delete(" \t").scan(/.{1,64}/), closing ].join("\n")
+    end
+  end
 
   protected
 
   # The same platform certificate can be pasted into either verification slot.
   def previous_credential?(field, entry)
     return false if entry.blank?
-    candidate = normalize(entry)
+    candidate = normalize(field, entry)
     case field
     when "verification_id", "backup_verification_id"
       %w[verification_id backup_verification_id].any? { |name| candidate.casecmp?(value(name).to_s) }

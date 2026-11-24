@@ -110,19 +110,25 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_admin_session_path
   end
 
-  test "the authorized storage form shows saved secrets and validation failures and audits exclude rejected secrets" do
+  test "storage shows status and omits saved and rejected credentials and credential-bearing endpoints" do
     login(@root)
     patch admins_system_settings_path, params: { storage_settings: { revision: StorageSettings.new.revision, service: "local", secret_id: "fake-secret-id", secret_key: "fake-secret-key", region: "ap-shanghai", bucket: "test-bucket-123" } }
     assert_redirected_to edit_admins_system_settings_storage_path
     get edit_admins_system_settings_storage_path
     assert_response :success
-    assert_select "input[type=text][name='storage_settings[secret_key]'][value=?]", "fake-secret-key"
+    assert_select "#storage_settings_secret_key[type=password]:not([value])"
+    assert_select "label[for=storage_settings_secret_key] ~ [data-credential-status]", text: "已配置"
+    assert_not_includes response.body, "fake-secret-key"
+    assert_not_includes response.body, "fake-secret-id"
     assert_includes response.headers.fetch("Cache-Control"), "no-store"
-    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, secret_key: "another-test-secret", endpoint: "http://unsafe.invalid" } }
+    patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision,
+      secret_key: "another-test-secret", endpoint: "https://example.invalid/?key=endpoint-fixture-only" } }
     assert_response :unprocessable_content
     assert_select "#sidebar-menu a[aria-current=page][href=?]", edit_admins_system_settings_storage_path
     assert_not_includes response.body, "another-test-secret"
-    assert_select "input[name='storage_settings[secret_key]'][value=?]", "fake-secret-key"
+    assert_not_includes response.body, "fake-secret-key"
+    assert_not_includes response.body, "endpoint-fixture-only"
+    assert_select "#storage_settings_secret_key[type=password]:not([value])"
     assert_equal "fake-secret-key", Setting.read_integration_value(:tencent_cos, :secret_key)
     failure = Log.find_by!(action: "storage_settings.update", status: "failed", actor_id: @root.id)
     assert_equal({ "fields" => %w[secret_key endpoint], "reason" => "配置校验失败" }, failure.details)
@@ -132,6 +138,7 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_not_includes response.body, "fake-secret-key"
     assert_not_includes response.body, "another-test-secret"
+    assert_not_includes response.body, "endpoint-fixture-only"
   end
 
   test "malformed storage submissions retain their bad request status and a redacted audit" do
@@ -173,7 +180,8 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "配置已保存，存储客户端刷新失败"
     assert_not_includes response.body, "test-only-private-detail"
-    assert_select "input[type=text][name='storage_settings[secret_key]'][value=?]", "saved-test-secret"
+    assert_select "#storage_settings_secret_key[type=password]:not([value])"
+    assert_not_includes response.body, "saved-test-secret"
     assert_equal "saved-test-secret", Setting.read_integration_value(:tencent_cos, :secret_key)
     saved = Log.find_by!(action: "storage_settings.update", actor_id: @root.id)
     failure = Log.find_by!(action: "storage_settings.refresh", status: "failed", request_id: saved.request_id)
@@ -210,8 +218,14 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_response :success
     values = { "revision" => css_select("input[name='storage_settings[revision]']").first["value"],
       "service" => css_select("[data-storage-service] option[selected]").first["value"] }
+    %w[secret_id secret_key].each do |field|
+      assert_select "[data-storage-cos-fields]:not([hidden]) input#storage_settings_#{field}[type=password]:not([value])"
+      assert_select "label[for=storage_settings_#{field}] ~ [data-credential-status]", text: "已配置"
+      values[field] = ""
+    end
+    assert_not_includes response.body, "test-only-env-id"
+    assert_not_includes response.body, "test-only-credentials-key"
     {
-      "secret_id" => [ "test-only-env-id", "ENV" ], "secret_key" => [ "test-only-credentials-key", "credentials" ],
       "region" => [ "ap-shanghai", "ENV" ], "bucket" => [ "env-bucket-123", "ENV" ],
       "endpoint" => [ "https://cos.ap-shanghai.myqcloud.com", "按地域生成" ]
     }.each do |field, (expected, source)|
@@ -233,7 +247,10 @@ class AdminManagementTest < ActionDispatch::IntegrationTest
     assert_equal [ "secret_key" ], Log.last.details.fetch("fields")
     patch admins_system_settings_storage_path, params: { storage_settings: { revision: StorageSettings.new.revision, clear_fields: [ "secret_key" ] } }
     follow_redirect!
-    assert_select "input[name='storage_settings[secret_key]'][value=?]", "test-only-credentials-key"
+    assert_select "#storage_settings_secret_key[type=password]:not([value])"
+    assert_select "label[for=storage_settings_secret_key] ~ [data-credential-status]", text: "已配置"
+    assert_not_includes response.body, "test-only-credentials-key"
+    assert_equal "test-only-credentials-key", StorageSettings.new.read("secret_key")
     assert_empty Setting.find_by!(key: "tencent_cos").settings
   ensure
     ENV.update(previous)

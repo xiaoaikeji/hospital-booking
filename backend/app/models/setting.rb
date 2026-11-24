@@ -30,7 +30,7 @@ class Setting < ApplicationRecord
   end
 
   def self.secret_fields(section)
-    section.to_s.start_with?("wechat_pay_profile:") ? %w[material] : SECRET_FIELDS.fetch(section, [])
+    section.to_s.start_with?("wechat_pay_profile:") ? %w[material] : SECRET_FIELDS.fetch(section.to_s, [])
   end
 
   def self.decode_value(section, field, value)
@@ -48,6 +48,9 @@ class Setting < ApplicationRecord
     if value.nil?
       values.delete(field.to_s)
     elsif self.class.secret_fields(key).include?(field.to_s)
+      if IntegrationSettings.redacted_value?(value)
+        raise IntegrationSettings::ConfigurationError, "请填写新的凭据或留空保留"
+      end
       values[field.to_s] = { "ciphertext" => ActiveRecord::Encryption.encryptor.encrypt(value) }
     else
       values[field.to_s] = value

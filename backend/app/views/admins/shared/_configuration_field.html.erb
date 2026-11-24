@@ -1,27 +1,41 @@
-<%# Required: form, field, label, source. Optional: record, value, choices, enhanced_select, placeholder, help, disabled, required, optional, rows, show_source. %>
-<% source_label, source_color = configuration_source(source); record = local_assigns[:record]; choices = local_assigns[:choices] %>
-<% source_label, source_color = ["选填", "secondary"] if local_assigns[:optional] && source == "未配置" %>
+<%# Required: form, field, label, field_data (IntegrationSettings.form_field). Optional: record, choices, enhanced_select, placeholder, help, disabled, required, optional, rows, pem, show_source. %>
+<% record = local_assigns[:record]; choices = local_assigns[:choices] unless field_data.write_only %>
+<% source_label, source_color = configuration_source(field_data.source) %>
+<% source_label, source_color = ["选填", "secondary"] if local_assigns[:optional] && field_data.source == "未配置" %>
 <% error_id = ("#{field}-error" if record && record.errors[field].any?) %>
 <% required = local_assigns[:required] %>
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
   <%= form.label field, label, class: class_names("form-label mb-0", required: required) %>
   <% if local_assigns[:help] %><%= render "admins/shared/field_help", text: help, label: "查看#{label}说明" %><% end %>
-  <% if local_assigns.fetch(:show_source, true) %>
-    <span class="badge bg-<%= source_color %>-lt" title="<%= source %>"><%= source_label %></span>
+  <% if field_data.write_only %>
+    <span class="badge bg-<%= field_data.configured ? "success" : "secondary" %>-lt" data-credential-status><%= field_data.status %></span>
+    <% if field_data.source %><span class="badge bg-danger-lt" data-credential-warning><%= source_label %></span><% end %>
+  <% elsif local_assigns.fetch(:show_source, true) %>
+    <span class="badge bg-<%= source_color %>-lt" title="<%= field_data.source %>"><%= source_label %></span>
   <% end %>
 </div>
 <% input_class = choices ? "form-select" : "form-control"; input_class = admin_field_class(record, field, input_class) if record %>
-<% if choices %>
-  <%= form.select field, choices, { selected: local_assigns[:value] }, class: input_class, required: required,
+<% if field_data.write_only %>
+  <% unless local_assigns[:disabled] %>
+    <% placeholder = if field_data.source == IntegrationSettings::DAMAGED_SOURCE
+         "解密失败，请重新填写或清除"
+       elsif field_data.configured
+         "留空保留当前配置"
+       else
+         local_assigns[:placeholder]
+       end %>
+  <% end %>
+  <%= form.password_field field, value: nil, class: input_class, autocomplete: "new-password", spellcheck: false,
+        placeholder: placeholder, disabled: local_assigns[:disabled], required: required,
+        data: { write_only: true, credential_pem: (true if local_assigns[:pem]) },
+        aria: { describedby: error_id, invalid: (true if error_id) } %>
+<% elsif choices %>
+  <%= form.select field, choices, { selected: field_data.value }, class: input_class, required: required,
         data: { enhanced_select: local_assigns[:enhanced_select] }, aria: { describedby: error_id, required: ("true" if required) } %>
 <% else %>
-  <% placeholder = configuration_placeholder(source, example: local_assigns.fetch(:placeholder, "未配置，请填写")) unless local_assigns[:disabled] %>
-  <% options = { value: local_assigns[:value], class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder,
+  <% placeholder = configuration_placeholder(field_data.source, example: local_assigns.fetch(:placeholder, "未配置，请填写")) unless local_assigns[:disabled] %>
+  <% options = { value: field_data.value, class: input_class, autocomplete: "off", spellcheck: false, placeholder: placeholder,
       disabled: local_assigns[:disabled], required: required, aria: { describedby: error_id, invalid: (true if error_id) } } %>
-  <% if local_assigns[:rows] %>
-    <%= form.text_area field, **options, rows: rows %>
-  <% else %>
-    <%= form.text_field field, **options %>
-  <% end %>
+  <%= local_assigns[:rows] ? form.text_area(field, **options, rows: rows) : form.text_field(field, **options) %>
 <% end %>
 <%= admin_field_errors(record, field) if record %>

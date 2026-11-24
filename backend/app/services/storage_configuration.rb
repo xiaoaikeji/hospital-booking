@@ -1,5 +1,3 @@
-require "digest"
-
 module StorageConfiguration
   MUTEX = Mutex.new
   SERVICES = %w[local tencent_cos].freeze
@@ -39,7 +37,7 @@ module StorageConfiguration
         [ ENV[env_key], Rails.application.credentials.dig(section.to_sym, field.to_sym) ]
       end
     end
-    Digest::SHA256.hexdigest(JSON.generate([ raw.reject { |_key, value| value.empty? }, external ]))
+    OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, JSON.generate([ raw.reject { |_key, value| value.empty? }, external ]))
   end
 
   def self.refresh!

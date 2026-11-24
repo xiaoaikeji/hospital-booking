@@ -135,7 +135,7 @@ module Notifications
         response = Wecom::WebhookClient.new.send_message(key, text)
         code = response["errcode"]
         { "status" => code == -1 ? "unknown" : (code.zero? ? "sent" : "failed"), "response" => response,
-          "error_message" => code.zero? ? nil : "企业微信拒绝（#{code}）：#{response['errmsg']}" }
+          "error_message" => code.zero? ? nil : Notifications.rejection_message("wecom_group", code) }
       rescue ActiveRecord::Encryption::Errors::Base, KeyError
         raise Error, "原通知群凭据不可用"
       end

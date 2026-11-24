@@ -1,7 +1,7 @@
 class Notification < ApplicationRecord
   belongs_to :subject, polymorphic: true
   attr_readonly :event, :subject_type, :subject_id, :idempotency_key, :payload
-  self.filter_attributes += [ :payload, :response_data ]
+  self.filter_attributes += [ :payload, :response_data, :error_message ]
   STATES = { "pending" => "等待处理", "sending" => "处理中", "sent" => "渠道已接受", "failed" => "失败" }.freeze
   validates :event, :subject_type, :subject_id, presence: true
   validates :status, inclusion: { in: STATES.keys }
@@ -33,6 +33,13 @@ class Notification < ApplicationRecord
   def messages = payload.fetch("messages")
   def results = response_data.fetch("messages", [])
   def result_for(id) = results.find { |r| r["message_id"] == id } || { "status" => "pending", "attempt_count" => 0 }
+
+  def delivery_error(result)
+    return result["error_message"] unless result["stage"] == "channel_rejected"
+
+    # Older receipts may have stored the platform's raw error text.
+    Notifications.rejection_message(payload.dig("target", "channel_type"), result.dig("response", "errcode"))
+  end
   def uncertain? = results.any? { |r| r["status"] == "sending" && r["provider_state"] != "passive_prepared" }
   def passive_prepared? = results.any? { |r| r["provider_state"] == "passive_prepared" }
   def disabled? = messages.all? { |m| result_for(m["id"])["stage"] == "disabled" }

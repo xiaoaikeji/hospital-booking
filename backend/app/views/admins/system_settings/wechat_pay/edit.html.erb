@@ -2,11 +2,12 @@
 <%= render "admins/shared/enhanced_select_assets" %>
 <% content_for :head do %><%= javascript_include_tag "admins/wechat_pay_settings", defer: true %><% end %>
 <%= render "admins/system_settings/navigation", title: "微信支付" %>
-<% version = @submitted&.[]("version") || @settings.value("version") %>
-<% form_fields = @settings.form_fields(@submitted)
-   changing_merchant = @settings.changing_merchant?(@submitted&.[]("merchant_id"))
-   has_backup = WechatPaySettings::BACKUP.any? { |field| form_fields.fetch(field).first.present? }
-   backup_open = has_backup || WechatPaySettings::BACKUP.any? { |field| @settings.errors[field].any? } %>
+<% active_fields = @settings.form_fields
+   version = @form_fields.fetch("version").value
+   configured_merchant = active_fields.fetch("merchant_id").value
+   changing_merchant = @settings.changing_merchant?(@form_fields.fetch("merchant_id").value)
+   has_backup = !changing_merchant && WechatPaySettings::BACKUP.any? { |field| active_fields.fetch(field).configured }
+   backup_open = has_backup || WechatPaySettings::BACKUP.any? { |field| @settings.errors[field].any? || @form_fields.fetch(field).source == IntegrationSettings::DAMAGED_SOURCE } %>
 <% versions = WechatPaySettings::VERSIONS.map { |id, name| [name, id] }
    versions.unshift(["请选择接口版本", "", { disabled: true }]) unless WechatPaySettings::VERSIONS.key?(version) %>
 <% help = {
@@ -20,8 +21,8 @@
   "verification_id" => "公钥模式填写 PUB_KEY_ID_ 开头的 ID，平台证书模式填写该证书的序列号。",
   "verification_pem" => "粘贴与所填 ID 对应的微信支付公钥或平台证书 PEM，用于验证微信应答和通知。"
 } %>
-<%= form_with scope: :wechat_pay, url: admins_system_settings_wechat_pay_path, method: :patch, class: "card", data: { admin_form: true, wechat_pay_settings: true, configured_merchant: @settings.value("merchant_id") } do |f| %>
-  <%= f.hidden_field :revision, value: @submitted&.[]("revision") || @settings.revision %>
+<%= form_with scope: :wechat_pay, url: admins_system_settings_wechat_pay_path, method: :patch, class: "card", data: { admin_form: true, wechat_pay_settings: true, configured_merchant: configured_merchant } do |f| %>
+  <%= f.hidden_field :revision, value: @settings.revision %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "普通商户直连", record: @settings, clear_target: "#clear-wechat-pay", clear_disabled: !@settings.stored? } do %>
     <div <%= tag.attributes(class: "alert alert-info mb-3", data: { merchant_change: true }, role: "status", hidden: !changing_merchant) %>>
       <span data-merchant-version="v2" <%= "hidden" unless version == "v2" %>>请填写新商户的 APIv2 密钥。需要退款时，再补齐该商户的 API 证书和配套私钥。</span>
@@ -31,24 +32,23 @@
       <% WechatPaySettings::LABELS.except(*WechatPaySettings::BACKUP).each do |field, label| %>
         <% group = WechatPaySettings::MATERIAL.find { |_version, fields| fields.include?(field) }&.first
            inactive = group && group != version
-           multiline = %w[v2_certificate v2_private_key v3_private_key verification_pem].include?(field)
-           value, source = form_fields.fetch(field)
+           pem = WechatPaySettings::PEM_FIELDS.include?(field)
            optional = WechatPaySettings::V2_TLS.include?(field)
-           configured = @settings.value(field).present?
+           configured = active_fields.fetch(field).configured
            required = !optional && (!configured || (group.present? && changing_merchant))
            credential_requirement = if group && !optional
              configured ? "new-merchant" : "always"
            end %>
-        <fieldset <%= tag.attributes(class: ("col-xl-6" if multiline), hidden: inactive, disabled: inactive,
-              data: { payment_version: group, merchant_credential: (true if group), credential_requirement: credential_requirement }) %>>
+        <fieldset <%= tag.attributes(class: ("col-xl-6" if pem), hidden: inactive, disabled: inactive,
+              data: { payment_version: group, merchant_credential: (true if group), credential_requirement: credential_requirement, credential_configured: configured }) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
-                source: source, optional: optional, required: required, value: value, help: help[field], rows: (4 if multiline),
-                placeholder: (field == "notify_origin" ? "https://booking.example.org" : ""),
+                field_data: @form_fields.fetch(field), optional: optional, required: required, help: help[field], pem: pem,
+                placeholder: ("https://booking.example.org" if field == "notify_origin"),
                 choices: (versions if field == "version"), enhanced_select: "single" %>
         </fieldset>
       <% end %>
     </div>
-    <% if WechatPaySettings::V2_TLS.any? { |field| @settings.value(field).present? } %>
+    <% if WechatPaySettings::V2_TLS.any? { |field| active_fields.fetch(field).configured } %>
       <fieldset <%= tag.attributes(class: "mt-3", data: { payment_version: "v2", original_merchant: true }, hidden: changing_merchant || version != "v2", disabled: changing_merchant || version != "v2") %>>
         <% if (problem = @settings.v2_refund_problem) %><p class="text-danger mb-2"><%= problem %></p><% end %>
         <label class="form-check mb-0"><%= f.check_box :remove_v2_certificate, class: "form-check-input" %>
@@ -70,15 +70,15 @@
         <div class="pt-3">
           <div class="row g-3">
             <% WechatPaySettings::BACKUP.each do |field| %>
-              <% value, source = form_fields.fetch(field) %>
-              <div class="col-12 col-md-6" data-merchant-credential>
+              <% field_data = @form_fields.fetch(field) %>
+              <div class="col-12 col-md-6" data-merchant-credential data-credential-configured="<%= active_fields.fetch(field).configured %>">
                 <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: WechatPaySettings::LABELS.fetch(field),
-                      source: source, show_source: source != "未配置", value: value, rows: (4 if field.end_with?("_pem")), placeholder: "" %>
+                      field_data: field_data, show_source: field_data.source != "未配置", pem: WechatPaySettings::PEM_FIELDS.include?(field) %>
               </div>
             <% end %>
           </div>
           <label <%= tag.attributes(class: "form-check mt-3 mb-0", data: { remove_backup: true }, hidden: !has_backup) %>>
-            <%= f.check_box :remove_backup, class: "form-check-input", checked: @submitted&.[]("remove_backup") == "1" %>
+            <%= f.check_box :remove_backup, class: "form-check-input", checked: @remove_backup == true %>
             <span class="form-check-label">停用备用验签材料</span></label>
         </div>
       </div>

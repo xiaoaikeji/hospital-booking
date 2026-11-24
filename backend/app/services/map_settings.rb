@@ -20,6 +20,7 @@ class MapSettings
 
   def value(field) = @fields.fetch(field).first
   def source(field) = @fields.fetch(field).last
+  def form_field(field) = IntegrationSettings.form_field(*@fields.fetch(field), public: field == "provider")
   def provider = value("provider")
 
   def key

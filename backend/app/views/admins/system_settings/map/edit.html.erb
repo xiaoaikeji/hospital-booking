@@ -11,13 +11,13 @@
         <% choices = MapSettings::PROVIDERS.map { |value, label| [label, value] } %>
         <% choices.unshift(["请选择地图服务商", "", { disabled: true }]) unless @settings.provider %>
         <%= render "admins/shared/configuration_field", form: f, record: @settings, field: :provider, label: "地图服务商",
-              source: @settings.source("provider"), value: @settings.provider.to_s, choices: choices, enhanced_select: "single" %>
+              field_data: @settings.form_field("provider"), choices: choices, enhanced_select: "single" %>
       </div>
       <% [["baidu", "ak", "百度地图服务端 AK", "使用已开通普通 IP 定位的服务端 AK。"],
           ["tencent", "tencent_key", "腾讯地图 WebService Key", "开通 WebService IP 定位，并将任务服务器的公网出口 IP 加入授权名单。"]].each do |provider, field, label, help| %>
         <fieldset class="col-md-6 col-xl-6" data-map-credential="<%= provider %>" <%= tag.attributes(hidden: @settings.provider != provider, disabled: @settings.provider != provider) %>>
           <%= render "admins/shared/configuration_field", form: f, record: @settings, field: field, label: label,
-                source: @settings.source(field), value: @settings.value(field), placeholder: "", help: help %>
+                field_data: @settings.form_field(field), help: help %>
         </fieldset>
       <% end %>
     </div>

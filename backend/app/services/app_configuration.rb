@@ -5,7 +5,7 @@ class AppConfiguration
 
   CALLBACK_FIELDS = %i[callback_token callback_encoding_aes_key].freeze
   SECRET_FIELDS = [:appsecret, *CALLBACK_FIELDS].freeze
-  DAMAGED_SOURCE = "系统配置（解密失败）"
+  DAMAGED_SOURCE = IntegrationSettings::DAMAGED_SOURCE
   ENCRYPTION_UNAVAILABLE = "无法确认系统加密主密钥，请核对部署配置"
 
   def initialize(app)
@@ -65,6 +65,14 @@ class AppConfiguration
     digest(["disable", @app.id, @app.lock_version, @app.status])
   end
 
+  def form_field
+    IntegrationSettings.form_field(*credential)
+  rescue DecryptionFailed, EncryptionUnavailable
+    IntegrationSettings.form_field(nil, DAMAGED_SOURCE)
+  rescue Invalid
+    IntegrationSettings.form_field(nil, IntegrationSettings::INVALID_SOURCE)
+  end
+
   def credential_status
     value = credential.first
     return "未配置" if value.blank?
@@ -93,11 +101,13 @@ class AppConfiguration
       if clear
         [field, nil] if source.in?(["加密数据库", DAMAGED_SOURCE])
       else
-        value = input[field].presence
+        value = input[field]
+        raise Invalid, "应用凭据格式无效" unless value.nil? || value.is_a?(String)
+        value = value.presence
         [field, value] if value && value != old
       end
     end.to_h
-    if changes[:appsecret] && (changes[:appsecret].length > 4096 || changes[:appsecret].match?(/\s/))
+    if changes[:appsecret] && (changes[:appsecret].length > 4096 || changes[:appsecret].match?(/\s/) || IntegrationSettings.redacted_value?(changes[:appsecret]))
       raise Invalid, "AppSecret 格式无效"
     end
 

@@ -116,6 +116,8 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     } }
     assert_response :unprocessable_content
     assert_includes response.body, "新 Key 已登记在其他通知群"
+    assert_not_includes response.body, "local-test-different-group"
+    assert_not_includes response.body, "local-test-recovery-group"
     assert_equal "local-test-recovery-group", Notifications::WecomSettings.new.key
     assert_equal @target, Notifications::Channels::WecomGroup.target("local-test-recovery-group")
     assert_equal other, Notifications::Channels::WecomGroup.target("local-test-different-group")
@@ -156,6 +158,70 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     assert_equal "sent", b_task.reload.status
     assert_equal 93000, b_task.result_for("msg_1").fetch("history").sole.dig("response", "errcode")
     assert_not_includes Setting.find_by!(key: "notification").settings.to_json, "local-test-group-b-rotated"
+  end
+
+  test "企微部署 Key 只显示状态并支持留空、更换和清除回退" do
+    env_key = Notifications::WecomSettings::ENV_KEY
+    previous = ENV[env_key]
+    original = ENV[env_key] = "demo-wecom-environment-only"
+    replacement = "demo-wecom-replacement-only"
+    rejected = "local-test-recovery-group"
+    endpoint = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key="
+    read_form = -> do
+      get edit_admins_system_settings_wecom_notifications_path
+      assert_response :success
+      assert_select "#notification_settings_webhook_key[type=password]:not([value])"
+      assert_select "[data-credential-status]", text: "已配置"
+      [ original, replacement, rejected, endpoint ].each { |value| assert_not_includes response.body, value }
+      css_select("#notification_settings_revision").sole["value"]
+    end
+    patch admins_system_settings_wecom_notifications_path, params: { notification_settings: { revision: read_form.call, webhook_key: "" } }
+    assert_redirected_to edit_admins_system_settings_wecom_notifications_path
+    assert_equal original, Notifications::WecomSettings.new.key
+    assert_not Notifications::WecomSettings.new.stored_key?
+    task = dispatch_activity(Notifications::Channels::WecomGroup.target(Notifications::WecomSettings.new.key))
+    Notifications::Delivery.run(task.id)
+    assert_equal [ original, original ], @keys
+
+    patch admins_system_settings_wecom_notifications_path, params: { notification_settings: {
+      revision: read_form.call, webhook_key: "#{endpoint}#{rejected}", same_robot: "1"
+    } }
+    assert_response :unprocessable_content
+    assert_includes response.body, "新 Key 已登记在其他通知群"
+    assert_select "#notification_settings_webhook_key[type=password]:not([value])"
+    [ original, rejected, endpoint ].each { |value| assert_not_includes response.body, value }
+    assert_not Notifications::WecomSettings.new.stored_key?
+
+    patch admins_system_settings_wecom_notifications_path, params: { notification_settings: { revision: read_form.call, webhook_key: "#{endpoint}#{replacement}" } }
+    assert_redirected_to edit_admins_system_settings_wecom_notifications_path
+    assert_equal replacement, Notifications::WecomSettings.new.key
+    patch admins_system_settings_wecom_notifications_path, params: { notification_settings: { revision: read_form.call, clear_key: "1" } }
+    assert_redirected_to edit_admins_system_settings_wecom_notifications_path
+    assert_equal original, Notifications::WecomSettings.new.key
+    assert_not Notifications::WecomSettings.new.stored_key?
+    ENV.delete(env_key)
+    get edit_admins_system_settings_wecom_notifications_path
+    assert_select "[data-credential-status]", text: "未配置"
+    details = Log.where(action: "wechat.notification_settings").pluck(:details).to_json
+    [ original, replacement, rejected, endpoint ].each { |value| assert_not_includes details, value }
+  ensure
+    ENV[env_key] = previous
+  end
+
+  test "无效 JSON 请求体也不会进入日志" do
+    key = "invalid-json-webhook-fixture"
+    buffer = StringIO.new
+    logger = ActiveSupport::Logger.new(buffer)
+    body = %({"notification_settings":{"webhook_key":"#{key}")
+    Rails.logger.broadcast_to(logger)
+    patch admins_system_settings_wecom_notifications_path, params: body,
+      headers: { "CONTENT_TYPE" => "application/json" }
+    assert_response :bad_request
+    assert_includes buffer.string, "Error occurred while parsing request parameters."
+    assert_not_includes buffer.string, key
+    assert_not_includes response.body, key
+  ensure
+    Rails.logger.stop_broadcasting_to(logger)
   end
 
 end
