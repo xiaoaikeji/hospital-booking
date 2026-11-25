@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
 import {
   allowedActions, bookingStatus, createAppointment, demoResults, getAvailableSlots,
-  listAppointments, listPatients, newAppointmentNo, nextChangeAt, updateAppointment,
+  listAppointments, listPatients, newAppointmentNo, nextChangeAt, removePatient, updateAppointment, updatePatient,
 } from '../mock/appointments.js'
 import { getBookingSchedule, getBookingSlots } from '../mock/booking-schedule.js'
 
@@ -61,6 +61,21 @@ test('retrying a successful submission keeps one appointment, one saved patient 
   assert.equal(bookingStatus(listAppointments('A')[0]), 'confirmed')
   updateAppointment('A', number, 'cancel')
   assert.equal(seats(), before)
+})
+
+test('editing or removing a same-name demo profile by ID keeps appointment snapshots', () => {
+  const draft = form(1)
+  const first = createAppointment('A', newAppointmentNo(), draft)
+  const second = createAppointment('A', newAppointmentNo(), { ...draft, age: '63' })
+  const [older, newer] = listPatients('A')
+  assert.notEqual(older.id, newer.id)
+  assert.throws(() => updatePatient('B', older.id, draft), /未找到/)
+  assert.throws(() => removePatient('B', newer.id), /未找到/)
+
+  updatePatient('A', older.id, { ...draft, age: '45' })
+  removePatient('A', newer.id)
+  assert.deepEqual(listPatients('A').map(patient => [patient.id, patient.age]), [[older.id, 45]])
+  assert.deepEqual(listAppointments('A'), [second, first])
 })
 
 test('last seat is rechecked before saving; another account cannot read, reuse or cancel a booking', () => {

@@ -1,5 +1,6 @@
 class User < ApplicationRecord
   has_many :user_apps, dependent: :restrict_with_error
+  has_many :patients, dependent: :restrict_with_error
   has_one_attached :avatar
   attr_readonly :platform, :user_no
   validates :platform, inclusion: { in: App::PROVIDERS.keys }

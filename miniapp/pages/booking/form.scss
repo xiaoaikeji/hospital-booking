@@ -1,0 +1,8 @@
+.booking-form { min-height: 100vh; background: #f4f4f6; color: #111; font-size: 28rpx; }
+.header { position: sticky; top: 0; z-index: 4; background: #f8f8f8; }
+.form-content { padding: 20rpx 20rpx max(32rpx,env(safe-area-inset-bottom)); }
+.panel { padding: 28rpx 19rpx 20rpx; border-radius: 16rpx; background: #fff; }
+.panel-title { display: flex; align-items: center; gap: 12rpx; margin-left: -19rpx; height: 60rpx; }
+.panel-title::before { content: ''; width: 8rpx; height: 26rpx; border-radius: 5rpx; background: #7299ee; }
+.submit { margin: 0; border-radius: 16rpx; background: #5da6e6; color: #fff; font-size: 26rpx; line-height: 64rpx; }
+.submit::after { border: 0; }

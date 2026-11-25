@@ -28,6 +28,23 @@ export function listPatients(owner) {
   return readLedger().patients.filter(item => item.owner === owner)
 }
 
+export function updatePatient(owner, id, attributes) {
+  const ledger = readLedger()
+  const patient = owner && ledger.patients.find(item => item.owner === owner && item.id === id)
+  if (!patient) throw new Error('未找到该就诊人')
+  Object.assign(patient, patientInformation(attributes))
+  uni.setStorageSync(STORAGE_KEY, ledger)
+  return patient
+}
+
+export function removePatient(owner, id) {
+  const ledger = readLedger()
+  const index = owner ? ledger.patients.findIndex(item => item.owner === owner && item.id === id) : -1
+  if (index < 0) throw new Error('未找到该就诊人')
+  ledger.patients.splice(index, 1)
+  uni.setStorageSync(STORAGE_KEY, ledger)
+}
+
 export function newAppointmentNo() {
   const rows = readLedger().appointments
   const beijing = new Date(Date.now() + 8 * 3600000)
@@ -96,6 +113,13 @@ export function getAvailableSlots(day, doctorId) {
   return availableSlots(day, doctorId, readLedger().appointments, new Date())
 }
 
+function patientInformation({ name, sex, age }) {
+  if (!name.trim() || !['男', '女'].includes(sex) || !Number.isInteger(+age) || +age < 1 || +age > 200) {
+    throw new Error('请核对就诊人信息')
+  }
+  return { name: name.trim(), sex, age: +age }
+}
+
 export function createAppointment(owner, no, draft) {
   if (!owner) throw new Error('请先授权登录')
   const ledger = readLedger()
@@ -114,12 +138,8 @@ export function createAppointment(owner, no, draft) {
   }
   const saved = ledger.patients.find(item => item.id === draft.patientId && item.owner === owner)
   if (draft.patientId && !saved) throw new Error('请重新选择就诊人')
-  const { name, sex, age } = saved || draft
-  if (!name.trim() || !['男', '女'].includes(sex) || !Number.isInteger(+age) || +age < 1 || +age > 200) {
-    throw new Error('请核对就诊人信息')
-  }
+  const patient = patientInformation(saved || draft)
   if (!draft.phone) throw new Error('请输入本次联系电话')
-  const patient = { name: name.trim(), sex, age: +age }
   const [startsAt, endsAt] = slotBoundaries(day.date, draft.slot)
   const record = {
     no, owner, doctorId: doctor.id, doctor: doctor.name, department: doctor.department, fee: doctor.fee,

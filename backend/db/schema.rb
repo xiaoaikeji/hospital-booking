@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_101000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -392,6 +392,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_101000) do
     t.check_constraint "action::text = 'create'::text AND open_platform_account_id IS NULL OR (action::text = ANY (ARRAY['bind'::character varying, 'unbind'::character varying]::text[])) AND open_platform_account_id IS NOT NULL", name: "valid_open_platform_operation"
   end
 
+  create_table "patients", force: :cascade do |t|
+    t.integer "age", null: false
+    t.datetime "created_at", null: false
+    t.integer "gender", limit: 2, default: 0, null: false
+    t.string "name", limit: 100, null: false
+    t.string "phone", limit: 30
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["user_id"], name: "index_patients_on_user_id"
+    t.check_constraint "age >= 1 AND age <= 200", name: "patients_age_range"
+    t.check_constraint "gender = ANY (ARRAY[0, 1, 2])", name: "patients_gender_allowed"
+  end
+
   create_table "posters", force: :cascade do |t|
     t.bigint "app_id"
     t.datetime "created_at", null: false
@@ -568,6 +581,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_101000) do
   add_foreign_key "open_platform_accounts", "apps", column: "created_via_app_id"
   add_foreign_key "open_platform_operations", "apps"
   add_foreign_key "open_platform_operations", "open_platform_accounts"
+  add_foreign_key "patients", "users"
   add_foreign_key "posters", "apps"
   add_foreign_key "posters", "official_account_qrcodes"
   add_foreign_key "user_apps", "apps", column: ["provider", "appid"], primary_key: ["provider", "appid"]

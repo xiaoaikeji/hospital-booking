@@ -86,6 +86,10 @@ export async function readProfile() {
   return profile.value
 }
 
+export function requestForUser(path, options) {
+  return client.request(path, options)
+}
+
 export async function signIn() {
   if (demoMode) {
     profile.value ||= demoUser('')

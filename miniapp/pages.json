@@ -6,6 +6,7 @@
 		{ "path": "pages/booking/schedule", "style": { "navigationBarTitleText": "门诊排班", "navigationStyle": "custom" } },
 		{ "path": "pages/booking/doctor", "style": { "navigationBarTitleText": "医生主页", "navigationStyle": "custom" } },
 		{ "path": "pages/booking/form", "style": { "navigationBarTitleText": "预约挂号", "navigationStyle": "custom" } },
+		{ "path": "pages/booking/patient_edit", "style": { "navigationBarTitleText": "编辑就诊人", "navigationStyle": "custom" } },
 		{ "path": "pages/ucenter/index", "style": { "navigationBarTitleText": "我的", "navigationStyle": "custom" } },
 		{ "path": "pages/ucenter/appointments", "style": { "navigationBarTitleText": "预约记录", "navigationStyle": "custom" } },
 		{ "path": "pages/ucenter/appointment_detail", "style": { "navigationBarTitleText": "预约详情", "navigationStyle": "custom" } },
