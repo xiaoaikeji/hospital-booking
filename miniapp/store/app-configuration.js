@@ -55,3 +55,8 @@ export const pageLinks = computed(() => {
   if (configurationStatus.value === 'demo') return demoPageLinks
   return appConfiguration.value?.links ?? emptyPageLinks
 })
+
+export const hospitalProfile = computed(() => appConfiguration.value?.hospital ?? {})
+
+const emptyDirectory = { departments: [], doctors: [] }
+export const bookingDirectory = computed(() => appConfiguration.value?.directory ?? emptyDirectory)

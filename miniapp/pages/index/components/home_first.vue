@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { doctors } from '@/mock/doctors.js'
+import { directoryDemoMode, homepageDoctors as doctors } from '@/store/booking-directory.js'
 import { bookingMode } from '@/pages/booking/booking-mode.js'
 import { switchFromHomeCard } from '@/utils/guest-tab.js'
 import { openBooking } from '@/utils/booking-navigation.js'
@@ -73,7 +73,7 @@ function openEntry(entry) {
         </view>
         <view class="doctor-list">
           <view v-for="doctor in doctors" :key="doctor.id" class="doctor-row"
-            aria-role="link" :aria-label="doctor.name" @tap="openBooking('doctor', { id: doctor.id })">
+            aria-role="link" :aria-label="doctor.name" @tap="openBooking('doctor', { id: doctor.id, demo: directoryDemoMode })">
             <image class="doctor-portrait" :src="doctor.portrait" mode="aspectFill" :aria-label="doctor.name" />
             <view class="doctor-info">
               <view class="doctor-heading">

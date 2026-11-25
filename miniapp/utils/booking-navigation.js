@@ -8,13 +8,15 @@ const destinations = {
 }
 const login = '/pages/ucenter/login'
 
-function destinationUrl(target, { id, date, clinic, department } = {}, requireLogin = false) {
+function destinationUrl(target, { id, date, clinic, department, department_id, demo } = {}, requireLogin = false) {
   const query = []
   if (requireLogin) query.push('target=' + target)
   if (id) query.push('id=' + encodeURIComponent(id))
   if (date) query.push('date=' + encodeURIComponent(date))
   if (clinic) query.push('clinic=' + encodeURIComponent(clinic))
   if (department) query.push('department=1')
+  if (department_id) query.push('department_id=' + encodeURIComponent(department_id))
+  if (demo === true || demo === '1') query.push('demo=1')
   return (requireLogin ? login : destinations[target]) + (query.length ? '?' + query.join('&') : '')
 }
 

@@ -112,3 +112,33 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+.directory-list-card {
+  container-type: inline-size;
+  .directory-secondary { width: 22%; }
+  .directory-fee { width: 7.75rem; }
+  .directory-order { width: 4.25rem; }
+  .directory-actions { width: 10rem; }
+  .directory-fee-compact { display: none; }
+}
+
+@container (max-width: 46rem) {
+  .directory-list-card .directory-secondary { display: none; }
+}
+
+@container (max-width: 34rem) {
+  .directory-list-card {
+    th.directory-actions { display: none; }
+    table tr {
+      display: grid;
+      grid-template-columns: 3.25rem minmax(0, 1fr) 3.5rem 4.75rem;
+      align-items: center;
+      height: auto;
+    }
+    table td { min-width: 0; border-bottom: 0; }
+    tbody > tr:not(:last-child) { border-bottom: var(--tblr-border-width) solid var(--tblr-border-color); }
+    .directory-fee { display: none; }
+    .directory-fee-compact { display: block; }
+    .directory-action-cell { grid-column: 1 / -1; padding-top: 0; }
+  }
+}

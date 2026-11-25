@@ -1,16 +1,24 @@
 <script setup>
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { findDoctor } from '@/mock/doctors.js'
+import { bookingDepartments, directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
 import { getBookingSchedule } from '@/mock/booking-schedule.js'
 import { createAppointment, listPatients, newAppointmentNo } from '@/mock/appointments.js'
 import { bindPhone, demoMode, readProfile } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
+import { checkAppAccess } from '@/utils/app-access.js'
 import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 
-const doctor = ref(null)
-const withDepartment = ref(false)
+const bookingParams = ref(null)
+const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
+const doctor = computed(() => bookingParams.value && findBookingDoctor(bookingParams.value.id, fromDemo.value))
+const departmentName = computed(() => {
+  if (!doctor.value) return ''
+  if (fromDemo.value) return bookingParams.value.department === '1' ? doctor.value.department : ''
+  const id = bookingParams.value.department_id
+  return doctor.value.department_ids.includes(id) ? bookingDepartments.value.find(department => department.id === id)?.name : ''
+})
 const schedule = ref([])
 const date = ref('')
 const slot = ref('')
@@ -33,9 +41,12 @@ let openedDetail = false
 
 onLoad(async options => {
   if (!await canOpenBooking('form', options)) return
-  doctor.value = findDoctor(options.id)
+  bookingParams.value = options
+  if (!fromDemo.value) {
+    date.value = options.date || ''
+    return
+  }
   if (!doctor.value) return
-  withDepartment.value = options.department === '1'
   schedule.value = getBookingSchedule()
   date.value = schedule.value.find(day => day.date === options.date)?.date || schedule.value[0].date
   try {
@@ -48,6 +59,7 @@ onLoad(async options => {
 })
 
 onShow(() => {
+  if (bookingParams.value && !fromDemo.value) checkAppAccess()
   if (!openedDetail) return
   if (getCurrentPages().length > 1) uni.navigateBack()
   else uni.redirectTo({ url: '/pages/ucenter/appointments' })
@@ -114,7 +126,7 @@ async function verifyPhone(result) {
 }
 
 async function confirmBooking() {
-  if (submitting.value || binding.value || openedDetail) return
+  if (!fromDemo.value || submitting.value || binding.value || openedDetail) return
   if (!createdNo.value) {
     if (!slot.value) return notify('请选择时段')
     if (!name.value.trim()) return notify('请输入就诊人姓名')
@@ -158,22 +170,23 @@ async function confirmBooking() {
   <view class="booking-form">
     <view class="header"><custom-page-header title="预约挂号" back /></view>
     <view v-if="doctor" class="form-content">
-      <view class="panel">
+      <view class="panel service-panel">
         <view class="panel-title">门诊服务</view>
         <view class="row"><text>预约医生</text><text>{{ doctor.name }}</text></view>
-        <view class="row date-row" aria-role="button" @tap="selectTime">
+        <view v-if="fromDemo" class="row date-row" aria-role="button" @tap="selectTime">
           <view>预约日期<text class="required">*</text></view><text>{{ date }}</text>
         </view>
-        <view class="row time-row" aria-role="button" @tap="selectTime">
+        <view v-else-if="date" class="row"><text>预约日期</text><text>{{ date }}</text></view>
+        <view v-if="fromDemo" class="row time-row" aria-role="button" @tap="selectTime">
           <view>预约时段<text class="required">*</text></view><text>{{ slot || '请选择时段' }}</text>
         </view>
-        <view class="row phone-row"><view>本次联系电话<text class="required">*</text></view>
+        <view v-if="fromDemo" class="row phone-row"><view>本次联系电话<text class="required">*</text></view>
           <input v-model="phone" aria-label="本次联系电话" :maxlength="21" placeholder="请输入就诊联系电话" />
         </view>
-        <view v-if="withDepartment" class="row"><text>科室</text><text>{{ doctor.department }}</text></view>
+        <view v-if="departmentName" class="row"><text>科室</text><text>{{ departmentName }}</text></view>
         <view class="row last"><text>挂号费</text><text>¥{{ doctor.fee }}</text></view>
       </view>
-      <view class="panel patient">
+      <view v-if="fromDemo" class="panel patient">
         <view class="panel-title">添加就诊人信息
           <text v-if="patients.length" class="choose-patient" aria-role="button" @tap="openPatientPicker">选择就诊人 ›</text>
         </view>
@@ -197,13 +210,13 @@ async function confirmBooking() {
         </view>
       </view>
       <view class="demo-note">{{ demoMode ? '本地模拟预约，请使用虚构就诊资料' : '正式预约受理尚未开放' }}</view>
-      <view v-if="needsBinding" id="phone-binding">
+      <view v-if="fromDemo && needsBinding" id="phone-binding">
         <view class="binding-note">医院要求先验证账号手机号。本次联系电话可填写家属号码。</view>
         <custom-phone-authorization label="验证账号手机号" @authorized="verifyPhone" @denied="phoneDenied" @failed="notify('手机号授权失败，请重试')">
           <view class="submit bind-button">{{ binding ? '验证中…' : '验证账号手机号' }}</view>
         </custom-phone-authorization>
       </view>
-      <button v-else class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
+      <button v-else-if="fromDemo" class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
       <SlotPicker v-if="picking" :schedule="schedule" :doctor-id="doctor.id" :date="date" :selected-slot="slot"
         @confirm="setTime" @cancel="picking = false" />
       <PatientPicker v-if="choosingPatient" :patients="patients" :selected="patientId"
@@ -218,10 +231,11 @@ async function confirmBooking() {
 .header { position: sticky; top: 0; z-index: 4; background: #f8f8f8; }
 .form-content { padding: 20rpx 20rpx max(32rpx,env(safe-area-inset-bottom)); }
 .panel { padding: 28rpx 19rpx 20rpx; border-radius: 16rpx; background: #fff; }
+.service-panel { padding-bottom: 0; }
 .panel-title { display: flex; align-items: center; gap: 12rpx; margin-left: -19rpx; height: 60rpx; }
 .panel-title::before { content: ''; width: 8rpx; height: 26rpx; border-radius: 5rpx; background: #7299ee; }
 .row { display: flex; justify-content: space-between; align-items: center; box-sizing: border-box; min-height: 100rpx; padding-right: 8rpx; border-bottom: 1rpx solid #eee; }
-.row.last { border: 0; }
+.row.last { border-bottom-color: transparent; }
 .required { color: #b44e4e; font-size: 24rpx; }
 .patient { margin-top: 34rpx; }
 .choose-patient { margin-left: auto; padding: 10rpx 8rpx; color: #438ac4; font-size: 25rpx; }

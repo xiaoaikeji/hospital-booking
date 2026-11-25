@@ -6,6 +6,7 @@ module AdminsHelper
 
     [
       [ "存储设置", edit_admins_system_settings_storage_path, "admins/system_settings/storage" ],
+      [ "医院资料", edit_admins_system_settings_hospital_path, "admins/system_settings/hospital" ],
       [ "预约设置", edit_admins_system_settings_appointment_path, "admins/system_settings/appointment" ],
       [ "微信支付", edit_admins_system_settings_wechat_pay_path, "admins/system_settings/wechat_pay" ],
       [ "地图服务", edit_admins_system_settings_map_path, "admins/system_settings/map" ],
@@ -15,14 +16,17 @@ module AdminsHelper
   end
 
   def management_navigation_groups
-    groups = []
+    groups = [ [ "基础资料", :package, [
+      [ "科室管理", admins_departments_path, "admins/departments" ],
+      [ "医生资料", admins_doctors_path, "admins/doctors" ]
+    ] ] ]
     admin_pages = []
     if current_admin.super_admin?
       groups << [ "应用管理", :device_mobile, [
         [ "应用列表", admins_apps_path, "admins/apps" ],
         [ "小程序用户共享", edit_admins_user_sharing_path, "admins/user_sharing" ],
         [ "小程序页面配置", admins_page_links_path, "admins/page_links" ],
-        [ "插件列表", admins_plugins_path, "admins/plugins" ],
+        [ "插件列表", admins_plugins_path, "admins/plugins" ]
       ] ]
       groups << [ "运营工具", :templates, [
         [ "公众号粉丝", admins_official_account_fans_path, "admins/official_account_fans" ],
@@ -73,6 +77,7 @@ module AdminsHelper
   end
 
   def log_subject_label(type, id)
+    type = { "Department" => "科室", "Doctor" => "医生" }.fetch(type, type)
     [ type.presence, ("##{id}" if id) ].compact.join(" ").presence || "—"
   end
 

@@ -15,6 +15,14 @@ class OperationLogDetails
   LINK = { "app_id" => ID, "position" => Link::POSITIONS.keys, "reason" => [ "保存失败", "状态未能保存，请重试" ] }.freeze
   LINK_EDIT = LINK.merge("fields" => %w[app app_id position name link_type status sort_order url params image target_appid]).freeze
   LINK_STATUS = LINK.merge("fields" => %w[status], "status_value" => Link::STATUSES.keys).freeze
+  DIRECTORY_EDIT = {
+    "fields" => %w[name status sort_order image parent_id icon_type icon position main_title good_in introduction fee display_on_homepage department_ids],
+    "reason" => [ "资料未保存，请重试" ]
+  }.freeze
+  DIRECTORY_STATUS = {
+    "fields" => %w[status], "status_value" => [ 0, 1 ], "reason" => [ "状态未能保存，请重试" ]
+  }.freeze
+  DIRECTORY_ORDER = { "fields" => %w[sort_order], "sort_order" => INTEGER }.freeze
   PLUGIN = { "plugin_appid" => WECHAT_APPID }.freeze
   PLUGIN_VERSION = PLUGIN.merge("version" => VERSION).freeze
   MEDIA = { "kind" => %w[image voice video], "code" => INTEGER }.freeze
@@ -33,6 +41,12 @@ class OperationLogDetails
     "app.user_sharing" => { "fields" => %w[unionid_app_groups] },
     "appointment.phone_policy" => { "fields" => %w[require_mobile_auth] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
+    "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE ] },
+    "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,
+    "department.enable" => DIRECTORY_STATUS, "department.disable" => DIRECTORY_STATUS, "department.reorder" => DIRECTORY_ORDER,
+    "doctor.create" => DIRECTORY_EDIT, "doctor.update" => DIRECTORY_EDIT,
+    "doctor.enable" => DIRECTORY_STATUS, "doctor.disable" => DIRECTORY_STATUS, "doctor.reorder" => DIRECTORY_ORDER,
+    "doctor.change_fee" => { "fields" => %w[fee], "fee" => /\A[0-9]{1,8}(?:\.[0-9]{1,2})?\z/ },
     "storage_settings.update" => { "fields" => StorageSettings::FIELDS.keys, "reason" => %w[配置版本冲突 配置校验失败 数据库写入失败] },
     "storage_settings.refresh" => { "reason" => [ "配置已保存，存储客户端刷新失败" ] },
     "map_settings.update" => { "fields" => MapSettings::FIELDS.keys },
@@ -85,7 +99,7 @@ class OperationLogDetails
 
   LABELS = {
     "fields" => "变更字段", "reason" => "原因", "app_id" => "应用编号", "position" => "展示位置",
-    "status_value" => "设置状态", "sort_order" => "排序", "message_ids" => "补发条目数", "event" => "通知事件",
+    "status_value" => "设置状态", "sort_order" => "排序", "fee" => "挂号费（元）", "message_ids" => "补发条目数", "event" => "通知事件",
     "sync_id" => "同步任务编号", "channel_id" => "渠道编号", "count" => "菜单项数量", "code" => "微信错误码",
     "result" => "核对结果", "kind" => "素材类型", "plugin_appid" => "插件 AppID", "version" => "插件版本",
     "mini_appid" => "小程序 AppID", "notify_users" => "通知用户", "show_profile" => "展示在公众号资料页",
@@ -108,7 +122,10 @@ class OperationLogDetails
       value = safe_value(key, details[key], rule)
       fields[key] = value unless value.nil?
     end
-    rows = allowed.to_h { |key, value| [ LABELS.fetch(key), display_value(value) ] }
+    rows = allowed.to_h do |key, value|
+      value = DirectoryEntry::STATUSES.fetch(value) if key == "status_value" && value.is_a?(Integer)
+      [ LABELS.fetch(key), display_value(value) ]
+    end
     Projection.new(rows, allowed != details)
   end
 

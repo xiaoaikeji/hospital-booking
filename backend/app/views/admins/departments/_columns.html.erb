@@ -1,0 +1,7 @@
+<% if entry %>
+  <td class="directory-secondary px-2"><%= render "admins/shared/list_text", text: entry.parent&.name %></td>
+  <td class="directory-secondary px-2"><%= render "admins/shared/list_text", text: entry.position.filter_map { |position| Department::POSITIONS[position] }.join("、") %></td>
+<% else %>
+  <th scope="col" class="directory-secondary px-2">上级科室</th>
+  <th scope="col" class="directory-secondary px-2">展示位置</th>
+<% end %>

@@ -1,0 +1,69 @@
+require "test_helper"
+
+class HospitalProfileTest < ActionDispatch::IntegrationTest
+  test "hospital settings publish only the clinic profile and log changed fields" do
+    admin = Admin.create!(username: "hospital_admin", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    assert_redirected_to admins_root_path
+    get edit_admins_system_settings_hospital_path
+    assert_response :success
+    assert_select "input[name='hospital[address]']"
+
+    record = Setting.create!(key: "hospital", settings: { "unrelated_key" => "internal-only-value" })
+    app = App.create!(provider: "wechat", app_type: "mini_program", appid: "wxhospitaldemo", nickname: "小艾预约挂号小程序", status: "active")
+    config_path = api_app_configuration_path(app.provider, app.appid)
+    patch admins_system_settings_hospital_path, params: { hospital: { company_name: "示例医院",
+      address: "门诊楼一号入口", mobile: "010-00000000", time_range: "周一至周六 08:00–17:30",
+      introduction: "医院介绍", image: fixture_file_upload("storage.png", "image/png") } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    follow_redirect!
+    assert_response :success
+    assert_select "input[name='hospital[remove_image]']"
+
+    get config_path
+    assert_response :success
+    assert_equal "小艾预约挂号小程序", response.parsed_body.fetch("nickname")
+    profile = response.parsed_body.fetch("hospital")
+    assert_equal "示例医院", profile.fetch("company_name")
+    assert_equal "门诊楼一号入口", profile.fetch("address")
+    assert_equal "010-00000000", profile.fetch("mobile")
+    assert_equal "周一至周六 08:00–17:30", profile.fetch("time_range")
+    assert_equal "医院介绍", profile.fetch("introduction")
+    assert_not_includes response.body, "internal-only-value"
+    assert_equal "internal-only-value", record.reload.settings.fetch("unrelated_key")
+    image_path = URI(profile.fetch("image_url")).path
+    get image_path
+    assert_response :success
+    assert_equal "image/png", response.media_type
+
+    patch admins_system_settings_hospital_path, params: { hospital: { address: "门诊楼二号入口" } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    get config_path
+    assert_equal profile.merge("address" => "门诊楼二号入口"), response.parsed_body.fetch("hospital")
+    log = Log.where(action: "hospital.update", status: "success").order(:id).last
+    assert_equal [ admin.id, "Setting", record.id, { "fields" => [ "address" ] } ],
+      [ log.actor_id, log.target_type, log.target_id, log.details ]
+    get admins_operation_log_path(log)
+    assert_select "dd", text: "address"
+
+    app.update!(status: "disabled")
+    get config_path
+    assert_response :forbidden
+    assert_not response.parsed_body.key?("hospital")
+    get image_path
+    assert_response :forbidden
+  end
+
+  test "operators cannot access hospital settings or their image directly" do
+    admin = Admin.create!(username: "hospital_operator", role: "operator")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    get edit_admins_system_settings_hospital_path
+    assert_response :forbidden
+    get image_admins_system_settings_hospital_path
+    assert_response :forbidden
+    assert_no_changes -> { Setting.where(key: HospitalProfile::KEY).count } do
+      patch admins_system_settings_hospital_path, params: { hospital: { company_name: "无权限修改" } }
+      assert_response :forbidden
+    end
+  end
+end

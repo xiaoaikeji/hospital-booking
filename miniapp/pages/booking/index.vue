@@ -6,7 +6,8 @@ import DateStrip from './components/date_strip.vue'
 import { openBooking } from '@/utils/booking-navigation.js'
 import DoctorCard from './components/doctor_card.vue'
 import { useBookingCalendar } from './booking-calendar.js'
-import { doctors } from '@/mock/doctors.js'
+import { bookingDepartments, bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
+import { configurationStatus } from '@/store/app-configuration.js'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
 
 const modes = [
@@ -19,7 +20,7 @@ const doctorQuery = ref('')
 const visibleDoctors = computed(() => {
   if (mode.value === 'date') return scheduledDoctors.value
   const query = doctorQuery.value.trim()
-  return doctors.filter(doctor => doctor.name.includes(query))
+  return bookingDoctors.value.filter(doctor => doctor.name.includes(query))
 })
 
 onShow(() => {
@@ -37,9 +38,21 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
         <view class="mode-tabs">
           <view v-for="item in modes" :key="item.key" class="mode-tab" :class="{ selected: mode === item.key }" @tap="mode = item.key">{{ item.label }}</view>
         </view>
-        <view v-if="mode === 'department'" class="department-row" aria-role="link" @tap="openBooking('schedule')">
-          <text>耳鼻喉科</text><view class="department-arrow" />
-        </view>
+        <template v-if="mode === 'department'">
+          <view v-for="department in bookingDepartments" :key="department.id" class="department-row" aria-role="link"
+            :style="department.depth ? { paddingLeft: (32 + Math.min(department.depth, 5) * 22) + 'rpx' } : null"
+            @tap="openBooking('schedule', { department_id: department.id })">
+            <view class="department-name">
+              <image v-if="department.image_url" class="department-icon" :src="department.image_url" mode="aspectFit" />
+              <text v-else-if="department.icon" class="department-icon-text">{{ department.icon }}</text>
+              <text>{{ department.name }}</text>
+            </view>
+            <view class="department-arrow" />
+          </view>
+          <view v-if="!bookingDepartments.length" class="empty-results" role="status">
+            {{ configurationStatus === 'loading' ? '正在读取科室' : configurationStatus === 'error' ? '科室暂不可用' : '暂无科室' }}
+          </view>
+        </template>
         <view v-else-if="mode === 'doctor'" class="search-panel">
           <view class="search-field">
             <view class="search-glass" />
@@ -54,7 +67,7 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
       </view>
       <view v-if="mode === 'date' || mode === 'doctor'" class="doctor-list">
         <DoctorCard v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id"
-          :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" />
+          :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" :demo="mode === 'date' || directoryDemoMode" />
         <view v-if="!visibleDoctors.length" class="empty-results" role="status">{{ mode === 'date' ? '当日暂无排班' : '未找到匹配的医生' }}</view>
       </view>
     </view>
@@ -71,7 +84,10 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
 .mode-tab { flex: 1; text-align: center; color: #62a7db; font-size: 29rpx; line-height: 81rpx; }
 .mode-tab.selected { border-radius: 16rpx 16rpx 0 0; color: #fff; background: linear-gradient(90deg,#73b4ee,#8ac2ee); }
 .department-row { display: flex; align-items: center; justify-content: space-between; padding: 0 40rpx 0 32rpx; height: 128rpx; font-size: 30rpx; }
-.department-arrow { width: 14rpx; height: 14rpx; border-top: 3rpx solid; border-right: 3rpx solid; transform: rotate(45deg); }
+.department-name { display: flex; align-items: center; gap: 16rpx; min-width: 0; padding-right: 18rpx; overflow-wrap: anywhere; }
+.department-icon { flex: none; width: 48rpx; height: 48rpx; }
+.department-icon-text { flex: none; max-width: 88rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #62a7db; }
+.department-arrow { flex: none; width: 14rpx; height: 14rpx; border-top: 3rpx solid; border-right: 3rpx solid; transform: rotate(45deg); }
 .search-panel { padding: 21rpx 20rpx; }
 .search-field { display: flex; align-items: center; gap: 32rpx; padding: 0 18rpx; height: 62rpx; border-radius: 34rpx; color: #bbb; background: #f8f8f8; font-size: 25rpx; }
 .search-glass { position: relative; box-sizing: border-box; width: 19rpx; height: 19rpx; border: 2rpx solid #c7c7c7; border-radius: 50%; }

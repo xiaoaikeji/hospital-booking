@@ -23,6 +23,10 @@ namespace :admins do
     patch :status, on: :member
     get :image, on: :member
   end
+  resources :departments, :doctors, only: %i[index show new create edit update] do
+    patch :status, on: :member
+    get :image, on: :member
+  end
   resources :apps do
     patch :disable, on: :member
     resource :template_message, only: %i[update destroy], controller: "template_messages"
@@ -53,6 +57,9 @@ namespace :admins do
   resources :administrators, only: %i[index new create edit update]
   resource :personal_appearance, only: %i[update destroy], controller: "personal_appearance"
   namespace :system_settings do
+    resource :hospital, only: %i[edit update], controller: "hospital" do
+      get :image
+    end
     resource :appointment, only: %i[edit update], controller: "appointment"
     resource :wechat_pay, only: %i[edit update], controller: "wechat_pay"
     resource :map, only: %i[edit update], controller: "map"

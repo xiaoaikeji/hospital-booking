@@ -4,6 +4,7 @@ class Setting < ApplicationRecord
                     "wechat_notifications" => %w[webhook_key],
                     "wechat_pay" => %w[v2_api_key v2_certificate v2_private_key v3_api_key v3_private_key verification_pem backup_verification_pem] }.freeze
   self.filter_attributes += [ :settings ]
+  has_one_attached :hospital_image
   validates :key, presence: true, length: { maximum: 100 }, uniqueness: true
   validates :description, length: { maximum: 255 }
   validate do

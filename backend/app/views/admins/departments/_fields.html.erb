@@ -1,0 +1,27 @@
+<div class="col-md-6 col-xl-4">
+  <%= f.label :parent_id, "上级科室", class: "form-label" %>
+  <%= f.select :parent_id, @parent_options, { include_blank: "无（顶级科室）" },
+    class: admin_field_class(@entry, :parent_id, "form-select"), data: { enhanced_select: "single" },
+    aria: { describedby: ("parent_id-error" if @entry.errors[:parent_id].any?) } %>
+  <%= admin_field_errors(@entry, :parent_id) %>
+</div>
+<fieldset class="col-md-6">
+  <legend class="form-label">展示位置</legend>
+  <div class="d-flex gap-3">
+    <%= f.collection_check_boxes(:position, Department::POSITIONS.slice("department"), :first, :last) do |choice| %>
+      <%= choice.label class: "form-check mb-0" do %>
+        <%= choice.check_box class: "form-check-input" %>
+        <span class="form-check-label"><%= choice.text %></span>
+      <% end %>
+    <% end %>
+  </div>
+  <%= admin_field_errors(@entry, :position) %>
+</fieldset>
+<div class="col-md-6">
+  <div class="d-flex align-items-center gap-1 mb-2">
+    <%= f.label :icon, "文字图标", class: "form-label mb-0" %>
+    <%= render "admins/shared/field_help", label: "查看文字图标说明", text: "没有上传图标图片时使用此文字。" %>
+  </div>
+  <%= f.text_field :icon, maxlength: 255, class: admin_field_class(@entry, :icon), aria: { describedby: ("icon-error" if @entry.errors[:icon].any?) } %>
+  <%= admin_field_errors(@entry, :icon) %>
+</div>

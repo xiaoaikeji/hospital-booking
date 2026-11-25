@@ -1,19 +1,24 @@
 <script setup>
-import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
-import { findDoctor } from '@/mock/doctors.js'
+import { computed, ref } from 'vue'
+import { onLoad, onShow } from '@dcloudio/uni-app'
+import { directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
 import { canOpenBooking, openBooking } from '@/utils/booking-navigation.js'
+import { checkAppAccess } from '@/utils/app-access.js'
 
-const doctor = ref(null)
-let bookingParams
+const bookingParams = ref(null)
+const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
+const doctor = computed(() => bookingParams.value && findBookingDoctor(bookingParams.value.id, fromDemo.value))
+
 onLoad(async options => {
   if (!await canOpenBooking('doctor', options)) return
-  doctor.value = findDoctor(options.id)
-  bookingParams = options
+  bookingParams.value = options
+})
+onShow(() => {
+  if (bookingParams.value && !fromDemo.value) checkAppAccess()
 })
 
 function book() {
-  openBooking('form', bookingParams)
+  openBooking('form', bookingParams.value)
 }
 </script>
 
@@ -26,17 +31,19 @@ function book() {
           <view class="summary">
             <image class="portrait" :src="doctor.portrait" mode="aspectFill" />
             <view class="credentials">
-              <view class="name-line"><text>{{ doctor.name }}</text><text class="rank">{{ doctor.title }}</text></view>
+              <view class="name-line"><text>{{ doctor.name }}</text><text v-if="doctor.title" class="rank">{{ doctor.title }}</text></view>
               <text v-for="line in doctor.credentials" :key="line" class="credential">{{ line }}</text>
             </view>
           </view>
-          <view class="visits">接诊量: <text>{{ doctor.visits }}</text></view>
+          <view v-if="fromDemo" class="visits">接诊量: <text>{{ doctor.visits }}</text></view>
         </view>
         <view class="details">
-          <view class="section-title">专业擅长</view>
-          <view class="description">{{ doctor.introduction }}</view>
-          <view class="section-title">个人简介</view>
-          <view class="description">{{ doctor.biography }}</view>
+          <view v-if="doctor.introduction" class="section-title">专业擅长</view>
+          <view v-if="doctor.introduction" class="description">{{ doctor.introduction }}</view>
+          <view v-if="doctor.biography" class="section-title">个人简介</view>
+          <view v-if="doctor.biography" class="description">{{ doctor.biography }}</view>
+          <view v-if="!fromDemo" class="section-title">挂号费</view>
+          <view v-if="!fromDemo" class="description">{{ doctor.fee }} 元</view>
         </view>
       </view>
       <button class="book" hover-class="none" @tap="book">立即预约</button>

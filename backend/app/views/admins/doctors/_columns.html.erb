@@ -1,0 +1,7 @@
+<% if entry %>
+  <td class="directory-secondary px-2"><%= render "admins/shared/list_text", text: entry.departments.sort_by { |department| [department.sort_order, department.id] }.map(&:name).join("、") %></td>
+  <td class="directory-fee px-2 text-nowrap"><%= render "admins/shared/list_text", text: "#{entry.fee_in_yuan} 元" %></td>
+<% else %>
+  <th scope="col" class="directory-secondary px-2">所属科室</th>
+  <th scope="col" class="directory-fee px-2">挂号费</th>
+<% end %>

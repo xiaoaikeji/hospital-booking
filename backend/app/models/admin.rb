@@ -36,6 +36,7 @@ class Admin < ApplicationRecord
   validate :retain_enabled_super_admin, on: :update
 
   def super_admin? = role == "super_admin"
+  def maintain_booking_directory? = super_admin? || role == "operator"
   def display_name = name.presence || username
   def role_name = ROLES.fetch(role)
   def active_for_authentication? = super && enabled?

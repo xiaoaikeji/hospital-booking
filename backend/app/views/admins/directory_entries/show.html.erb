@@ -1,0 +1,14 @@
+<% content_for :title, "#{@entry.name} · #{entry_title} · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: @entry.name, icon: :package } do %>
+  <%= link_to directory_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+<section class="card">
+  <div class="card-body">
+    <% if @entry.image.attached? %>
+      <% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } %>
+      <div class="mb-3"><%= render "admins/shared/image_thumbnail", image: image, modal_id: dom_id(@entry, :image) %></div>
+      <%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@entry, :image) %>
+    <% end %>
+    <%= render "admins/shared/field_rows", fields: @details, full: %w[擅长 简介] %>
+  </div>
+</section>

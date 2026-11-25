@@ -1,0 +1,56 @@
+<% content_for :title, "#{title} · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :package } do %>
+  <%= link_to directory_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+<% end %>
+
+<% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } if @entry.persisted? && @entry.image.attached? %>
+<%= form_with model: [:admins, @entry], class: "card", data: { admin_form: true } do |f| %>
+  <div class="card-body">
+    <%= render "admins/shared/form_errors", record: @entry %>
+    <div class="row g-3">
+      <div class="col-md-6 col-xl-4">
+        <%= f.label :name, (entry_model == Doctor ? "医生姓名" : "#{entry_label}名称"), class: "form-label required" %>
+        <%= f.text_field :name, required: true, maxlength: 100, class: admin_field_class(@entry, :name),
+          aria: { describedby: ("name-error" if @entry.errors[:name].any?) } %>
+        <%= admin_field_errors(@entry, :name) %>
+      </div>
+      <div class="col-md-6 col-xl-4">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :sort_order, "排序", class: "form-label required mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
+        </div>
+        <%= f.number_field :sort_order, required: true, step: 1, class: admin_field_class(@entry, :sort_order),
+          aria: { describedby: ("sort_order-error" if @entry.errors[:sort_order].any?) } %>
+        <%= admin_field_errors(@entry, :sort_order) %>
+      </div>
+      <%= render "#{controller_path}/fields", f: f %>
+      <div class="col-md-8 col-xl-6">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :image, image_label, class: "form-label mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看#{image_label}要求", text: "支持 JPG、PNG 和 WebP，单张最多 #{upload_limit} MB。" %>
+        </div>
+        <% if image %>
+          <div class="mb-2"><%= render "admins/shared/image_thumbnail", image: image, modal_id: dom_id(@entry, :image) %></div>
+        <% end %>
+        <%= f.file_field :image, accept: "image/jpeg,image/png,image/webp", class: admin_field_class(@entry, :image),
+          aria: { describedby: ("image-error" if @entry.errors[:image].any?) } %>
+        <%= admin_field_errors(@entry, :image) %>
+        <% if image %>
+          <label class="form-check mt-2 mb-0"><%= f.check_box :remove_image, { class: "form-check-input", checked: params.dig(entry_model.model_name.param_key, :remove_image) == "1" } %><span class="form-check-label">移除当前<%= image_label %></span></label>
+        <% end %>
+      </div>
+      <% if @entry.new_record? %>
+        <div class="col-12">
+          <label class="form-check form-switch mb-0"><%= f.check_box :status, { class: "form-check-input", role: "switch" }, 1, 0 %><span class="form-check-label">启用</span></label>
+          <%= admin_field_errors(@entry, :status) %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <div class="card-footer btn-list justify-content-end">
+    <%= link_to directory_path, class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
+    <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
+  </div>
+<% end %>
+<%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@entry, :image) if image %>

@@ -5,10 +5,13 @@ const props = defineProps({
   doctor: { type: Object, required: true },
   date: { type: String, default: '' },
   department: Boolean,
+  departmentId: { type: String, default: '' },
+  demo: Boolean,
 })
 
 function open(target) {
-  openBooking(target, { id: props.doctor.id, date: props.date, department: props.department })
+  openBooking(target, { id: props.doctor.id, date: props.date, department: props.department,
+    department_id: props.departmentId, demo: props.demo })
 }
 </script>
 
@@ -19,13 +22,13 @@ function open(target) {
       <view class="doctor-text">
         <view class="doctor-heading">
           <text class="doctor-name">{{ doctor.name }}</text>
-          <text class="doctor-rank">{{ doctor.title }}</text>
+          <text v-if="doctor.title" class="doctor-rank">{{ doctor.title }}</text>
         </view>
         <text v-for="line in doctor.credentials" :key="line" class="credential">{{ line }}</text>
       </view>
       <view class="booking-action" aria-role="button" :aria-label="'预约' + doctor.name" @tap.stop="open('form')">预约</view>
     </view>
-    <view class="specialty">
+    <view v-if="doctor.introduction" class="specialty">
       <view class="specialty-summary"><text class="specialty-label">【擅长】</text>：{{ doctor.introduction }}</view>
       <view class="specialty-arrow" />
     </view>

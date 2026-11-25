@@ -13,6 +13,12 @@ module Api
           )
         end
       end
+      config[:directory] = directory
+      profile = HospitalProfile.load_record
+      config[:hospital] = profile ? profile.settings.slice(*HospitalProfile::FIELDS) : {}
+      if profile&.hospital_image&.attached?
+        config[:hospital][:image_url] = api_app_hospital_image_url(@app.provider, @app.appid, profile.hospital_image.blob.key)
+      end
       render json: config
     end
 
@@ -20,19 +26,62 @@ module Api
       return head :forbidden unless @app.accessible?
 
       link = link_groups.values.flat_map(&:effective).find { |entry| entry.id.to_s == params[:id] }
-      unless link&.image&.attached? && link.image.blob.key == params[:key]
-        raise ActiveRecord::RecordNotFound
+      render_image(link&.image)
+    end
+
+    def hospital_image
+      return head :forbidden unless @app.accessible?
+
+      render_image(HospitalProfile.load_record&.hospital_image)
+    end
+
+    def directory_image
+      return head :forbidden unless @app.accessible?
+
+      entry = if params[:collection] == "departments"
+        booking_departments.find { |department, _depth| department.id.to_s == params[:id] }&.first
+      else
+        Doctor.current.enabled.with_attached_image.find_by(id: params[:id])
       end
+      render_image(entry&.image)
+    end
+
+    private
+
+    def directory
+      department_ids = booking_departments.map { |department, _depth| department.id }.to_set
+      {
+        departments: booking_departments.map do |department, depth|
+          { id: department.id.to_s, name: department.name, depth: depth, icon: (department.icon if department.icon_type == "text"),
+            image_url: directory_image_url("departments", department) }
+        end,
+        doctors: Doctor.current.enabled.ordered.includes(:doctor_departments).with_attached_image.map do |doctor|
+          visible_ids = doctor.doctor_departments.filter_map do |link|
+            link.department_id.to_s if department_ids.include?(link.department_id)
+          end
+          doctor.slice(:name, :main_title, :good_in, :introduction, :display_on_homepage).merge(
+            id: doctor.id.to_s, fee: doctor.fee_in_yuan, department_ids: visible_ids, image_url: directory_image_url("doctors", doctor)
+          )
+        end
+      }
+    end
+
+    def booking_departments = @booking_departments ||= Department.booking_rows
+
+    def directory_image_url(collection, entry)
+      api_app_directory_image_url(@app.provider, @app.appid, collection, entry.id, entry.image.blob.key) if entry.image.attached?
+    end
+
+    def render_image(image)
+      raise ActiveRecord::RecordNotFound unless image&.attached? && image.blob.key == params[:key]
 
       StorageConfiguration.refresh!
-      send_data link.image.download, type: link.image.content_type, disposition: "inline", filename: link.image.blob.key
+      send_data image.download, type: image.content_type, disposition: "inline", filename: image.blob.key
     rescue ActiveStorage::FileNotFoundError
       head :not_found
     rescue IntegrationSettings::ConfigurationError
       head :service_unavailable
     end
-
-    private
 
     def load_app
       response.headers["Cache-Control"] = "no-store"

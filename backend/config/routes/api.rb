@@ -6,6 +6,10 @@ namespace :api do
   get "apps/:provider/:appid/configuration", to: "app_configurations#show", as: :app_configuration
   get "apps/:provider/:appid/configuration/images/:id/:key", to: "app_configurations#image",
     as: :app_configuration_image, constraints: { id: /\d+/, key: /[\w.]+/ }, format: false
+  get "apps/:provider/:appid/configuration/hospital/image/:key", to: "app_configurations#hospital_image",
+    as: :app_hospital_image, constraints: { key: /[\w.]+/ }, format: false
+  get "apps/:provider/:appid/configuration/directory_images/:collection/:id/:key", to: "app_configurations#directory_image",
+    as: :app_directory_image, constraints: { collection: /departments|doctors/, id: /\d+/, key: /[\w.]+/ }, format: false
   get "avatars/:signed_id", to: "user_avatars#show", as: :user_avatar, format: false
 
   scope "apps/wechat/:appid", module: :mini_program, as: :mini_program do

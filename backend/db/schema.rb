@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_21_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_101000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -102,6 +102,50 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_160000) do
     t.check_constraint "app_type::text = 'mini_program'::text OR app_type::text = 'official_account'::text AND provider::text = 'wechat'::text", name: "apps_supported_type"
     t.check_constraint "provider::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "apps_provider_valid"
     t.check_constraint "status::text = ANY (ARRAY['active'::character varying, 'auditing'::character varying, 'disabled'::character varying]::text[])", name: "apps_status_valid"
+  end
+
+  create_table "departments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "icon", limit: 255
+    t.string "icon_type", limit: 20
+    t.string "name", limit: 100, null: false
+    t.bigint "parent_id"
+    t.text "position", default: ["department"], null: false, array: true
+    t.integer "sort_order", default: 0, null: false
+    t.integer "status", limit: 2, default: 1, null: false
+    t.datetime "updated_at", null: false
+    t.index ["parent_id"], name: "index_departments_on_parent_id"
+    t.check_constraint "status = ANY (ARRAY[0, 1])", name: "departments_status_allowed"
+  end
+
+  create_table "doctor_departments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "department_id", null: false
+    t.bigint "doctor_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["department_id"], name: "index_doctor_departments_on_department_id"
+    t.index ["doctor_id", "department_id"], name: "index_doctor_departments_on_doctor_id_and_department_id", unique: true
+  end
+
+  create_table "doctors", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at", precision: nil
+    t.text "description"
+    t.boolean "display_on_homepage", default: true, null: false
+    t.decimal "fee", precision: 10, scale: 2, default: "0.0", null: false
+    t.text "good_in"
+    t.text "introduction"
+    t.string "main_title", limit: 100
+    t.integer "max_bookings_per_slot"
+    t.integer "max_total_bookings"
+    t.string "mobile", limit: 30
+    t.string "name", limit: 100, null: false
+    t.boolean "recommend", default: false, null: false
+    t.integer "sort_order", default: 0, null: false
+    t.integer "status", limit: 2, default: 1, null: false
+    t.datetime "updated_at", null: false
+    t.check_constraint "fee >= 0::numeric", name: "doctors_fee_nonnegative"
+    t.check_constraint "status = ANY (ARRAY[0, 1])", name: "doctors_status_allowed"
   end
 
   create_table "links", force: :cascade do |t|
@@ -500,6 +544,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_21_160000) do
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
   add_foreign_key "apps", "open_platform_accounts"
+  add_foreign_key "departments", "departments", column: "parent_id"
+  add_foreign_key "doctor_departments", "departments"
+  add_foreign_key "doctor_departments", "doctors"
   add_foreign_key "links", "apps", on_delete: :restrict
   add_foreign_key "location_interface_applications", "admins", column: "operator_id"
   add_foreign_key "location_interface_applications", "apps"
