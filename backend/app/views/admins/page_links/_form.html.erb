@@ -4,6 +4,8 @@
 <% context = { app_id: @app&.id, position: @position } %>
 <% list_url = admins_page_links_path(context) %>
 <% save_url = @link.persisted? ? admins_page_link_path(@link) : list_url %>
+<% banner = @link.banner? %>
+<% image = { asset: image_admins_page_link_path(@link), title: @link.name } if @link.image.attached? %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :device_mobile } do %>
   <%= link_to list_url, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
@@ -18,12 +20,20 @@
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @link %>
     <div class="row g-3">
-      <div class="col-md-6 col-xl-4">
+      <div class="col-12">
+        <div class="col-lg-8">
+          <%= render "admins/shared/single_image_field", form: f, image: image,
+            label: (banner ? "轮播图片" : "菜单图标"), limit: 10, modal_id: dom_id(@link, :image),
+            inline: true, variant: (:tile if banner), ratio: "ratio-16x9", size: "avatar-xl",
+            fit: (banner ? "object-cover" : "object-contain"), required: banner && !image, removable: !banner %>
+        </div>
+      </div>
+      <div class="col-md-6">
         <%= f.label :name, "名称", class: "form-label required" %>
         <%= f.text_field :name, required: true, maxlength: 120, size: nil, class: admin_field_class(@link, :name), aria: { describedby: ("name-error" if @link.errors[:name].any?) } %>
         <%= admin_field_errors(@link, :name) %>
       </div>
-      <div class="col-md-6 col-xl-4">
+      <div class="col-md-6">
         <div class="d-flex align-items-center gap-1 mb-2">
           <%= f.label :sort_order, "排序", class: "form-label required mb-0" %>
           <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
@@ -31,7 +41,7 @@
         <%= f.number_field :sort_order, required: true, step: 1, class: admin_field_class(@link, :sort_order), aria: { describedby: ("sort_order-error" if @link.errors[:sort_order].any?) } %>
         <%= admin_field_errors(@link, :sort_order) %>
       </div>
-      <div class="col-md-6 col-xl-4">
+      <div class="col-md-6">
         <div class="d-flex align-items-center gap-1 mb-2">
           <%= f.label :link_type, "点击行为", class: "form-label required mb-0" %>
           <span data-page-link-fields="contact" <%= tag.attributes(hidden: @link.link_type != "contact") %>>
@@ -44,23 +54,6 @@
       </div>
       <%= render "destinations", form: f %>
 
-      <div class="col-md-8 col-xl-6">
-        <% has_image = @link.image.attached? %>
-        <% image_label = @link.banner? ? "轮播图片" : "菜单图标" %>
-        <% image_required = @link.banner? && !has_image %>
-        <div class="d-flex align-items-center gap-1 mb-2">
-          <%= f.label :image, has_image ? "替换#{image_label}" : image_label, class: class_names("form-label mb-0", required: image_required) %>
-          <%= render "admins/shared/field_help", label: "查看图片要求", text: "支持 JPG、PNG 和 WebP，单张最多 10 MB。" %>
-        </div>
-        <% if has_image %>
-          <div class="mb-2"><%= render "admins/shared/image_thumbnail", image: { asset: image_admins_page_link_path(@link), title: @link.name }, modal_id: dom_id(@link, :image) %></div>
-        <% end %>
-        <%= f.file_field :image, required: image_required, accept: "image/jpeg,image/png,image/webp", class: admin_field_class(@link, :image), aria: { describedby: ("image-error" if @link.errors[:image].any?) } %>
-        <%= admin_field_errors(@link, :image) %>
-        <% if has_image && !@link.banner? %>
-          <label class="form-check mt-2 mb-0"><%= f.check_box :remove_image, { class: "form-check-input", checked: params.dig(:link, :remove_image) == "1" } %><span class="form-check-label">移除当前图标</span></label>
-        <% end %>
-      </div>
       <% if @link.new_record? %>
         <div class="col-12">
           <label class="form-check form-switch mb-0"><%= f.check_box :status, { class: "form-check-input", role: "switch" }, "active", "disabled" %><span class="form-check-label">启用</span></label>
@@ -74,6 +67,4 @@
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
   </div>
 <% end %>
-<% if @link.persisted? && @link.image.attached? %>
-  <%= render "admins/shared/image_modal", image: { asset: image_admins_page_link_path(@link), title: @link.name }, modal_id: dom_id(@link, :image) %>
-<% end %>
+<%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@link, :image) if image %>

@@ -1,0 +1,3 @@
+<%= form.number_field :sort_order, required: true, step: 1, class: admin_field_class(form.object, :sort_order),
+  aria: { describedby: ("sort_order-error" if form.object.errors[:sort_order].any?) } %>
+<%= admin_field_errors(form.object, :sort_order) %>

@@ -1,0 +1,53 @@
+<% record = form.object %>
+<% required = local_assigns.fetch(:required, false) %>
+<% removable = image && local_assigns.fetch(:removable, true) %>
+<% removing = removable && params.dig(form.object_name, :remove_image) == "1" %>
+<% inline = local_assigns[:inline] %>
+<% tile = local_assigns[:variant] == :tile %>
+<% size = local_assigns.fetch(:size, "avatar-md") %>
+<% fit = local_assigns.fetch(:fit, "object-cover") %>
+<% ratio = local_assigns.fetch(:ratio, "ratio-4x3") %>
+<% content_for :head do %><%= javascript_include_tag "admins/single_image_field", defer: true %><% end %>
+<% field_label = capture do %>
+  <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
+    <%= form.label :image, label, class: class_names("form-label mb-0", required: required) %>
+    <%= render "admins/shared/field_help", label: "查看#{label}要求", text: "支持 JPG、PNG 和 WebP，单张最多 #{limit} MB。" %>
+  </div>
+<% end %>
+<div data-single-image-field>
+  <%= field_label if inline %>
+  <div class="<%= "row g-3 align-items-center" if inline %>">
+    <% preview_class = inline ? (tile ? "col-12 col-lg-4" : "col-auto") : "mb-3" %>
+    <div class="<%= class_names(preview_class, "d-none" => !image, "opacity-50" => removing) %>" data-image-preview>
+      <div class="<%= class_names("d-flex", "justify-content-center rounded border bg-body py-3" => !inline && !tile) %>">
+        <% if image %>
+          <div class="<%= "w-100" if tile %>" data-image-saved>
+            <%= render "admins/shared/image_thumbnail", image: image, modal_id: modal_id, size: size, fit: fit,
+              variant: local_assigns[:variant], ratio: ratio %>
+          </div>
+        <% end %>
+        <div class="<%= class_names("d-none", "ratio #{ratio} w-100" => tile) %>" data-image-selected>
+          <%= tag.img alt: "所选#{label}", class: class_names(tile ? "w-100 h-100 rounded border" : "avatar rounded #{size}", fit) %>
+        </div>
+      </div>
+    </div>
+    <div class="<%= "col" if inline %>">
+      <%= field_label unless inline %>
+      <div class="d-flex flex-wrap align-items-start gap-2">
+        <div class="flex-fill">
+          <%= form.file_field :image, accept: "image/jpeg,image/png,image/webp", required: required, class: admin_field_class(record, :image),
+            aria: { describedby: ("image-error" if record.errors[:image].any?) } %>
+          <%= admin_field_errors(record, :image) %>
+        </div>
+        <% if removable %>
+          <%= form.hidden_field :remove_image, value: removing ? "1" : "0", data: { image_remove_value: true } %>
+        <% end %>
+        <button type="button" class="<%= class_names("btn text-nowrap", "btn-outline-danger" => !removing, "d-none" => !removable) %>" data-image-remove>
+          <span class="<%= "d-none" if removing %>" data-image-trash><%= render "layouts/admins/icon", name: :trash %></span>
+          <span class="<%= "d-none" unless removing %>" data-image-undo><%= render "layouts/admins/icon", name: :rotate %></span>
+          <span data-image-action-label><%= removing ? "撤销移除" : "移除" %></span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

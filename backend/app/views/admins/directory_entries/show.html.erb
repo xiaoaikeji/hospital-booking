@@ -1,14 +1,31 @@
 <% content_for :title, "#{@entry.name} · #{entry_title} · Booking 管理后台" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: @entry.name, icon: :package } do %>
+<% doctor = entry_model == Doctor %>
+<% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } if @entry.image.attached? %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: @entry.name, icon: (doctor ? :users : :package) } do %>
+  <% if current_admin.maintain_booking_directory? %>
+    <%= link_to edit_polymorphic_path([:admins, @entry]), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+  <% end %>
   <%= link_to directory_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 <section class="card">
+  <div class="card-header justify-content-between flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-3">
+      <% if image %>
+        <%= render "admins/shared/image_thumbnail", image: image, modal_id: dom_id(@entry, :image), size: (doctor ? "avatar-lg rounded-circle" : "avatar-lg"),
+          fit: (doctor ? "object-cover" : "object-contain") %>
+      <% elsif doctor %>
+        <span class="avatar avatar-lg rounded-circle bg-primary-lt" aria-hidden="true"><%= @entry.name.first %></span>
+      <% end %>
+      <div>
+        <h2 class="card-title"><%= entry_label %>资料</h2>
+        <div class="text-secondary">#<%= @entry.id %></div>
+      </div>
+    </div>
+    <%= directory_status_badge(@entry) %>
+  </div>
   <div class="card-body">
-    <% if @entry.image.attached? %>
-      <% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } %>
-      <div class="mb-3"><%= render "admins/shared/image_thumbnail", image: image, modal_id: dom_id(@entry, :image) %></div>
-      <%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@entry, :image) %>
-    <% end %>
-    <%= render "admins/shared/field_rows", fields: @details, full: %w[擅长 简介] %>
+    <% notes = @details.slice("擅长", "简介").transform_values { |value| tag.span(value, class: "admin-detail-text") if value.present? } %>
+    <%= render "admins/shared/field_rows", fields: @details.except("状态", *notes.keys).merge(notes), full: notes.keys %>
   </div>
 </section>
+<%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@entry, :image) if image %>

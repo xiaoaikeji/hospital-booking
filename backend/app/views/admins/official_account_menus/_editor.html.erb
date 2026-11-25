@@ -45,12 +45,17 @@
             <input id="menu-url" data-field="url" type="url" class="form-control" placeholder="https://">
             <div class="invalid-feedback d-block" id="menu-url-error" hidden></div>
           </div>
-          <div data-panel="media_id" class="mt-3"><label class="form-label" for="menu-kind">素材类型</label><select class="form-select mb-2" id="menu-kind"><option value="image">图片</option><option value="voice">音频</option><option value="video">视频</option></select>
+          <div data-panel="media_id" class="form-fieldset mt-3 mb-0">
+            <label class="form-label" for="menu-kind">素材类型</label>
+            <select class="form-select mb-3" id="menu-kind"><option value="image">图片</option><option value="voice">音频</option><option value="video">视频</option></select>
+            <img id="menu-image" class="img-fluid rounded border mb-3" width="240" alt="已选择图片" hidden>
             <div class="d-flex align-items-center gap-1 mb-2">
               <label class="form-label mb-0" for="menu-upload">上传永久素材</label>
               <%= render "admins/shared/field_help", id: "menu-media-hint", text: "JPG、PNG、BMP、GIF，最多 10 MB", label: "查看永久素材上传要求" %>
             </div>
-            <input type="file" class="form-control" id="menu-upload"><div class="mt-2 text-break" id="menu-media-name"></div><img id="menu-image" class="rounded mt-2" width="96" alt="已选择图片" hidden></div>
+            <input type="file" class="form-control" id="menu-upload">
+            <div class="mt-2 text-break" id="menu-media-name"></div>
+          </div>
           <div data-panel="article_id" class="mt-3"><div id="menu-article-name" class="mb-2 text-break"></div><button type="button" id="menu-articles" class="btn"><%= render "layouts/admins/icon", name: :search %>选择已发表内容</button></div>
           <div data-panel="click" class="mt-3"><label for="menu-key" class="form-label">回复内容</label><select class="form-select" id="menu-key" data-field="key"></select>
             <% if editable %><div class="d-flex flex-wrap gap-2 mt-2"><button type="button" class="btn btn-sm" id="menu-new-reply"><%= render "layouts/admins/icon", name: :plus %>新增回复内容</button><button type="button" class="btn btn-sm" id="menu-edit-reply"><%= render "layouts/admins/icon", name: :edit %>编辑回复</button></div><% end %></div>

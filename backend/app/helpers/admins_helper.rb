@@ -86,6 +86,11 @@ module AdminsHelper
     tag.span(App::STATUSES.fetch(status), class: "badge bg-#{color}-lt")
   end
 
+  def directory_status_badge(entry)
+    color = entry.enabled? ? "success" : "secondary"
+    tag.span(DirectoryEntry::STATUSES.fetch(entry.status), class: "badge bg-#{color}-lt")
+  end
+
   def notification_event_label(event)
     Notifications::EventCatalog.definitions.dig(event, "label") || WechatNotificationEvent::LABELS[event] || {
       "official_account.keyword" => "关键词回复",

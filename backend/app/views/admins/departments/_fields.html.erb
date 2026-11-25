@@ -1,27 +1,57 @@
-<div class="col-md-6 col-xl-4">
-  <%= f.label :parent_id, "上级科室", class: "form-label" %>
-  <%= f.select :parent_id, @parent_options, { include_blank: "无（顶级科室）" },
-    class: admin_field_class(@entry, :parent_id, "form-select"), data: { enhanced_select: "single" },
-    aria: { describedby: ("parent_id-error" if @entry.errors[:parent_id].any?) } %>
-  <%= admin_field_errors(@entry, :parent_id) %>
-</div>
-<fieldset class="col-md-6">
-  <legend class="form-label">展示位置</legend>
-  <div class="d-flex gap-3">
-    <%= f.collection_check_boxes(:position, Department::POSITIONS.slice("department"), :first, :last) do |choice| %>
-      <%= choice.label class: "form-check mb-0" do %>
-        <%= choice.check_box class: "form-check-input" %>
-        <span class="form-check-label"><%= choice.text %></span>
+<div class="row g-3">
+  <div class="col-12">
+    <div class="row g-3 align-items-center">
+      <div class="col-lg-8">
+        <%= render "admins/shared/single_image_field", form: f, image: image, label: "科室图标", limit: upload_limit,
+          modal_id: dom_id(@entry, :image), inline: true, size: "avatar-xl", fit: "object-contain" %>
+      </div>
+      <div class="col-lg-4">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :icon, "文字图标", class: "form-label mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看文字图标说明", text: "没有上传图标图片时使用此文字。" %>
+        </div>
+        <%= f.text_field :icon, maxlength: 255, size: nil, class: admin_field_class(@entry, :icon),
+          aria: { describedby: ("icon-error" if @entry.errors[:icon].any?) } %>
+        <%= admin_field_errors(@entry, :icon) %>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6"><%= render "admins/directory_entries/name_field", form: f, label: "科室名称" %></div>
+  <div class="col-md-6">
+    <%= f.label :parent_id, "上级科室", class: "form-label" %>
+    <%= f.select :parent_id, @parent_options, { include_blank: "无（顶级科室）" },
+      class: admin_field_class(@entry, :parent_id, "form-select"), data: { enhanced_select: "single" },
+      aria: { describedby: ("parent_id-error" if @entry.errors[:parent_id].any?) } %>
+    <%= admin_field_errors(@entry, :parent_id) %>
+  </div>
+  <div class="col-md-6">
+    <div class="d-flex align-items-center gap-1 mb-2">
+      <%= f.label :sort_order, "排序", class: "form-label required mb-0" %>
+      <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
+    </div>
+    <%= render "admins/directory_entries/sort_input", form: f %>
+  </div>
+  <fieldset class="col-md-6">
+    <legend class="form-label">展示位置</legend>
+    <div class="py-2">
+      <%= f.collection_check_boxes(:position, Department::POSITIONS.slice("department"), :first, :last) do |choice| %>
+        <%= choice.label class: "form-check mb-0" do %>
+          <%= choice.check_box class: admin_field_class(@entry, :position, "form-check-input"),
+            aria: { describedby: ("position-error" if @entry.errors[:position].any?) } %>
+          <span class="form-check-label"><%= choice.text %></span>
+        <% end %>
       <% end %>
-    <% end %>
-  </div>
-  <%= admin_field_errors(@entry, :position) %>
-</fieldset>
-<div class="col-md-6">
-  <div class="d-flex align-items-center gap-1 mb-2">
-    <%= f.label :icon, "文字图标", class: "form-label mb-0" %>
-    <%= render "admins/shared/field_help", label: "查看文字图标说明", text: "没有上传图标图片时使用此文字。" %>
-  </div>
-  <%= f.text_field :icon, maxlength: 255, class: admin_field_class(@entry, :icon), aria: { describedby: ("icon-error" if @entry.errors[:icon].any?) } %>
-  <%= admin_field_errors(@entry, :icon) %>
+      <%= admin_field_errors(@entry, :position) %>
+    </div>
+  </fieldset>
+  <% if @entry.new_record? %>
+    <div class="col-12">
+      <label class="form-check form-switch mb-0">
+        <%= f.check_box :status, { class: admin_field_class(@entry, :status, "form-check-input"), role: "switch",
+          aria: { describedby: ("status-error" if @entry.errors[:status].any?) } }, 1, 0 %>
+        <span class="form-check-label">启用</span>
+      </label>
+      <%= admin_field_errors(@entry, :status) %>
+    </div>
+  <% end %>
 </div>

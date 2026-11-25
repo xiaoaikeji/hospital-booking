@@ -1,3 +1,7 @@
 <% if accounts.any? %><div class="card mb-3 flex-shrink-0"><nav class="card-body py-2 d-flex flex-wrap align-items-center gap-2 nav nav-pills" aria-label="公众号">
-  <span class="text-secondary me-2">公众号</span><% accounts.each do |account| %><%= link_to account.display_name, path.call(account.id), class: class_names("nav-link", active: selected == account) %><% end %>
+  <span class="text-secondary me-2">公众号</span>
+  <% accounts.each do |account| %>
+    <%= link_to account.display_name, path.call(account.id), class: class_names("nav-link", active: selected == account),
+      aria: { current: ("page" if selected == account) } %>
+  <% end %>
 </nav></div><% end %>

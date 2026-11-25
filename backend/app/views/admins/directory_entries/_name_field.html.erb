@@ -1,0 +1,4 @@
+<%= form.label :name, label, class: "form-label required" %>
+<%= form.text_field :name, required: true, maxlength: 100, size: nil, class: admin_field_class(form.object, :name),
+  aria: { describedby: ("name-error" if form.object.errors[:name].any?) } %>
+<%= admin_field_errors(form.object, :name) %>
