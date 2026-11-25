@@ -1,4 +1,5 @@
 module Admins::CustomersHelper
+  PATIENT_GENDER_LABELS = { 0 => "未知", 1 => "男", 2 => "女" }.freeze
   WECHAT_ENTRY_SCENES = {
     1001 => "发现页最近使用", 1005 => "微信首页搜索", 1006 => "发现页搜索", 1007 => "单聊分享", 1008 => "群聊分享",
     1011 => "扫描二维码", 1012 => "长按二维码", 1013 => "相册识别二维码", 1035 => "公众号菜单", 1037 => "小程序跳转",
@@ -43,5 +44,9 @@ module Admins::CustomersHelper
   def customer_status_badge(status)
     color = status == "active" ? "success" : "secondary"
     tag.span(Admins::CustomersController::STATUSES.fetch(status), class: "badge bg-#{color}-lt")
+  end
+
+  def customer_patient_gender_label(gender)
+    PATIENT_GENDER_LABELS.fetch(gender, "未知")
   end
 end

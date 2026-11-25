@@ -16,6 +16,32 @@
   </div>
 </section>
 
+<section class="card mb-3" aria-labelledby="customer-patients-title">
+  <div class="card-header"><h2 class="card-title" id="customer-patients-title">常用就诊人</h2></div>
+  <% if @patients.empty? %>
+    <%= render "admins/shared/list_empty", icon: :users, title: "暂无常用就诊人" %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table admin-list-table mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="px-2">姓名</th>
+          <th scope="col" class="w-25 px-2">性别</th>
+          <th scope="col" class="w-25 px-2">年龄</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @patients.each do |name, gender, age| %>
+          <tr>
+            <td class="px-2"><%= render "admins/shared/list_text", text: name %></td>
+            <td class="px-2"><%= customer_patient_gender_label(gender) %></td>
+            <td class="px-2 text-nowrap"><%= age %> 岁</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% end %>
+</section>
+
 <% profile = @customer.login_profile %>
 <section class="card mb-3">
   <div class="card-header"><h2 class="card-title">首次登录资料</h2></div>

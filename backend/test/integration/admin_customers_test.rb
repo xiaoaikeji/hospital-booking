@@ -92,6 +92,33 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "192.0.2.1"
   end
 
+  test "support sees only the frequent patient saved by the customer being viewed" do
+    other = User.create!(platform: "wechat", nickname: "测试客户乙")
+    @customer.patients.create!(name: "虚构同名", gender: 2, age: 62)
+    other.patients.create!(name: "虚构同名", gender: 1, age: 38)
+
+    [ [ @customer, "女", "62 岁" ], [ other, "男", "38 岁" ] ].each do |customer, gender, age|
+      get admins_customer_path(customer)
+      assert_response :success
+      assert_select "section[aria-labelledby='customer-patients-title']" do
+        assert_select "thead th", count: 3
+        assert_select "tbody tr", count: 1 do |rows|
+          assert_equal [ "虚构同名", gender, age ], rows.first.css("td").map { |cell| cell.text.strip }
+        end
+        assert_select "a, button, form", count: 0
+      end
+    end
+  end
+
+  test "details show the shared empty state when the customer has no frequent patients" do
+    get admins_customer_path(@follower)
+    assert_response :success
+    assert_select "section[aria-labelledby='customer-patients-title']" do
+      assert_select ".empty-title", text: "暂无常用就诊人"
+      assert_select "table", count: 0
+    end
+  end
+
   test "pagination preserves filters and exposes each account on exactly one page" do
     users = 21.times.map { User.create!(platform: "wechat", nickname: "同批客户") }
     filters = { q: "同批客户", status: "active" }

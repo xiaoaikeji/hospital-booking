@@ -20,6 +20,7 @@ module Admins
 
     def show
       @customer = User.find(params[:id])
+      @patients = @customer.patients.order(:id).pluck(:name, :gender, :age)
       @identities = identities.where(user_id: @customer.id)
         .select(:id, :status, :last_sign_in_at)
       @identities = @identities.select(:openid, :unionid) if current_admin.super_admin?
