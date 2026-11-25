@@ -54,6 +54,29 @@ class HospitalProfileTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "hospital text can be saved with invalid storage while image uploads report failure" do
+    admin = Admin.create!(username: "hospital_admin", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    Setting.create!(key: "active_storage", settings: { "service" => "invalid" })
+
+    patch admins_system_settings_hospital_path, params: { hospital: { address: "门诊楼一号入口" } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    follow_redirect!
+    assert_response :success
+
+    record = HospitalProfile.load_record
+    assert_equal "门诊楼一号入口", record.settings.fetch("address")
+    assert_equal({ "fields" => [ "address" ] }, Log.find_by!(action: "hospital.update", target_id: record.id, status: "success").details)
+
+    patch admins_system_settings_hospital_path, params: { hospital: {
+      address: "门诊楼二号入口", image: fixture_file_upload("storage.png", "image/png")
+    } }
+    assert_response :service_unavailable
+    assert_equal "门诊楼一号入口", record.reload.settings.fetch("address")
+    assert_not record.hospital_image.attached?
+    assert_equal [ "success", "failed" ], Log.where(action: "hospital.update", target_id: record.id).order(:id).pluck(:status)
+  end
+
   test "operators cannot access hospital settings or their image directly" do
     admin = Admin.create!(username: "hospital_operator", role: "operator")
     post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }

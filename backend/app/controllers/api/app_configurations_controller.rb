@@ -39,7 +39,8 @@ module Api
       return head :forbidden unless @app.accessible?
 
       entry = if params[:collection] == "departments"
-        booking_departments.find { |department, _depth| department.id.to_s == params[:id] }&.first
+        department = Department.find_by(id: params[:id])
+        department if department&.visible_in_booking?
       else
         Doctor.current.enabled.with_attached_image.find_by(id: params[:id])
       end

@@ -5,7 +5,6 @@ module Admins
 
     skip_before_action :refresh_storage_configuration
     before_action :require_directory_editor!, only: %i[new create edit update status]
-    before_action :refresh_storage_configuration
     before_action :load_entry, only: %i[show edit update status image]
 
     helper_method :entry_title, :entry_label, :entry_model, :directory_path, :image_label, :upload_limit
@@ -63,6 +62,7 @@ module Admins
       image = @entry.image
       return head :not_found unless image.attached?
 
+      refresh_storage_configuration
       send_data image.download, type: image.content_type, disposition: "inline", filename: image.blob.key
     rescue ActiveStorage::FileNotFoundError
       head :not_found
@@ -98,17 +98,21 @@ module Admins
       attributes = input.except(:image, :remove_image)
       attributes.delete(:status) if action == :update
       if input[:image].present?
+        refresh_storage_configuration
         MediaUpload.attach(input[:image], as: upload_purpose) { |blob| persist_entry(action, attributes, blob:) }
       else
         persist_entry(action, attributes, remove_image: input[:remove_image] == "1")
       end
       redirect_to directory_path, notice: "#{entry_label}已保存", status: :see_other
+    rescue IntegrationSettings::ConfigurationError
+      audit(action, status: "failed", reason: SAVE_FAILURE)
+      raise
     rescue MediaUpload::Invalid, MediaUpload::Failed, ActiveRecord::ActiveRecordError => error
       @submitted_attributes = attributes
       @entry.attachment_changes.delete("image")
       @entry.association(:image_attachment).reset
       @entry.association(:image_blob).reset
-      @entry.assign_attributes(attributes.except(:department_ids))
+      @entry.assign_attributes(entry_attributes(attributes))
       @entry.errors.add(:image, error.message) if error.is_a?(MediaUpload::Invalid) || error.is_a?(MediaUpload::Failed)
       @entry.errors.add(:base, SAVE_FAILURE) if @entry.errors.empty?
       audit(action, status: "failed", reason: SAVE_FAILURE)
@@ -130,18 +134,21 @@ module Admins
     end
 
     def assign_entry_attributes(attributes)
-      @entry.assign_attributes(attributes)
+      @entry.assign_attributes(entry_attributes(attributes))
       []
     end
 
+    def entry_attributes(attributes) = attributes
+
     def audit_changes(action, fields)
-      if action == :update && fields.delete("sort_order")
+      audit_update_fields(fields) if action == :update
+      audit(action, fields:) if action == :create || fields.any?
+    end
+
+    def audit_update_fields(fields)
+      if fields.delete("sort_order")
         audit(:reorder, fields: [ "sort_order" ], sort_order: @entry.sort_order)
       end
-      if action == :update && fields.delete("fee")
-        audit(:change_fee, fields: [ "fee" ], fee: @entry.fee_in_yuan)
-      end
-      audit(action, fields:) if action == :create || fields.any?
     end
 
     def audit(action, status: "success", **details)

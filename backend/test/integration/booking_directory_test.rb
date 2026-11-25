@@ -52,6 +52,9 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     patch admins_doctor_path(doctor), params: { doctor: { fee: "21.235", department_ids: [ other.id.to_s ] } }
     assert_response :unprocessable_content
     assert_select "#fee-error", text: "挂号费最多保留两位小数"
+    assert_select "select[name='doctor[department_ids][]'] option[selected]", count: 1 do |options|
+      assert_equal other.id.to_s, options.first["value"]
+    end
     assert_equal [ department.id, other.id ].sort, doctor.reload.department_ids.sort
     assert_equal "20", doctor.fee_in_yuan
     assert_equal 0, Log.where(action: "doctor.change_fee", target_id: doctor.id, status: "success").count
@@ -75,6 +78,27 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     assert_empty response.parsed_body.dig("directory", "doctors")
     get image_path
     assert_response :not_found
+  end
+
+  test "directory changes need working storage only when uploading an image" do
+    Setting.create!(key: "active_storage", settings: { "service" => "invalid" })
+    post admins_departments_path, params: { department: { name: "耳鼻喉科" } }
+    assert_redirected_to admins_departments_path
+    department = Department.find_by!(name: "耳鼻喉科")
+    doctor = Doctor.create!(name: "张医生", fee: 20, departments: [ department ])
+
+    patch admins_doctor_path(doctor), params: { doctor: { fee: "25" } }
+    assert_redirected_to admins_doctors_path
+    assert_equal "25", doctor.reload.fee_in_yuan
+
+    patch status_admins_department_path(department), params: { status: 0 }
+    assert_redirected_to admins_departments_path
+    assert_not department.reload.enabled?
+
+    patch admins_department_path(department), params: { department: { image: fixture_file_upload("storage.png", "image/png") } }
+    assert_response :service_unavailable
+    assert_not department.reload.image.attached?
+    assert_equal [ "failed" ], Log.where(action: "department.update", target_id: department.id).pluck(:status)
   end
 
   test "the sixth doctor cannot be enabled until an existing doctor has been stopped" do
@@ -126,6 +150,8 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
 
     patch admins_department_path(department), params: { department: { name: "眼科", image: fixture_file_upload("storage.png", "image/png") } }
     assert_redirected_to admins_departments_path
+    edit = Log.find_by!(action: "department.update", target_id: department.id, status: "success")
+    assert_equal %w[image name], edit.details.fetch("fields").sort
     get config_path
     published = response.parsed_body.dig("directory", "departments").sole
     assert_nil published.fetch("icon")
@@ -139,37 +165,48 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
   end
 
   test "department visibility follows the status of each department and its ancestors" do
-    parent = Department.create!(name: "五官科", sort_order: 10, position: [])
+    root = Department.create!(name: "门诊部", sort_order: 10, position: [])
+    parent = Department.create!(name: "五官科", parent: root)
     child = Department.create!(name: "耳鼻喉科", parent: parent, sort_order: 3, position: [ "index" ])
     sibling = Department.create!(name: "口腔科", parent: parent, sort_order: 4)
     other = Department.create!(name: "眼科", sort_order: 1, icon: "眼")
     doctor = Doctor.create!(name: "张医生", departments: [ child, other ], display_on_homepage: false)
     config_path = api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    patch admins_department_path(child), params: { department: { image: fixture_file_upload("storage.png", "image/png") } }
+    assert_redirected_to admins_departments_path
 
     get config_path
     directory = response.parsed_body.fetch("directory")
-    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s, sibling.id.to_s ], directory.fetch("departments").pluck("id")
-    assert_equal [ 0, 0, 1, 1 ], directory.fetch("departments").pluck("depth")
+    departments = directory.fetch("departments")
+    assert_equal [ other.id, root.id, parent.id, child.id, sibling.id ].map(&:to_s), departments.pluck("id")
+    assert_equal [ 0, 0, 1, 2, 2 ], departments.pluck("depth")
     assert_equal "眼", directory.dig("departments", 0, "icon")
     assert_not directory.dig("doctors", 0, "display_on_homepage")
+    image_path = URI(departments.find { |entry| entry["id"] == child.id.to_s }.fetch("image_url")).path
+    get image_path
+    assert_response :success
 
     patch status_admins_department_path(sibling), params: { status: 0 }
     assert_redirected_to admins_departments_path
     get config_path
-    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
+    assert_equal [ other.id, root.id, parent.id, child.id ].map(&:to_s), response.parsed_body.dig("directory", "departments").pluck("id")
 
-    patch status_admins_department_path(parent), params: { status: 0 }
+    patch status_admins_department_path(root), params: { status: 0 }
     assert_redirected_to admins_departments_path
     assert child.reload.enabled?
     assert_includes doctor.reload.department_ids, child.id
     get config_path
     assert_equal [ other.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
     assert_equal [ other.id.to_s ], response.parsed_body.dig("directory", "doctors", 0, "department_ids")
+    get image_path
+    assert_response :not_found
 
-    patch status_admins_department_path(parent), params: { status: 1 }
+    patch status_admins_department_path(root), params: { status: 1 }
     get config_path
-    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
+    assert_equal [ other.id, root.id, parent.id, child.id ].map(&:to_s), response.parsed_body.dig("directory", "departments").pluck("id")
     assert_not sibling.reload.enabled?
+    get image_path
+    assert_response :success
   end
 
   test "operators can maintain the directory while customer service can only view it" do

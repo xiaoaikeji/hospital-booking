@@ -5,12 +5,7 @@ class Department < DirectoryEntry
   has_many :children, class_name: "Department", foreign_key: :parent_id, inverse_of: :parent
   has_many :doctor_departments
   has_many :doctors, through: :doctor_departments
-  normalizes :icon, with: ->(value) { value.strip.presence }
 
-  before_validation do
-    self.icon_type = image.attached? ? "image" : ("text" if icon.present?)
-  end
-  validates :icon, length: { maximum: 255, too_long: "最多 255 个字符" }
   validate :parent_forms_tree, if: -> { parent_id.present? && will_save_change_to_parent_id? }
 
   def self.booking_rows
@@ -25,6 +20,17 @@ class Department < DirectoryEntry
       children.fetch(entry.id, []).reverse_each { |child| pending << [ child, depth + 1 ] }
     end
     rows
+  end
+
+  def visible_in_booking?
+    entry = self
+    seen = Set.new
+    while entry&.enabled? && seen.add?(entry.id)
+      return true if entry.parent_id.nil?
+
+      entry = entry.parent
+    end
+    false
   end
 
   def path_in(departments)

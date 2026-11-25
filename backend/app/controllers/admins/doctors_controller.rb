@@ -28,8 +28,10 @@ module Admins
       end
     end
 
+    def entry_attributes(attributes) = attributes.except(:department_ids)
+
     def assign_entry_attributes(attributes)
-      fields = super(attributes.except(:department_ids))
+      fields = super
       return fields unless attributes.key?(:department_ids)
 
       submitted = attributes[:department_ids].compact_blank.map(&:to_s).uniq
@@ -44,6 +46,13 @@ module Admins
         fields << "department_ids"
       end
       fields
+    end
+
+    def audit_update_fields(fields)
+      super
+      if fields.delete("fee")
+        audit(:change_fee, fields: [ "fee" ], fee: @entry.fee_in_yuan)
+      end
     end
   end
 end

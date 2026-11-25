@@ -23,19 +23,22 @@ class HospitalProfile
     assign_attributes(updates)
     audit = { category: "settings", action: "hospital.update", actor: actor, request: request }
     if input[:image].present?
+      StorageConfiguration.refresh!
       MediaUpload.attach(input[:image], as: :hospital_image) { |blob| persist(audit, updates.keys, blob:) }
     else
       persist(audit, updates.keys, remove_image: input[:remove_image] == "1")
     end
     true
-  rescue MediaUpload::Invalid, MediaUpload::Failed, ActiveRecord::ActiveRecordError => error
+  rescue MediaUpload::Invalid, MediaUpload::Failed, IntegrationSettings::ConfigurationError, ActiveRecord::ActiveRecordError => error
     @record = self.class.load_record
+    Log.record!(**audit, target: record, status: "failed", details: { reason: FAILURE })
+    raise if error.is_a?(IntegrationSettings::ConfigurationError)
+
     if error.is_a?(MediaUpload::Invalid) || error.is_a?(MediaUpload::Failed)
       errors.add(:image, error.message)
     else
       errors.add(:base, FAILURE)
     end
-    Log.record!(**audit, target: record, status: "failed", details: { reason: FAILURE })
     false
   end
 

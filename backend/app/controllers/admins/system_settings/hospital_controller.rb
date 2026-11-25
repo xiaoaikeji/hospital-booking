@@ -1,7 +1,7 @@
 module Admins
   class SystemSettings::HospitalController < BaseController
     skip_before_action :refresh_storage_configuration
-    before_action :require_super_admin!, :refresh_storage_configuration
+    before_action :require_super_admin!
     before_action { @profile = HospitalProfile.new }
 
     def edit
@@ -20,6 +20,7 @@ module Admins
       image = @profile.record&.hospital_image
       return head :not_found unless image&.attached?
 
+      refresh_storage_configuration
       send_data image.download, type: image.content_type, disposition: "inline", filename: image.blob.key
     rescue ActiveStorage::FileNotFoundError
       head :not_found
