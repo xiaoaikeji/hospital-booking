@@ -1,5 +1,4 @@
 class Department < DirectoryEntry
-  POSITIONS = { "department" => "按科室", "index" => "首页" }.freeze
   PARENT_LOCK_ID = 71_020_021
 
   belongs_to :parent, class_name: "Department", optional: true
@@ -10,10 +9,8 @@ class Department < DirectoryEntry
 
   before_validation do
     self.icon_type = image.attached? ? "image" : ("text" if icon.present?)
-    self.position = position.compact_blank.uniq if position
   end
   validates :icon, length: { maximum: 255, too_long: "最多 255 个字符" }
-  validate :valid_positions
   validate :parent_forms_tree, if: -> { parent_id.present? && will_save_change_to_parent_id? }
 
   def self.booking_rows
@@ -24,11 +21,8 @@ class Department < DirectoryEntry
       entry, depth = pending.pop
       next unless entry.enabled?
 
-      if entry.position.include?("department")
-        rows << [ entry, depth ]
-        depth += 1
-      end
-      children.fetch(entry.id, []).reverse_each { |child| pending << [ child, depth ] }
+      rows << [ entry, depth ]
+      children.fetch(entry.id, []).reverse_each { |child| pending << [ child, depth + 1 ] }
     end
     rows
   end
@@ -45,10 +39,6 @@ class Department < DirectoryEntry
   end
 
   private
-
-  def valid_positions
-    errors.add(:position, "请选择有效的展示位置") unless position && (position - POSITIONS.keys).empty?
-  end
 
   def parent_forms_tree
     # Parent changes on different rows can form a cycle even when each form was valid when opened.

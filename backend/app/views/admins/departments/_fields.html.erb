@@ -14,19 +14,6 @@
     </div>
     <%= render "admins/directory_entries/sort_input", form: f %>
   </div>
-  <fieldset class="col-md-6">
-    <legend class="form-label">展示位置</legend>
-    <div class="py-2">
-      <%= f.collection_check_boxes(:position, Department::POSITIONS.slice("department"), :first, :last) do |choice| %>
-        <%= choice.label class: "form-check mb-0" do %>
-          <%= choice.check_box class: admin_field_class(@entry, :position, "form-check-input"),
-            aria: { describedby: ("position-error" if @entry.errors[:position].any?) } %>
-          <span class="form-check-label"><%= choice.text %></span>
-        <% end %>
-      <% end %>
-      <%= admin_field_errors(@entry, :position) %>
-    </div>
-  </fieldset>
   <div class="col-lg-8">
     <%= render "admins/shared/single_image_field", form: f, image: image, label: "科室图标", limit: upload_limit,
       modal_id: dom_id(@entry, :image), inline: true, size: "avatar-xl", fit: "object-contain" %>

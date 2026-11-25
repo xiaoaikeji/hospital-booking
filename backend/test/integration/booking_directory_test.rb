@@ -11,7 +11,8 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
   test "a new department can be selected along with another department and the doctor keeps a single fee" do
     get new_admins_department_path
     assert_response :success
-    post admins_departments_path, params: { department: { name: "耳鼻喉科", position: [ "", "department" ] } }
+    assert_select "input[name='department[position][]']", count: 0
+    post admins_departments_path, params: { department: { name: "耳鼻喉科" } }
     assert_redirected_to admins_departments_path
     follow_redirect!
     assert_response :success
@@ -137,31 +138,38 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     assert_equal [ "眼", nil ], response.parsed_body.dig("directory", "departments").sole.values_at("icon", "image_url")
   end
 
-  test "a disabled parent hides its subtree without changing the children's status" do
-    parent = Department.create!(name: "五官科", sort_order: 10)
-    city = Department.create!(name: "耳鼻喉科", parent: parent, sort_order: 3)
+  test "department visibility follows the status of each department and its ancestors" do
+    parent = Department.create!(name: "五官科", sort_order: 10, position: [])
+    child = Department.create!(name: "耳鼻喉科", parent: parent, sort_order: 3, position: [ "index" ])
+    sibling = Department.create!(name: "口腔科", parent: parent, sort_order: 4)
     other = Department.create!(name: "眼科", sort_order: 1, icon: "眼")
-    Department.create!(name: "仅首页科室", position: [ "index" ])
-    doctor = Doctor.create!(name: "张医生", departments: [ city, other ], display_on_homepage: false)
+    doctor = Doctor.create!(name: "张医生", departments: [ child, other ], display_on_homepage: false)
+    config_path = api_app_configuration_path(@mini_program.provider, @mini_program.appid)
 
-    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    get config_path
     directory = response.parsed_body.fetch("directory")
-    assert_equal [ other.id.to_s, parent.id.to_s, city.id.to_s ], directory.fetch("departments").pluck("id")
-    assert_equal [ 0, 0, 1 ], directory.fetch("departments").pluck("depth")
+    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s, sibling.id.to_s ], directory.fetch("departments").pluck("id")
+    assert_equal [ 0, 0, 1, 1 ], directory.fetch("departments").pluck("depth")
     assert_equal "眼", directory.dig("departments", 0, "icon")
     assert_not directory.dig("doctors", 0, "display_on_homepage")
 
+    patch status_admins_department_path(sibling), params: { status: 0 }
+    assert_redirected_to admins_departments_path
+    get config_path
+    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
+
     patch status_admins_department_path(parent), params: { status: 0 }
     assert_redirected_to admins_departments_path
-    assert city.reload.enabled?
-    assert_includes doctor.reload.department_ids, city.id
-    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    assert child.reload.enabled?
+    assert_includes doctor.reload.department_ids, child.id
+    get config_path
     assert_equal [ other.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
     assert_equal [ other.id.to_s ], response.parsed_body.dig("directory", "doctors", 0, "department_ids")
 
     patch status_admins_department_path(parent), params: { status: 1 }
-    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
-    assert_includes response.parsed_body.dig("directory", "departments").pluck("id"), city.id.to_s
+    get config_path
+    assert_equal [ other.id.to_s, parent.id.to_s, child.id.to_s ], response.parsed_body.dig("directory", "departments").pluck("id")
+    assert_not sibling.reload.enabled?
   end
 
   test "operators can maintain the directory while customer service can only view it" do

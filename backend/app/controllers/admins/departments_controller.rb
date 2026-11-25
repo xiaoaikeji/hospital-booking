@@ -7,10 +7,10 @@ module Admins
     private
 
     def list_scope = entry_scope.includes(:parent)
-    def permitted_fields = super + [ :parent_id, position: [] ]
+    def permitted_fields = super + [ :parent_id ]
 
     def entry_details
-      { "上级科室" => @entry.parent&.name, "展示位置" => @entry.position.filter_map { |position| Department::POSITIONS[position] }.join("、") }
+      { "上级科室" => @entry.parent&.name }
     end
 
     def form_options
