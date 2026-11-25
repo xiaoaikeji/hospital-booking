@@ -20,14 +20,6 @@
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @link %>
     <div class="row g-3">
-      <div class="col-12">
-        <div class="col-lg-8">
-          <%= render "admins/shared/single_image_field", form: f, image: image,
-            label: (banner ? "轮播图片" : "菜单图标"), limit: 10, modal_id: dom_id(@link, :image),
-            inline: true, variant: (:tile if banner), ratio: "ratio-16x9", size: "avatar-xl",
-            fit: (banner ? "object-cover" : "object-contain"), required: banner && !image, removable: !banner %>
-        </div>
-      </div>
       <div class="col-md-6">
         <%= f.label :name, "名称", class: "form-label required" %>
         <%= f.text_field :name, required: true, maxlength: 120, size: nil, class: admin_field_class(@link, :name), aria: { describedby: ("name-error" if @link.errors[:name].any?) } %>
@@ -60,6 +52,12 @@
           <%= admin_field_errors(@link, :status) %>
         </div>
       <% end %>
+      <div class="col-12">
+        <%= render "admins/shared/single_image_field", form: f, image: image,
+          label: (banner ? "轮播图片" : "菜单图标"), limit: 10, modal_id: dom_id(@link, :image),
+          inline: true, variant: (:tile if banner), ratio: "ratio-16x9", size: "avatar-xl",
+          fit: (banner ? "object-cover" : "object-contain"), required: banner && !image, removable: !banner %>
+      </div>
     </div>
   </div>
   <div class="card-footer btn-list justify-content-end">

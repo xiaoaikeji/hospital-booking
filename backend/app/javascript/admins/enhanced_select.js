@@ -12,10 +12,25 @@ window.initializeAdminSelects = (root = document) => {
       );
     }
 
-    const control = new window.TomSelect(select, options).focus_node;
+    const widget = new window.TomSelect(select, options);
+    const control = widget.focus_node;
     ["aria-label", "aria-describedby", "aria-invalid", "aria-required"].forEach((name) => {
       if (select.hasAttribute(name)) control.setAttribute(name, select.getAttribute(name));
     });
+
+    if (options.controlInput === null && widget.settings.placeholder) {
+      // The non-searchable control has no input to display its placeholder.
+      const placeholder = document.createElement("span");
+      placeholder.className = "text-secondary";
+      placeholder.textContent = widget.settings.placeholder;
+      placeholder.setAttribute("aria-hidden", "true");
+      widget.control.append(placeholder);
+
+      const updatePlaceholder = () => placeholder.classList.toggle("d-none", widget.items.length > 0);
+      widget.on("item_add", updatePlaceholder);
+      widget.on("item_remove", updatePlaceholder);
+      updatePlaceholder();
+    }
   });
 };
 
