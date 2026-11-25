@@ -1,21 +1,4 @@
 <div class="row g-3">
-  <div class="col-12">
-    <div class="row g-3 align-items-center">
-      <div class="col-lg-8">
-        <%= render "admins/shared/single_image_field", form: f, image: image, label: "科室图标", limit: upload_limit,
-          modal_id: dom_id(@entry, :image), inline: true, size: "avatar-xl", fit: "object-contain" %>
-      </div>
-      <div class="col-lg-4">
-        <div class="d-flex align-items-center gap-1 mb-2">
-          <%= f.label :icon, "文字图标", class: "form-label mb-0" %>
-          <%= render "admins/shared/field_help", label: "查看文字图标说明", text: "没有上传图标图片时使用此文字。" %>
-        </div>
-        <%= f.text_field :icon, maxlength: 255, size: nil, class: admin_field_class(@entry, :icon),
-          aria: { describedby: ("icon-error" if @entry.errors[:icon].any?) } %>
-        <%= admin_field_errors(@entry, :icon) %>
-      </div>
-    </div>
-  </div>
   <div class="col-md-6"><%= render "admins/directory_entries/name_field", form: f, label: "科室名称" %></div>
   <div class="col-md-6">
     <%= f.label :parent_id, "上级科室", class: "form-label" %>
@@ -44,6 +27,23 @@
       <%= admin_field_errors(@entry, :position) %>
     </div>
   </fieldset>
+  <div class="col-12">
+    <div class="row g-3 align-items-center">
+      <div class="col-lg-8">
+        <%= render "admins/shared/single_image_field", form: f, image: image, label: "科室图标", limit: upload_limit,
+          modal_id: dom_id(@entry, :image), inline: true, size: "avatar-xl", fit: "object-contain" %>
+      </div>
+      <div class="col-lg-4">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :icon, "文字图标", class: "form-label mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看文字图标说明", text: "没有上传图标图片时使用此文字。" %>
+        </div>
+        <%= f.text_field :icon, maxlength: 255, size: nil, class: admin_field_class(@entry, :icon),
+          aria: { describedby: ("icon-error" if @entry.errors[:icon].any?) } %>
+        <%= admin_field_errors(@entry, :icon) %>
+      </div>
+    </div>
+  </div>
   <% if @entry.new_record? %>
     <div class="col-12">
       <label class="form-check form-switch mb-0">

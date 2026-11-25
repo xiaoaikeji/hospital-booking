@@ -50,11 +50,8 @@
           </div>
         </div>
         <div class="col-md-8 col-xl-4">
-          <div class="form-fieldset mb-0">
-            <%= render "admins/shared/single_image_field", form: f, image: image, label: image_label,
-              limit: upload_limit, modal_id: dom_id(@entry, :image),
-              size: "avatar-2xl rounded-circle" %>
-          </div>
+          <%= render "admins/shared/single_image_field", form: f, image: image, label: image_label,
+            limit: upload_limit, modal_id: dom_id(@entry, :image), size: "avatar-2xl rounded-circle" %>
         </div>
       </div>
     <% else %>

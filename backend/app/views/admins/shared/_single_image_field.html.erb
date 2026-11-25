@@ -4,6 +4,7 @@
 <% removing = removable && params.dig(form.object_name, :remove_image) == "1" %>
 <% inline = local_assigns[:inline] %>
 <% tile = local_assigns[:variant] == :tile %>
+<% stacked_avatar = !inline && !tile %>
 <% size = local_assigns.fetch(:size, "avatar-md") %>
 <% fit = local_assigns.fetch(:fit, "object-cover") %>
 <% ratio = local_assigns.fetch(:ratio, "ratio-4x3") %>
@@ -15,11 +16,11 @@
   </div>
 <% end %>
 <div data-single-image-field>
-  <%= field_label if inline %>
+  <%= field_label if inline || stacked_avatar %>
   <div class="<%= "row g-3 align-items-center" if inline %>">
     <% preview_class = inline ? (tile ? "col-12 col-lg-4" : "col-auto") : "mb-3" %>
     <div class="<%= class_names(preview_class, "d-none" => !image, "opacity-50" => removing) %>" data-image-preview>
-      <div class="<%= class_names("d-flex", "justify-content-center rounded border bg-body py-3" => !inline && !tile) %>">
+      <div class="<%= class_names("d-flex", "justify-content-center" => stacked_avatar) %>">
         <% if image %>
           <div class="<%= "w-100" if tile %>" data-image-saved>
             <%= render "admins/shared/image_thumbnail", image: image, modal_id: modal_id, size: size, fit: fit,
@@ -32,9 +33,9 @@
       </div>
     </div>
     <div class="<%= "col" if inline %>">
-      <%= field_label unless inline %>
-      <div class="d-flex flex-wrap align-items-start gap-2">
-        <div class="flex-fill">
+      <%= field_label if tile && !inline %>
+      <div class="<%= class_names("d-flex align-items-start gap-2", "flex-wrap" => !stacked_avatar) %>">
+        <div class="<%= stacked_avatar ? "w-0 flex-grow-1" : "flex-fill" %>">
           <%= form.file_field :image, accept: "image/jpeg,image/png,image/webp", required: required, class: admin_field_class(record, :image),
             aria: { describedby: ("image-error" if record.errors[:image].any?) } %>
           <%= admin_field_errors(record, :image) %>
