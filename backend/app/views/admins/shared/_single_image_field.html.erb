@@ -4,6 +4,7 @@
 <% removing = removable && params.dig(form.object_name, :remove_image) == "1" %>
 <% inline = local_assigns[:inline] %>
 <% tile = local_assigns[:variant] == :tile %>
+<% panel = local_assigns[:panel] %>
 <% stacked_avatar = !inline && !tile %>
 <% size = local_assigns.fetch(:size, "avatar-md") %>
 <% fit = local_assigns.fetch(:fit, "object-cover") %>
@@ -16,9 +17,10 @@
       text: "支持 JPG、PNG 和 WebP，单张最多 #{limit} MB。#{local_assigns[:size_hint]}" %>
   </div>
 <% end %>
-<div data-single-image-field>
-  <%= field_label if inline || stacked_avatar %>
-  <div class="<%= "row g-3 align-items-center" if inline %>">
+<div class="<%= "d-flex flex-column h-100" if panel && image %>" data-single-image-field>
+  <%= field_label %>
+  <div class="<%= class_names("row g-3 align-items-center" => inline,
+    "form-fieldset mb-0 d-flex flex-column flex-fill justify-content-between" => panel) %>">
     <% preview_class = inline ? (tile ? "col-12 col-lg-4" : "col-auto") : "mb-3" %>
     <div class="<%= class_names(preview_class, "d-none" => !image, "opacity-50" => removing) %>" data-image-preview>
       <div class="<%= class_names("d-flex", "justify-content-center" => stacked_avatar) %>">
@@ -34,9 +36,8 @@
       </div>
     </div>
     <div class="<%= "col" if inline %>">
-      <%= field_label if tile && !inline %>
-      <div class="<%= class_names("d-flex align-items-start gap-2", "flex-wrap" => !stacked_avatar) %>">
-        <div class="<%= stacked_avatar ? "w-0 flex-grow-1" : "flex-fill" %>">
+      <div class="<%= class_names("d-flex align-items-start gap-2", "flex-wrap" => inline) %>">
+        <div class="<%= inline ? "flex-fill" : "w-0 flex-grow-1" %>">
           <%= form.file_field :image, accept: "image/jpeg,image/png,image/webp", required: required, class: admin_field_class(record, :image),
             aria: { describedby: ("image-error" if record.errors[:image].any?) } %>
           <%= admin_field_errors(record, :image) %>

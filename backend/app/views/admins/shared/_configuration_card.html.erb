@@ -8,7 +8,8 @@
   <%= render "admins/shared/form_errors", record: record if local_assigns[:record] %>
   <%= yield %>
 </div>
-<div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+<div class="card-footer bg-transparent"><div class="<%= class_names("btn-list justify-content-end", local_assigns[:footer_actions_class]) %>">
+  <%= footer_actions if local_assigns[:footer_actions] %>
   <% if local_assigns[:clear_target] %>
     <%= render "admins/shared/clear_configuration_button", target: clear_target, disabled: local_assigns[:clear_disabled] %>
   <% end %>
