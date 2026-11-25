@@ -11,6 +11,9 @@ class Log < ApplicationRecord
     [ "booking", "doctor.disable" ] => "停用医生",
     [ "booking", "doctor.reorder" ] => "调整医生排序",
     [ "booking", "doctor.change_fee" ] => "修改医生挂号费",
+    [ "booking", "schedule.create" ] => "新增排班",
+    [ "booking", "schedule.update" ] => "修改排班",
+    [ "booking", "schedule.revoke" ] => "撤销日期调整",
     [ "notification", "notification.wecom_content" ] => "修改企微通知文案",
     [ "poster", "poster.save" ] => "保存通用海报",
     [ "poster", "poster.delete" ] => "删除通用海报",
@@ -85,6 +88,7 @@ class Log < ApplicationRecord
     [ "settings", "appearance.update" ] => "修改默认外观",
     [ "settings", "hospital.update" ] => "修改医院资料",
     [ "settings", "appointment.phone_policy" ] => "修改预约手机号验证设置",
+    [ "settings", "appointment.night_shift" ] => "修改晚班设置",
     [ "settings", "wechat_pay.update" ] => "修改微信支付设置",
     [ "settings", "map_settings.update" ] => "修改地图服务设置",
     [ "settings", "personal_appearance.update" ] => "修改个人外观"

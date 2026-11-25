@@ -60,3 +60,4 @@ export const hospitalProfile = computed(() => appConfiguration.value?.hospital ?
 
 const emptyDirectory = { departments: [], doctors: [] }
 export const bookingDirectory = computed(() => appConfiguration.value?.directory ?? emptyDirectory)
+export const bookingSchedule = computed(() => appConfiguration.value?.schedule ?? [])

@@ -4,6 +4,7 @@ class Doctor < DirectoryEntry
 
   has_many :doctor_departments
   has_many :departments, through: :doctor_departments
+  has_many :schedules
   scope :current, -> { where(deleted_at: nil) }
   normalizes :main_title, :description, :good_in, :introduction, with: ->(value) { value.strip.presence }
 

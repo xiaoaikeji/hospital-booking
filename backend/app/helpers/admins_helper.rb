@@ -18,7 +18,7 @@ module AdminsHelper
   def management_navigation_groups
     groups = [ [ "基础资料", :package, [
       [ "科室管理", admins_departments_path, "admins/departments" ],
-      [ "医生资料", admins_doctors_path, "admins/doctors" ]
+      [ "医生资料", admins_doctors_path, %w[admins/doctors admins/doctor_schedules] ]
     ] ] ]
     admin_pages = []
     if current_admin.super_admin?

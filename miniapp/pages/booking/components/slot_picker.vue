@@ -3,27 +3,35 @@ import { computed, ref } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
 import { demoMode } from '@/store/session.js'
+import { shiftLabels } from '../booking-calendar.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
-  doctorId: { type: Number, required: true },
+  doctorId: { type: [Number, String], required: true },
   date: { type: String, required: true },
   selectedSlot: { type: String, default: '' },
+  demo: Boolean,
 })
 const emit = defineEmits(['cancel', 'confirm'])
-const day = ref(props.schedule.find(item => item.date === props.date) || props.schedule[0])
-const slots = computed(() => demoMode ? getAvailableSlots(day.value, props.doctorId) : getBookingSlots(day.value, props.doctorId))
-const choice = ref(slots.value.find(item => item.label === props.selectedSlot && item.remaining > 0)?.label || '')
+const selectedDate = ref(props.date)
+const day = computed(() => props.schedule.find(item => item.date === selectedDate.value) || props.schedule[0])
+const slots = computed(() => {
+  if (!props.demo) return shiftLabels(day.value, props.doctorId).map(label => ({ label }))
+  return demoMode ? getAvailableSlots(day.value, props.doctorId) : getBookingSlots(day.value, props.doctorId)
+})
+const choice = ref(props.selectedSlot)
+const canPick = item => !props.demo || item.remaining > 0
+const canConfirm = computed(() => day.value.date === selectedDate.value && slots.value.some(item => item.label === choice.value && canPick(item)))
 const initialAnchor = 'day-' + day.value.date
 
 function selectDay(item) {
   if (day.value.date === item.date) return
-  day.value = item
+  selectedDate.value = item.date
   choice.value = ''
 }
 
 function confirm() {
-  if (choice.value) emit('confirm', { date: day.value.date, slot: choice.value })
+  if (canConfirm.value) emit('confirm', { date: day.value.date, slot: choice.value })
 }
 </script>
 
@@ -32,7 +40,7 @@ function confirm() {
     <view class="dismiss-area" @tap="$emit('cancel')" @touchmove.stop.prevent />
     <view class="slot-sheet" aria-role="dialog" aria-label="选择预约时段">
       <view class="sheet-title">预约</view>
-      <view class="sheet-note">为了更好的服务，请提前一天预约</view>
+      <view v-if="demo" class="sheet-note">为了更好的服务，请提前一天预约</view>
       <scroll-view scroll-x class="day-strip" :scroll-into-view="initialAnchor" :show-scrollbar="false">
         <view class="days">
           <view v-for="item in schedule" :id="'day-' + item.date" :key="item.date" class="day"
@@ -43,15 +51,16 @@ function confirm() {
       </scroll-view>
       <scroll-view scroll-y class="slots-scroll">
         <view class="slots">
-          <button v-for="item in slots" :key="item.label" class="slot" :class="{ chosen: item.label === choice, full: !item.remaining }"
-            :disabled="!item.remaining" @tap="choice = item.label">
-            <text>{{ item.label }}</text><text class="remaining">余号：{{ item.remaining }}</text>
+          <button v-for="item in slots" :key="item.label" class="slot" :class="{ chosen: canConfirm && item.label === choice, full: !canPick(item) }"
+            :disabled="!canPick(item)" @tap="choice = item.label">
+            <text>{{ item.label }}</text><text v-if="demo" class="remaining">余号：{{ item.remaining }}</text>
           </button>
         </view>
+        <view v-if="!demo && !slots.length" class="sheet-note" role="status">当日暂无排班</view>
       </scroll-view>
       <view class="sheet-actions">
         <button class="cancel" @tap="$emit('cancel')">取消</button>
-        <button class="confirm" :class="{ disabled: !choice }" :disabled="!choice" @tap="confirm">确定<text v-if="choice"> ({{ day.label }} {{ choice }})</text></button>
+        <button class="confirm" :class="{ disabled: !canConfirm }" :disabled="!canConfirm" @tap="confirm">确定<text v-if="canConfirm"> ({{ day.label }} {{ choice }})</text></button>
       </view>
     </view>
   </view>

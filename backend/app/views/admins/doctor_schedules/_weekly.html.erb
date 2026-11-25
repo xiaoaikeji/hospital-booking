@@ -1,0 +1,21 @@
+<%= form_with url: weekly_admins_doctor_schedule_path(@doctor), method: :patch, data: { admin_form: true } do %>
+  <% if @editor.errors.any? %><div class="card-body pb-0"><%= render "admins/shared/form_errors", record: @editor %></div><% end %>
+  <div class="list-group list-group-flush">
+    <% Schedule::WEEKDAYS.each do |weekday, label| %>
+      <div class="list-group-item">
+        <div class="row g-3 align-items-end">
+          <div class="col-12 col-lg-2 fw-medium align-self-center"><%= label %></div>
+          <div class="col-12 col-lg-10">
+            <%= render "shift_fields", scope: "weekly_schedule[#{weekday}]", prefix: "weekday-#{weekday}",
+              label: label, fields: @weekly_fields[weekday.to_s] || {} %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <% if @editable %>
+    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+      <%= render "admins/shared/submit_button", label: "保存每周排班", icon: :save %>
+    </div></div>
+  <% end %>
+<% end %>

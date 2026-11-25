@@ -41,6 +41,10 @@ module Admins
       render file: Rails.public_path.join("403.html"), layout: false, status: :forbidden unless current_admin.super_admin?
     end
 
+    def require_directory_editor!
+      render file: Rails.public_path.join("403.html"), layout: false, status: :forbidden unless current_admin.maintain_booking_directory?
+    end
+
     def refresh_storage_configuration
       StorageConfiguration.refresh!
     end

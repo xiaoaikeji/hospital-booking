@@ -1,0 +1,41 @@
+<div class="card-body">
+  <%= form_with url: admins_doctor_schedule_path(@doctor), method: :get, class: "row g-2 align-items-end" do %>
+    <%= hidden_field_tag :tab, "date" %>
+    <div class="col-12 col-sm-auto">
+      <%= label_tag "schedule-date", "日期", class: "form-label" %>
+      <%= render "admins/shared/date_field", id: "schedule-date", name: :date, value: @date.iso8601, required: true, clearable: false %>
+    </div>
+    <div class="col-auto"><%= button_tag "查看当天", type: :submit, class: "btn" %></div>
+  <% end %>
+</div>
+<%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :patch, data: { admin_form: true } do %>
+  <%= hidden_field_tag :date, @date.iso8601, id: nil %>
+  <div class="card-body border-top">
+    <%= render "admins/shared/form_errors", record: @editor %>
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
+      <h2 class="card-title mb-0"><%= @date.iso8601 %> <%= Schedule::WEEKDAYS.fetch(@date.wday) %></h2>
+      <span class="badge <%= @day.adjusted ? 'bg-primary-lt' : 'bg-secondary-lt' %>"><%= @day.adjusted ? "已调整" : "沿用每周排班" %></span>
+      <% if @day.shifts.empty? %><span class="badge bg-secondary-lt">当日无班</span><% end %>
+      <% if @editable %>
+        <%= render "admins/shared/field_help", label: "查看指定日期调整说明", text: "清空班次后保存，当天休诊。撤销日期调整后，当天恢复每周排班。" %>
+      <% end %>
+    </div>
+    <%= render "shift_fields", scope: "date_adjustment", prefix: "adjustment", label: "", fields: @date_fields %>
+  </div>
+  <% if @editable %>
+    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+      <% if @day.adjusted %>
+        <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#revoke-date-adjustment-confirmation">撤销日期调整</button>
+      <% end %>
+      <%= render "admins/shared/submit_button", label: "保存日期调整", icon: :save %>
+    </div></div>
+  <% end %>
+<% end %>
+<% if @editable && @day.adjusted %>
+  <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :delete, id: "revoke-date-adjustment", hidden: true do %>
+    <%= hidden_field_tag :date, @date.iso8601, id: nil %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "revoke-date-adjustment-confirmation", form_id: "revoke-date-adjustment",
+    color: "warning", title: "撤销日期调整", context: "#{@doctor.name} · #{@date.iso8601}",
+    description: "撤销后，这一天恢复每周排班。", cancel_icon: :close, confirm_label: "确认撤销" %>
+<% end %>

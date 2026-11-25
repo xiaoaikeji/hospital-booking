@@ -23,9 +23,18 @@ namespace :admins do
     patch :status, on: :member
     get :image, on: :member
   end
-  resources :departments, :doctors, only: %i[index show new create edit update] do
+  resources :departments, only: %i[index show new create edit update] do
     patch :status, on: :member
     get :image, on: :member
+  end
+  resources :doctors, only: %i[index show new create edit update] do
+    patch :status, on: :member
+    get :image, on: :member
+    resource :schedule, only: :show, controller: :doctor_schedules do
+      patch :weekly, action: :update_weekly
+      patch :date_adjustment, action: :update_date_adjustment
+      delete :date_adjustment, action: :revoke_date_adjustment, as: :revoke_date_adjustment
+    end
   end
   resources :apps do
     patch :disable, on: :member
@@ -60,7 +69,9 @@ namespace :admins do
     resource :hospital, only: %i[edit update], controller: "hospital" do
       get :image
     end
-    resource :appointment, only: %i[edit update], controller: "appointment"
+    resource :appointment, only: %i[edit update], controller: "appointment" do
+      patch :night_shift
+    end
     resource :wechat_pay, only: %i[edit update], controller: "wechat_pay"
     resource :map, only: %i[edit update], controller: "map"
     resource :storage, only: %i[edit update], controller: "storage"

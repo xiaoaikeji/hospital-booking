@@ -2,6 +2,9 @@
 <% doctor = entry_model == Doctor %>
 <% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } if @entry.image.attached? %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: @entry.name, icon: (doctor ? :users : :package) } do %>
+  <% if doctor %>
+    <%= link_to admins_doctor_schedule_path(@entry), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :calendar %>排班<% end %>
+  <% end %>
   <% if current_admin.maintain_booking_directory? %>
     <%= link_to edit_polymorphic_path([:admins, @entry]), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
   <% end %>

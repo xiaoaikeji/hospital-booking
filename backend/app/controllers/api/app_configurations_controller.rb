@@ -14,6 +14,9 @@ module Api
         end
       end
       config[:directory] = directory
+      today = Date.current
+      dates = today..(today + ScheduleCalendar::DAYS - 1)
+      config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates).as_json
       profile = HospitalProfile.load_record
       config[:hospital] = profile ? profile.settings.slice(*HospitalProfile::FIELDS) : {}
       if profile&.hospital_image&.attached?
@@ -57,7 +60,7 @@ module Api
           { id: department.id.to_s, name: department.name, depth: depth,
             icon: (department.name.each_grapheme_cluster.first unless image_url), image_url: image_url }
         end,
-        doctors: Doctor.current.enabled.ordered.includes(:doctor_departments).with_attached_image.map do |doctor|
+        doctors: booking_doctors.map do |doctor|
           visible_ids = doctor.doctor_departments.filter_map do |link|
             link.department_id.to_s if department_ids.include?(link.department_id)
           end
@@ -69,6 +72,7 @@ module Api
     end
 
     def booking_departments = @booking_departments ||= Department.booking_rows
+    def booking_doctors = @booking_doctors ||= Doctor.current.enabled.ordered.includes(:doctor_departments).with_attached_image.to_a
 
     def directory_image_url(collection, entry)
       api_app_directory_image_url(@app.provider, @app.appid, collection, entry.id, entry.image.blob.key) if entry.image.attached?

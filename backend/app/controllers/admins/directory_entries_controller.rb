@@ -83,10 +83,6 @@ module Admins
     def load_entry = @entry = entry_scope.find(params[:id])
     def form_options; end
 
-    def require_directory_editor!
-      render file: Rails.public_path.join("403.html"), layout: false, status: :forbidden unless current_admin.maintain_booking_directory?
-    end
-
     def render_form(mode, status: :ok)
       form_options
       title = "#{mode == :new ? '新增' : '编辑'}#{entry_label}"

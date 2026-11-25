@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_110000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_25_113000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -423,6 +423,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_110000) do
     t.index ["official_account_qrcode_id"], name: "index_posters_on_official_account_qrcode_id"
   end
 
+  create_table "schedules", force: :cascade do |t|
+    t.integer "capacity"
+    t.datetime "created_at", null: false
+    t.bigint "doctor_id", null: false
+    t.date "end_date"
+    t.boolean "is_active", default: true, null: false
+    t.date "start_date", null: false
+    t.string "time_slot", limit: 10, null: false
+    t.datetime "updated_at", null: false
+    t.integer "weekday", limit: 2, null: false
+    t.index ["doctor_id"], name: "index_schedules_on_doctor_id"
+    t.check_constraint "capacity >= 0", name: "schedules_capacity_nonnegative"
+    t.check_constraint "end_date >= start_date", name: "schedules_dates_ordered"
+    t.check_constraint "end_date IS DISTINCT FROM start_date OR weekday::numeric = EXTRACT(dow FROM start_date)", name: "schedules_single_day_weekday_matches"
+    t.check_constraint "time_slot::text <> 'OFF'::text OR end_date IS NOT NULL AND end_date = start_date AND capacity IS NULL", name: "schedules_off_single_day"
+    t.check_constraint "time_slot::text = ANY (ARRAY['FULL'::character varying, 'AM'::character varying, 'PM'::character varying, 'NIGHT'::character varying, 'OFF'::character varying]::text[])", name: "schedules_time_slot_allowed"
+    t.check_constraint "weekday >= 0 AND weekday <= 6", name: "schedules_weekday_allowed"
+  end
+
   create_table "settings", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "description", limit: 255
@@ -584,6 +603,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_110000) do
   add_foreign_key "patients", "users"
   add_foreign_key "posters", "apps"
   add_foreign_key "posters", "official_account_qrcodes"
+  add_foreign_key "schedules", "doctors"
   add_foreign_key "user_apps", "apps", column: ["provider", "appid"], primary_key: ["provider", "appid"]
   add_foreign_key "user_apps", "users"
   add_foreign_key "wechat_appeals", "wechat_violations"

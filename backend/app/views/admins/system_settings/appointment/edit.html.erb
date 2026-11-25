@@ -13,3 +13,16 @@
     </div>
   <% end %>
 <% end %>
+<%= form_with url: night_shift_admins_system_settings_appointment_path, method: :patch, class: "card mt-3", data: { admin_form: true } do %>
+  <div class="card-header"><h2 class="card-title">晚班</h2></div>
+  <div class="card-body">
+    <label class="form-check form-switch mb-0">
+      <%= hidden_field_tag Schedule::NIGHT_SETTING, "0", id: nil %>
+      <%= check_box_tag Schedule::NIGHT_SETTING, "1", @night_enabled, class: "form-check-input" %>
+      <span class="form-check-label">启用晚班</span>
+    </label>
+  </div>
+  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+    <%= render "admins/shared/submit_button", label: "保存晚班设置", icon: :save %>
+  </div></div>
+<% end %>

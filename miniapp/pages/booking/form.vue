@@ -2,7 +2,6 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { bookingDepartments, directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
-import { getBookingSchedule } from '@/mock/booking-schedule.js'
 import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
 import { bindPhone, demoMode, readProfile, signedIn } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
@@ -11,6 +10,7 @@ import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
 import { loadPatients, patientValidationMessage } from './patient-profiles.js'
+import { scheduleMessage, shiftLabels, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -21,9 +21,12 @@ const departmentName = computed(() => {
   const id = bookingParams.value.department_id
   return doctor.value.department_ids.includes(id) ? bookingDepartments.value.find(department => department.id === id)?.name : ''
 })
-const schedule = ref([])
-const date = ref('')
+const { schedule, selectedDate, selectedDay, refresh } = useBookingCalendar(() => fromDemo.value)
+const date = computed(() => selectedDay.value?.date || '')
 const slot = ref('')
+const shifts = computed(() => shiftLabels(selectedDay.value, doctor.value?.id))
+const selectedSlot = computed(() => date.value === selectedDate.value && (fromDemo.value || shifts.value.includes(slot.value)) ? slot.value : '')
+const slotText = computed(() => selectedSlot.value || (fromDemo.value ? '请选择时段' : shifts.value.join('、') || scheduleMessage.value))
 const picking = ref(false)
 const phone = ref('')
 const needsBinding = ref(false)
@@ -47,11 +50,8 @@ let openingEditor = false
 onLoad(async options => {
   if (!await canOpenBooking('form', options)) return
   bookingParams.value = options
-  date.value = options.date || ''
-  if (fromDemo.value && doctor.value) {
-    schedule.value = getBookingSchedule()
-    date.value = schedule.value.find(day => day.date === options.date)?.date || schedule.value[0].date
-  }
+  selectedDate.value = options.date || ''
+  refresh()
   refreshPatients()
   try {
     const user = await readProfile()
@@ -67,6 +67,8 @@ onShow(() => {
   if (getCurrentPages().length > 1) uni.navigateBack()
   else uni.redirectTo({ url: '/pages/ucenter/appointments' })
 })
+
+watch(schedule, days => { if (!days.length) picking.value = false })
 
 watch(signedIn, active => {
   if (active) return
@@ -148,14 +150,15 @@ function patientChanged({ id, patient }) {
   refreshPatients()
 }
 
-function selectTime() {
+async function selectTime() {
   uni.hideKeyboard()
-  schedule.value = getBookingSchedule()
-  picking.value = true
+  refresh()
+  if (!fromDemo.value && !schedule.value.length) await checkAppAccess()
+  if (schedule.value.length) picking.value = true
 }
 
 function setTime(selection) {
-  date.value = selection.date
+  selectedDate.value = selection.date
   slot.value = selection.slot
   picking.value = false
 }
@@ -187,7 +190,7 @@ async function verifyPhone(result) {
 async function confirmBooking() {
   if (!fromDemo.value || submitting.value || binding.value || openedDetail) return
   if (!createdNo.value) {
-    if (!slot.value) return notify('请选择时段')
+    if (!selectedSlot.value) return notify('请选择时段')
     const message = patientValidationMessage({ name: name.value, sex: sex.value, age: age.value })
     if (message) return notify(message)
   }
@@ -208,7 +211,7 @@ async function confirmBooking() {
       if (!demoMode) return notify('医院预约受理尚未开放')
       requestNo ||= newAppointmentNo()
       const record = createAppointment(user.user_no, requestNo, {
-        doctorId: doctor.value.id, date: date.value, slot: slot.value, phone: contact,
+        doctorId: doctor.value.id, date: date.value, slot: selectedSlot.value, phone: contact,
         name: name.value, sex: sex.value, age: age.value, symptoms: symptoms.value,
         patientId: patientId.value, savePatient: savePatient.value,
       })
@@ -231,12 +234,11 @@ async function confirmBooking() {
       <view class="panel service-panel">
         <view class="panel-title">门诊服务</view>
         <view class="row"><text>预约医生</text><text>{{ doctor.name }}</text></view>
-        <view v-if="fromDemo" class="row date-row" aria-role="button" @tap="selectTime">
-          <view>预约日期<text class="required">*</text></view><text>{{ date }}</text>
+        <view class="row date-row" aria-role="button" @tap="selectTime">
+          <view>预约日期<text v-if="fromDemo" class="required">*</text></view><text>{{ date || '请选择日期' }}</text>
         </view>
-        <view v-else-if="date" class="row"><text>预约日期</text><text>{{ date }}</text></view>
-        <view v-if="fromDemo" class="row time-row" aria-role="button" @tap="selectTime">
-          <view>预约时段<text class="required">*</text></view><text>{{ slot || '请选择时段' }}</text>
+        <view class="row time-row" aria-role="button" @tap="selectTime">
+          <view>预约时段<text v-if="fromDemo" class="required">*</text></view><text>{{ slotText }}</text>
         </view>
         <view class="row phone-row"><view>本次联系电话<text class="required">*</text></view>
           <input v-model="phone" aria-label="本次联系电话" :maxlength="21" placeholder="请输入本次联系电话" />
@@ -265,7 +267,8 @@ async function confirmBooking() {
         </custom-phone-authorization>
       </view>
       <button v-else-if="fromDemo" class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
-      <SlotPicker v-if="picking" :schedule="schedule" :doctor-id="doctor.id" :date="date" :selected-slot="slot"
+      <SlotPicker v-if="picking && schedule.length" :schedule="schedule" :doctor-id="doctor.id" :date="date"
+        :demo="fromDemo" :selected-slot="selectedSlot"
         @confirm="setTime" @cancel="picking = false" />
       <PatientPicker v-if="choosingPatient" :patients="patients" :selected="patientId"
         :loading="patientsLoading" :load-error="patientsError"

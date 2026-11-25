@@ -23,6 +23,8 @@ class OperationLogDetails
     "fields" => %w[status], "status_value" => [ 0, 1 ], "reason" => [ "状态未能保存，请重试" ]
   }.freeze
   DIRECTORY_ORDER = { "fields" => %w[sort_order], "sort_order" => INTEGER }.freeze
+  SCHEDULE_EDIT = { "doctor_id" => ID, "schedule_mode" => %w[每周排班 指定日期调整], "schedule_date" => /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/,
+    "reason" => [ ScheduleEditor::FAILURE, ScheduleEditor::REVOKE_FAILURE ] }.freeze
   PLUGIN = { "plugin_appid" => WECHAT_APPID }.freeze
   PLUGIN_VERSION = PLUGIN.merge("version" => VERSION).freeze
   MEDIA = { "kind" => %w[image voice video], "code" => INTEGER }.freeze
@@ -40,6 +42,7 @@ class OperationLogDetails
     "app.destroy" => { "reason" => AppConfiguration::DELETE_AUDIT_REASONS },
     "app.user_sharing" => { "fields" => %w[unionid_app_groups] },
     "appointment.phone_policy" => { "fields" => %w[require_mobile_auth] },
+    "appointment.night_shift" => { "fields" => [ Schedule::NIGHT_SETTING ], "reason" => [ "晚班设置未保存，请重试" ] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
     "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE ] },
     "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,
@@ -47,6 +50,7 @@ class OperationLogDetails
     "doctor.create" => DIRECTORY_EDIT, "doctor.update" => DIRECTORY_EDIT,
     "doctor.enable" => DIRECTORY_STATUS, "doctor.disable" => DIRECTORY_STATUS, "doctor.reorder" => DIRECTORY_ORDER,
     "doctor.change_fee" => { "fields" => %w[fee], "fee" => /\A[0-9]{1,8}(?:\.[0-9]{1,2})?\z/ },
+    "schedule.create" => SCHEDULE_EDIT, "schedule.update" => SCHEDULE_EDIT, "schedule.revoke" => SCHEDULE_EDIT,
     "storage_settings.update" => { "fields" => StorageSettings::FIELDS.keys, "reason" => %w[配置版本冲突 配置校验失败 数据库写入失败] },
     "storage_settings.refresh" => { "reason" => [ "配置已保存，存储客户端刷新失败" ] },
     "map_settings.update" => { "fields" => MapSettings::FIELDS.keys },
@@ -100,6 +104,7 @@ class OperationLogDetails
   LABELS = {
     "fields" => "变更字段", "reason" => "原因", "app_id" => "应用编号", "position" => "展示位置",
     "status_value" => "设置状态", "sort_order" => "排序", "fee" => "挂号费（元）", "message_ids" => "补发条目数", "event" => "通知事件",
+    "doctor_id" => "医生编号", "schedule_mode" => "排班方式", "schedule_date" => "调整日期",
     "sync_id" => "同步任务编号", "channel_id" => "渠道编号", "count" => "菜单项数量", "code" => "微信错误码",
     "result" => "核对结果", "kind" => "素材类型", "plugin_appid" => "插件 AppID", "version" => "插件版本",
     "mini_appid" => "小程序 AppID", "notify_users" => "通知用户", "show_profile" => "展示在公众号资料页",

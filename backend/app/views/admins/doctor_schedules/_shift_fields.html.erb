@@ -1,0 +1,28 @@
+<div class="row g-2 align-items-end">
+  <div class="col-12 col-sm-6 col-lg-3">
+    <%= label_tag "#{prefix}-time-slot", "日间班次", class: "form-label" %>
+    <%= select_tag "#{scope}[time_slot]", options_for_select([["无日间班次", ""]] + Schedule::DAY_SLOTS.map { |code, name| [name, code] }, fields[:time_slot].to_s),
+      id: "#{prefix}-time-slot", class: "form-select", disabled: !@editable,
+      data: { enhanced_select: ("single" if @editable) }, aria: { label: "#{label}日间班次" } %>
+  </div>
+  <div class="col-12 col-sm-6 col-lg-3">
+    <%= label_tag "#{prefix}-capacity", "日间号数", class: "form-label" %>
+    <%= number_field_tag "#{scope}[capacity]", fields[:capacity], id: "#{prefix}-capacity", class: "form-control",
+      min: 1, max: 2_147_483_647, step: 1, placeholder: "默认限额", disabled: !@editable, aria: { label: "#{label}日间号数" } %>
+  </div>
+  <% if @night_enabled %>
+    <div class="col-12 col-sm-6 col-lg-3 align-self-lg-center">
+      <label class="form-check mb-0" for="<%= prefix %>-night">
+        <%= hidden_field_tag "#{scope}[night]", "0", id: nil if @editable %>
+        <%= check_box_tag "#{scope}[night]", "1", fields[:night] == "1", id: "#{prefix}-night", class: "form-check-input",
+          disabled: !@editable, aria: { label: "#{label}晚班" } %>
+        <span class="form-check-label">晚班</span>
+      </label>
+    </div>
+    <div class="col-12 col-sm-6 col-lg-3">
+      <%= label_tag "#{prefix}-night-capacity", "晚班号数", class: "form-label" %>
+      <%= number_field_tag "#{scope}[night_capacity]", fields[:night_capacity], id: "#{prefix}-night-capacity", class: "form-control",
+        min: 1, max: 2_147_483_647, step: 1, placeholder: "默认限额", disabled: !@editable, aria: { label: "#{label}晚班号数" } %>
+    </div>
+  <% end %>
+</div>
