@@ -7,53 +7,47 @@
 
 <% image = { asset: polymorphic_path([:image, :admins, @entry]), title: @entry.name } if @entry.persisted? && @entry.image.attached? %>
 <%= form_with model: [:admins, @entry], class: "card", data: { admin_form: true } do |f| %>
-  <% if doctor %><div class="card-header"><h2 class="card-title">基本资料</h2></div><% end %>
+  <% if doctor %><div class="card-header"><h2 class="card-title">基本信息</h2></div><% end %>
   <div class="card-body">
     <%= render "admins/shared/form_errors", record: @entry %>
     <% if doctor %>
       <div class="row align-items-start g-4">
         <div class="col-xl-8">
           <%= render "#{controller_path}/fields", f: f %>
-          <div class="border-top mt-4 pt-3">
-            <h2 class="card-title mb-3">展示设置</h2>
-            <div class="row g-3">
-              <div class="col-sm-4">
-                <div class="d-flex align-items-center gap-1 mb-2">
-                  <%= f.label :sort_order, "排序", class: "form-label required mb-0" %>
-                  <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
-                </div>
-                <%= render "admins/directory_entries/sort_input", form: f %>
-              </div>
-              <fieldset class="col-sm-4">
-                <legend class="form-label">展示位置</legend>
-                <div class="py-2">
-                  <label class="form-check form-switch mb-0">
-                    <%= f.check_box :display_on_homepage, { class: "form-check-input", role: "switch" } %>
-                    <span class="form-check-label">小程序首页</span>
-                  </label>
-                </div>
-              </fieldset>
-              <% if @entry.new_record? %>
-                <fieldset class="col-sm-4">
-                  <legend class="form-label">状态</legend>
-                  <div class="py-2">
-                    <label class="form-check form-switch mb-0">
-                      <%= f.check_box :status, { class: admin_field_class(@entry, :status, "form-check-input"), role: "switch",
-                        aria: { describedby: ("status-error" if @entry.errors[:status].any?) } }, 1, 0 %>
-                      <span class="form-check-label">启用</span>
-                    </label>
-                  </div>
-                  <%= admin_field_errors(@entry, :status) %>
-                </fieldset>
-              <% end %>
-            </div>
-          </div>
         </div>
         <div class="col-md-8 col-xl-4">
           <%= render "admins/shared/single_image_field", form: f, image: image, label: image_label,
-            limit: upload_limit, modal_id: dom_id(@entry, :image), size: "avatar-2xl rounded-circle" %>
+            limit: upload_limit, modal_id: dom_id(@entry, :image), size: "avatar-2xl rounded-circle",
+            size_hint: "建议使用正方形图片，头像会裁成圆形。" %>
         </div>
       </div>
+      <section class="border-top mt-4 pt-3" aria-labelledby="doctor-display-settings">
+        <h2 class="card-title mb-3" id="doctor-display-settings">展示设置</h2>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <div class="d-flex flex-wrap align-items-center gap-3" role="group" aria-labelledby="doctor-display-position">
+              <span class="form-label mb-0" id="doctor-display-position">展示位置</span>
+              <label class="form-check form-switch mb-0">
+                <%= f.check_box :display_on_homepage, { class: "form-check-input", role: "switch" } %>
+                <span class="form-check-label">小程序首页</span>
+              </label>
+            </div>
+          </div>
+          <% if @entry.new_record? %>
+            <div class="col-sm-6">
+              <div class="d-flex flex-wrap align-items-center gap-3" role="group" aria-labelledby="doctor-status">
+                <span class="form-label mb-0" id="doctor-status">状态</span>
+                <label class="form-check form-switch mb-0">
+                  <%= f.check_box :status, { class: admin_field_class(@entry, :status, "form-check-input"), role: "switch",
+                    aria: { describedby: ("status-error" if @entry.errors[:status].any?) } }, 1, 0 %>
+                  <span class="form-check-label">启用</span>
+                </label>
+              </div>
+              <%= admin_field_errors(@entry, :status) %>
+            </div>
+          <% end %>
+        </div>
+      </section>
     <% else %>
       <%= render "admins/departments/fields", f: f, image: image %>
     <% end %>

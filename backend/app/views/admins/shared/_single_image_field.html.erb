@@ -12,7 +12,8 @@
 <% field_label = capture do %>
   <div class="d-flex flex-wrap align-items-center gap-1 mb-2">
     <%= form.label :image, label, class: class_names("form-label mb-0", required: required) %>
-    <%= render "admins/shared/field_help", label: "查看#{label}要求", text: "支持 JPG、PNG 和 WebP，单张最多 #{limit} MB。" %>
+    <%= render "admins/shared/field_help", label: "查看#{label}要求",
+      text: "支持 JPG、PNG 和 WebP，单张最多 #{limit} MB。#{local_assigns[:size_hint]}" %>
   </div>
 <% end %>
 <div data-single-image-field>

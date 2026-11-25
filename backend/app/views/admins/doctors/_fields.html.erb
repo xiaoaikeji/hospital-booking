@@ -8,7 +8,7 @@
       aria: { describedby: ("main_title-error" if @entry.errors[:main_title].any?) } %>
     <%= admin_field_errors(@entry, :main_title) %>
   </div>
-  <div class="col-md-7">
+  <div class="col-12">
     <%= f.label :department_ids, "所属科室", class: "form-label" %>
     <%= f.select :department_ids, @department_options, { selected: @selected_department_ids },
       multiple: true, class: admin_field_class(@entry, :department_ids, "form-select"),
@@ -16,7 +16,7 @@
       aria: { describedby: ("department_ids-error" if @entry.errors[:department_ids].any?) } %>
     <%= admin_field_errors(@entry, :department_ids) %>
   </div>
-  <div class="col-md-5">
+  <div class="col-md-6">
     <div class="d-flex align-items-center gap-1 mb-2">
       <%= f.label :fee, "挂号费", class: "form-label required mb-0" %>
       <%= render "admins/shared/field_help", label: "查看挂号费说明", text: "同一位医生在各科室共用此金额。填 0 元表示免挂号费。" %>
@@ -29,10 +29,17 @@
     <%= admin_field_errors(@entry, :fee) %>
   </div>
   <div class="col-md-6">
-    <%= f.label :good_in, "擅长", class: "form-label" %>
-    <%= f.text_area :good_in, rows: 3, class: "form-control" %>
+    <div class="d-flex align-items-center gap-1 mb-2">
+      <%= f.label :sort_order, "排序", class: "form-label required mb-0" %>
+      <%= render "admins/shared/field_help", label: "查看排序规则", text: "数值越小越靠前，数值相同时按 ID 从小到大排列。" %>
+    </div>
+    <%= render "admins/directory_entries/sort_input", form: f %>
   </div>
-  <div class="col-md-6">
+  <div class="col-12">
+    <%= f.label :good_in, "擅长", class: "form-label" %>
+    <%= f.text_area :good_in, rows: 2, class: "form-control" %>
+  </div>
+  <div class="col-12">
     <%= f.label :introduction, "简介", class: "form-label" %>
     <%= f.text_area :introduction, rows: 3, class: "form-control" %>
   </div>
