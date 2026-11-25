@@ -52,8 +52,9 @@ module Api
       department_ids = booking_departments.map { |department, _depth| department.id }.to_set
       {
         departments: booking_departments.map do |department, depth|
-          { id: department.id.to_s, name: department.name, depth: depth, icon: (department.icon if department.icon_type == "text"),
-            image_url: directory_image_url("departments", department) }
+          image_url = directory_image_url("departments", department)
+          { id: department.id.to_s, name: department.name, depth: depth,
+            icon: (department.name.each_grapheme_cluster.first unless image_url), image_url: image_url }
         end,
         doctors: Doctor.current.enabled.ordered.includes(:doctor_departments).with_attached_image.map do |doctor|
           visible_ids = doctor.doctor_departments.filter_map do |link|

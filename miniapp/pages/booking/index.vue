@@ -43,8 +43,8 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
             :style="department.depth ? { paddingLeft: (32 + Math.min(department.depth, 5) * 22) + 'rpx' } : null"
             @tap="openBooking('schedule', { department_id: department.id })">
             <view class="department-name">
-              <image v-if="department.image_url" class="department-icon" :src="department.image_url" mode="aspectFit" />
-              <text v-else-if="department.icon" class="department-icon-text">{{ department.icon }}</text>
+              <image v-if="department.image_url" class="department-icon" :src="department.image_url" mode="aspectFit" aria-hidden="true" />
+              <text v-else class="department-icon department-icon-text" aria-hidden="true">{{ department.icon || Array.from(department.name)[0] }}</text>
               <text>{{ department.name }}</text>
             </view>
             <view class="department-arrow" />
@@ -86,7 +86,7 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
 .department-row { display: flex; align-items: center; justify-content: space-between; padding: 0 40rpx 0 32rpx; height: 128rpx; font-size: 30rpx; }
 .department-name { display: flex; align-items: center; gap: 16rpx; min-width: 0; padding-right: 18rpx; overflow-wrap: anywhere; }
 .department-icon { flex: none; width: 48rpx; height: 48rpx; }
-.department-icon-text { flex: none; max-width: 88rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #62a7db; }
+.department-icon-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #62a7db; text-align: center; line-height: 48rpx; }
 .department-arrow { flex: none; width: 14rpx; height: 14rpx; border-top: 3rpx solid; border-right: 3rpx solid; transform: rotate(45deg); }
 .search-panel { padding: 21rpx 20rpx; }
 .search-field { display: flex; align-items: center; gap: 32rpx; padding: 0 18rpx; height: 62rpx; border-radius: 34rpx; color: #bbb; background: #f8f8f8; font-size: 25rpx; }

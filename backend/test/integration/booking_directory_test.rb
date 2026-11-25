@@ -111,6 +111,32 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     assert_equal [ "failed" ], Log.where(action: "department.update", target_id: top.id).pluck(:status)
   end
 
+  test "a department uses its uploaded image or the current name initial" do
+    department = Department.create!(name: "全科门诊", icon: "旧")
+    config_path = api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+
+    get edit_admins_department_path(department)
+    assert_response :success
+    assert_select "input[name='department[icon]']", count: 0
+    assert_select "input[type='file'][name='department[image]']"
+
+    get config_path
+    assert_equal [ "全", nil ], response.parsed_body.dig("directory", "departments").sole.values_at("icon", "image_url")
+
+    patch admins_department_path(department), params: { department: { name: "眼科", image: fixture_file_upload("storage.png", "image/png") } }
+    assert_redirected_to admins_departments_path
+    get config_path
+    published = response.parsed_body.dig("directory", "departments").sole
+    assert_nil published.fetch("icon")
+    get URI(published.fetch("image_url")).path
+    assert_response :success
+
+    patch admins_department_path(department), params: { department: { remove_image: "1" } }
+    assert_redirected_to admins_departments_path
+    get config_path
+    assert_equal [ "眼", nil ], response.parsed_body.dig("directory", "departments").sole.values_at("icon", "image_url")
+  end
+
   test "a disabled parent hides its subtree without changing the children's status" do
     parent = Department.create!(name: "五官科", sort_order: 10)
     city = Department.create!(name: "耳鼻喉科", parent: parent, sort_order: 3)
