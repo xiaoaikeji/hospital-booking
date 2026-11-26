@@ -104,7 +104,33 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_equal [ "failed", "failed" ], Log.where(action: "schedule.update", actor_id: @operator.id).order(:id).pluck(:status)
   end
 
+  test "editing the day shift with nights hidden preserves the night unless the entire date is cleared" do
+    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: { "1" => { time_slot: "AM" } } }
+    set_nights(true)
+    adjust(time_slot: "PM", night: "1", night_capacity: "3")
+    assert_response :see_other
+
+    set_nights(false)
+    adjust(time_slot: "AM", capacity: "8")
+    assert_response :see_other
+    assert_calendar %w[AM]
+    set_nights(true)
+    assert_calendar %w[AM NIGHT]
+    assert_equal 3, @doctor.schedules.on_date(@monday).find_by!(time_slot: "NIGHT").capacity
+
+    set_nights(false)
+    adjust(time_slot: "")
+    set_nights(true)
+    assert_off
+  end
+
   private
+
+  def set_nights(enabled)
+    setting = Setting.find_or_initialize_by(key: "appointment")
+    setting.write_value(Schedule::NIGHT_SETTING, enabled)
+    setting.save!
+  end
 
   def adjustment_page = admins_doctor_schedule_path(@doctor, tab: "date", date: @monday.iso8601)
 

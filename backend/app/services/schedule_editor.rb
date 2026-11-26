@@ -29,9 +29,14 @@ class ScheduleEditor
   end
 
   def save_date(date, input)
-    save(@doctor.schedules.on_date(date), date: date) do |_current, night_enabled|
+    save(@doctor.schedules.on_date(date), date: date) do |current, night_enabled|
       shifts = parse_shifts(input, night_enabled, date.iso8601)
-      shifts = [ { time_slot: "OFF", capacity: nil } ] if shifts.empty?
+      if shifts.empty?
+        shifts << { time_slot: "OFF", capacity: nil }
+      elsif !night_enabled
+        night = current.find(&:night?)
+        shifts << { time_slot: night.time_slot, capacity: night.capacity } if night
+      end
       shifts.map { |shift| shift.merge(weekday: date.wday, start_date: date, end_date: date) }
     end
   end
