@@ -89,6 +89,7 @@ class Log < ApplicationRecord
     [ "settings", "hospital.update" ] => "修改医院资料",
     [ "settings", "appointment.phone_policy" ] => "修改预约手机号验证设置",
     [ "settings", "appointment.night_shift" ] => "修改晚班设置",
+    [ "settings", "appointment.update" ] => "修改预约设置",
     [ "settings", "wechat_pay.update" ] => "修改微信支付设置",
     [ "settings", "map_settings.update" ] => "修改地图服务设置",
     [ "settings", "personal_appearance.update" ] => "修改个人外观"

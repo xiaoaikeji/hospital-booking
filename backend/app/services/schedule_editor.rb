@@ -15,28 +15,32 @@ class ScheduleEditor
   def save_weekly(input)
     scope = @doctor.schedules.weekly.where(weekday: input.keys)
     save(scope) do |current, night_enabled|
-      start_dates = current.group_by(&:weekday).transform_values { |rows| rows.map(&:start_date).min }
+      by_weekday = current.group_by(&:weekday)
       today = Date.current
-      rows = input.flat_map do |weekday, fields|
+      input.flat_map do |weekday, fields|
         day = weekday.to_i
-        parse_shifts(fields, night_enabled, Schedule::WEEKDAYS.fetch(day)).map do |shift|
-          shift.merge(weekday: day, start_date: start_dates.fetch(day, today))
+        previous = by_weekday.fetch(day, [])
+        start_date = previous.map(&:start_date).min || today
+        parse_shifts(fields, night_enabled, Schedule::WEEKDAYS.fetch(day), previous: previous).map do |shift|
+          shift.merge(weekday: day, start_date: start_date)
         end
       end
-      rows += current.select(&:night?).map { |rule| rule.slice(:weekday, :start_date, :time_slot, :capacity).symbolize_keys } unless night_enabled
-      rows
     end
   end
 
   def save_date(date, input)
     save(@doctor.schedules.on_date(date), date: date) do |current, night_enabled|
-      shifts = parse_shifts(input, night_enabled, date.iso8601)
-      if shifts.empty?
-        shifts << { time_slot: "OFF", capacity: nil }
-      elsif !night_enabled
-        night = current.find(&:night?)
-        shifts << { time_slot: night.time_slot, capacity: night.capacity } if night
+      inherited = current.empty? && (!night_enabled || !input.key?(:night))
+      previous = current
+      if inherited
+        previous = ScheduleCalendar.new([ @doctor.id ], date..date, night_enabled: true).day(@doctor.id, date).shifts
       end
+
+      shifts = parse_shifts(input, night_enabled, date.iso8601, previous: previous)
+      # A daytime-only save that matches the week can continue to inherit it.
+      next [] if inherited && shifts == previous.map { |rule| shift_attributes(rule) }
+
+      shifts << { time_slot: "OFF", capacity: nil } if shifts.empty?
       shifts.map { |shift| shift.merge(weekday: date.wday, start_date: date, end_date: date) }
     end
   end
@@ -97,18 +101,24 @@ class ScheduleEditor
     changed.first || remaining.first
   end
 
-  def parse_shifts(fields, night_enabled, label)
+  def parse_shifts(fields, night_enabled, label, previous:)
     slot = fields[:time_slot].presence
-    night = fields[:night].presence
+    night = fields[:night]
     raise Invalid, "#{label}：请选择有效的日间班次" if slot && !Schedule::DAY_SLOTS.key?(slot)
-    raise Invalid, "#{label}：晚班选项无效" if night && !%w[0 1].include?(night)
-    raise Invalid, "#{label}：医院尚未启用晚班" if night == "1" && !night_enabled
+    raise Invalid, "#{label}：晚班选项无效" if fields.key?(:night) && !%w[0 1].include?(night)
+    raise Invalid, "#{label}：医院尚未启用晚班，请刷新页面后重试" if night == "1" && !night_enabled
 
     shifts = []
     shifts << { time_slot: slot, capacity: capacity(fields[:capacity], label, "日间号数") } if slot
-    shifts << { time_slot: "NIGHT", capacity: capacity(fields[:night_capacity], label, "晚班号数") } if night == "1"
+    if night == "1"
+      shifts << { time_slot: "NIGHT", capacity: capacity(fields[:night_capacity], label, "晚班号数") }
+    elsif night.nil? || !night_enabled
+      shifts.concat(previous.select(&:night?).map { |rule| shift_attributes(rule) })
+    end
     shifts
   end
+
+  def shift_attributes(rule) = { time_slot: rule.time_slot, capacity: rule.capacity }
 
   def capacity(input, label, field)
     return if input.blank?

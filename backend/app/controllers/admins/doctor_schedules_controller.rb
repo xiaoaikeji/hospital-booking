@@ -99,11 +99,7 @@ module Admins
       dates = calendar_month.all_month
       calendar = ScheduleCalendar.new([ @doctor.id ], dates, night_enabled: @night_enabled)
       @calendar_days = dates.to_h do |date|
-        day = calendar.day(@doctor.id, date)
-        shifts = day.shifts.map do |shift|
-          [ shift.night? ? "晚班" : Schedule::DAY_SLOTS.fetch(shift.time_slot), shift.capacity ]
-        end
-        [ date.iso8601, { adjusted: day.adjusted, off: day.off, shifts: shifts } ]
+        [ date.iso8601, calendar.day_availability(@doctor.id, date) ]
       end
     end
 

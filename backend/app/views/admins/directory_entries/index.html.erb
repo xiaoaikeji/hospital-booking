@@ -16,7 +16,7 @@
   </div>
 </section>
 
-<section class="<%= class_names("card directory-list-card", "flex-fill" => @entries.empty?) %>" aria-label="<%= entry_label %>列表">
+<section class="<%= class_names("card directory-list-card", "doctor-list-card" => doctor, "flex-fill" => @entries.empty?) %>" aria-label="<%= entry_label %>列表">
   <% if @entries.empty? %>
     <%= render "admins/shared/list_empty", icon: entry_icon, title: (@status ? "没有符合条件的#{entry_label}" : "暂无#{entry_label}") %>
   <% else %>
@@ -34,6 +34,10 @@
       <tbody>
         <% @entries.each do |entry| %>
           <% detail_path = polymorphic_path([:admins, entry]) %>
+          <% if doctor
+            main_title = entry.main_title.presence || "—"
+            department_names = entry.departments.sort_by { |department| [department.sort_order, department.id] }.map(&:name).join("、").presence || "—"
+          end %>
           <tr id="<%= dom_id(entry) %>">
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{entry.id}" %></td>
             <td class="px-2">
@@ -49,15 +53,24 @@
                 <% end %>
                 <div class="overflow-hidden">
                   <%= render "admins/shared/list_text", text: entry.name, url: detail_path %>
-                  <% if doctor %><div class="directory-fee-compact small text-secondary"><%= entry.fee_in_yuan %> 元</div><% end %>
+                  <% if doctor %>
+                    <div class="directory-profile-compact small text-secondary">
+                      <%= render "admins/shared/list_text", text: main_title %>
+                      <%= render "admins/shared/list_text", text: department_names %>
+                    </div>
+                    <div class="directory-fee-compact small text-secondary"><%= entry.fee_in_yuan %> 元</div>
+                  <% end %>
                 </div>
               </div>
             </td>
-            <%= render "#{controller_path}/columns", entry: entry %>
+            <%= render "#{controller_path}/columns", entry: entry, main_title: main_title, department_names: department_names %>
             <td class="px-2"><%= render "admins/shared/list_text", text: entry.sort_order.to_s %></td>
             <td class="px-2"><%= directory_status_badge(entry) %></td>
             <td class="directory-action-cell px-2">
               <div class="d-flex flex-wrap gap-1">
+                <% if doctor || !editable %>
+                  <%= link_to detail_path, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
+                <% end %>
                 <% if editable %>
                   <%= link_to edit_polymorphic_path([:admins, entry]), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
                   <% if entry.enabled? %>
@@ -65,8 +78,6 @@
                   <% else %>
                     <%= button_to polymorphic_path([:status, :admins, entry]), method: :patch, params: { status: 1 }, class: "btn btn-sm btn-outline-success text-nowrap" do %><%= render "layouts/admins/icon", name: :check %>启用<% end %>
                   <% end %>
-                <% else %>
-                  <%= link_to detail_path, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
                 <% end %>
               </div>
             </td>

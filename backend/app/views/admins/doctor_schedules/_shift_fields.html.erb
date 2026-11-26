@@ -11,7 +11,7 @@
   <div class="<%= column_class %>">
     <%= label_tag "#{prefix}-capacity", "日间号数", class: field_label_class %>
     <%= number_field_tag "#{scope}[capacity]", fields[:capacity], id: "#{prefix}-capacity", class: "form-control",
-      min: 1, max: 2_147_483_647, step: 1, placeholder: "默认限额", disabled: !@editable || fields[:time_slot].blank?, aria: { label: "#{label}日间号数" } %>
+      min: 1, max: 2_147_483_647, step: 1, placeholder: "可留空", disabled: !@editable || fields[:time_slot].blank?, aria: { label: "#{label}日间号数" } %>
   </div>
   <% if @night_enabled %>
     <div class="<%= class_names("col-12 col-sm-6 col-lg-2", "align-self-lg-center" => local_assigns[:compact]) %>">
@@ -25,7 +25,7 @@
     <div class="<%= column_class %>">
       <%= label_tag "#{prefix}-night-capacity", "晚班号数", class: field_label_class %>
       <%= number_field_tag "#{scope}[night_capacity]", fields[:night_capacity], id: "#{prefix}-night-capacity", class: "form-control",
-        min: 1, max: 2_147_483_647, step: 1, placeholder: "默认限额", disabled: !@editable || !night_selected, aria: { label: "#{label}晚班号数" } %>
+        min: 1, max: 2_147_483_647, step: 1, placeholder: "可留空", disabled: !@editable || !night_selected, aria: { label: "#{label}晚班号数" } %>
     </div>
   <% end %>
 </div>

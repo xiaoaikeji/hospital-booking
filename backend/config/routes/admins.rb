@@ -69,9 +69,7 @@ namespace :admins do
     resource :hospital, only: %i[edit update], controller: "hospital" do
       get :image
     end
-    resource :appointment, only: %i[edit update], controller: "appointment" do
-      patch :night_shift
-    end
+    resource :appointment, only: %i[edit update], controller: "appointment"
     resource :wechat_pay, only: %i[edit update], controller: "wechat_pay"
     resource :map, only: %i[edit update], controller: "map"
     resource :storage, only: %i[edit update], controller: "storage"

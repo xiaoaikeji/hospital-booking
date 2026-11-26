@@ -2,22 +2,17 @@ class MiniProgramLoginSettings
   include ActiveModel::Model
 
   class Invalid < StandardError; end
-  SECTIONS = {
-    "appointment" => %w[require_mobile_auth settings appointment.phone_policy],
-    "wechat" => %w[unionid_app_groups app app.user_sharing]
-  }.freeze
+  FIELD = "unionid_app_groups"
 
   attr_reader :apps
 
-  def initialize(section)
-    @section = section
-    @field, @category, @action = SECTIONS.fetch(section)
+  def initialize
     load_settings
   end
 
   def self.trusted_group(appid, lock: false)
     values = Setting.where(key: "wechat").lock(lock).pick(:settings)
-    groups(values&.fetch("unionid_app_groups", nil)).find { |group| group.include?(appid) }
+    groups(values&.[](FIELD)).find { |group| group.include?(appid) }
   end
 
   def self.groups(value)
@@ -26,33 +21,31 @@ class MiniProgramLoginSettings
     members.uniq.size == members.size ? value : []
   end
 
-  def phone_required? = ActiveModel::Type::Boolean.new.cast(value) == true
   def groups = self.class.groups(value)
   def group_slots = 1..[ groups.size, (apps.size + 1) / 2, 1 ].max
   def group_number(appid) = groups.index { |group| group.include?(appid) }&.next
 
   def revision
-    Digest::SHA256.hexdigest([ @section, value, apps.map(&:appid) ].to_json)
+    Digest::SHA256.hexdigest([ "wechat", value, apps.map(&:appid) ].to_json)
   end
 
   def save(input, expected_revision:, actor:, request:)
-    audit = { category: @category, action: @action, actor: actor, request: request }
+    audit = { category: "app", action: "app.user_sharing", actor: actor, request: request }
     Setting.transaction(requires_new: true) do
       load_settings(lock: true)
       unless @record
-        Setting.insert_all([ { key: @section } ], unique_by: :key)
-        @record = Setting.lock.find_by!(key: @section)
+        Setting.insert_all([ { key: "wechat" } ], unique_by: :key)
+        @record = Setting.lock.find_by!(key: "wechat")
       end
       raise Invalid, "配置已变化，请核对当前设置后再保存" unless expected_revision == revision
 
-      updated = sharing? ? parse_groups(input) : parse_phone_policy(input)
+      updated = parse_groups(input)
       fields = []
-      previous = @record.settings.fetch(@field) { sharing? ? [] : false }
-      if updated != previous
-        reset_changed_unionids(updated) if sharing?
-        @record.write_value(@field, updated)
+      if updated != @record.settings.fetch(FIELD, [])
+        reset_changed_unionids(updated)
+        @record.write_value(FIELD, updated)
         @record.save!
-        fields << @field
+        fields << FIELD
       end
       Log.record!(**audit, target: @record, details: { fields: fields })
     end
@@ -61,25 +54,18 @@ class MiniProgramLoginSettings
     reason = error.is_a?(Invalid) ? error.message : "设置未保存，数据库写入失败，请重试"
     load_settings
     errors.add(:base, reason)
-    Log.record!(**audit, target: @record, status: "failed", details: { fields: [ @field ], reason: reason })
+    Log.record!(**audit, target: @record, status: "failed", details: { fields: [ FIELD ], reason: reason })
     false
   end
 
   private
 
-  def sharing? = @section == "wechat"
-  def value = @record&.settings&.fetch(@field, nil)
+  def value = @record&.settings&.[](FIELD)
 
   def load_settings(lock: false)
     # App deletion and login also take the app lock first. Keep membership stable through commit.
-    @apps = sharing? ? App.wechat_mini_programs.select(:id, :appid, :nickname).order(:id).lock(lock).to_a : []
-    @record = Setting.lock(lock).find_by(key: @section)
-  end
-
-  def parse_phone_policy(input)
-    return false if input == "0"
-    return true if input == "1"
-    raise Invalid, "请选择是否验证账号手机号"
+    @apps = App.wechat_mini_programs.select(:id, :appid, :nickname).order(:id).lock(lock).to_a
+    @record = Setting.lock(lock).find_by(key: "wechat")
   end
 
   def parse_groups(input)

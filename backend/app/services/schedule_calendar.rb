@@ -1,5 +1,6 @@
 class ScheduleCalendar
   DAYS = 14
+  SHIFT_LABELS = Schedule::DAY_SLOTS.merge("NIGHT" => "晚班").freeze
   Day = Data.define(:adjusted, :off, :shifts)
 
   def initialize(doctor_ids, dates, night_enabled: Schedule.night_enabled?)
@@ -23,13 +24,32 @@ class ScheduleCalendar
     Day.new(adjusted: adjustment.present?, off: false, shifts: shifts.sort_by { |rule| rule.night? ? 1 : 0 })
   end
 
+  def day_availability(doctor_id, date)
+    effective = day(doctor_id, date)
+    shifts = effective.shifts.map do |rule|
+      slot = rule.time_slot
+      total = rule.capacity
+      remaining = [ total - occupied_counts.fetch([ doctor_id, date, slot ], 0), 0 ].max unless total.nil?
+      { time_slot: slot, label: SHIFT_LABELS.fetch(slot), total: total, remaining: remaining }
+    end
+    { adjusted: effective.adjusted, off: effective.off, shifts: shifts }
+  end
+
   def as_json(*)
     @dates.map do |date|
-      doctors = @doctor_ids.each_with_object({}) do |id, result|
-        slots = day(id, date).shifts.map(&:time_slot)
-        result[id.to_s] = slots if slots.any?
+      availability = @doctor_ids.each_with_object({}) do |id, result|
+        shifts = day_availability(id, date).fetch(:shifts)
+        result[id.to_s] = shifts if shifts.any?
       end
-      { date: date.iso8601, doctors: doctors }
+      doctors = availability.transform_values { |shifts| shifts.pluck(:time_slot) }
+      { date: date.iso8601, doctors: doctors, availability: availability }
     end
+  end
+
+  private
+
+  # Formal appointments are not stored yet. Load their counts for @doctor_ids and @dates here when booking opens.
+  def occupied_counts
+    @occupied_counts ||= {}
   end
 end

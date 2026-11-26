@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
 import { demoMode } from '@/store/session.js'
-import { shiftLabels } from '../booking-calendar.js'
+import { bookingShifts } from '../booking-calendar.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
@@ -16,11 +16,11 @@ const emit = defineEmits(['cancel', 'confirm'])
 const selectedDate = ref(props.date)
 const day = computed(() => props.schedule.find(item => item.date === selectedDate.value) || props.schedule[0])
 const slots = computed(() => {
-  if (!props.demo) return shiftLabels(day.value, props.doctorId).map(label => ({ label }))
+  if (!props.demo) return bookingShifts(day.value, props.doctorId)
   return demoMode ? getAvailableSlots(day.value, props.doctorId) : getBookingSlots(day.value, props.doctorId)
 })
 const choice = ref(props.selectedSlot)
-const canPick = item => !props.demo || item.remaining > 0
+const canPick = item => props.demo ? item.remaining > 0 : item.remaining !== 0
 const canConfirm = computed(() => day.value.date === selectedDate.value && slots.value.some(item => item.label === choice.value && canPick(item)))
 const initialAnchor = 'day-' + day.value.date
 
@@ -28,6 +28,16 @@ function selectDay(item) {
   if (day.value.date === item.date) return
   selectedDate.value = item.date
   choice.value = ''
+}
+
+function selectSlot(item) {
+  if (canPick(item)) choice.value = item.label
+}
+
+function shiftText(item) {
+  if (item.total == null) return item.label
+  const availability = item.remaining === 0 ? '已满' : `剩 ${item.remaining} 号`
+  return `${item.label} · 共 ${item.total} 号 · ${availability}`
 }
 
 function confirm() {
@@ -51,9 +61,12 @@ function confirm() {
       </scroll-view>
       <scroll-view scroll-y class="slots-scroll">
         <view class="slots">
-          <button v-for="item in slots" :key="item.label" class="slot" :class="{ chosen: canConfirm && item.label === choice, full: !canPick(item) }"
-            :disabled="!canPick(item)" @tap="choice = item.label">
-            <text>{{ item.label }}</text><text v-if="demo" class="remaining">余号：{{ item.remaining }}</text>
+          <button v-for="item in slots" :key="item.label" class="slot" :class="{ 'shift-slot': !demo, chosen: canConfirm && item.label === choice, full: !canPick(item) }"
+            :disabled="!canPick(item)" @tap="selectSlot(item)">
+            <template v-if="demo">
+              <text>{{ item.label }}</text><text class="remaining">余号：{{ item.remaining }}</text>
+            </template>
+            <text v-else>{{ shiftText(item) }}</text>
           </button>
         </view>
         <view v-if="!demo && !slots.length" class="sheet-note" role="status">当日暂无排班</view>
@@ -80,6 +93,7 @@ function confirm() {
 .slots-scroll { flex: 1; height: 0; min-height: 0; }
 .slots { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18rpx; padding: 40rpx 30rpx; }
 .slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6rpx; box-sizing: border-box; width: 100%; height: 112rpx; padding: 0; border: 1rpx solid #dedfeb; border-radius: 8rpx; background: #f2f2fc; color: #111; font-size: 25rpx; line-height: 32rpx; }
+.shift-slot { height: auto; min-height: 112rpx; padding: 10rpx 6rpx; overflow-wrap: anywhere; }
 .slot.full { background: #f8f8f8; color: #ccc; }
 .slot.chosen { background: #5ba6e5; color: #fff; }
 .remaining { font-size: 22rpx; }

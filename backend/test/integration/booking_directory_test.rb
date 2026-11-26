@@ -31,6 +31,12 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "td", text: /20 元/
     doctor = Doctor.find_by!(name: "张医生")
+    assert_select "th", text: "医生姓名" do |headers|
+      assert_equal "职称", headers.sole.next_element.text
+    end
+    assert_select "#doctor_#{doctor.id} td.directory-title", text: "主治医师"
+    assert_select "#doctor_#{doctor.id} a[href=?]", admins_doctor_path(doctor), count: 2
+    assert_select "#doctor_#{doctor.id} .directory-action-cell a[href=?]", admins_doctor_path(doctor), text: /查看/
     assert_equal [ department.id, other.id ].sort, doctor.department_ids.sort
     assert_equal 1, Doctor.current.enabled.count
     assert_equal "20", doctor.fee_in_yuan
@@ -219,6 +225,11 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
       department = Department.find_by!(name: "运营创建")
       browser.post admins_doctors_path, params: { doctor: { name: "运营医生", fee: "20", department_ids: [ department.id ] } }
       assert_equal 303, browser.response.status
+      doctor = Doctor.find_by!(name: "运营医生")
+      browser.get admins_doctors_path
+      assert_select browser.html_document, "#doctor_#{doctor.id} td.directory-title", text: "—"
+      assert_select browser.html_document, "#doctor_#{doctor.id} a[href=?]", admins_doctor_path(doctor), count: 2
+      assert_select browser.html_document, "a[href=?]", edit_admins_doctor_path(doctor)
     end
     department = Department.find_by!(name: "运营创建")
     doctor = Doctor.find_by!(name: "运营医生")
@@ -229,10 +240,14 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
       assert_select browser.html_document, "#sidebar-menu a[href=?]", admins_departments_path
       assert_select browser.html_document, "a[href=?]", new_admins_doctor_path, count: 0
       assert_select browser.html_document, "a[href=?]", admins_doctor_path(doctor), text: /查看/
+      assert_select browser.html_document, "a[href=?]", edit_admins_doctor_path(doctor), count: 0
+      assert_select browser.html_document, "#doctor_#{doctor.id} .directory-action-cell button", count: 0
       browser.get admins_doctor_path(doctor)
       assert_equal 200, browser.response.status
       assert_select browser.html_document, "dd", text: "20 元"
       browser.patch admins_doctor_path(doctor), params: { doctor: { fee: "1" } }
+      assert_equal 403, browser.response.status
+      browser.patch status_admins_doctor_path(doctor), params: { status: 0 }
       assert_equal 403, browser.response.status
       browser.patch status_admins_department_path(department), params: { status: 0 }
       assert_equal 403, browser.response.status

@@ -42,13 +42,15 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
       entries.push(label("无排班", "d-block text-secondary"));
     }
 
-    for (const [shift, capacity] of day.shifts) {
+    for (const {label: shift, total, remaining} of day.shifts) {
       const row = label("", "d-block text-body mt-1");
       row.append(label(shift, "fw-medium"));
-      if (capacity === null) {
-        row.dataset.label = `${shift}（未单独设置号数）`;
-      } else {
-        row.append(label(" · ", "d-none d-md-inline"), label(`${capacity} 号`, "d-block d-md-inline"));
+      if (total !== null) {
+        row.append(
+          label(" · ", "d-none d-md-inline"), label(`共 ${total} 号`, "d-block d-md-inline"),
+          label(" · ", "d-none d-md-inline"),
+          label(remaining === 0 ? "已满" : `剩 ${remaining} 号`, remaining === 0 ? "d-block d-md-inline text-danger" : "d-block d-md-inline")
+        );
       }
       entries.push(row);
     }

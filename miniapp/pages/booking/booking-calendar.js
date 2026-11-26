@@ -8,11 +8,12 @@ const SHIFT_LABELS = { AM: '上午', PM: '下午', FULL: '全天', NIGHT: '晚�
 
 const publishedSchedule = computed(() => {
   if (configurationStatus.value === 'error') return []
-  return bookingSchedule.value.map(({ date, doctors }) => ({
+  return bookingSchedule.value.map(({ date, doctors, availability }) => ({
     date,
     label: date.slice(5).replace('-', '–'),
     weekday: WEEKDAYS[new Date(date + 'T00:00:00Z').getUTCDay()],
     doctors,
+    availability,
   }))
 })
 
@@ -21,8 +22,15 @@ export const scheduleMessage = computed(() => {
   return publishedSchedule.value.length ? '当日暂无排班' : '排班暂不可用'
 })
 
+export function bookingShifts(day, doctorId) {
+  return day?.availability?.[doctorId] ?? (day?.doctors?.[doctorId] ?? []).flatMap(slot => {
+    const label = SHIFT_LABELS[slot]
+    return label ? [{ time_slot: slot, label }] : []
+  })
+}
+
 export function shiftLabels(day, doctorId) {
-  return (day?.doctors?.[doctorId] ?? []).map(slot => SHIFT_LABELS[slot]).filter(Boolean)
+  return bookingShifts(day, doctorId).map(shift => shift.label)
 }
 
 export function useBookingCalendar(isDemo = () => directoryDemoMode) {

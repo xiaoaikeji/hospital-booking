@@ -8,25 +8,44 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     sign_in @root
   end
 
-  test "the hospital phone policy is versioned, audited and preserves unrelated settings" do
+  test "appointment settings save both switches together, reject stale or invalid values and audit actual changes" do
     row = Setting.create!(key: "appointment", settings: { "other" => 1 })
     revision = edit_revision(edit_admins_system_settings_appointment_path)
     assert_select "#sidebar-menu a[href=?]", edit_admins_system_settings_appointment_path
-    patch admins_system_settings_appointment_path, params: { appointment: { revision: revision, require_mobile_auth: "1" } }
-    assert_redirected_to edit_admins_system_settings_appointment_path
-    assert_equal({ "other" => 1, "require_mobile_auth" => true }, row.reload.settings)
-    assert_audit "appointment.phone_policy", "success", row, "require_mobile_auth"
+    assert_select "form.card[action=?]", admins_system_settings_appointment_path, count: 1 do
+      assert_select "input[type=checkbox][name='appointment[require_mobile_auth]']"
+      assert_select "input[type=checkbox][name='appointment[booking_enable_evening]']"
+      assert_select "button[type=submit]", text: /保存设置/, count: 1
+    end
 
-    patch admins_system_settings_appointment_path, params: { appointment: { revision: revision, require_mobile_auth: "0" } }
-    assert_response :unprocessable_content
-    assert_select "[role=alert]", /配置已变化/
-    assert_equal true, row.reload.settings.fetch("require_mobile_auth")
-    assert_audit "appointment.phone_policy", "failed", row, "require_mobile_auth"
+    save_appointment(revision, phone: "1", night: "1")
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_equal({ "other" => 1, "require_mobile_auth" => true, "booking_enable_evening" => true }, row.reload.settings)
+    assert_audit "appointment.update", "success", row, "require_mobile_auth", "booking_enable_evening"
 
     revision = edit_revision(edit_admins_system_settings_appointment_path)
-    patch admins_system_settings_appointment_path, params: { appointment: { revision: revision, require_mobile_auth: "0" } }
+    assert_no_difference -> { Log.where(action: "appointment.update", status: "success").count } do
+      save_appointment(revision, phone: "0", night: "invalid")
+    end
+    assert_response :unprocessable_content
+    assert_equal [ true, true ], row.reload.settings.values_at("require_mobile_auth", "booking_enable_evening")
+    assert_audit "appointment.update", "failed", row, "require_mobile_auth", "booking_enable_evening"
+
+    save_appointment(revision, phone: "1", night: "0")
     assert_redirected_to edit_admins_system_settings_appointment_path
-    assert_equal false, row.reload.settings.fetch("require_mobile_auth")
+    assert_equal [ true, false ], row.reload.settings.values_at("require_mobile_auth", "booking_enable_evening")
+    assert_audit "appointment.update", "success", row, "booking_enable_evening"
+
+    save_appointment(revision, phone: "0", night: "0")
+    assert_response :unprocessable_content
+    assert_select "[role=alert]", /配置已变化/
+    assert_equal [ true, false ], row.reload.settings.values_at("require_mobile_auth", "booking_enable_evening")
+
+    revision = edit_revision(edit_admins_system_settings_appointment_path)
+    save_appointment(revision, phone: "0", night: "0")
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_equal({ "other" => 1, "require_mobile_auth" => false, "booking_enable_evening" => false }, row.reload.settings)
+    assert_audit "appointment.update", "success", row, "require_mobile_auth"
   end
 
   test "only registered WeChat mini programs can be assigned and departures refresh UnionIDs without changing user ownership" do
@@ -100,12 +119,12 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
       [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path, edit_admins_system_settings_map_path ].each do |path|
         assert_select "#sidebar-menu a[href=?]", path, count: 0
       end
-      assert_no_difference [ "Setting.count", "Log.where(action: %w[appointment.phone_policy app.user_sharing]).count" ] do
+      assert_no_difference [ "Setting.count", "Log.where(action: %w[appointment.update app.user_sharing]).count" ] do
         [ edit_admins_system_settings_appointment_path, edit_admins_user_sharing_path, edit_admins_system_settings_map_path ].each do |path|
           get path
           assert_response :forbidden
         end
-        patch admins_system_settings_appointment_path, params: { appointment: { require_mobile_auth: "1" } }
+        save_appointment("ignored", phone: "1", night: "1")
         assert_response :forbidden
         save_groups("ignored", { "unknown" => "1" })
         assert_response :forbidden
@@ -127,9 +146,15 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     patch admins_user_sharing_path, params: { sharing: { revision: revision, memberships: memberships } }
   end
 
-  def assert_audit(action, status, target, field)
+  def save_appointment(revision, phone:, night:)
+    patch admins_system_settings_appointment_path, params: {
+      appointment: { revision: revision, require_mobile_auth: phone, booking_enable_evening: night }
+    }
+  end
+
+  def assert_audit(action, status, target, *fields)
     log = Log.operations_visible_to(@root).where(action: action, status: status, actor_type: "Admin", actor_id: @root.id,
       target_type: "Setting", target_id: target.id).last!
-    assert_equal [ field ], log.details.fetch("fields")
+    assert_equal fields, log.details.fetch("fields")
   end
 end

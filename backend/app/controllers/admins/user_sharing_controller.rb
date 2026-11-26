@@ -1,7 +1,7 @@
 module Admins
   class UserSharingController < BaseController
     before_action :require_super_admin!, :refresh_storage_configuration
-    before_action { @settings = MiniProgramLoginSettings.new("wechat") }
+    before_action { @settings = MiniProgramLoginSettings.new }
 
     def edit
     end

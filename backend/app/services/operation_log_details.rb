@@ -43,6 +43,7 @@ class OperationLogDetails
     "app.user_sharing" => { "fields" => %w[unionid_app_groups] },
     "appointment.phone_policy" => { "fields" => %w[require_mobile_auth] },
     "appointment.night_shift" => { "fields" => [ Schedule::NIGHT_SETTING ], "reason" => [ "晚班设置未保存，请重试" ] },
+    "appointment.update" => { "fields" => AppointmentSettings::FIELDS, "reason" => [ AppointmentSettings::STALE, AppointmentSettings::INVALID, AppointmentSettings::FAILURE ] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
     "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE ] },
     "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,

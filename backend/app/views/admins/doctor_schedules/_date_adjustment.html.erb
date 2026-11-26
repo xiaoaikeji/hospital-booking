@@ -19,7 +19,8 @@
     <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
       <h2 class="card-title mb-0"><%= @date.iso8601 %> <%= Schedule::WEEKDAYS.fetch(@date.wday) %></h2>
       <% if @editable %>
-        <%= render "admins/shared/field_help", label: "查看指定日期调整说明", text: "清空班次后保存，当天休诊。撤销日期调整后，当天恢复每周排班。" %>
+        <%= render "admins/shared/field_help", label: "查看指定日期调整说明",
+          text: "关闭晚班期间，保存只修改日间班次。清空当天全部班次并保存后休诊。撤销日期调整后恢复每周排班。" %>
       <% end %>
       <span class="badge <%= @day.adjusted ? 'bg-primary-lt' : 'bg-secondary-lt' %>"><%= @day.adjusted ? "已调整" : "沿用每周排班" %></span>
       <% if @day.shifts.empty? %><span class="badge bg-secondary-lt">当日无班</span><% end %>

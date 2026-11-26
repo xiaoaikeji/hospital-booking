@@ -122,6 +122,24 @@
   .directory-fee-compact { display: none; }
 }
 
+.doctor-list-card {
+  .directory-title { width: 13%; }
+  .directory-secondary { width: 18%; }
+  .directory-actions { width: 15rem; }
+  .directory-profile-compact { display: none; }
+}
+
+@container (max-width: 60rem) {
+  .doctor-list-card .directory-actions { width: 10rem; }
+}
+
+@container (max-width: 52rem) {
+  .doctor-list-card {
+    .directory-title, .directory-secondary { display: none; }
+    .directory-profile-compact { display: block; }
+  }
+}
+
 @container (max-width: 46rem) {
   .directory-list-card .directory-secondary { display: none; }
 }

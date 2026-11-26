@@ -24,17 +24,43 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
 
     days = calendar_days("2026-12")
     assert_equal Date.new(2026, 12, 1).all_month.map(&:iso8601), days.keys
-    assert_equal [ [ "上午", 100 ] ], days.fetch("2026-12-14").fetch("shifts")
-    assert_equal [ [ "全天", nil ] ], days.fetch("2026-12-22").fetch("shifts")
-    assert_equal({ "adjusted" => true, "off" => false, "shifts" => [ [ "下午", 60 ], [ "晚班", 20 ] ] }, days.fetch("2026-12-21"))
+    assert_equal [ shift("AM", "上午", 100) ], days.fetch("2026-12-14").fetch("shifts")
+    assert_equal [ shift("FULL", "全天") ], days.fetch("2026-12-22").fetch("shifts")
+    assert_equal({ "adjusted" => true, "off" => false, "shifts" => [ shift("PM", "下午", 60), shift("NIGHT", "晚班", 20) ] }, days.fetch("2026-12-21"))
     assert_equal({ "adjusted" => true, "off" => true, "shifts" => [] }, days.fetch("2026-12-23"))
-    assert_equal [ [ "晚班", 30 ] ], days.fetch("2026-12-24").fetch("shifts")
+    assert_equal [ shift("NIGHT", "晚班", 30) ], days.fetch("2026-12-24").fetch("shifts")
     assert_equal({ "adjusted" => false, "off" => false, "shifts" => [] }, days.fetch("2026-12-25"))
 
     set_nights(false)
     days = calendar_days("2026-12")
-    assert_equal [ [ "下午", 60 ] ], days.fetch("2026-12-21").fetch("shifts")
+    assert_equal [ shift("PM", "下午", 60) ], days.fetch("2026-12-21").fetch("shifts")
     assert_equal({ "adjusted" => true, "off" => false, "shifts" => [] }, days.fetch("2026-12-24"))
+  end
+
+  test "both calendars share availability by doctor and shift and keep blank capacity distinct from full" do
+    set_nights(true)
+    dated_shift(@monday, "FULL", capacity: 20)
+    dated_shift(@monday, "NIGHT", capacity: 5)
+    blank_date = @monday - 1
+    dated_shift(blank_date, "FULL")
+
+    admin_days = calendar_days("2026-11")
+    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    assert_response :success
+    published = response.parsed_body
+    assert_equal @doctor.department_ids.map(&:to_s).sort, published.dig("directory", "doctors").sole.fetch("department_ids").sort
+    mini_days = published.fetch("schedule").index_by { |day| day.fetch("date") }
+    [ @monday, blank_date ].each do |date|
+      assert_equal admin_days.dig(date.iso8601, "shifts"), mini_days.dig(date.iso8601, "availability", @doctor.id.to_s)
+    end
+    assert_equal [ shift("FULL", "全天", 20), shift("NIGHT", "晚班", 5) ], admin_days.dig(@monday.iso8601, "shifts")
+    assert_equal [ shift("FULL", "全天") ], admin_days.dig(blank_date.iso8601, "shifts")
+
+    counts = { [ @doctor.id, @monday, "FULL" ] => 7, [ @doctor.id, @monday, "NIGHT" ] => 6 }
+    calendar = ScheduleCalendar.new([ @doctor.id ], blank_date..@monday)
+    calendar.define_singleton_method(:occupied_counts) { counts }
+    assert_equal [ [ 20, 13 ], [ 5, 0 ] ], calendar.day_availability(@doctor.id, @monday).fetch(:shifts).map { |row| row.values_at(:total, :remaining) }
+    assert_nil calendar.day_availability(@doctor.id, blank_date).fetch(:shifts).sole.fetch(:remaining)
   end
 
   test "the selected month survives a date adjustment and a weekly save" do
@@ -96,7 +122,9 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_calendar %w[PM]
 
     sign_in @super_admin
-    patch night_shift_admins_system_settings_appointment_path, params: { booking_enable_evening: "1" }
+    patch admins_system_settings_appointment_path, params: {
+      appointment: { revision: AppointmentSettings.new.revision, require_mobile_auth: "0", booking_enable_evening: "1" }
+    }
     assert_response :see_other
     sign_in @operator
     adjust(time_slot: "PM", capacity: "9", night: "1", night_capacity: "3")
@@ -114,11 +142,14 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_calendar %w[NIGHT]
 
     adjust(time_slot: "", night: "0")
-    assert_off
+    [ true, false, true ].each do |enabled|
+      set_nights(enabled)
+      assert_off
+    end
     delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
     assert_redirected_to adjustment_page
     assert_empty @doctor.schedules.on_date(@monday)
-    assert_calendar %w[AM]
+    assert_published_schedule({ @monday => [ shift("AM", "上午") ] })
 
     events = Log.operations_visible_to(@operator).where(action: %w[schedule.create schedule.update schedule.revoke]).order(:id)
     assert_equal %w[schedule.create schedule.create schedule.update schedule.update schedule.update schedule.update schedule.revoke], events.pluck(:action)
@@ -188,32 +219,137 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "editing the day shift with nights hidden preserves the night unless the entire date is cleared" do
-    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: { "1" => { time_slot: "AM" } } }
+  test "pausing nights and saving weekly daytime shifts preserves counted and blank nights" do
     set_nights(true)
-    adjust(time_slot: "PM", night: "1", night_capacity: "3")
+    save_weekly(monday_week.merge("2" => { time_slot: "", night: "1", night_capacity: "" }))
+    tuesday = @monday + 1
+    regular = { @monday => [ shift("AM", "上午", 8), shift("NIGHT", "晚班", 4) ], tuesday => [ shift("NIGHT", "晚班") ] }
+
+    set_nights(false)
+    get admins_doctor_schedule_path(@doctor, tab: "weekly")
+    assert_select "form[action=?] input[name$='[night]']", weekly_admins_doctor_schedule_path(@doctor), count: 0
+    assert_published_schedule({ @monday => [ shift("AM", "上午", 8) ], tuesday => [] })
+    set_nights(true)
+    assert_published_schedule(regular)
+
+    set_nights(false)
+    save_weekly({ "1" => { time_slot: "PM", capacity: "5" }, "2" => { time_slot: "" } })
+    set_nights(true)
+    assert_published_schedule(regular.merge(@monday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 4) ]))
+  end
+
+  test "a daytime-only date adjustment keeps the applicable weekly night on just that date" do
+    set_nights(true)
+    save_weekly(monday_week)
+
+    set_nights(false)
+    get adjustment_page
+    assert_select "#adjustment-time-slot option[selected][value='AM']"
+    assert_select "#date-adjustment-editor input[name='date_adjustment[night]']", count: 0
+    adjust(time_slot: "PM", capacity: "5")
+    assert_response :see_other
+    set_nights(true)
+
+    assert_published_schedule({ @monday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 4) ],
+      (@monday + 7) => [ shift("AM", "上午", 8), shift("NIGHT", "晚班", 4) ] })
+  end
+
+  test "daytime edits follow each date adjustment's own night shift decision" do
+    set_nights(true)
+    save_weekly(monday_week)
+    second_monday = @monday + 7
+    adjust(time_slot: "AM", capacity: "8", night: "1", night_capacity: "2")
+    assert_response :see_other
+    adjust(date: second_monday, time_slot: "AM", capacity: "8", night: "0")
     assert_response :see_other
 
     set_nights(false)
-    adjust(time_slot: "AM", capacity: "8")
-    assert_response :see_other
-    assert_calendar %w[AM]
+    [ @monday, second_monday ].each do |date|
+      adjust(date: date, time_slot: "PM", capacity: "5")
+      assert_response :see_other
+    end
     set_nights(true)
-    assert_calendar %w[AM NIGHT]
-    assert_equal 3, @doctor.schedules.on_date(@monday).find_by!(time_slot: "NIGHT").capacity
+
+    assert_published_schedule({ @monday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 2) ],
+      second_monday => [ shift("PM", "下午", 5) ] })
+  end
+
+  test "with nights paused a blank daytime selection keeps weekly and specified nights" do
+    set_nights(true)
+    save_weekly({ "1" => { time_slot: "", night: "1", night_capacity: "4" },
+      "2" => { time_slot: "AM", capacity: "8", night: "1", night_capacity: "3" } })
+    specified_date = @monday + 7
+    adjust(date: specified_date, time_slot: "", night: "1", night_capacity: "2")
+    assert_response :see_other
 
     set_nights(false)
-    adjust(time_slot: "")
+    tuesday = @monday + 1
+    assert_published_schedule({ @monday => [], specified_date => [], tuesday => [ shift("AM", "上午", 8) ] })
+    [ @monday, specified_date, tuesday ].each do |date|
+      adjust(date: date, time_slot: "")
+      assert_response :see_other
+    end
+    assert_empty @doctor.schedules.on_date(@monday)
     set_nights(true)
-    assert_off
+
+    assert_published_schedule({ @monday => [ shift("NIGHT", "晚班", 4) ], specified_date => [ shift("NIGHT", "晚班", 2) ],
+      tuesday => [ shift("NIGHT", "晚班", 3) ] })
+  end
+
+  test "stale daytime-only forms preserve nights and stale night edits fail atomically" do
+    set_nights(true)
+    save_weekly(monday_week.merge("2" => { time_slot: "AM", capacity: "6", night: "1", night_capacity: "3" }))
+
+    set_nights(false)
+    [ admins_doctor_schedule_path(@doctor, tab: "weekly"), adjustment_page ].each do |path|
+      get path
+      assert_select "input[name$='[night]']", count: 0
+    end
+    set_nights(true)
+
+    save_weekly({ "1" => { time_slot: "AM", capacity: "8" }, "2" => { time_slot: "PM", capacity: "5" } })
+    adjust(time_slot: "PM", capacity: "5")
+    assert_response :see_other
+    tuesday = @monday + 1
+    assert_published_schedule({ @monday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 4) ],
+      tuesday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 3) ] })
+
+    [ admins_doctor_schedule_path(@doctor, tab: "weekly"), adjustment_page ].each do |path|
+      get path
+      assert_select "input[name$='[night]'][type='checkbox']"
+    end
+    set_nights(false)
+    previous = @doctor.schedules.order(:id).pluck(:id, :time_slot, :capacity)
+    save_weekly({ "1" => { time_slot: "AM", capacity: "9", night: "0" },
+      "3" => { time_slot: "AM", capacity: "2", night: "1", night_capacity: "6" } }, status: :unprocessable_content)
+    assert_select ".alert-danger", text: /请刷新页面/
+    adjust(time_slot: "AM", capacity: "9", night: "1", night_capacity: "6")
+    assert_response :unprocessable_content
+    assert_select ".alert-danger", text: /请刷新页面/
+    assert_equal previous, @doctor.schedules.order(:id).pluck(:id, :time_slot, :capacity)
+    set_nights(true)
+
+    assert_published_schedule({ @monday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 4) ],
+      tuesday => [ shift("PM", "下午", 5), shift("NIGHT", "晚班", 3) ] })
   end
 
   private
+
+  def shift(slot, label, total = nil)
+    { "time_slot" => slot, "label" => label, "total" => total, "remaining" => total }
+  end
 
   def set_nights(enabled)
     setting = Setting.find_or_initialize_by(key: "appointment")
     setting.write_value(Schedule::NIGHT_SETTING, enabled)
     setting.save!
+  end
+
+  def monday_week = { "1" => { time_slot: "AM", capacity: "8", night: "1", night_capacity: "4" } }
+
+  def save_weekly(week, status: :see_other)
+    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: week }
+    assert_response status
   end
 
   def adjustment_page = admins_doctor_schedule_path(@doctor, tab: "date", date: @monday.iso8601, month: @monday.strftime("%Y-%m"))
@@ -228,8 +364,28 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     JSON.parse(assert_select("#doctor-schedule-calendar").sole["data-days"])
   end
 
-  def adjust(**fields)
-    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601, date_adjustment: fields }
+  def adjust(date: @monday, **fields)
+    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: date.iso8601, date_adjustment: fields }
+  end
+
+  def assert_published_schedule(expected, closed: [])
+    expected.group_by { |date, _| date.strftime("%Y-%m") }.each do |month, entries|
+      days = calendar_days(month)
+      entries.each do |date, shifts|
+        day = days.fetch(date.iso8601)
+        assert_equal shifts, day.fetch("shifts"), date.iso8601
+        assert_equal closed.include?(date), day.fetch("off"), date.iso8601
+      end
+    end
+
+    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    assert_response :success
+    days = response.parsed_body.fetch("schedule").index_by { |day| day.fetch("date") }
+    expected.each do |date, shifts|
+      day = days.fetch(date.iso8601)
+      assert_equal shifts, day.fetch("availability").fetch(@doctor.id.to_s, []), date.iso8601
+      assert_equal shifts.pluck("time_slot"), day.fetch("doctors").fetch(@doctor.id.to_s, []), date.iso8601
+    end
   end
 
   def assert_calendar(monday_slots)
@@ -253,6 +409,6 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_select ".badge", text: "当日无班"
     assert_select "#adjustment-time-slot option[selected][value='']"
     assert_select "#adjustment-night[checked]", count: 0
-    assert_calendar []
+    assert_published_schedule({ @monday => [], (@monday + 7) => [ shift("AM", "上午") ] }, closed: [ @monday ])
   end
 end

@@ -2,31 +2,24 @@
 <%= render "admins/system_settings/navigation", title: "预约设置" %>
 <%= form_with scope: :appointment, url: admins_system_settings_appointment_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
   <%= f.hidden_field :revision, value: @settings.revision %>
-  <%= render layout: "admins/shared/configuration_card", locals: { title: "账号手机号", record: @settings } do %>
-    <div class="d-flex align-items-center gap-1">
-      <label class="form-check form-switch mb-0">
-        <%= f.check_box :require_mobile_auth, checked: @settings.phone_required?, class: "form-check-input" %>
-        <span class="form-check-label">预约前验证微信手机号</span>
-      </label>
-      <%= render "admins/shared/field_help", label: "查看预约前验证微信手机号说明",
-            text: "每个账号只需验证一次。给家人预约时，联系电话可以填家人的号码。" %>
+  <%= render layout: "admins/shared/configuration_card", locals: { title: "预约规则", record: @settings } do %>
+    <div class="row gx-4 gy-3 align-items-center">
+      <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
+        <label class="form-check form-switch mb-0">
+          <%= f.check_box :require_mobile_auth, checked: @settings.phone_required?, class: "form-check-input" %>
+          <span class="form-check-label">预约前验证微信手机号</span>
+        </label>
+        <%= render "admins/shared/field_help", label: "查看预约前验证微信手机号说明",
+          text: "每个账号只需验证一次。给家人预约时，联系电话可以填家人的号码。" %>
+      </div>
+      <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
+        <label class="form-check form-switch mb-0">
+          <%= f.check_box Schedule::NIGHT_SETTING, checked: @settings.night_enabled?, class: "form-check-input" %>
+          <span class="form-check-label">启用晚班</span>
+        </label>
+        <%= render "admins/shared/field_help", label: "查看晚班设置说明",
+          text: "关闭后，排班日历和小程序会隐藏晚班。已有晚班会保留，重新启用后可见。" %>
+      </div>
     </div>
   <% end %>
-<% end %>
-<%= form_with url: night_shift_admins_system_settings_appointment_path, method: :patch, class: "card mt-3", data: { admin_form: true } do %>
-  <div class="card-header"><h2 class="card-title">晚班</h2></div>
-  <div class="card-body">
-    <div class="d-flex align-items-center gap-1">
-      <label class="form-check form-switch mb-0">
-        <%= hidden_field_tag Schedule::NIGHT_SETTING, "0", id: nil %>
-        <%= check_box_tag Schedule::NIGHT_SETTING, "1", @night_enabled, class: "form-check-input" %>
-        <span class="form-check-label">启用晚班</span>
-      </label>
-      <%= render "admins/shared/field_help", label: "查看晚班设置说明",
-        text: "关闭后小程序会隐藏晚班，已有排班会保留，重新启用后可见。" %>
-    </div>
-  </div>
-  <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
-    <%= render "admins/shared/submit_button", label: "保存晚班设置", icon: :save %>
-  </div></div>
 <% end %>

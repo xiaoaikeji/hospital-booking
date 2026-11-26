@@ -10,7 +10,7 @@ import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
 import { loadPatients, patientValidationMessage } from './patient-profiles.js'
-import { scheduleMessage, shiftLabels, useBookingCalendar } from './booking-calendar.js'
+import { bookingShifts, scheduleMessage, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -24,9 +24,12 @@ const departmentName = computed(() => {
 const { schedule, selectedDate, selectedDay, refresh } = useBookingCalendar(() => fromDemo.value)
 const date = computed(() => selectedDay.value?.date || '')
 const slot = ref('')
-const shifts = computed(() => shiftLabels(selectedDay.value, doctor.value?.id))
-const selectedSlot = computed(() => date.value === selectedDate.value && (fromDemo.value || shifts.value.includes(slot.value)) ? slot.value : '')
-const slotText = computed(() => selectedSlot.value || (fromDemo.value ? '请选择时段' : shifts.value.join('、') || scheduleMessage.value))
+const shifts = computed(() => bookingShifts(selectedDay.value, doctor.value?.id))
+const selectedSlot = computed(() => {
+  if (date.value !== selectedDate.value) return ''
+  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shift.remaining !== 0)) ? slot.value : ''
+})
+const slotText = computed(() => selectedSlot.value || (fromDemo.value ? '请选择时段' : shifts.value.map(shift => shift.label).join('、') || scheduleMessage.value))
 const picking = ref(false)
 const phone = ref('')
 const needsBinding = ref(false)

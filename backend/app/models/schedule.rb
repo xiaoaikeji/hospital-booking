@@ -9,10 +9,7 @@ class Schedule < ApplicationRecord
   scope :weekly, -> { where(end_date: nil) }
   scope :on_date, ->(date) { where(start_date: date, end_date: date) }
 
-  def self.night_enabled?
-    values = Setting.where(key: "appointment").pick(:settings)
-    ActiveModel::Type::Boolean.new.cast(values&.[](NIGHT_SETTING)) == true
-  end
+  def self.night_enabled? = AppointmentSettings.new.night_enabled?
 
   def weekly? = end_date.nil?
   def night? = time_slot == "NIGHT"
