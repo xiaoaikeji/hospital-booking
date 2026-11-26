@@ -1,6 +1,6 @@
 class ScheduleCalendar
   DAYS = 14
-  Day = Data.define(:adjusted, :shifts)
+  Day = Data.define(:adjusted, :off, :shifts)
 
   def initialize(doctor_ids, dates, night_enabled: Schedule.night_enabled?)
     @doctor_ids = doctor_ids
@@ -16,11 +16,11 @@ class ScheduleCalendar
   def day(doctor_id, date)
     adjustment = @adjustments[[ doctor_id, date ]]
     rules = adjustment || @weekly.fetch([ doctor_id, date.wday ], []).select { |rule| rule.start_date <= date }
-    return Day.new(true, []) if rules.any?(&:off?)
+    return Day.new(adjusted: true, off: true, shifts: []) if rules.any?(&:off?)
 
     # A stored adjustment still replaces the week when the hospital hides night shifts.
     shifts = @night_enabled ? rules : rules.reject(&:night?)
-    Day.new(adjustment.present?, shifts.sort_by { |rule| rule.night? ? 1 : 0 })
+    Day.new(adjusted: adjustment.present?, off: false, shifts: shifts.sort_by { |rule| rule.night? ? 1 : 0 })
   end
 
   def as_json(*)

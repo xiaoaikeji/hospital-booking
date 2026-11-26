@@ -1,6 +1,7 @@
 <div class="card-body">
   <%= form_with url: admins_doctor_schedule_path(@doctor), method: :get, class: "row g-2 align-items-end", data: { date_editor: "date-adjustment-editor" } do %>
     <%= hidden_field_tag :tab, "date" %>
+    <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
     <div class="col-12 col-sm-auto">
       <%= label_tag "schedule-date", "日期", class: "form-label required" %>
       <%= render "admins/shared/date_field", id: "schedule-date", name: :date, value: @date_input || @date.iso8601,
@@ -11,6 +12,7 @@
   <% end %>
 </div>
 <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :patch, id: "date-adjustment-editor", data: { admin_form: true } do %>
+  <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
   <%= hidden_field_tag :date, @date.iso8601, id: nil %>
   <div class="card-body border-top">
     <%= render "admins/shared/form_errors", record: @editor %>
@@ -38,6 +40,7 @@
 <% end %>
 <% if @editable && @day.adjusted %>
   <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :delete, id: "revoke-date-adjustment", hidden: true do %>
+    <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
     <%= hidden_field_tag :date, @date.iso8601, id: nil %>
   <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "revoke-date-adjustment-confirmation", form_id: "revoke-date-adjustment",

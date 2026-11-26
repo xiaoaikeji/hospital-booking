@@ -1,6 +1,8 @@
 <% content_for :title, "#{@doctor.name} · 医生排班 · Booking 管理后台" %>
-<%= render "admins/shared/enhanced_select_assets" if @editable %>
-<% content_for :head do %><%= javascript_include_tag "admins/doctor_schedules", defer: true %><% end %>
+<% unless @tab == :calendar %>
+  <%= render "admins/shared/enhanced_select_assets" if @editable %>
+  <% content_for :head do %><%= javascript_include_tag "admins/doctor_schedules", defer: true %><% end %>
+<% end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "#{@doctor.name} · 排班", icon: :calendar } do %>
   <%= link_to admins_doctor_path(@doctor), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回医生资料<% end %>
 <% end %>
@@ -8,11 +10,13 @@
 <section class="card">
   <div class="card-header p-0">
     <nav class="nav nav-tabs card-header-tabs m-0 w-100" aria-label="医生排班">
-      <%= link_to "每周排班", admins_doctor_schedule_path(@doctor), class: class_names("nav-link", active: @tab == :weekly),
+      <%= link_to "排班日历", schedule_path, class: class_names("nav-link", active: @tab == :calendar),
+        aria: { current: ("page" if @tab == :calendar) } %>
+      <%= link_to "每周排班", schedule_path(tab: :weekly), class: class_names("nav-link", active: @tab == :weekly),
         aria: { current: ("page" if @tab == :weekly) } %>
-      <%= link_to "指定日期调整", admins_doctor_schedule_path(@doctor, tab: "date"), class: class_names("nav-link", active: @tab == :date),
+      <%= link_to "指定日期调整", schedule_path(tab: :date, date: @date), class: class_names("nav-link", active: @tab == :date),
         aria: { current: ("page" if @tab == :date) } %>
     </nav>
   </div>
-  <%= render @tab == :weekly ? "weekly" : "date_adjustment" %>
+  <%= render({ calendar: "calendar", weekly: "weekly", date: "date_adjustment" }.fetch(@tab)) %>
 </section>

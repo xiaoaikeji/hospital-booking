@@ -14,6 +14,70 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     sign_in @operator
   end
 
+  test "the calendar reads the viewed month and distinguishes closed days from hidden night shifts" do
+    set_nights(true)
+    @doctor.schedules.create!(weekday: 1, start_date: Date.current, time_slot: "AM", capacity: 100)
+    @doctor.schedules.create!(weekday: 2, start_date: Date.current, time_slot: "FULL")
+    %w[PM NIGHT].zip([ 60, 20 ]).each { |slot, capacity| dated_shift(Date.new(2026, 12, 21), slot, capacity: capacity) }
+    dated_shift(Date.new(2026, 12, 23), "OFF")
+    dated_shift(Date.new(2026, 12, 24), "NIGHT", capacity: 30)
+
+    days = calendar_days("2026-12")
+    assert_equal Date.new(2026, 12, 1).all_month.map(&:iso8601), days.keys
+    assert_equal [ [ "上午", 100 ] ], days.fetch("2026-12-14").fetch("shifts")
+    assert_equal [ [ "全天", nil ] ], days.fetch("2026-12-22").fetch("shifts")
+    assert_equal({ "adjusted" => true, "off" => false, "shifts" => [ [ "下午", 60 ], [ "晚班", 20 ] ] }, days.fetch("2026-12-21"))
+    assert_equal({ "adjusted" => true, "off" => true, "shifts" => [] }, days.fetch("2026-12-23"))
+    assert_equal [ [ "晚班", 30 ] ], days.fetch("2026-12-24").fetch("shifts")
+    assert_equal({ "adjusted" => false, "off" => false, "shifts" => [] }, days.fetch("2026-12-25"))
+
+    set_nights(false)
+    days = calendar_days("2026-12")
+    assert_equal [ [ "下午", 60 ] ], days.fetch("2026-12-21").fetch("shifts")
+    assert_equal({ "adjusted" => true, "off" => false, "shifts" => [] }, days.fetch("2026-12-24"))
+  end
+
+  test "the selected month survives a date adjustment and a weekly save" do
+    get admins_doctor_schedule_path(@doctor)
+    assert_response :success
+    assert_select "nav[aria-label='医生排班'] a" do |tabs|
+      assert_equal %w[排班日历 每周排班 指定日期调整], tabs.map(&:text)
+    end
+    assert_select "a.active[aria-current='page']", text: "排班日历"
+    assert_select "#doctor-schedule-calendar[data-initial-date='2026-11-01']"
+
+    month = "2026-12"
+    date = "2026-12-07"
+    calendar_path = admins_doctor_schedule_path(@doctor, month: month)
+    date_path = admins_doctor_schedule_path(@doctor, month: month, tab: "date", date: date)
+    assert_select "a[href=?]", calendar_path, text: "下月"
+    get calendar_path
+    assert_select "#doctor-schedule-calendar[data-adjustment-url=?]", admins_doctor_schedule_path(@doctor, month: month, tab: "date")
+
+    assert_no_difference [ "Schedule.count", "Log.where(category: 'booking').count" ] do
+      get date_path
+      assert_response :success
+    end
+    assert_select "#date-adjustment-editor input[name='month'][value=?]", month
+    assert_select "#date-adjustment-editor input[name='date'][value=?]", date
+    assert_select "#adjustment-time-slot option[selected][value='']"
+    assert_select "script[src*='fullcalendar']", count: 0
+
+    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: {
+      month: month, date: date, date_adjustment: { time_slot: "AM", capacity: "5" }
+    }
+    assert_redirected_to date_path
+    follow_redirect!
+    assert_select "a[href=?]", calendar_path, text: "排班日历"
+
+    patch weekly_admins_doctor_schedule_path(@doctor), params: {
+      month: month, weekly_schedule: { "1" => { time_slot: "PM" } }
+    }
+    assert_redirected_to admins_doctor_schedule_path(@doctor, month: month, tab: "weekly")
+    follow_redirect!
+    assert_select "a.active[aria-current='page']", text: "每周排班"
+  end
+
   test "a whole date adjustment replaces the week and clearing survives until it is revoked" do
     get admins_doctor_path(@doctor)
     assert_select "a[href=?]", admins_doctor_schedule_path(@doctor), text: "排班"
@@ -73,6 +137,9 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     sign_in customer_service
 
     get admins_doctor_schedule_path(@doctor)
+    assert_response :success
+    assert_select "#doctor-schedule-calendar"
+    get admins_doctor_schedule_path(@doctor, tab: "weekly")
     assert_response :success
     assert_select "#weekday-1-time-slot[disabled]"
     assert_select "button", text: "保存每周排班", count: 0
@@ -149,7 +216,17 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     setting.save!
   end
 
-  def adjustment_page = admins_doctor_schedule_path(@doctor, tab: "date", date: @monday.iso8601)
+  def adjustment_page = admins_doctor_schedule_path(@doctor, tab: "date", date: @monday.iso8601, month: @monday.strftime("%Y-%m"))
+
+  def dated_shift(date, slot, capacity: nil)
+    @doctor.schedules.create!(weekday: date.wday, start_date: date, end_date: date, time_slot: slot, capacity: capacity)
+  end
+
+  def calendar_days(month)
+    get admins_doctor_schedule_path(@doctor, month: month)
+    assert_response :success
+    JSON.parse(assert_select("#doctor-schedule-calendar").sole["data-days"])
+  end
 
   def adjust(**fields)
     patch date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601, date_adjustment: fields }

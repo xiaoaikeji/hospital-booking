@@ -71,4 +71,4 @@ bin/dev
 
 ## 许可
 
-项目整体的许可证尚未声明。随附组件的许可可分别查阅 [Tabler（MIT）](backend/vendor/licenses/tabler/LICENSE)、[Tom Select（Apache 2.0）](backend/vendor/licenses/tabler/tom-select-LICENSE) 和 [Vanilla Calendar Pro（MIT）](backend/vendor/licenses/tabler/vanilla-calendar-pro-LICENSE)。
+项目整体的许可证尚未声明。随附组件的许可可分别查阅 [Tabler（MIT）](backend/vendor/licenses/tabler/LICENSE)、[Tom Select（Apache 2.0）](backend/vendor/licenses/tabler/tom-select-LICENSE)、[Vanilla Calendar Pro（MIT）](backend/vendor/licenses/tabler/vanilla-calendar-pro-LICENSE) 和 [FullCalendar（MIT）](backend/vendor/licenses/tabler/fullcalendar-LICENSE)。
