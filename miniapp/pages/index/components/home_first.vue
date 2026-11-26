@@ -5,10 +5,12 @@ import { bookingMode } from '@/pages/booking/booking-mode.js'
 import { switchFromHomeCard } from '@/utils/guest-tab.js'
 import { openBooking } from '@/utils/booking-navigation.js'
 import { clinics } from '@/mock/clinics.js'
-import { appName, pageLinks } from '@/store/app-configuration.js'
+import { appName, hospitalProfile, pageLinks } from '@/store/app-configuration.js'
+import { callHospital } from '@/utils/call-hospital.js'
 import { entries } from '../home-first-mock.js'
 
 const banners = computed(() => pageLinks.value.home_banner)
+const homePhone = computed(() => hospitalProfile.value.show_phone_on_homepage ? hospitalProfile.value.mobile : '')
 
 const { statusBarHeight, windowWidth } = uni.getWindowInfo()
 const capsule = uni.getMenuButtonBoundingClientRect()
@@ -46,6 +48,11 @@ function openEntry(entry) {
         <view v-if="banners.length === 1" class="banner-dot" />
       </view>
 
+      <view v-if="hospitalProfile.announcement" class="home-announcement">
+        <text class="announcement-title">医院公告</text>
+        <view class="announcement-text">{{ hospitalProfile.announcement }}</view>
+      </view>
+
       <view class="home-entries">
         <view v-for="entry in entries" :key="entry.id" class="entry-card" :class="'entry-' + entry.id"
           role="link" :aria-label="entry.title" @tap="openEntry(entry)">
@@ -54,6 +61,11 @@ function openEntry(entry) {
           <image class="entry-icon" :src="'/static/home/' + entry.id + '.svg'" mode="aspectFit" />
         </view>
       </view>
+
+      <button v-if="homePhone" class="home-phone" hover-class="none" :aria-label="'拨打医院电话 ' + homePhone"
+        @tap="callHospital(homePhone)">
+        <text>联系电话</text><text class="phone-number">{{ homePhone }}</text>
+      </button>
 
       <view class="clinics-section">
         <text class="section-title">专病门诊</text>
@@ -137,6 +149,13 @@ function openEntry(entry) {
   gap: 18rpx 22rpx;
 }
 .home-banner + .home-entries { margin-top: 30rpx; }
+.home-banner + .home-announcement { margin-top: 20rpx; }
+.home-announcement { margin-bottom: 20rpx; padding: 18rpx 22rpx; border-radius: 17rpx; background: #edf6fc; }
+.announcement-title { font-size: 28rpx; font-weight: 600; line-height: 40rpx; }
+.announcement-text { margin-top: 6rpx; color: #333; font-size: 26rpx; line-height: 39rpx; white-space: pre-wrap; overflow-wrap: anywhere; }
+.home-phone { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin: 18rpx 0 0; padding: 15rpx 22rpx; border-radius: 17rpx; background: #edf6fc; color: #111; font-size: 28rpx; line-height: 40rpx; text-align: left; }
+.home-phone::after { border: 0; }
+.phone-number { min-width: 0; color: #2877b7; overflow-wrap: anywhere; }
 .entry-card {
   position: relative;
   overflow: hidden;

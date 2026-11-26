@@ -6,7 +6,7 @@ module Admins
 
     private
 
-    def list_scope = entry_scope.includes(:parent)
+    def list_scope(filters) = super.includes(:parent)
     def permitted_fields = super + [ :parent_id ]
 
     def entry_details

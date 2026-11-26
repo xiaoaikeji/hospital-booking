@@ -10,9 +10,8 @@ module Admins
     helper_method :entry_title, :entry_label, :entry_model, :directory_path, :image_label, :upload_limit
 
     def index
-      @status = params[:status].presence_in(%w[0 1])&.to_i
-      rows = list_scope.ordered.with_attached_image
-      rows = rows.where(status: @status) if @status
+      @filters = list_filters
+      rows = list_scope(@filters).ordered.with_attached_image
       @pagy, @entries = pagy(:offset, rows, limit: 20)
       render "admins/directory_entries/index"
     end
@@ -74,7 +73,13 @@ module Admins
     def entry_title = self.class::ENTRY_TITLE
     def entry_label = self.class::ENTRY_LABEL
     def entry_scope = entry_model.all
-    def list_scope = entry_scope
+    def list_filters
+      { status: params[:status].presence_in(%w[0 1])&.to_i }.compact
+    end
+
+    def list_scope(filters)
+      filters.key?(:status) ? entry_scope.where(status: filters[:status]) : entry_scope
+    end
     def directory_path(**query) = polymorphic_path([ :admins, entry_model ], **query)
     def image_label = "图标"
     def upload_purpose = :directory_icon

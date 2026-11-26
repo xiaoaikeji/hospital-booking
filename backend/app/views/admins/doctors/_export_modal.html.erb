@@ -1,0 +1,22 @@
+<div class="modal modal-blur fade" id="doctor-schedule-export" tabindex="-1" aria-labelledby="doctor-schedule-export-title" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <%= form_with url: export_schedule_admins_doctors_path, method: :post, class: "modal-content", data: { turbo: false } do |form| %>
+      <div class="modal-header">
+        <h2 class="modal-title" id="doctor-schedule-export-title">导出排班</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <% @filters.each do |key, value| %>
+          <%= hidden_field_tag key, value, id: nil %>
+        <% end %>
+        <%= form.label :month, "导出月份", class: "form-label" %>
+        <%= form.month_field :month, value: Date.current.strftime("%Y-%m"), class: "form-control", required: true %>
+        <div class="form-hint">按当前筛选导出全部 <%= @pagy.count %> 位医生的排班。</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" data-bs-dismiss="modal">取消</button>
+        <%= form.button type: "submit", class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :export %>导出 Excel<% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

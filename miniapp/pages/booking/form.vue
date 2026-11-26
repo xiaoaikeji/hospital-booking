@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
 import { bookingDepartments, directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
+import { bookingNotice } from '@/store/app-configuration.js'
 import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
 import { bindPhone, demoMode, readProfile, signedIn } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
@@ -254,6 +255,10 @@ async function confirmBooking() {
         <view v-if="departmentName" class="row"><text>科室</text><text>{{ departmentName }}</text></view>
         <view class="row last"><text>挂号费</text><text>¥{{ doctor.fee }}</text></view>
       </view>
+      <view v-if="bookingNotice" class="panel booking-notice">
+        <view class="panel-title">预约须知</view>
+        <view class="booking-notice-text">{{ bookingNotice }}</view>
+      </view>
       <view class="panel patient">
         <view class="panel-title">添加就诊人信息
           <text v-if="patients.length || patientsError" class="choose-patient" aria-role="button" @tap="openPatientPicker">选择就诊人 ›</text>
@@ -292,6 +297,8 @@ async function confirmBooking() {
 @use './form-fields';
 
 .service-panel { padding-bottom: 0; }
+.booking-notice { margin-top: 20rpx; }
+.booking-notice-text { color: #555; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .row.last { border-bottom-color: transparent; }
 .patient { margin-top: 34rpx; }
 .choose-patient { margin-left: auto; padding: 10rpx 8rpx; color: #438ac4; font-size: 25rpx; }

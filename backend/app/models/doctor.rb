@@ -17,6 +17,10 @@ class Doctor < DirectoryEntry
     fee.to_s("F").sub(/\.?0+\z/, "")
   end
 
+  def department_names
+    departments.sort_by { |department| [ department.sort_order, department.id ] }.map(&:name).join("、")
+  end
+
   private
 
   def fee_precision

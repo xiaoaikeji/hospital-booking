@@ -8,6 +8,38 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     sign_in @root
   end
 
+  test "a notice is public, participates in the appointment settings revision, and clears without changing either switch" do
+    row = Setting.create!(key: "appointment", settings: { "require_mobile_auth" => true, "booking_enable_evening" => false })
+    app = App.create!(provider: "wechat", appid: "notice-demo", status: "active")
+    config_path = api_app_configuration_path(app.provider, app.appid)
+    revision = edit_revision(edit_admins_system_settings_appointment_path)
+    notice = "请提前到院\n携带有效证件"
+    input = { revision: revision, require_mobile_auth: "1", booking_enable_evening: "0", booking_notice: notice }
+
+    patch admins_system_settings_appointment_path, params: { appointment: input.merge(booking_enable_evening: "invalid") }
+    assert_response :unprocessable_content
+    assert_not row.reload.settings.key?("booking_notice")
+
+    patch admins_system_settings_appointment_path, params: { appointment: input }
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_audit "appointment.update", "success", row, "booking_notice"
+    get config_path
+    assert_equal({ "booking_notice" => notice }, response.parsed_body.fetch("appointment"))
+
+    patch admins_system_settings_appointment_path, params: { appointment: input.merge(require_mobile_auth: "0", booking_notice: "") }
+    assert_response :unprocessable_content
+    assert_equal [ true, false, notice ], row.reload.settings.values_at("require_mobile_auth", "booking_enable_evening", "booking_notice")
+
+    patch admins_system_settings_appointment_path, params: {
+      appointment: input.merge(revision: AppointmentSettings.new.revision, booking_notice: "")
+    }
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_equal({ "require_mobile_auth" => true, "booking_enable_evening" => false }, row.reload.settings)
+    assert_audit "appointment.update", "success", row, "booking_notice"
+    get config_path
+    assert_nil response.parsed_body.dig("appointment", "booking_notice")
+  end
+
   test "appointment settings save both switches together, reject stale or invalid values and audit actual changes" do
     row = Setting.create!(key: "appointment", settings: { "other" => 1 })
     revision = edit_revision(edit_admins_system_settings_appointment_path)

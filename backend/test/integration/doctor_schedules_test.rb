@@ -1,4 +1,5 @@
 require "test_helper"
+require "zip"
 
 class DoctorSchedulesTest < ActionDispatch::IntegrationTest
   include Devise::Test::IntegrationHelpers
@@ -35,6 +36,56 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     days = calendar_days("2026-12")
     assert_equal [ shift("PM", "下午", 60) ], days.fetch("2026-12-21").fetch("shifts")
     assert_equal({ "adjusted" => true, "off" => false, "shifts" => [] }, days.fetch("2026-12-24"))
+  end
+
+  test "export includes the matching doctor beyond page one and matches every shift in the month calendar" do
+    department = @doctor.departments.ordered.first
+    @doctor.update!(status: 0, sort_order: 99, display_on_homepage: false)
+    20.times do |index|
+      Doctor.create!(name: "张医师 #{index + 1}", status: 0, display_on_homepage: false, departments: [ department ])
+    end
+    Doctor.create!(name: "张医生（展示）", status: 0, display_on_homepage: true, departments: [ department ])
+    Doctor.create!(name: "张医生（启用）", status: 1, display_on_homepage: false, departments: [ department ])
+    Doctor.create!(name: "张医生（无科室）", status: 0, display_on_homepage: false)
+    filters = { q: "张", department_id: department.id, status: 0, display_on_homepage: "0" }
+
+    get admins_doctors_path, params: filters
+    assert_select "tbody tr", count: 20
+    assert_select "a[href=?]", admins_doctors_path(**filters, page: 2), text: "下一页"
+    get admins_doctors_path, params: filters.merge(page: 2)
+    assert_select "tbody tr", count: 1
+    assert_select "#doctor_#{@doctor.id}", count: 1
+
+    set_nights(false)
+    @doctor.schedules.create!(weekday: 1, start_date: Date.current, time_slot: "AM")
+    @doctor.schedules.create!(weekday: 1, start_date: Date.current, time_slot: "NIGHT", capacity: 8)
+    dated_shift(Date.new(2026, 12, 7), "PM", capacity: 12)
+    dated_shift(Date.new(2026, 12, 14), "OFF")
+    month = "2026-12"
+    expected = calendar_days(month).flat_map do |date, day|
+      day.fetch("shifts").map do |shift|
+        [ date, @doctor.name, @doctor.department_names, shift.fetch("label"), shift["total"]&.to_s ]
+      end
+    end
+
+    post export_schedule_admins_doctors_path, params: filters.merge(month:, page: 1)
+    assert_response :success
+    assert_equal ScheduleExport::CONTENT_TYPE, response.media_type
+    headers, *rows = exported_rows
+    assert_equal %w[日期 医生 所属科室 班次 班次号数], headers
+    assert_equal expected, rows.map { |serial, *fields| [ (Date.new(1899, 12, 30) + serial.to_i).iso8601, *fields ] }
+    assert_equal 3, rows.size
+    event = Log.operations_visible_to(@operator).find_by!(action: "schedule.export")
+    assert_equal "success", event.status
+    assert_equal({ "schedule_month" => month, "name_filtered" => true, "department_id" => department.id,
+      "doctor_status" => "已停用", "display_on_homepage" => false, "row_count" => rows.size }, event.details)
+
+    sign_in Admin.create!(username: "export_customer_service", role: "customer_service")
+    get admins_doctors_path, params: filters.merge(page: 2)
+    assert_select "#doctor_#{@doctor.id}", count: 1
+    assert_select "#doctor-schedule-export", count: 0
+    post export_schedule_admins_doctors_path, params: filters.merge(month:)
+    assert_response :forbidden
   end
 
   test "both calendars share availability by doctor and shift and keep blank capacity distinct from full" do
@@ -358,6 +409,14 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
   end
 
   private
+
+  def exported_rows
+    xml = Zip::File.open_buffer(response.body).read("xl/worksheets/sheet1.xml")
+    Nokogiri::XML(xml).remove_namespaces!.xpath("//sheetData/row").map do |row|
+      cells = row.xpath("c").to_h { |cell| [ cell["r"].delete("0-9"), cell.at_xpath("v|is/t")&.text ] }
+      cells.values_at("A", "B", "C", "D", "E")
+    end
+  end
 
   def shift(slot, label, total = nil)
     { "time_slot" => slot, "label" => label, "total" => total, "remaining" => total }

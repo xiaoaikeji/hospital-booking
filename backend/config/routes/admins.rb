@@ -28,6 +28,7 @@ namespace :admins do
     get :image, on: :member
   end
   resources :doctors, only: %i[index show new create edit update] do
+    post :export_schedule, on: :collection
     patch :status, on: :member
     get :image, on: :member
     resource :schedule, only: :show, controller: :doctor_schedules do

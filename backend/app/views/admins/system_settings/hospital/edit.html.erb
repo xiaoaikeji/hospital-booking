@@ -8,7 +8,7 @@
 <% end %>
 <%= form_with model: @profile, scope: :hospital, url: admins_system_settings_hospital_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "医院介绍", record: @profile,
-    title_help: "这些资料会展示在小程序「我的 → 了解我院」。", footer_actions: cancel,
+    title_help: "医院介绍展示在小程序「我的 → 了解我院」，医院公告展示在首页。", footer_actions: cancel,
     footer_actions_class: "pe-6 pe-md-5" } do %>
     <div class="row g-4 py-1">
       <div class="col-xl-8 d-flex flex-column gap-4">
@@ -20,6 +20,10 @@
           <div class="col-md-6">
             <%= f.label :mobile, "电话", class: "form-label" %>
             <%= f.telephone_field :mobile, class: "form-control", placeholder: "例如 010-00000000" %>
+            <%= f.label :show_phone_on_homepage, class: "form-check form-switch mt-2 mb-0" do %>
+              <%= f.check_box :show_phone_on_homepage, class: "form-check-input" %>
+              <span class="form-check-label">首页显示联系电话</span>
+            <% end %>
           </div>
           <div class="col-md-6">
             <%= f.label :address, "地址", class: "form-label" %>
@@ -33,6 +37,10 @@
         <div class="d-flex flex-column flex-fill">
           <%= f.label :introduction, "医院简介", class: "form-label" %>
           <%= f.text_area :introduction, class: "form-control flex-fill", rows: 4 %>
+        </div>
+        <div>
+          <%= f.label :announcement, "医院公告", class: "form-label" %>
+          <%= f.text_area :announcement, class: "form-control", rows: 4 %>
         </div>
       </div>
       <div class="col-md-8 col-xl-4 order-first order-xl-last">

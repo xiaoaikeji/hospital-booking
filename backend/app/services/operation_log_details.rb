@@ -52,6 +52,11 @@ class OperationLogDetails
     "doctor.enable" => DIRECTORY_STATUS, "doctor.disable" => DIRECTORY_STATUS, "doctor.reorder" => DIRECTORY_ORDER,
     "doctor.change_fee" => { "fields" => %w[fee], "fee" => /\A[0-9]{1,8}(?:\.[0-9]{1,2})?\z/ },
     "schedule.create" => SCHEDULE_EDIT, "schedule.update" => SCHEDULE_EDIT, "schedule.revoke" => SCHEDULE_EDIT,
+    "schedule.export" => {
+      "schedule_month" => /\A[0-9]{4}-(?:0[1-9]|1[0-2])\z/, "name_filtered" => :boolean, "department_id" => ID,
+      "doctor_status" => DirectoryEntry::STATUSES.values, "display_on_homepage" => :boolean, "row_count" => COUNT,
+      "reason" => [ ScheduleExport::INVALID_MONTH, ScheduleExport::FAILURE ]
+    },
     "storage_settings.update" => { "fields" => StorageSettings::FIELDS.keys, "reason" => %w[配置版本冲突 配置校验失败 数据库写入失败] },
     "storage_settings.refresh" => { "reason" => [ "配置已保存，存储客户端刷新失败" ] },
     "map_settings.update" => { "fields" => MapSettings::FIELDS.keys },
@@ -106,6 +111,8 @@ class OperationLogDetails
     "fields" => "变更字段", "reason" => "原因", "app_id" => "应用编号", "position" => "展示位置",
     "status_value" => "设置状态", "sort_order" => "排序", "fee" => "挂号费（元）", "message_ids" => "补发条目数", "event" => "通知事件",
     "doctor_id" => "医生编号", "schedule_mode" => "排班方式", "schedule_date" => "调整日期",
+    "schedule_month" => "导出月份", "name_filtered" => "按姓名筛选", "department_id" => "科室编号",
+    "doctor_status" => "医生状态", "display_on_homepage" => "首页展示", "row_count" => "导出班次数",
     "sync_id" => "同步任务编号", "channel_id" => "渠道编号", "count" => "菜单项数量", "code" => "微信错误码",
     "result" => "核对结果", "kind" => "素材类型", "plugin_appid" => "插件 AppID", "version" => "插件版本",
     "mini_appid" => "小程序 AppID", "notify_users" => "通知用户", "show_profile" => "展示在公众号资料页",

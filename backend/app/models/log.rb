@@ -14,6 +14,7 @@ class Log < ApplicationRecord
     [ "booking", "schedule.create" ] => "新增排班",
     [ "booking", "schedule.update" ] => "修改排班",
     [ "booking", "schedule.revoke" ] => "撤销日期调整",
+    [ "booking", "schedule.export" ] => "导出排班",
     [ "notification", "notification.wecom_content" ] => "修改企微通知文案",
     [ "poster", "poster.save" ] => "保存通用海报",
     [ "poster", "poster.delete" ] => "删除通用海报",

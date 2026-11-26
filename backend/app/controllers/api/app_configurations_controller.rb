@@ -16,11 +16,14 @@ module Api
       config[:directory] = directory
       today = Date.current
       dates = today..(today + ScheduleCalendar::DAYS - 1)
-      config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates).as_json
-      profile = HospitalProfile.load_record
-      config[:hospital] = profile ? profile.settings.slice(*HospitalProfile::FIELDS) : {}
-      if profile&.hospital_image&.attached?
-        config[:hospital][:image_url] = api_app_hospital_image_url(@app.provider, @app.appid, profile.hospital_image.blob.key)
+      appointment = AppointmentSettings.new
+      config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates, night_enabled: appointment.night_enabled?).as_json
+      config[:appointment] = { booking_notice: appointment.booking_notice }
+      profile = HospitalProfile.new
+      config[:hospital] = profile.public_values
+      image = profile.record&.hospital_image
+      if image&.attached?
+        config[:hospital][:image_url] = api_app_hospital_image_url(@app.provider, @app.appid, image.blob.key)
       end
       render json: config
     end

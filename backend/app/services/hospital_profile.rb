@@ -3,10 +3,13 @@ class HospitalProfile
   include ActiveModel::Attributes
 
   KEY = "hospital"
-  FIELDS = %w[company_name address mobile time_range introduction].freeze
+  TEXT_FIELDS = %w[company_name address mobile time_range introduction announcement].freeze
+  HOME_PHONE_FIELD = "show_phone_on_homepage"
+  FIELDS = [ *TEXT_FIELDS, HOME_PHONE_FIELD ].freeze
   FAILURE = "医院资料未保存，请重试"
 
-  FIELDS.each { |field| attribute field, :string }
+  TEXT_FIELDS.each { |field| attribute field, :string }
+  attribute HOME_PHONE_FIELD, :boolean, default: false
   attr_reader :record
 
   def initialize
@@ -16,6 +19,10 @@ class HospitalProfile
 
   def self.load_record
     Setting.with_attached_hospital_image.find_by(key: KEY)
+  end
+
+  def public_values
+    (record&.settings || {}).slice(*TEXT_FIELDS).merge(HOME_PHONE_FIELD => show_phone_on_homepage == true)
   end
 
   def save(input, actor:, request:)
@@ -49,8 +56,14 @@ class HospitalProfile
       Setting.insert_all([ { key: KEY } ], unique_by: :key)
       @record = Setting.lock.find_by!(key: KEY)
       fields = updated_fields.select do |field|
-        value = public_send(field).to_s.strip.presence
-        next false if record.settings[field] == value
+        previous = record.settings[field]
+        if field == HOME_PHONE_FIELD
+          value = show_phone_on_homepage == true
+          previous = ActiveModel::Type::Boolean.new.cast(previous) == true
+        else
+          value = public_send(field).to_s.gsub(/\r\n?/, "\n").strip.presence
+        end
+        next false if previous == value
 
         record.write_value(field, value)
         true

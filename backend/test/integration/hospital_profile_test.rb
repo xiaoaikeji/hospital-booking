@@ -8,13 +8,15 @@ class HospitalProfileTest < ActionDispatch::IntegrationTest
     get edit_admins_system_settings_hospital_path
     assert_response :success
     assert_select "input[name='hospital[address]']"
+    assert_select "#hospital_show_phone_on_homepage:not([checked])"
 
     record = Setting.create!(key: "hospital", settings: { "unrelated_key" => "internal-only-value" })
     app = App.create!(provider: "wechat", app_type: "mini_program", appid: "wxhospitaldemo", nickname: "小艾预约挂号小程序", status: "active")
     config_path = api_app_configuration_path(app.provider, app.appid)
     patch admins_system_settings_hospital_path, params: { hospital: { company_name: "示例医院",
       address: "门诊楼一号入口", mobile: "010-00000000", time_range: "周一至周六 08:00–17:30",
-      introduction: "医院介绍", image: fixture_file_upload("storage.png", "image/png") } }
+      introduction: "医院介绍", announcement: "门诊通知\r\n请提前取号",
+      show_phone_on_homepage: "1", image: fixture_file_upload("storage.png", "image/png") } }
     assert_redirected_to edit_admins_system_settings_hospital_path
     follow_redirect!
     assert_response :success
@@ -29,6 +31,8 @@ class HospitalProfileTest < ActionDispatch::IntegrationTest
     assert_equal "010-00000000", profile.fetch("mobile")
     assert_equal "周一至周六 08:00–17:30", profile.fetch("time_range")
     assert_equal "医院介绍", profile.fetch("introduction")
+    assert_equal "门诊通知\n请提前取号", profile.fetch("announcement")
+    assert_equal true, profile.fetch("show_phone_on_homepage")
     assert_not_includes response.body, "internal-only-value"
     assert_equal "internal-only-value", record.reload.settings.fetch("unrelated_key")
     image_path = URI(profile.fetch("image_url")).path
@@ -45,6 +49,14 @@ class HospitalProfileTest < ActionDispatch::IntegrationTest
       [ log.actor_id, log.target_type, log.target_id, log.details ]
     get admins_operation_log_path(log)
     assert_select "dd", text: "address"
+
+    patch admins_system_settings_hospital_path, params: { hospital: { announcement: " \n", show_phone_on_homepage: "0" } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    get config_path
+    profile = response.parsed_body.fetch("hospital")
+    assert_not profile.key?("announcement")
+    assert_equal [ "010-00000000", false ], profile.values_at("mobile", "show_phone_on_homepage")
+    assert_equal %w[announcement show_phone_on_homepage], Log.where(action: "hospital.update").last.details.fetch("fields")
 
     app.update!(status: "disabled")
     get config_path

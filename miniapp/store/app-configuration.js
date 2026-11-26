@@ -57,6 +57,7 @@ export const pageLinks = computed(() => {
 })
 
 export const hospitalProfile = computed(() => appConfiguration.value?.hospital ?? {})
+export const bookingNotice = computed(() => appConfiguration.value?.appointment?.booking_notice ?? '')
 
 const emptyDirectory = { departments: [], doctors: [] }
 export const bookingDirectory = computed(() => appConfiguration.value?.directory ?? emptyDirectory)

@@ -38,6 +38,7 @@ gem "sidekiq-cron", "~> 2.4"
 gem "redis", "~> 6.0"
 # 只使用分页计算，保留现有 Tabler 分页样式。
 gem "pagy", "~> 43.8", ">= 43.8.2"
+gem "caxlsx", "~> 4.5.0", require: false
 
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false

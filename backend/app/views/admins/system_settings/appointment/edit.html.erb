@@ -21,5 +21,9 @@
           text: "关闭后，排班日历和小程序会隐藏晚班。已有晚班会保留，重新启用后可见。" %>
       </div>
     </div>
+    <div class="mt-4">
+      <%= f.label :booking_notice, "预约须知", class: "form-label" %>
+      <%= f.text_area :booking_notice, value: @settings.booking_notice, class: "form-control", rows: 4 %>
+    </div>
   <% end %>
 <% end %>

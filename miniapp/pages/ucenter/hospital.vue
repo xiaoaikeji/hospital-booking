@@ -3,9 +3,11 @@ import { computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { configurationStatus, hospitalProfile } from '@/store/app-configuration.js'
 import { checkAppAccess } from '@/utils/app-access.js'
+import { callHospital } from '@/utils/call-hospital.js'
 
 const hospital = hospitalProfile
-const hasProfile = computed(() => Object.values(hospital.value).some(Boolean))
+const profileFields = ['company_name', 'image_url', 'address', 'mobile', 'time_range', 'introduction']
+const hasProfile = computed(() => profileFields.some(field => hospital.value[field]))
 onShow(checkAppAccess)
 </script>
 
@@ -16,7 +18,11 @@ onShow(checkAppAccess)
       <view v-if="hospital.company_name" class="hospital-name">{{ hospital.company_name }}</view>
       <image v-if="hospital.image_url" class="hospital-image" :src="hospital.image_url" mode="widthFix" />
       <view v-if="hospital.address" class="hospital-field"><text>地址</text><text>{{ hospital.address }}</text></view>
-      <view v-if="hospital.mobile" class="hospital-field"><text>电话</text><text>{{ hospital.mobile }}</text></view>
+      <view v-if="hospital.mobile" class="hospital-field">
+        <text>电话</text>
+        <button class="hospital-phone" hover-class="none" :aria-label="'拨打医院电话 ' + hospital.mobile"
+          @tap="callHospital(hospital.mobile)">{{ hospital.mobile }}</button>
+      </view>
       <view v-if="hospital.time_range" class="hospital-field"><text>营业时间</text><text>{{ hospital.time_range }}</text></view>
       <view v-if="hospital.introduction" class="hospital-introduction">{{ hospital.introduction }}</view>
     </view>
@@ -35,6 +41,8 @@ onShow(checkAppAccess)
 .hospital-field { display: flex; gap: 16rpx; margin-top: 20rpx; }
 .hospital-field text:first-child { flex: none; min-width: 115rpx; color: #666; }
 .hospital-field text:last-child { min-width: 0; overflow-wrap: anywhere; }
+.hospital-phone { min-width: 0; margin: 0; padding: 0; background: transparent; color: #2877b7; font-size: inherit; line-height: inherit; text-align: left; overflow-wrap: anywhere; }
+.hospital-phone::after { border: 0; }
 .hospital-introduction { margin-top: 20rpx; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hospital-status { color: #666; }
 </style>

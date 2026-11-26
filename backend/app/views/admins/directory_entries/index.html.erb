@@ -3,22 +3,33 @@
 <% editable = current_admin.maintain_booking_directory? %>
 <% doctor = entry_model == Doctor %>
 <% entry_icon = doctor ? :users : :package %>
+<% filter_url = ->(changes) { directory_path(**@filters.merge(changes).compact) } %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: entry_title, icon: entry_icon } do %>
   <% if editable %>
     <%= link_to new_polymorphic_path([:admins, entry_model]), class: "btn btn-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :plus %>新增<%= entry_label %><% end %>
+    <% if doctor %>
+      <button type="button" class="btn btn-outline-secondary text-nowrap" data-bs-toggle="modal" data-bs-target="#doctor-schedule-export">
+        <%= render "layouts/admins/icon", name: :export %>导出排班
+      </button>
+    <% end %>
   <% end %>
 <% end %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="筛选条件">
   <div class="list-group list-group-flush">
     <%= render "admins/shared/list_filter_row", label: "状态", key: :status, options: DirectoryEntry::STATUSES,
-      selected: @status, filter_url: ->(changes) { directory_path(**changes) } %>
+      selected: @filters[:status], filter_url: filter_url %>
+    <% if doctor %>
+      <%= render "admins/shared/list_filter_row", label: "首页展示", key: :display_on_homepage, options: { "1" => "是", "0" => "否" },
+        selected: @filters[:display_on_homepage], filter_url: filter_url %>
+    <% end %>
   </div>
 </section>
 
 <section class="<%= class_names("card directory-list-card", "doctor-list-card" => doctor, "flex-fill" => @entries.empty?) %>" aria-label="<%= entry_label %>列表">
+  <%= render "admins/doctors/search" if doctor %>
   <% if @entries.empty? %>
-    <%= render "admins/shared/list_empty", icon: entry_icon, title: (@status ? "没有符合条件的#{entry_label}" : "暂无#{entry_label}") %>
+    <%= render "admins/shared/list_empty", icon: entry_icon, title: (@filters.any? ? "没有符合条件的#{entry_label}" : "暂无#{entry_label}") %>
   <% else %>
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
       <thead>
@@ -36,7 +47,7 @@
           <% detail_path = polymorphic_path([:admins, entry]) %>
           <% if doctor
             main_title = entry.main_title.presence || "—"
-            department_names = entry.departments.sort_by { |department| [department.sort_order, department.id] }.map(&:name).join("、").presence || "—"
+            department_names = entry.department_names.presence || "—"
           end %>
           <tr id="<%= dom_id(entry) %>">
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{entry.id}" %></td>
@@ -85,9 +96,11 @@
         <% end %>
       </tbody>
     </table>
-    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { directory_path(status: @status, page: page) } %>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { filter_url.call(page: page) } %>
   <% end %>
 </section>
+
+<%= render "admins/doctors/export_modal" if doctor && editable %>
 
 <% @entries.each do |entry| %>
   <% if entry.image.attached? %>
