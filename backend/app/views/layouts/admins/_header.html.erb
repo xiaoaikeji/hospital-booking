@@ -31,6 +31,9 @@
         <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
           <span class="dropdown-header"><%= current_admin.role_name %></span>
           <%= link_to "账号与密码", edit_admins_account_path, class: "dropdown-item" %>
+          <% if content_for?(:mobile_theme_menu) %>
+            <button type="button" class="dropdown-item d-md-none" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings">个人外观</button>
+          <% end %>
           <%= link_to "系统设置", settings_path, class: "dropdown-item" if settings_path %>
           <%= link_to "操作日志", admins_operation_logs_path, class: "dropdown-item" %>
           <%= link_to "管理员", admins_administrators_path, class: "dropdown-item" if current_admin.super_admin? %>

@@ -10,6 +10,15 @@ function label(text, classes) {
   return span;
 }
 
+function statusLabel(text, colorClass) {
+  const row = label("", "d-block mt-1");
+  const badge = label("", `badge badge-sm lh-sm border-0 px-md-2 py-md-1 ${colorClass}`);
+  badge.append(label(text, "fs-6 d-md-none"), label(text, "fs-5 d-none d-md-inline"));
+  row.append(badge);
+  row.dataset.label = text;
+  return row;
+}
+
 const calendar = new FullCalendar.Calendar(calendarElement, {
   initialView: "dayGridMonth",
   initialDate: calendarElement.dataset.initialDate,
@@ -25,21 +34,22 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
     const day = days[date.toISOString().slice(0, 10)];
     if (!day) return { domNodes: [] };
 
-    const entries = [label(date.getUTCDate(), "d-block text-end fw-medium schedule-calendar-date")];
-    if (day.adjusted) entries.push(label("已调整", "d-block text-primary fw-medium"));
+    const entries = [label(date.getUTCDate(), "d-block text-end fw-medium")];
+    if (day.adjusted) entries.push(statusLabel("已调整", "bg-primary-lt"));
     if (day.off) {
-      entries.push(label("休诊", "d-block text-danger fw-medium"));
+      entries.push(statusLabel("休诊", "bg-danger-lt"));
     } else if (day.shifts.length === 0) {
       entries.push(label("无排班", "d-block text-secondary"));
     }
 
     for (const [shift, capacity] of day.shifts) {
       const row = label("", "d-block text-body mt-1");
-      row.append(
-        label(shift, "fw-medium"),
-        label(" · ", "d-none d-md-inline"),
-        label(capacity === null ? "默认限额" : `${capacity} 号`, "d-block d-md-inline")
-      );
+      row.append(label(shift, "fw-medium"));
+      if (capacity === null) {
+        row.dataset.label = `${shift}（未单独设置号数）`;
+      } else {
+        row.append(label(" · ", "d-none d-md-inline"), label(`${capacity} 号`, "d-block d-md-inline"));
+      }
       entries.push(row);
     }
     return { domNodes: entries };
@@ -52,9 +62,14 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
     adjustmentUrl.searchParams.set("date", date);
     link.href = adjustmentUrl.href;
     link.classList.add("stretched-link");
-    const details = Array.from(link.children).slice(1).map((entry) => entry.textContent);
+    const details = Array.from(link.children).slice(1).map((entry) => entry.dataset.label || entry.textContent);
     link.setAttribute("aria-label", [date, ...details].join("，"));
     if (isToday) link.setAttribute("aria-current", "date");
+
+    el.addEventListener("pointerenter", (event) => {
+      if (event.pointerType !== "touch") el.classList.add("bg-surface-secondary");
+    });
+    el.addEventListener("pointerleave", () => el.classList.remove("bg-surface-secondary"));
   }
 });
 calendar.render();

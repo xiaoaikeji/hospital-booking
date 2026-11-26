@@ -1,5 +1,5 @@
 <%# Controls and illustrations from Desktop/tabler-1.7.1/dashboard/index.html, theme settings. %>
-<button type="button" class="btn btn-floating btn-icon btn-primary d-print-none" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings" aria-label="自定义主题">
+<button type="button" class="<%= class_names("btn btn-floating btn-icon btn-primary d-print-none", "d-none d-md-inline-flex" => content_for?(:mobile_theme_menu)) %>" data-bs-toggle="offcanvas" data-bs-target="#theme-settings" aria-controls="theme-settings" aria-label="自定义主题">
   <%= render "layouts/admins/icon", name: :brush %>
 </button>
 <form class="offcanvas offcanvas-end" tabindex="-1" id="theme-settings" aria-labelledby="theme-settings-title"

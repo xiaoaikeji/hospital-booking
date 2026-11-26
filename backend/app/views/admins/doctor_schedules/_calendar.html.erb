@@ -1,3 +1,4 @@
+<% content_for :mobile_theme_menu, "true" %>
 <% content_for :head do %>
   <%= javascript_include_tag "tabler/libs/fullcalendar/index.global.min", "admins/doctor_schedule_calendar", defer: true %>
   <style>
@@ -31,11 +32,6 @@
       z-index: 2;
     }
 
-    .doctor-schedule-calendar .fc-daygrid-day-number:hover .schedule-calendar-date {
-      color: var(--tblr-primary);
-      text-decoration: underline;
-    }
-
     .doctor-schedule-calendar .fc-daygrid-day-number:focus-visible::after {
       outline: 2px solid var(--tblr-primary);
       outline-offset: -2px;
@@ -53,9 +49,13 @@
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 p-3 p-md-4">
     <h2 class="card-title mb-0" id="doctor-schedule-month"><%= calendar_month.strftime("%Y年%-m月") %></h2>
     <div class="btn-group" role="group" aria-label="切换月份">
-      <%= link_to "上月", schedule_path(month: calendar_month.prev_month), class: "btn" %>
+      <%= link_to schedule_path(month: calendar_month.prev_month), class: "btn", aria: { label: "上月" } do %>
+        <%= render "layouts/admins/icon", name: :chevron_left %><span class="d-none d-sm-inline">上月</span>
+      <% end %>
       <%= link_to "本月", schedule_path(month: @today), class: "btn" %>
-      <%= link_to "下月", schedule_path(month: calendar_month.next_month), class: "btn" %>
+      <%= link_to schedule_path(month: calendar_month.next_month), class: "btn", aria: { label: "下月" } do %>
+        <span class="d-none d-sm-inline">下月</span><%= render "layouts/admins/icon", name: :chevron_right, icon_class: "icon-end" %>
+      <% end %>
     </div>
   </div>
   <div class="px-md-4 pb-md-4">
