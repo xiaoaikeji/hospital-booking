@@ -7,8 +7,14 @@ module Admins
     before_action :load_doctor
 
     def show
-      @date = params[:date] ? parse_date(params[:date]) : Date.current
-      render_schedule(params[:tab] == "date" ? :date : :weekly)
+      tab = params[:tab] == "date" ? :date : :weekly
+      if tab == :date && !params[:date].nil?
+        @date = parse_date(params[:date])
+        @date_error = @date.nil?
+        @date_input = params[:date].is_a?(String) ? params[:date] : "" if @date_error
+      end
+      @date ||= Date.current
+      render_schedule(tab, status: @date_error ? :unprocessable_content : :ok)
     end
 
     def update_weekly
@@ -21,7 +27,7 @@ module Admins
     end
 
     def update_date_adjustment
-      @date = parse_date(params.expect(:date))
+      @date = required_date
       @date_fields = params.expect(date_adjustment: ScheduleEditor::FIELDS).to_h
       if @editor.save_date(@date, @date_fields)
         redirect_to date_schedule_path, notice: "日期调整已保存", status: :see_other
@@ -31,7 +37,7 @@ module Admins
     end
 
     def revoke_date_adjustment
-      @date = parse_date(params.expect(:date))
+      @date = required_date
       if @editor.revoke_date(@date)
         redirect_to date_schedule_path, notice: "日期调整已撤销", status: :see_other
       else
@@ -47,13 +53,16 @@ module Admins
     end
 
     def parse_date(value)
-      raise Date::Error unless value.is_a?(String) && /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/.match?(value)
+      return unless value.is_a?(String) && /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/.match?(value)
 
       date = Date.iso8601(value)
-      raise Date::Error unless date.year.positive?
-      date
+      date if date.year.positive?
     rescue Date::Error
-      raise ActionController::BadRequest, "请选择有效日期"
+      nil
+    end
+
+    def required_date
+      parse_date(params.expect(:date)) || raise(ActionController::BadRequest, "请选择有效日期")
     end
 
     def date_schedule_path = admins_doctor_schedule_path(@doctor, tab: "date", date: @date.iso8601)

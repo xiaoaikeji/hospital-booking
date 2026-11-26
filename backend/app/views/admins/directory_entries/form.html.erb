@@ -52,9 +52,9 @@
       <%= render "admins/departments/fields", f: f, image: image %>
     <% end %>
   </div>
-  <div class="card-footer btn-list justify-content-end">
+  <div class="card-footer"><div class="<%= class_names("btn-list justify-content-end", "pe-6 pe-md-5" => doctor) %>">
     <%= link_to directory_path, class: "btn" do %><%= render "layouts/admins/icon", name: :close %>取消<% end %>
     <%= render "admins/shared/submit_button", label: "保存", icon: :save %>
-  </div>
+  </div></div>
 <% end %>
 <%= render "admins/shared/image_modal", image: image, modal_id: dom_id(@entry, :image) if image %>

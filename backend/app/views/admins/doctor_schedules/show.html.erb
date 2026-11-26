@@ -1,5 +1,6 @@
 <% content_for :title, "#{@doctor.name} · 医生排班 · Booking 管理后台" %>
 <%= render "admins/shared/enhanced_select_assets" if @editable %>
+<% content_for :head do %><%= javascript_include_tag "admins/doctor_schedules", defer: true %><% end %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "#{@doctor.name} · 排班", icon: :calendar } do %>
   <%= link_to admins_doctor_path(@doctor), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回医生资料<% end %>
 <% end %>

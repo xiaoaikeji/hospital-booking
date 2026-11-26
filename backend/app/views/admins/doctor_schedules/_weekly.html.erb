@@ -1,20 +1,35 @@
 <%= form_with url: weekly_admins_doctor_schedule_path(@doctor), method: :patch, data: { admin_form: true } do %>
   <% if @editor.errors.any? %><div class="card-body pb-0"><%= render "admins/shared/form_errors", record: @editor %></div><% end %>
   <div class="list-group list-group-flush">
+    <div class="list-group-item d-none d-lg-block bg-body py-2 text-secondary fw-medium" aria-hidden="true">
+      <div class="row g-3">
+        <div class="col-lg-2">星期</div>
+        <div class="col-lg-10">
+          <div class="row g-2">
+            <div class="col">日间班次</div>
+            <div class="col">日间号数</div>
+            <% if @night_enabled %>
+              <div class="col-2">晚班</div>
+              <div class="col">晚班号数</div>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    </div>
     <% Schedule::WEEKDAYS.each do |weekday, label| %>
       <div class="list-group-item">
-        <div class="row g-3 align-items-end">
-          <div class="col-12 col-lg-2 fw-medium align-self-center"><%= label %></div>
+        <div class="row g-3 align-items-center">
+          <div class="col-12 col-lg-2 fw-medium"><%= label %></div>
           <div class="col-12 col-lg-10">
             <%= render "shift_fields", scope: "weekly_schedule[#{weekday}]", prefix: "weekday-#{weekday}",
-              label: label, fields: @weekly_fields[weekday.to_s] || {} %>
+              label: label, fields: @weekly_fields[weekday.to_s] || {}, compact: true %>
           </div>
         </div>
       </div>
     <% end %>
   </div>
   <% if @editable %>
-    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end pe-6 pe-md-5">
       <%= render "admins/shared/submit_button", label: "保存每周排班", icon: :save %>
     </div></div>
   <% end %>

@@ -2,10 +2,12 @@
   <%= form_with url: admins_doctor_schedule_path(@doctor), method: :get, class: "row g-2 align-items-end", data: { date_editor: "date-adjustment-editor" } do %>
     <%= hidden_field_tag :tab, "date" %>
     <div class="col-12 col-sm-auto">
-      <%= label_tag "schedule-date", "日期", class: "form-label" %>
-      <%= render "admins/shared/date_field", id: "schedule-date", name: :date, value: @date.iso8601, required: true, clearable: false %>
+      <%= label_tag "schedule-date", "日期", class: "form-label required" %>
+      <%= render "admins/shared/date_field", id: "schedule-date", name: :date, value: @date_input || @date.iso8601,
+        required: true, clearable: false, placeholder: "YYYY-MM-DD", error_id: ("schedule-date-error" if @date_error) %>
     </div>
-    <div class="col-auto"><%= button_tag "查看当天", type: :submit, class: "btn" %></div>
+    <div class="col-auto"><%= button_tag type: :submit, class: "btn" do %><%= render "layouts/admins/icon", name: :search %>查看当天<% end %></div>
+    <div id="schedule-date-error" class="<%= class_names("col-12 invalid-feedback mt-1", "d-block" => @date_error) %>">请输入有效日期，格式为 YYYY-MM-DD。</div>
   <% end %>
 </div>
 <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :patch, id: "date-adjustment-editor", data: { admin_form: true } do %>
@@ -23,11 +25,14 @@
     <%= render "shift_fields", scope: "date_adjustment", prefix: "adjustment", label: "", fields: @date_fields %>
   </div>
   <% if @editable %>
-    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end">
+    <div class="card-footer bg-transparent"><div class="btn-list justify-content-end pe-6 pe-md-5">
       <% if @day.adjusted %>
-        <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#revoke-date-adjustment-confirmation">撤销日期调整</button>
+        <%= button_tag type: :button, class: "btn btn-outline-warning", disabled: @date_error,
+          data: { bs_toggle: "modal", bs_target: "#revoke-date-adjustment-confirmation" } do %>
+          <%= render "layouts/admins/icon", name: :rotate %>撤销日期调整
+        <% end %>
       <% end %>
-      <%= render "admins/shared/submit_button", label: "保存日期调整", icon: :save %>
+      <%= render "admins/shared/submit_button", label: "保存日期调整", icon: :save, disabled: @date_error %>
     </div></div>
   <% end %>
 <% end %>
@@ -37,5 +42,5 @@
   <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "revoke-date-adjustment-confirmation", form_id: "revoke-date-adjustment",
     color: "warning", title: "撤销日期调整", context: "#{@doctor.name} · #{@date.iso8601}",
-    description: "撤销后，这一天恢复每周排班。", cancel_icon: :close, confirm_label: "确认撤销" %>
+    description: "撤销后，这一天恢复每周排班。", cancel_icon: :close, confirm_icon: :rotate, confirm_label: "确认撤销" %>
 <% end %>

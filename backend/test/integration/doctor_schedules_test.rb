@@ -104,6 +104,23 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_equal [ "failed", "failed" ], Log.where(action: "schedule.update", actor_id: @operator.id).order(:id).pluck(:status)
   end
 
+  test "invalid date lookups show feedback beside the date field" do
+    invalid_date = "2026-11-31"
+    get admins_doctor_schedule_path(@doctor, tab: "date", date: invalid_date)
+
+    assert_response :unprocessable_content
+    assert_select "#schedule-date.is-invalid[aria-describedby='schedule-date-error'][value=?]", invalid_date
+    assert_select "#schedule-date-error.d-block", text: /请输入有效日期/
+    assert_select "#date-adjustment-editor button[type='submit'][disabled]"
+
+    assert_no_difference "Schedule.count" do
+      patch date_adjustment_admins_doctor_schedule_path(@doctor), params: {
+        date: invalid_date, date_adjustment: { time_slot: "AM" }
+      }
+      assert_response :bad_request
+    end
+  end
+
   test "editing the day shift with nights hidden preserves the night unless the entire date is cleared" do
     patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: { "1" => { time_slot: "AM" } } }
     set_nights(true)
