@@ -22,6 +22,16 @@
         </div>
       <% end %>
     </div>
+    <div class="row mt-4">
+      <div class="col-sm-6 col-xl-4">
+        <div class="d-flex align-items-center gap-1 mb-2">
+          <%= f.label :default_capacity, "默认放号数", class: "form-label mb-0" %>
+          <%= render "admins/shared/field_help", label: "查看默认放号数说明", text: "全院共用。排班号数留空时使用当前默认值。" %>
+        </div>
+        <%= f.number_field :default_capacity, value: @settings.default_capacity, class: "form-control",
+          min: 1, max: 2_147_483_647, step: 1, required: true %>
+      </div>
+    </div>
     <div class="mt-4">
       <div class="d-flex align-items-center gap-1 mb-2">
         <%= f.label :booking_notice, "预约须知", class: "form-label mb-0" %>

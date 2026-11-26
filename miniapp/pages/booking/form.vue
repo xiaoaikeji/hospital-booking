@@ -7,11 +7,12 @@ import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
 import { bindPhone, demoMode, readProfile, signedIn } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
 import { canUseApp, checkAppAccess } from '@/utils/app-access.js'
+import { hospitalLocation, openHospitalLocation } from '@/utils/hospital-location.js'
 import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
 import { loadPatients, patientValidationMessage } from './patient-profiles.js'
-import { bookingShifts, scheduleMessage, useBookingCalendar } from './booking-calendar.js'
+import { bookingShifts, scheduleMessage, shiftClosed, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -23,19 +24,20 @@ const feeText = computed(() => {
   return displayFreeFeeWhenFeeIsZero.value ? '免费' : ''
 })
 const hospitalAddress = computed(() => displayHospitalAddress.value ? (hospitalProfile.value.address ?? '').trim() : '')
+const hospitalCanNavigate = computed(() => !!hospitalLocation(hospitalProfile.value))
 const departmentName = computed(() => {
   if (!doctor.value) return ''
   if (fromDemo.value) return bookingParams.value.department === '1' ? doctor.value.department : ''
   const id = bookingParams.value.department_id
   return doctor.value.department_ids.includes(id) ? bookingDepartments.value.find(department => department.id === id)?.name : ''
 })
-const { schedule, selectedDate, selectedDay, refresh } = useBookingCalendar(() => fromDemo.value)
+const { schedule, selectedDate, selectedDay, refresh, now, refreshClock } = useBookingCalendar(() => fromDemo.value)
 const date = computed(() => selectedDay.value?.date || '')
 const slot = ref('')
 const shifts = computed(() => bookingShifts(selectedDay.value, doctor.value?.id))
 const selectedSlot = computed(() => {
   if (date.value !== selectedDate.value) return ''
-  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shift.remaining !== 0)) ? slot.value : ''
+  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shift.remaining !== 0 && !shiftClosed(shift, now.value))) ? slot.value : ''
 })
 const slotText = computed(() => selectedSlot.value || (fromDemo.value || shifts.value.length ? '请选择时段' : scheduleMessage.value))
 const picking = ref(false)
@@ -168,12 +170,14 @@ async function selectTime() {
   } else {
     if (!await canUseApp()) return
     if (!schedule.value.length) return notify('排班暂不可用，请重试')
+    refreshClock()
     slot.value = selectedSlot.value
   }
   if (schedule.value.length) picking.value = true
 }
 
 function setTime(selection) {
+  refreshClock()
   selectedDate.value = selection.date
   slot.value = selection.slot
   picking.value = false
@@ -206,6 +210,7 @@ async function verifyPhone(result) {
 async function confirmBooking() {
   if (submitting.value || binding.value || openedDetail) return
   if (!createdNo.value) {
+    refreshClock()
     if (!selectedSlot.value) return notify('请选择时段')
     const message = patientValidationMessage({ name: name.value, sex: sex.value, age: age.value })
     if (message) return notify(message)
@@ -261,7 +266,11 @@ async function confirmBooking() {
           <input v-model="phone" aria-label="本次联系电话" :maxlength="21" placeholder="请输入本次联系电话" />
         </view>
         <view v-if="departmentName" class="row"><text>科室</text><text>{{ departmentName }}</text></view>
-        <view v-if="hospitalAddress" class="row address-row"><text class="address-label">就诊地址</text><text class="address-value">{{ hospitalAddress }}</text></view>
+        <view v-if="hospitalAddress" class="row address-row">
+          <text class="address-label">就诊地址</text>
+          <text class="address-value" :class="{ 'address-link': hospitalCanNavigate }" :aria-role="hospitalCanNavigate ? 'button' : undefined"
+            @tap="hospitalCanNavigate && openHospitalLocation(() => !!hospitalAddress)">{{ hospitalAddress }}</text>
+        </view>
         <view v-if="feeText" class="row"><text>挂号费</text><text>{{ feeText }}</text></view>
       </view>
       <view v-if="bookingNotice" class="panel booking-notice">
@@ -290,7 +299,7 @@ async function confirmBooking() {
       </view>
       <button v-else class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>
       <SlotPicker v-if="picking && schedule.length" :schedule="schedule" :doctor-id="doctor.id" :date="date"
-        :demo="fromDemo" :selected-slot="selectedSlot"
+        :demo="fromDemo" :selected-slot="selectedSlot" :now="now"
         @confirm="setTime" @cancel="picking = false" />
       <PatientPicker v-if="choosingPatient" :patients="patients" :selected="patientId"
         :loading="patientsLoading" :load-error="patientsError"
@@ -310,6 +319,7 @@ async function confirmBooking() {
 .address-row { padding-block: 16rpx; }
 .address-label { flex: none; }
 .address-value { min-width: 0; margin-left: 20rpx; text-align: right; white-space: pre-wrap; overflow-wrap: anywhere; }
+.address-link { color: #2877b7; }
 .booking-notice { margin-top: 20rpx; }
 .booking-notice-text { color: #555; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .patient { margin-top: 34rpx; }

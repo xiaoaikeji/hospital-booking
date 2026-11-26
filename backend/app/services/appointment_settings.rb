@@ -10,9 +10,12 @@ class AppointmentSettings
   }.freeze
   SWITCH_DEFAULTS = { PHONE_FIELD => false, Schedule::NIGHT_SETTING => false, **PUBLIC_SWITCH_DEFAULTS }.freeze
   NOTICE_FIELD = "booking_notice"
-  FIELDS = [ *SWITCH_DEFAULTS.keys, NOTICE_FIELD ].freeze
+  CAPACITY_FIELD = "default_capacity"
+  DEFAULT_CAPACITY = 20
+  FIELDS = [ *SWITCH_DEFAULTS.keys, NOTICE_FIELD, CAPACITY_FIELD ].freeze
   STALE = "配置已变化，请核对当前设置后再保存"
   INVALID = "预约规则开关无效，请核对后再保存"
+  INVALID_CAPACITY = "默认放号数必须为 1 到 2147483647 的整数"
   FAILURE = "预约设置未保存，请重试"
 
   class Invalid < StandardError; end
@@ -24,6 +27,7 @@ class AppointmentSettings
   def phone_required? = enabled?(PHONE_FIELD)
   def night_enabled? = enabled?(Schedule::NIGHT_SETTING)
   def booking_notice = value(NOTICE_FIELD)
+  def default_capacity = parse_capacity(value(CAPACITY_FIELD)) || DEFAULT_CAPACITY
 
   def enabled?(field)
     stored = ActiveModel::Type::Boolean.new.cast(value(field))
@@ -57,6 +61,10 @@ class AppointmentSettings
         notice = input[NOTICE_FIELD].to_s.gsub(/\r\n?/, "\n").strip.presence
         changes[NOTICE_FIELD] = notice if notice != booking_notice
       end
+      if input.key?(CAPACITY_FIELD)
+        capacity = parse_capacity(input[CAPACITY_FIELD]) || raise(Invalid, INVALID_CAPACITY)
+        changes[CAPACITY_FIELD] = capacity if capacity != default_capacity
+      end
 
       if changes.any?
         changes.each { |field, value| @record.write_value(field, value) }
@@ -77,4 +85,12 @@ class AppointmentSettings
   private
 
   def value(field) = @record&.settings&.[](field)
+
+  def parse_capacity(value)
+    number = value.to_s
+    return unless /\A[0-9]{1,10}\z/.match?(number)
+
+    capacity = number.to_i
+    capacity if capacity.between?(1, 2_147_483_647)
+  end
 end

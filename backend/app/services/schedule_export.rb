@@ -24,8 +24,8 @@ class ScheduleExport
       sheet.add_row(HEADERS, style: header_style)
       @dates.each do |date|
         @doctors.each do |doctor|
-          calendar.day_availability(doctor.id, date).fetch(:shifts).each do |shift|
-            sheet.add_row([ date, doctor.name, department_names.fetch(doctor), shift.fetch(:label), shift.fetch(:total) ],
+          calendar.day(doctor.id, date).shifts.each do |shift|
+            sheet.add_row([ date, doctor.name, department_names.fetch(doctor), ScheduleCalendar::SHIFT_LABELS.fetch(shift.time_slot), shift.capacity ],
               types: [ :date, :string, :string, :string, :integer ], style: [ date_style ])
             row_count += 1
           end

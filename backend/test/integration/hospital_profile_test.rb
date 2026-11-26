@@ -89,6 +89,37 @@ class HospitalProfileTest < ActionDispatch::IntegrationTest
     assert_equal [ "success", "failed" ], Log.where(action: "hospital.update", target_id: record.id).order(:id).pluck(:status)
   end
 
+  test "only a complete saved map point is public and reopening the edit form retains it" do
+    admin = Admin.create!(username: "hospital_admin", role: "super_admin")
+    post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }
+    app = App.create!(provider: "wechat", appid: "hospital-map-demo", status: "active")
+    config_path = api_app_configuration_path(app.provider, app.appid)
+    longitude = 116.403988
+    latitude = 39.914266
+
+    patch admins_system_settings_hospital_path, params: { hospital: {
+      address: "验收门诊入口", address_longitude: longitude.to_s, address_latitude: latitude.to_s
+    } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    follow_redirect!
+    assert_select "#hospital_address_longitude[value=?][disabled]", longitude.to_s
+    assert_select "#hospital_address_latitude[value=?][disabled]", latitude.to_s
+    assert_equal %w[address address_longitude address_latitude], Log.where(action: "hospital.update").last.details.fetch("fields")
+
+    patch admins_system_settings_hospital_path, params: { hospital: { address: "二号入口", address_latitude: "91", address_longitude: longitude } }
+    assert_response :unprocessable_content
+    get config_path
+    profile = response.parsed_body.fetch("hospital")
+    assert_equal [ "验收门诊入口", longitude, latitude ], profile.values_at("address", "address_longitude", "address_latitude")
+
+    patch admins_system_settings_hospital_path, params: { hospital: { address_longitude: "", address_latitude: "" } }
+    assert_redirected_to edit_admins_system_settings_hospital_path
+    get config_path
+    profile = response.parsed_body.fetch("hospital")
+    assert_equal "验收门诊入口", profile.fetch("address")
+    assert_empty profile.slice("address_latitude", "address_longitude")
+  end
+
   test "operators cannot access hospital settings or their image directly" do
     admin = Admin.create!(username: "hospital_operator", role: "operator")
     post admin_session_path, params: { admin: { username: admin.username, password: Admin::DEFAULT_PASSWORD } }

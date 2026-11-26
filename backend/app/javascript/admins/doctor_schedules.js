@@ -3,6 +3,7 @@ document.querySelectorAll("[data-schedule-capacity]").forEach((shift) => {
   const updateCapacity = () => {
     const enabled = shift.type === "checkbox" ? shift.checked : shift.value !== "";
     capacity.disabled = shift.disabled || !enabled;
+    capacity.placeholder = enabled ? capacity.dataset.defaultCapacityHint : "";
   };
 
   shift.addEventListener("change", updateCapacity);

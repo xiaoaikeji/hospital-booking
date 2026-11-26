@@ -28,7 +28,7 @@ function open(target) {
         </view>
         <text v-for="line in doctor.credentials" :key="line" class="credential">{{ line }}</text>
         <text v-if="unscheduled" class="credential">当日暂无排班</text>
-        <text v-else-if="shifts.length" class="credential">{{ shifts.join('、') }}出诊</text>
+        <text v-else-if="shifts.length" class="credential">出诊：{{ shifts.join('、') }}</text>
       </view>
       <view v-if="!unscheduled" class="booking-action" aria-role="button" :aria-label="'预约' + doctor.name" @tap.stop="open('form')">预约</view>
     </view>

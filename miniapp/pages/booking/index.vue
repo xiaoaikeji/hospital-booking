@@ -16,7 +16,7 @@ const modes = [
   { key: 'date', label: '按日期' },
   { key: 'doctor', label: '按医生' },
 ]
-const { schedule, selectedDay, scheduledDoctors, loadDay, refresh } = useBookingCalendar()
+const { schedule, selectedDay, scheduledDoctors, loadDay, refresh, now } = useBookingCalendar()
 const doctorQuery = ref('')
 const visibleDoctors = computed(() => {
   if (mode.value === 'date') {
@@ -74,7 +74,7 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
         <DoctorCard v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id"
           :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" :demo="directoryDemoMode"
           :unscheduled="mode === 'date' && !scheduledDoctors.includes(doctor)"
-          :shifts="mode === 'date' ? shiftLabels(selectedDay, doctor.id) : []" />
+          :shifts="mode === 'date' ? shiftLabels(selectedDay, doctor.id, now) : []" />
         <view v-if="!visibleDoctors.length" class="empty-results" role="status">
           {{ mode === 'date' ? (directoryDemoMode ? '当日暂无排班' : scheduleMessage) : '未找到匹配的医生' }}
         </view>

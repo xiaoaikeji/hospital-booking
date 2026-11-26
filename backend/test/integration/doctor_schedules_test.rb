@@ -26,7 +26,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     days = calendar_days("2026-12")
     assert_equal Date.new(2026, 12, 1).all_month.map(&:iso8601), days.keys
     assert_equal [ shift("AM", "上午", 100) ], days.fetch("2026-12-14").fetch("shifts")
-    assert_equal [ shift("FULL", "全天") ], days.fetch("2026-12-22").fetch("shifts")
+    assert_equal [ shift("FULL", "全天", 20) ], days.fetch("2026-12-22").fetch("shifts")
     assert_equal({ "adjusted" => true, "off" => false, "shifts" => [ shift("PM", "下午", 60), shift("NIGHT", "晚班", 20) ] }, days.fetch("2026-12-21"))
     assert_equal({ "adjusted" => true, "off" => true, "shifts" => [] }, days.fetch("2026-12-23"))
     assert_equal [ shift("NIGHT", "晚班", 30) ], days.fetch("2026-12-24").fetch("shifts")
@@ -64,7 +64,8 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     month = "2026-12"
     expected = calendar_days(month).flat_map do |date, day|
       day.fetch("shifts").map do |shift|
-        [ date, @doctor.name, @doctor.department_names, shift.fetch("label"), shift["total"]&.to_s ]
+        override = @doctor.schedules.on_date(Date.iso8601(date)).find_by(time_slot: shift.fetch("time_slot"))
+        [ date, @doctor.name, @doctor.department_names, shift.fetch("label"), override&.capacity&.to_s ]
       end
     end
 
@@ -88,30 +89,37 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  test "both calendars share availability by doctor and shift and keep blank capacity distinct from full" do
+  test "both calendars share the current hospital default and preserve explicit capacity" do
     set_nights(true)
-    dated_shift(@monday, "FULL", capacity: 20)
+    dated_shift(@monday, "FULL", capacity: 30)
     dated_shift(@monday, "NIGHT", capacity: 5)
     blank_date = @monday - 1
     dated_shift(blank_date, "FULL")
 
-    admin_days = calendar_days("2026-11")
-    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
-    assert_response :success
-    published = response.parsed_body
-    assert_equal @doctor.department_ids.map(&:to_s).sort, published.dig("directory", "doctors").sole.fetch("department_ids").sort
-    mini_days = published.fetch("schedule").index_by { |day| day.fetch("date") }
-    [ @monday, blank_date ].each do |date|
-      assert_equal admin_days.dig(date.iso8601, "shifts"), mini_days.dig(date.iso8601, "availability", @doctor.id.to_s)
-    end
-    assert_equal [ shift("FULL", "全天", 20), shift("NIGHT", "晚班", 5) ], admin_days.dig(@monday.iso8601, "shifts")
-    assert_equal [ shift("FULL", "全天") ], admin_days.dig(blank_date.iso8601, "shifts")
+    explicit = [ shift("FULL", "全天", 30), shift("NIGHT", "晚班", 5) ]
+    assert_published_schedule({ @monday => explicit, blank_date => [ shift("FULL", "全天", 20) ] })
+    get admins_doctor_schedule_path(@doctor, tab: "date", date: blank_date.iso8601)
+    assert_select "#adjustment-capacity[placeholder='默认：20']:not([value])"
+    assert_select "#adjustment-night-capacity:not([placeholder])"
+
+    sign_in @super_admin
+    get edit_admins_system_settings_appointment_path
+    assert_select "#appointment_default_capacity[value='20']"
+    revision = AppointmentSettings.new.revision
+    patch admins_system_settings_appointment_path, params: {
+      appointment: { revision:, require_mobile_auth: "0", booking_enable_evening: "1", default_capacity: "25" }
+    }
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_equal [ "default_capacity" ], Log.where(action: "appointment.update").last.details.fetch("fields")
+    assert_nil @doctor.schedules.on_date(blank_date).sole.capacity
+    assert_published_schedule({ @monday => explicit, blank_date => [ shift("FULL", "全天", 25) ] })
+    assert_equal @doctor.department_ids.map(&:to_s).sort, response.parsed_body.dig("directory", "doctors").sole.fetch("department_ids").sort
 
     counts = { [ @doctor.id, @monday, "FULL" ] => 7, [ @doctor.id, @monday, "NIGHT" ] => 6 }
     calendar = ScheduleCalendar.new([ @doctor.id ], blank_date..@monday)
     calendar.define_singleton_method(:occupied_counts) { counts }
-    assert_equal [ [ 20, 13 ], [ 5, 0 ] ], calendar.day_availability(@doctor.id, @monday).fetch(:shifts).map { |row| row.values_at(:total, :remaining) }
-    assert_nil calendar.day_availability(@doctor.id, blank_date).fetch(:shifts).sole.fetch(:remaining)
+    assert_equal [ [ 30, 23 ], [ 5, 0 ] ], calendar.day_availability(@doctor.id, @monday).fetch(:shifts).map { |row| row.values_at(:total, :remaining) }
+    assert_equal 25, calendar.day_availability(@doctor.id, blank_date).fetch(:shifts).sole.fetch(:remaining)
   end
 
   test "the selected month survives a date adjustment and a weekly save" do
@@ -418,7 +426,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  def shift(slot, label, total = nil)
+  def shift(slot, label, total = 20)
     { "time_slot" => slot, "label" => label, "total" => total, "remaining" => total }
   end
 
@@ -466,7 +474,12 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     days = response.parsed_body.fetch("schedule").index_by { |day| day.fetch("date") }
     expected.each do |date, shifts|
       day = days.fetch(date.iso8601)
-      assert_equal shifts, day.fetch("availability").fetch(@doctor.id.to_s, []), date.iso8601
+      published = day.fetch("availability").fetch(@doctor.id.to_s, [])
+      assert_equal shifts, published.map { |shift| shift.except("cutoff_at") }, date.iso8601
+      published.each do |shift|
+        hour = { "AM" => 12, "PM" => 17, "FULL" => 17, "NIGHT" => 21 }.fetch(shift.fetch("time_slot"))
+        assert_equal Time.new(date.year, date.month, date.day, hour, 0, 0, "+08:00").to_i * 1000, shift.fetch("cutoff_at")
+      end
       assert_equal shifts.pluck("time_slot"), day.fetch("doctors").fetch(@doctor.id.to_s, []), date.iso8601
     end
   end

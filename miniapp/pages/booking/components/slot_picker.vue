@@ -3,13 +3,14 @@ import { computed, ref } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
 import { demoMode } from '@/store/session.js'
-import { bookingShifts } from '../booking-calendar.js'
+import { bookingShifts, shiftClosed } from '../booking-calendar.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
   doctorId: { type: [Number, String], required: true },
   date: { type: String, required: true },
   selectedSlot: { type: String, default: '' },
+  now: { type: Number, required: true },
   demo: Boolean,
 })
 const emit = defineEmits(['cancel', 'confirm'])
@@ -20,8 +21,9 @@ const slots = computed(() => {
   return demoMode ? getAvailableSlots(day.value, props.doctorId) : getBookingSlots(day.value, props.doctorId)
 })
 const choice = ref(props.selectedSlot)
-const canPick = item => props.demo ? item.remaining > 0 : item.remaining !== 0
-const canConfirm = computed(() => day.value.date === selectedDate.value && slots.value.some(item => item.label === choice.value && canPick(item)))
+const canPick = (item, now = props.now) => props.demo ? item.remaining > 0 : item.remaining !== 0 && !shiftClosed(item, now)
+const canConfirmAt = now => day.value.date === selectedDate.value && slots.value.some(item => item.label === choice.value && canPick(item, now))
+const canConfirm = computed(() => canConfirmAt(props.now))
 const initialAnchor = 'day-' + day.value.date
 
 function selectDay(item) {
@@ -31,17 +33,19 @@ function selectDay(item) {
 }
 
 function selectSlot(item) {
-  if (canPick(item)) choice.value = item.label
+  if (canPick(item, Date.now())) choice.value = item.label
 }
 
 function shiftText(item) {
-  if (item.total == null) return item.label
-  const availability = item.remaining === 0 ? '已满' : `剩 ${item.remaining} 号`
-  return `${item.label} · 共 ${item.total} 号 · ${availability}`
+  const parts = [item.label]
+  if (item.total != null) parts.push(`共 ${item.total} 号`)
+  if (shiftClosed(item, props.now)) parts.push('已截止')
+  else if (item.total != null) parts.push(item.remaining === 0 ? '已满' : `剩 ${item.remaining} 号`)
+  return parts.join(' · ')
 }
 
 function confirm() {
-  if (canConfirm.value) emit('confirm', { date: day.value.date, slot: choice.value })
+  if (canConfirmAt(Date.now())) emit('confirm', { date: day.value.date, slot: choice.value })
 }
 </script>
 

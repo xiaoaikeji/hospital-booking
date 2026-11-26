@@ -1,4 +1,8 @@
 <% content_for :title, "医院资料 · Booking 管理后台" %>
+<% content_for :head do %>
+  <%= stylesheet_link_tag "leaflet/leaflet" %>
+  <%= javascript_include_tag "leaflet/leaflet", "gcoord/gcoord.global.prod", "admins/hospital_map", defer: true %>
+<% end %>
 <%= render "admins/system_settings/navigation", title: "医院资料" %>
 <% image = { asset: image_admins_system_settings_hospital_path, title: "医院图片" } if @profile.record&.hospital_image&.attached? %>
 <% cancel = capture do %>
@@ -27,7 +31,16 @@
           </div>
           <div class="col-md-6">
             <%= f.label :address, "地址", class: "form-label" %>
-            <%= f.text_field :address, class: "form-control" %>
+            <div class="input-group">
+              <%= f.text_field :address, class: "form-control" %>
+              <%= button_tag type: :button, class: "btn", data: { bs_toggle: "modal", bs_target: "#hospital-map-picker" } do %>
+                <%= render "layouts/admins/icon", name: :map_pin %>地图选点
+              <% end %>
+            </div>
+            <%= f.hidden_field :address_longitude, disabled: !@profile.location_submitted %>
+            <%= f.hidden_field :address_latitude, disabled: !@profile.location_submitted %>
+            <%= tag.div [@profile.address_longitude, @profile.address_latitude].compact.join(", "),
+              id: "hospital-map-position", class: "form-hint", hidden: @profile.address_longitude.nil? %>
           </div>
           <div class="col-md-6">
             <%= f.label :time_range, "营业时间", class: "form-label" %>
@@ -57,3 +70,4 @@
   <% end %>
 <% end %>
 <%= render "admins/shared/image_modal", image: image, modal_id: "hospital-image" if image %>
+<%= render "map_picker" %>

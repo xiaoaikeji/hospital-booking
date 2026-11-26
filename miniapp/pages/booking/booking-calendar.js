@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue'
+import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { getBookingSchedule, getScheduledDoctors } from '@/mock/booking-schedule.js'
 import { bookingSchedule, configurationStatus } from '@/store/app-configuration.js'
 import { bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
@@ -29,24 +30,44 @@ export function bookingShifts(day, doctorId) {
   })
 }
 
-export function shiftLabels(day, doctorId) {
-  return bookingShifts(day, doctorId).map(shift => shift.label)
+export function shiftClosed(shift, now = Date.now()) {
+  return Number.isFinite(shift.cutoff_at) && now >= shift.cutoff_at
+}
+
+export function shiftLabels(day, doctorId, now) {
+  return bookingShifts(day, doctorId).map(shift => shiftClosed(shift, now) ? shift.label + '（已截止）' : shift.label)
 }
 
 export function useBookingCalendar(isDemo = () => directoryDemoMode) {
   const demoSchedule = ref([])
   const selectedDate = ref('')
+  const now = ref(Date.now())
   const schedule = computed(() => isDemo() ? demoSchedule.value : publishedSchedule.value)
   const selectedDay = computed(() => schedule.value.find(day => day.date === selectedDate.value) || schedule.value[0])
   const scheduledDoctors = computed(() => {
     const day = selectedDay.value
     if (!day) return []
     if (isDemo()) return getScheduledDoctors(day)
-    return bookingDoctors.value.filter(doctor => shiftLabels(day, doctor.id).length)
+    return bookingDoctors.value.filter(doctor => bookingShifts(day, doctor.id).length)
   })
+
+  let timer
+  function refreshClock() { now.value = Date.now() }
+  function tick() {
+    refreshClock()
+    // All published cutoffs fall on a minute boundary.
+    timer = setTimeout(tick, 60_000 - (now.value % 60_000))
+  }
+  const stopClock = () => clearTimeout(timer)
+  onShow(() => {
+    stopClock()
+    if (!isDemo()) tick()
+  })
+  onHide(stopClock)
+  onUnload(stopClock)
 
   function loadDay(day) { selectedDate.value = day.date }
   function refresh() { if (isDemo()) demoSchedule.value = getBookingSchedule() }
 
-  return { schedule, selectedDate, selectedDay, scheduledDoctors, loadDay, refresh }
+  return { schedule, selectedDate, selectedDay, scheduledDoctors, loadDay, refresh, now, refreshClock }
 }

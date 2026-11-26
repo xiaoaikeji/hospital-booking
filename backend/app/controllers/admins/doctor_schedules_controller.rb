@@ -81,12 +81,14 @@ module Admins
     def render_schedule(tab, status: :ok)
       @tab = tab
       @editable = current_admin.maintain_booking_directory?
-      @night_enabled = Schedule.night_enabled?
+      @appointment_settings = AppointmentSettings.new
+      @night_enabled = @appointment_settings.night_enabled?
+      @default_capacity_hint = "默认：#{@appointment_settings.default_capacity}"
       case tab
       when :calendar
         load_calendar
       when :date
-        @day = ScheduleCalendar.new([ @doctor.id ], @date..@date, night_enabled: @night_enabled).day(@doctor.id, @date)
+        @day = ScheduleCalendar.new([ @doctor.id ], @date..@date, settings: @appointment_settings).day(@doctor.id, @date)
         @date_fields ||= shift_fields(@day.shifts)
       when :weekly
         @weekly_fields ||= @doctor.schedules.weekly.active.order(:id).group_by(&:weekday).transform_keys(&:to_s).transform_values { |shifts| shift_fields(shifts) }
@@ -97,7 +99,7 @@ module Admins
     def load_calendar
       @today = Date.current
       dates = calendar_month.all_month
-      calendar = ScheduleCalendar.new([ @doctor.id ], dates, night_enabled: @night_enabled)
+      calendar = ScheduleCalendar.new([ @doctor.id ], dates, settings: @appointment_settings)
       @calendar_days = dates.to_h do |date|
         [ date.iso8601, calendar.day_availability(@doctor.id, date) ]
       end

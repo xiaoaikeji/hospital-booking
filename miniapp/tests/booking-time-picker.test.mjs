@@ -9,6 +9,10 @@ const night = remaining => ({ time_slot: 'NIGHT', label: '晚班', total: 4, rem
 const days = (...shifts) => [{ date, availability: { [doctorId]: shifts } }]
 const ref = value => ({ value })
 const computed = read => ({ get value() { return read() } })
+const calendarSource = readFileSync(new URL('../pages/booking/booking-calendar.js', import.meta.url), 'utf8')
+  .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
+const { bookingShifts, shiftClosed } = new Script(`${calendarSource}\n({ bookingShifts, shiftClosed })`)
+  .runInNewContext({ computed })
 const source = readFileSync(new URL('../pages/booking/form.vue', import.meta.url), 'utf8')
 const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
 // Run the page's handlers with the uni-app hooks and calendar store provided by the fixture.
@@ -39,8 +43,9 @@ async function openForm() {
     directoryDemoMode: false,
     demoMode: false,
     findBookingDoctor: id => ({ id }),
-    useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {} }),
-    bookingShifts: (day, id) => day?.availability?.[id] ?? [],
+    useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {}, now: ref(Date.now()), refreshClock() {} }),
+    bookingShifts,
+    shiftClosed,
     signedIn: ref(true),
     loadPatients: async () => [],
     readProfile: async () => ({ booking_phone_required: false }),
@@ -107,6 +112,37 @@ test('a failed refresh keeps the draft and allows a fresh retry', async () => {
   await form.selectTime()
   assert.equal(form.picking.value, true)
   assert.equal(form.selectedSlot.value, '晚班')
+})
+
+test('a mounted picker rejects a same-day shift at cutoff and allows the next day', () => {
+  const cutoff = Date.parse('2026-11-30T12:00:00+08:00')
+  const nextDate = '2026-12-01'
+  const morning = cutoff_at => ({ time_slot: 'AM', label: '上午', total: 25, remaining: 25, cutoff_at })
+  const todayShift = morning(cutoff)
+  const tomorrowShift = morning(cutoff + 86_400_000)
+  const tomorrow = { date: nextDate, availability: { [doctorId]: [tomorrowShift] } }
+  const props = { schedule: [...days(todayShift), tomorrow], doctorId, date, now: cutoff - 1000 }
+  let now = props.now
+  const confirmations = []
+  const source = readFileSync(new URL('../pages/booking/components/slot_picker.vue', import.meta.url), 'utf8')
+  const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
+  const picker = new Script(`${setup}\n({ selectDay, selectSlot, canConfirm, shiftText, confirm })`).runInNewContext({
+    computed, ref, bookingShifts, shiftClosed, Date: { now: () => now },
+    defineProps: () => props, defineEmits: () => (_event, selection) => confirmations.push(selection.date),
+  })
+
+  picker.selectSlot(todayShift)
+  assert.equal(picker.canConfirm.value, true)
+  now = cutoff
+  picker.confirm()
+  assert.deepEqual(confirmations, [])
+  props.now = now
+  assert.equal(picker.canConfirm.value, false)
+  assert.match(picker.shiftText(todayShift), /已截止/)
+  picker.selectDay(tomorrow)
+  picker.selectSlot(tomorrowShift)
+  picker.confirm()
+  assert.deepEqual(confirmations, [nextDate])
 })
 
 test('required symptoms reject blank input in place and a completed draft can continue', async () => {

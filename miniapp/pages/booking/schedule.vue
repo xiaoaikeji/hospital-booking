@@ -13,7 +13,7 @@ const clinic = ref(null)
 const departmentId = ref('')
 const ready = ref(false)
 const fromDemo = computed(() => directoryDemoMode || !departmentId.value)
-const { schedule, selectedDay, scheduledDoctors, loadDay, refresh } = useBookingCalendar(() => fromDemo.value)
+const { schedule, selectedDay, scheduledDoctors, loadDay, refresh, now } = useBookingCalendar(() => fromDemo.value)
 const department = computed(() => departmentId.value && bookingDepartments.value.find(entry => entry.id === departmentId.value))
 const title = computed(() => departmentId.value ? department.value?.name || '科室医生' : clinic.value?.name || '耳鼻喉科')
 const visibleDoctors = computed(() => {
@@ -44,7 +44,7 @@ onShow(() => {
     <view class="schedule-results">
       <DoctorCard v-for="doctor in visibleDoctors" :key="doctor.id"
         :doctor="doctor" :date="selectedDay?.date || ''" :department="!clinic && !departmentId"
-        :department-id="departmentId" :demo="fromDemo" :shifts="shiftLabels(selectedDay, doctor.id)" />
+        :department-id="departmentId" :demo="fromDemo" :shifts="shiftLabels(selectedDay, doctor.id, now)" />
       <view v-if="ready && !visibleDoctors.length" class="empty-results" role="status">
         {{ fromDemo ? '当日暂无排班' : (schedule.length && !department ? '暂无该科室信息' : scheduleMessage) }}
       </view>

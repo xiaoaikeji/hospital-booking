@@ -1,0 +1,25 @@
+<div class="modal modal-blur fade" id="hospital-map-picker" tabindex="-1" aria-labelledby="hospital-map-title" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="hospital-map-title">地图选点</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-secondary mb-2">放大地图，点击门诊入口落针。拖动定位针可微调。</p>
+        <div class="bg-body-secondary rounded border" style="height: clamp(14rem, 50vh, 27rem)"
+          role="region" aria-label="门诊入口地图" data-hospital-map
+          data-marker-icon="<%= asset_path("leaflet/images/marker-icon.png") %>"
+          data-marker-retina-icon="<%= asset_path("leaflet/images/marker-icon-2x.png") %>"
+          data-marker-shadow="<%= asset_path("leaflet/images/marker-shadow.png") %>"></div>
+        <div class="text-secondary mt-2" data-map-status role="status"></div>
+        <output class="d-block mt-2" data-map-coordinate aria-label="经纬度"></output>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn me-auto" data-map-clear data-bs-dismiss="modal" disabled>清除选点</button>
+        <button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>取消</button>
+        <button type="button" class="btn btn-primary" data-map-confirm data-bs-dismiss="modal" disabled><%= render "layouts/admins/icon", name: :check %>确认选点</button>
+      </div>
+    </div>
+  </div>
+</div>
