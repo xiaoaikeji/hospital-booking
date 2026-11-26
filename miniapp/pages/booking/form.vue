@@ -5,7 +5,7 @@ import { bookingDepartments, directoryDemoMode, findBookingDoctor } from '@/stor
 import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
 import { bindPhone, demoMode, readProfile, signedIn } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
-import { checkAppAccess } from '@/utils/app-access.js'
+import { canUseApp, checkAppAccess } from '@/utils/app-access.js'
 import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
@@ -29,7 +29,7 @@ const selectedSlot = computed(() => {
   if (date.value !== selectedDate.value) return ''
   return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shift.remaining !== 0)) ? slot.value : ''
 })
-const slotText = computed(() => selectedSlot.value || (fromDemo.value ? '请选择时段' : shifts.value.map(shift => shift.label).join('、') || scheduleMessage.value))
+const slotText = computed(() => selectedSlot.value || (fromDemo.value || shifts.value.length ? '请选择时段' : scheduleMessage.value))
 const picking = ref(false)
 const phone = ref('')
 const needsBinding = ref(false)
@@ -155,8 +155,13 @@ function patientChanged({ id, patient }) {
 
 async function selectTime() {
   uni.hideKeyboard()
-  refresh()
-  if (!fromDemo.value && !schedule.value.length) await checkAppAccess()
+  if (fromDemo.value) {
+    refresh()
+  } else {
+    if (!await canUseApp()) return
+    if (!schedule.value.length) return notify('排班暂不可用，请重试')
+    slot.value = selectedSlot.value
+  }
   if (schedule.value.length) picking.value = true
 }
 

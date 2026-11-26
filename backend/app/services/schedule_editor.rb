@@ -37,8 +37,8 @@ class ScheduleEditor
       end
 
       shifts = parse_shifts(input, night_enabled, date.iso8601, previous: previous)
-      # A daytime-only save that matches the week can continue to inherit it.
-      next [] if inherited && shifts == previous.map { |rule| shift_attributes(rule) }
+      # Only an existing shift can stay inherited. An empty day needs an explicit OFF.
+      next [] if inherited && shifts.any? && shifts == previous.map { |rule| shift_attributes(rule) }
 
       shifts << { time_slot: "OFF", capacity: nil } if shifts.empty?
       shifts.map { |shift| shift.merge(weekday: date.wday, start_date: date, end_date: date) }

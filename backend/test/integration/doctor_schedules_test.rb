@@ -296,6 +296,30 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
       tuesday => [ shift("NIGHT", "晚班", 3) ] })
   end
 
+  [ true, false ].each do |night_enabled|
+    test "an empty date saved with nights #{night_enabled ? 'enabled' : 'paused'} stays off when the week gains a shift" do
+      set_nights(night_enabled)
+      get adjustment_page
+      assert_response :success
+      assert_select "#adjustment-time-slot option[selected][value='']"
+      assert_select "#adjustment-night", count: night_enabled ? 1 : 0
+
+      fields = night_enabled ? { time_slot: "", night: "0" } : { time_slot: "" }
+      adjust(**fields)
+      assert_response :see_other
+      assert_equal [ [ "OFF", nil ] ], @doctor.schedules.on_date(@monday).pluck(:time_slot, :capacity)
+
+      save_weekly({ "1" => { time_slot: "AM", capacity: "8" } })
+      morning = [ shift("AM", "上午", 8) ]
+      assert_published_schedule({ @monday => [], (@monday + 7) => morning }, closed: [ @monday ])
+
+      delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+      assert_redirected_to adjustment_page
+      assert_empty @doctor.schedules.on_date(@monday)
+      assert_published_schedule({ @monday => morning })
+    end
+  end
+
   test "stale daytime-only forms preserve nights and stale night edits fail atomically" do
     set_nights(true)
     save_weekly(monday_week.merge("2" => { time_slot: "AM", capacity: "6", night: "1", night_capacity: "3" }))
