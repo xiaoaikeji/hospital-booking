@@ -8,7 +8,7 @@
 <% end %>
 <%= form_with model: @profile, scope: :hospital, url: admins_system_settings_hospital_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "医院介绍", record: @profile,
-    title_help: "医院介绍展示在小程序「我的 → 了解我院」，医院公告展示在首页。", footer_actions: cancel,
+    title_help: "医院介绍展示在小程序「我的 → 了解我院」。", footer_actions: cancel,
     footer_actions_class: "pe-6 pe-md-5" } do %>
     <div class="row g-4 py-1">
       <div class="col-xl-8 d-flex flex-column gap-4">
@@ -39,7 +39,11 @@
           <%= f.text_area :introduction, class: "form-control flex-fill", rows: 4 %>
         </div>
         <div>
-          <%= f.label :announcement, "医院公告", class: "form-label" %>
+          <div class="d-flex align-items-center gap-1 mb-2">
+            <%= f.label :announcement, "医院公告", class: "form-label mb-0" %>
+            <%= render "admins/shared/field_help", label: "查看医院公告的展示位置",
+              text: "填写并保存后显示在小程序首页。清空并保存后收起医院公告。" %>
+          </div>
           <%= f.text_area :announcement, class: "form-control", rows: 4 %>
         </div>
       </div>

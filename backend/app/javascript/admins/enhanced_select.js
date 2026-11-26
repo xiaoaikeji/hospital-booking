@@ -5,14 +5,16 @@ window.initializeAdminSelects = (root = document) => {
     if (select.tomselect) return;
 
     const options = { create: false, copyClassesToDropdown: false, dropdownParent: select.hasAttribute("data-inline-dropdown") ? null : (select.closest(".modal-content") || "body") };
-    if (select.dataset.enhancedSelect === "single") {
-      options.controlInput = null;
+    const submitOnChange = select.hasAttribute("data-submit-on-change");
+    if (select.dataset.enhancedSelect === "single") options.controlInput = null;
+    if (options.controlInput === null || submitOnChange) {
       options.allowEmptyOption = !select.required && Array.from(select.options).some(
         (option) => option.value === "" && option.label.trim() !== ""
       );
     }
 
     const widget = new window.TomSelect(select, options);
+    if (submitOnChange) widget.on("change", () => select.form?.requestSubmit());
     const control = widget.focus_node;
     ["aria-label", "aria-describedby", "aria-invalid", "aria-required"].forEach((name) => {
       if (select.hasAttribute(name)) control.setAttribute(name, select.getAttribute(name));

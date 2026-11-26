@@ -1,0 +1,13 @@
+<%= render "admins/shared/enhanced_select_assets" %>
+<div class="list-group-item py-2">
+  <%= form_with url: admins_doctors_path, method: :get, class: "row g-2 align-items-center" do |form| %>
+    <% @filters.except(:department_id).each do |key, value| %>
+      <%= hidden_field_tag key, value, id: nil %>
+    <% end %>
+    <%= form.label :department_id, "所属科室", class: "col-12 col-md-2 col-xl-1 text-secondary" %>
+    <div class="col-12 col-sm-8 col-md-6 col-lg-4 col-xl-3">
+      <%= form.select :department_id, options_for_select(@department_options, @filters[:department_id]), { include_blank: "全部科室" },
+        class: "form-select", data: { enhanced_select: "search", submit_on_change: true }, aria: { label: "所属科室" } %>
+    </div>
+  <% end %>
+</div>

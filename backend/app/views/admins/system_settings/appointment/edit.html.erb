@@ -22,7 +22,11 @@
       </div>
     </div>
     <div class="mt-4">
-      <%= f.label :booking_notice, "预约须知", class: "form-label" %>
+      <div class="d-flex align-items-center gap-1 mb-2">
+        <%= f.label :booking_notice, "预约须知", class: "form-label mb-0" %>
+        <%= render "admins/shared/field_help", label: "查看预约须知的展示位置",
+          text: "填写并保存后，患者可在小程序首页和预约表单查看。清空并保存后收起。" %>
+      </div>
       <%= f.text_area :booking_notice, value: @settings.booking_notice, class: "form-control", rows: 4 %>
     </div>
   <% end %>

@@ -1,16 +1,11 @@
-<%= render "admins/shared/enhanced_select_assets" %>
 <div class="card-header flex-shrink-0">
   <%= form_with url: admins_doctors_path, method: :get, class: "d-flex flex-wrap flex-lg-nowrap align-items-center gap-2 w-100",
     html: { role: "search", aria: { label: "搜索医生" } } do |form| %>
-    <% @filters.except(:q, :department_id).each do |key, value| %>
+    <% @filters.except(:q).each do |key, value| %>
       <%= hidden_field_tag key, value, id: nil %>
     <% end %>
     <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
       <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "医生姓名", aria: { label: "医生姓名" } %>
-    </div>
-    <div class="col-12 col-sm-5 col-lg-3 flex-shrink-0">
-      <%= form.select :department_id, options_for_select(@department_options, @filters[:department_id]), { include_blank: "全部科室" },
-        class: "form-select", data: { enhanced_select: "search" }, aria: { label: "所属科室" } %>
     </div>
     <%= form.button type: "submit", class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
     <% if @filters.any? %>

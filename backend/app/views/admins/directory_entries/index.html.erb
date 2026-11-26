@@ -22,6 +22,7 @@
     <% if doctor %>
       <%= render "admins/shared/list_filter_row", label: "首页展示", key: :display_on_homepage, options: { "1" => "是", "0" => "否" },
         selected: @filters[:display_on_homepage], filter_url: filter_url %>
+      <%= render "admins/doctors/department_filter" %>
     <% end %>
   </div>
 </section>
