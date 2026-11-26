@@ -7,6 +7,7 @@ const props = defineProps({
   department: Boolean,
   departmentId: { type: String, default: '' },
   demo: Boolean,
+  unscheduled: Boolean,
   shifts: { type: Array, default: () => [] },
 })
 
@@ -26,9 +27,10 @@ function open(target) {
           <text v-if="doctor.title" class="doctor-rank">{{ doctor.title }}</text>
         </view>
         <text v-for="line in doctor.credentials" :key="line" class="credential">{{ line }}</text>
-        <text v-if="shifts.length" class="credential">{{ shifts.join('、') }}出诊</text>
+        <text v-if="unscheduled" class="credential">当日暂无排班</text>
+        <text v-else-if="shifts.length" class="credential">{{ shifts.join('、') }}出诊</text>
       </view>
-      <view class="booking-action" aria-role="button" :aria-label="'预约' + doctor.name" @tap.stop="open('form')">预约</view>
+      <view v-if="!unscheduled" class="booking-action" aria-role="button" :aria-label="'预约' + doctor.name" @tap.stop="open('form')">预约</view>
     </view>
     <view v-if="doctor.introduction" class="specialty">
       <view class="specialty-summary"><text class="specialty-label">【擅长】</text>：{{ doctor.introduction }}</view>

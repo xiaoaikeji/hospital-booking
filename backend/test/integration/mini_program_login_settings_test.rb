@@ -24,7 +24,7 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     assert_redirected_to edit_admins_system_settings_appointment_path
     assert_audit "appointment.update", "success", row, "booking_notice"
     get config_path
-    assert_equal({ "booking_notice" => notice }, response.parsed_body.fetch("appointment"))
+    assert_equal notice, response.parsed_body.dig("appointment", "booking_notice")
 
     patch admins_system_settings_appointment_path, params: { appointment: input.merge(require_mobile_auth: "0", booking_notice: "") }
     assert_response :unprocessable_content
@@ -38,6 +38,44 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     assert_audit "appointment.update", "success", row, "booking_notice"
     get config_path
     assert_nil response.parsed_body.dig("appointment", "booking_notice")
+  end
+
+  test "the four appointment rules default on older installations and save alongside existing values" do
+    notice = "请提前到院\n携带有效证件"
+    existing = { "require_mobile_auth" => true, "booking_enable_evening" => true, "booking_notice" => notice }
+    row = Setting.create!(key: "appointment", settings: existing)
+    app = App.create!(provider: "wechat", appid: "appointment-rules-demo", status: "active")
+    config_path = api_app_configuration_path(app.provider, app.appid)
+    defaults = { "show_unscheduled_doctors" => true, "require_booking_remark" => false,
+      "display_free_fee_when_fee_is_zero" => true, "display_hospital_address" => false }
+    revision = edit_revision(edit_admins_system_settings_appointment_path)
+    defaults.each do |field, enabled|
+      assert_select "input[type=checkbox][name='appointment[#{field}]']", count: 1 do |inputs|
+        assert_equal enabled, inputs.first.key?("checked")
+      end
+    end
+    get config_path
+    assert_equal defaults.merge("booking_notice" => notice), response.parsed_body.fetch("appointment")
+
+    updated = defaults.transform_values { |enabled| !enabled }
+    input = updated.transform_values { |enabled| enabled ? "1" : "0" }.merge(
+      revision: revision, require_mobile_auth: "1", booking_enable_evening: "1", booking_notice: notice
+    )
+    patch admins_system_settings_appointment_path, params: { appointment: input.merge("display_hospital_address" => "invalid") }
+    assert_response :unprocessable_content
+    assert_equal existing, row.reload.settings
+
+    patch admins_system_settings_appointment_path, params: { appointment: input }
+    assert_redirected_to edit_admins_system_settings_appointment_path
+    assert_equal existing.merge(updated), row.reload.settings
+    assert_audit "appointment.update", "success", row, *updated.keys
+    get config_path
+    assert_equal updated.merge("booking_notice" => notice), response.parsed_body.fetch("appointment")
+
+    patch admins_system_settings_appointment_path, params: { appointment: input.merge(require_mobile_auth: "0") }
+    assert_response :unprocessable_content
+    assert_select "[role=alert]", /配置已变化/
+    assert_equal existing.merge(updated), row.reload.settings
   end
 
   test "appointment settings save both switches together, reject stale or invalid values and audit actual changes" do

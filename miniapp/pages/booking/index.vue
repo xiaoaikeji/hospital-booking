@@ -7,7 +7,7 @@ import { openBooking } from '@/utils/booking-navigation.js'
 import DoctorCard from './components/doctor_card.vue'
 import { scheduleMessage, shiftLabels, useBookingCalendar } from './booking-calendar.js'
 import { bookingDepartments, bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
-import { configurationStatus } from '@/store/app-configuration.js'
+import { configurationStatus, showUnscheduledDoctors } from '@/store/app-configuration.js'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
 import { checkAppAccess } from '@/utils/app-access.js'
 
@@ -19,7 +19,10 @@ const modes = [
 const { schedule, selectedDay, scheduledDoctors, loadDay, refresh } = useBookingCalendar()
 const doctorQuery = ref('')
 const visibleDoctors = computed(() => {
-  if (mode.value === 'date') return scheduledDoctors.value
+  if (mode.value === 'date') {
+    if (!selectedDay.value) return []
+    return showUnscheduledDoctors.value ? bookingDoctors.value : scheduledDoctors.value
+  }
   const query = doctorQuery.value.trim()
   return bookingDoctors.value.filter(doctor => doctor.name.includes(query))
 })
@@ -70,6 +73,7 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
       <view v-if="mode === 'date' || mode === 'doctor'" class="doctor-list">
         <DoctorCard v-for="doctor in visibleDoctors" :key="mode === 'date' ? selectedDay.date + '-' + doctor.id : doctor.id"
           :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" :demo="directoryDemoMode"
+          :unscheduled="mode === 'date' && !scheduledDoctors.includes(doctor)"
           :shifts="mode === 'date' ? shiftLabels(selectedDay, doctor.id) : []" />
         <view v-if="!visibleDoctors.length" class="empty-results" role="status">
           {{ mode === 'date' ? (directoryDemoMode ? '当日暂无排班' : scheduleMessage) : '未找到匹配的医生' }}

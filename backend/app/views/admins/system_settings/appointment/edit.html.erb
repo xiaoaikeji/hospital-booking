@@ -3,23 +3,24 @@
 <%= form_with scope: :appointment, url: admins_system_settings_appointment_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
   <%= f.hidden_field :revision, value: @settings.revision %>
   <%= render layout: "admins/shared/configuration_card", locals: { title: "预约规则", record: @settings } do %>
-    <div class="row gx-4 gy-3 align-items-center">
-      <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
-        <label class="form-check form-switch mb-0">
-          <%= f.check_box :require_mobile_auth, checked: @settings.phone_required?, class: "form-check-input" %>
-          <span class="form-check-label">预约前验证微信手机号</span>
-        </label>
-        <%= render "admins/shared/field_help", label: "查看预约前验证微信手机号说明",
-          text: "每个账号只需验证一次。给家人预约时，联系电话可以填家人的号码。" %>
-      </div>
-      <div class="col-12 col-sm-auto d-flex align-items-center gap-1">
-        <label class="form-check form-switch mb-0">
-          <%= f.check_box Schedule::NIGHT_SETTING, checked: @settings.night_enabled?, class: "form-check-input" %>
-          <span class="form-check-label">启用晚班</span>
-        </label>
-        <%= render "admins/shared/field_help", label: "查看晚班设置说明",
-          text: "关闭后，排班日历和小程序会隐藏晚班。已有晚班会保留，重新启用后可见。" %>
-      </div>
+    <% rules = [
+      [AppointmentSettings::PHONE_FIELD, "预约前验证微信手机号", "每个账号只需验证一次。给家人预约时，联系电话可以填家人的号码。"],
+      [Schedule::NIGHT_SETTING, "启用晚班", "关闭后，排班日历和小程序会隐藏晚班。已有晚班会保留，重新启用后可见。"],
+      ["show_unscheduled_doctors", "按日期显示未排班医生", "关闭后，预约挂号的「按日期」只列当天实际出诊的医生。"],
+      ["require_booking_remark", "预约时症状必填", "开启后，患者需填写症状描述才能确认预约。"],
+      ["display_free_fee_when_fee_is_zero", "零元挂号显示「免费」", "关闭后，预约表单收起零元医生的挂号费一行。"],
+      ["display_hospital_address", "预约页显示就诊地址", "开启后在预约表单显示「医院资料」中填写的地址。"]
+    ] %>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-3 gx-4 gy-3 align-items-center">
+      <% rules.each do |field, label, help| %>
+        <div class="col d-flex align-items-center gap-1">
+          <label class="form-check form-switch mb-0">
+            <%= f.check_box field, checked: @settings.enabled?(field), class: "form-check-input" %>
+            <span class="form-check-label"><%= label %></span>
+          </label>
+          <%= render "admins/shared/field_help", label: "查看#{label}说明", text: help %>
+        </div>
+      <% end %>
     </div>
     <div class="mt-4">
       <div class="d-flex align-items-center gap-1 mb-2">

@@ -2,11 +2,17 @@ class AppointmentSettings
   include ActiveModel::Model
 
   PHONE_FIELD = "require_mobile_auth"
-  SWITCH_FIELDS = [ PHONE_FIELD, Schedule::NIGHT_SETTING ].freeze
+  PUBLIC_SWITCH_DEFAULTS = {
+    "show_unscheduled_doctors" => true,
+    "require_booking_remark" => false,
+    "display_free_fee_when_fee_is_zero" => true,
+    "display_hospital_address" => false
+  }.freeze
+  SWITCH_DEFAULTS = { PHONE_FIELD => false, Schedule::NIGHT_SETTING => false, **PUBLIC_SWITCH_DEFAULTS }.freeze
   NOTICE_FIELD = "booking_notice"
-  FIELDS = [ *SWITCH_FIELDS, NOTICE_FIELD ].freeze
+  FIELDS = [ *SWITCH_DEFAULTS.keys, NOTICE_FIELD ].freeze
   STALE = "配置已变化，请核对当前设置后再保存"
-  INVALID = "请选择是否验证账号手机号和启用晚班"
+  INVALID = "预约规则开关无效，请核对后再保存"
   FAILURE = "预约设置未保存，请重试"
 
   class Invalid < StandardError; end
@@ -19,6 +25,15 @@ class AppointmentSettings
   def night_enabled? = enabled?(Schedule::NIGHT_SETTING)
   def booking_notice = value(NOTICE_FIELD)
 
+  def enabled?(field)
+    stored = ActiveModel::Type::Boolean.new.cast(value(field))
+    stored.nil? ? SWITCH_DEFAULTS.fetch(field) : stored
+  end
+
+  def public_values
+    PUBLIC_SWITCH_DEFAULTS.keys.index_with { |field| enabled?(field) }.merge(NOTICE_FIELD => booking_notice)
+  end
+
   def revision
     Digest::SHA256.hexdigest(FIELDS.map { |field| value(field) }.to_json)
   end
@@ -30,7 +45,8 @@ class AppointmentSettings
       @record = Setting.lock.find_by!(key: "appointment")
       raise Invalid, STALE unless input["revision"] == revision
 
-      changes = SWITCH_FIELDS.index_with do |field|
+      switches = [ PHONE_FIELD, Schedule::NIGHT_SETTING, *PUBLIC_SWITCH_DEFAULTS.keys.select { |field| input.key?(field) } ]
+      changes = switches.index_with do |field|
         submitted = input[field]
         raise Invalid, INVALID unless %w[0 1].include?(submitted)
 
@@ -61,5 +77,4 @@ class AppointmentSettings
   private
 
   def value(field) = @record&.settings&.[](field)
-  def enabled?(field) = ActiveModel::Type::Boolean.new.cast(value(field)) == true
 end

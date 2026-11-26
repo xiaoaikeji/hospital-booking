@@ -58,6 +58,10 @@ export const pageLinks = computed(() => {
 
 export const hospitalProfile = computed(() => appConfiguration.value?.hospital ?? {})
 export const bookingNotice = computed(() => appConfiguration.value?.appointment?.booking_notice ?? '')
+export const showUnscheduledDoctors = computed(() => appConfiguration.value?.appointment?.show_unscheduled_doctors ?? true)
+export const bookingSymptomsRequired = computed(() => appConfiguration.value?.appointment?.require_booking_remark ?? false)
+export const displayFreeFeeWhenFeeIsZero = computed(() => appConfiguration.value?.appointment?.display_free_fee_when_fee_is_zero ?? true)
+export const displayHospitalAddress = computed(() => appConfiguration.value?.appointment?.display_hospital_address ?? false)
 
 const emptyDirectory = { departments: [], doctors: [] }
 export const bookingDirectory = computed(() => appConfiguration.value?.directory ?? emptyDirectory)
