@@ -6,8 +6,9 @@ const readout = dialog.querySelector("[data-map-coordinate]");
 const status = dialog.querySelector("[data-map-status]");
 const confirm = dialog.querySelector("[data-map-confirm]");
 const clear = dialog.querySelector("[data-map-clear]");
-let map, marker, point;
+let map, tiles, marker, point;
 let tilesReady = false;
+let tilesNeedRetry = false;
 
 function showSelection() {
   readout.textContent = point ? point.join(", ") : "";
@@ -24,7 +25,7 @@ function selectLocation(latLng) {
 function createMap() {
   const container = dialog.querySelector("[data-hospital-map]");
   map = L.map(container, { doubleClickZoom: false });
-  const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   });
@@ -37,6 +38,9 @@ function createMap() {
     tilesReady = true;
     status.textContent = "";
     showSelection();
+  });
+  tiles.on("tileerror", () => {
+    tilesNeedRetry = true;
   });
   tiles.on("load", () => {
     if (!tilesReady) status.textContent = "地图加载失败，请稍后重试。";
@@ -83,6 +87,11 @@ dialog.addEventListener("shown.bs.modal", () => {
     marker.setLatLng([lat, lng]).addTo(map);
   } else {
     map.setView([35, 105], 4);
+  }
+  // Reopening at the same center leaves failed tiles in Leaflet's grid.
+  if (tilesNeedRetry && !tiles.isLoading()) {
+    tilesNeedRetry = false;
+    tiles.redraw();
   }
   showSelection();
 });
