@@ -24,33 +24,43 @@ module Admins
 
     def update_weekly
       @weekly_fields = params.expect(weekly_schedule: [ WEEKLY_FIELDS ]).to_h
-      if @editor.save_weekly(@weekly_fields)
+      if @editor.save_weekly(@weekly_fields, revision: params[:revision])
         redirect_to schedule_path(tab: :weekly), notice: "每周排班已保存", status: :see_other
       else
-        render_schedule(:weekly, status: :unprocessable_content)
+        render_failed_schedule(:weekly)
       end
     end
 
     def update_date_adjustment
       @date = required_date
       @date_fields = params.expect(date_adjustment: ScheduleEditor::FIELDS).to_h
-      if @editor.save_date(@date, @date_fields)
+      if @editor.save_date(@date, @date_fields, revision: params[:revision])
         redirect_to schedule_path(tab: :date, date: @date), notice: "日期调整已保存", status: :see_other
       else
-        render_schedule(:date, status: :unprocessable_content)
+        render_failed_schedule(:date)
       end
     end
 
     def revoke_date_adjustment
       @date = required_date
-      if @editor.revoke_date(@date)
+      if @editor.revoke_date(@date, revision: params[:revision])
         redirect_to schedule_path(tab: :date, date: @date), notice: "日期调整已撤销", status: :see_other
       else
-        render_schedule(:date, status: :unprocessable_content)
+        render_failed_schedule(:date)
       end
     end
 
     private
+
+    def render_failed_schedule(tab)
+      if @editor.stale?
+        @weekly_fields = @date_fields = nil
+        render_schedule(tab, status: :conflict)
+      else
+        @schedule_revision = params[:revision]
+        render_schedule(tab, status: :unprocessable_content)
+      end
+    end
 
     def load_doctor
       @doctor = Doctor.current.find(params[:doctor_id])
@@ -91,9 +101,11 @@ module Admins
       when :calendar
         load_calendar
       when :date
+        @schedule_revision ||= @editor.date_revision(@date)
         @day = ScheduleCalendar.new([ @doctor.id ], @date..@date, settings: @appointment_settings).day(@doctor.id, @date)
         @date_fields ||= shift_fields(@day.shifts)
       when :weekly
+        @schedule_revision ||= @editor.weekly_revision
         @weekly_fields ||= @doctor.schedules.weekly.active.order(:id).group_by(&:weekday).transform_keys(&:to_s).transform_values { |shifts| shift_fields(shifts) }
       end
       render :show, status: status

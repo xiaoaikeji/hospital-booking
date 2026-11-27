@@ -2,9 +2,12 @@ class ScheduleEditor
   include ActiveModel::Model
 
   FIELDS = %i[time_slot capacity night night_capacity].freeze
+  REVISION_FIELDS = %w[id weekday start_date end_date time_slot capacity is_active updated_at].freeze
+  STALE = "排班已被修改，已加载最新排班，请核对后重新操作"
   FAILURE = "排班未保存，请重试"
   REVOKE_FAILURE = "日期调整未撤销，请重试"
   class Invalid < StandardError; end
+  class Stale < Invalid; end
 
   def initialize(doctor:, actor:, request:)
     @doctor = doctor
@@ -12,9 +15,23 @@ class ScheduleEditor
     @request = request
   end
 
-  def save_weekly(input)
+  def weekly_revision
+    revision_for(@doctor.schedules.weekly.order(:id))
+  end
+
+  def date_revision(date)
+    rows = @doctor.schedules.on_date(date).order(:id).to_a
+    if rows.none?(&:is_active)
+      rows.concat(@doctor.schedules.weekly.active.where(weekday: date.wday, start_date: ..date).order(:id))
+    end
+    revision_for(rows, date: date)
+  end
+
+  def stale? = errors.of_kind?(:base, :stale)
+
+  def save_weekly(input, revision:)
     scope = @doctor.schedules.weekly.where(weekday: input.keys)
-    save(scope) do |current, night_enabled|
+    save(scope, revision: revision) do |current, night_enabled|
       by_weekday = current.group_by(&:weekday)
       today = Date.current
       input.flat_map do |weekday, fields|
@@ -28,8 +45,8 @@ class ScheduleEditor
     end
   end
 
-  def save_date(date, input)
-    save(@doctor.schedules.on_date(date), date: date) do |current, night_enabled|
+  def save_date(date, input, revision:)
+    save(@doctor.schedules.on_date(date), date: date, revision: revision) do |current, night_enabled|
       inherited = current.empty? && (!night_enabled || !input.key?(:night))
       previous = current
       if inherited
@@ -45,13 +62,14 @@ class ScheduleEditor
     end
   end
 
-  def revoke_date(date)
+  def revoke_date(date, revision:)
     target = nil
     @doctor.with_lock(requires_new: true) do
       raise ActiveRecord::RecordNotFound if @doctor.deleted_at?
 
       rows = @doctor.schedules.on_date(date).order(:id)
       target = rows.first
+      check_revision!(revision, date)
       if target
         rows.delete_all
         audit(:revoke, target, date: date)
@@ -60,15 +78,23 @@ class ScheduleEditor
     true
   rescue ActiveRecord::RecordNotFound
     raise
-  rescue ActiveRecord::ActiveRecordError
-    errors.add(:base, REVOKE_FAILURE)
-    audit(:revoke, target, date: date, status: "failed", reason: REVOKE_FAILURE)
-    false
+  rescue Stale, ActiveRecord::ActiveRecordError => error
+    record_failure(error, :revoke, target, date: date, fallback: REVOKE_FAILURE)
   end
 
   private
 
-  def save(scope, date: nil)
+  def revision_for(rows, date: nil)
+    attributes = rows.map { |row| row.attributes.values_at(*REVISION_FIELDS) }
+    Digest::SHA256.hexdigest([ @doctor.id, date, attributes ].to_json)
+  end
+
+  def check_revision!(revision, date)
+    current = date ? date_revision(date) : weekly_revision
+    raise Stale, STALE unless revision == current
+  end
+
+  def save(scope, revision:, date: nil)
     action = :update
     target = nil
     @doctor.with_lock(requires_new: true) do
@@ -77,6 +103,7 @@ class ScheduleEditor
       current = scope.active.order(:id).to_a
       action = :create if current.empty?
       target = current.first
+      check_revision!(revision, date)
       shifts = yield(current, Schedule.night_enabled?)
       changed = replace(current, shifts)
       audit(action, changed, date: date) if changed
@@ -85,8 +112,18 @@ class ScheduleEditor
   rescue ActiveRecord::RecordNotFound
     raise
   rescue Invalid, ActiveRecord::ActiveRecordError => error
-    errors.add(:base, error.is_a?(Invalid) ? error.message : FAILURE)
-    audit(action, target, date: date, status: "failed", reason: FAILURE)
+    record_failure(error, action, target, date: date, fallback: FAILURE)
+  end
+
+  def record_failure(error, action, target, date:, fallback:)
+    if error.is_a?(Stale)
+      errors.add(:base, :stale, message: STALE)
+      reason = STALE
+    else
+      errors.add(:base, error.is_a?(Invalid) ? error.message : fallback)
+      reason = fallback
+    end
+    audit(action, target, date: date, status: "failed", reason: reason)
     false
   end
 

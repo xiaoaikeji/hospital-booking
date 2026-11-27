@@ -14,6 +14,7 @@
 <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :patch, id: "date-adjustment-editor", data: { admin_form: true } do %>
   <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
   <%= hidden_field_tag :date, @date.iso8601, id: nil %>
+  <%= hidden_field_tag :revision, @schedule_revision, id: nil if @editable %>
   <div class="card-body border-top">
     <%= render "admins/shared/form_errors", record: @editor %>
     <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
@@ -43,6 +44,7 @@
   <%= form_with url: date_adjustment_admins_doctor_schedule_path(@doctor), method: :delete, id: "revoke-date-adjustment", hidden: true do %>
     <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
     <%= hidden_field_tag :date, @date.iso8601, id: nil %>
+    <%= hidden_field_tag :revision, @schedule_revision, id: nil %>
   <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "revoke-date-adjustment-confirmation", form_id: "revoke-date-adjustment",
     color: "warning", title: "撤销日期调整", context: "#{@doctor.name} · #{@date.iso8601}",

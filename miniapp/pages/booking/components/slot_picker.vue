@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
+import { bookingNow } from '@/store/app-configuration.js'
 import { demoMode } from '@/store/session.js'
 import { bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots } from '../booking-calendar.js'
 
@@ -57,7 +58,7 @@ function selectDay(item) {
 }
 
 function selectSlot(item) {
-  if (shiftBookable(item)) choice.value = bookingSlotKey(item)
+  if (shiftBookable(item, bookingNow())) choice.value = bookingSlotKey(item)
 }
 
 function shiftHeading(shift) {
@@ -82,7 +83,7 @@ function slotStatus(item) {
 }
 
 function confirm() {
-  if (canConfirmAt(Date.now())) emit('confirm', { doctorId: props.doctorId, date: day.value.date, slot: chosenSlot.value })
+  if (canConfirmAt(bookingNow())) emit('confirm', { doctorId: props.doctorId, date: day.value.date, slot: chosenSlot.value })
 }
 </script>
 

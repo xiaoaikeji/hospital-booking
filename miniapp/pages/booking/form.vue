@@ -77,16 +77,29 @@ onLoad(async options => {
   }
 })
 
-onShow(() => {
-  if (bookingParams.value && !fromDemo.value) checkAppAccess()
-  if (!openedDetail) return
-  if (getCurrentPages().length > 1) uni.navigateBack()
-  else uni.redirectTo({ url: '/pages/ucenter/appointments' })
+onShow(async () => {
+  if (openedDetail) {
+    if (getCurrentPages().length > 1) uni.navigateBack()
+    else uni.redirectTo({ url: '/pages/ucenter/appointments' })
+    return
+  }
+  if (!bookingParams.value || fromDemo.value) return
+  await checkAppAccess()
+  if (!needsBinding.value) return
+  try {
+    const user = await readProfile()
+    if (!user?.booking_phone_required) needsBinding.value = false
+  } catch {
+    needsBinding.value = false
+  }
 })
 
 watch([schedule, now], ([days]) => {
   if (!days.length) picking.value = false
-  else if (!fromDemo.value && !selectedSlot.value) slotSelection.value = null
+  else if (!fromDemo.value && !selectedSlot.value) {
+    slotSelection.value = null
+    needsBinding.value = false
+  }
 })
 
 watch(signedIn, active => {
@@ -186,6 +199,7 @@ function setTime(selection) {
   refreshClock()
   selectedDate.value = selection.date
   slotSelection.value = selection
+  needsBinding.value = false
   picking.value = false
 }
 
@@ -308,7 +322,7 @@ async function confirmBooking() {
         </view>
       </view>
       <view class="demo-note">{{ demoMode ? '本地模拟预约，请使用虚构就诊资料' : '正式预约受理尚未开放' }}</view>
-      <view v-if="needsBinding" id="phone-binding">
+      <view v-if="needsBinding && selectedSlot" id="phone-binding">
         <view class="binding-note">医院要求先验证账号手机号。本次联系电话可填写家属号码。</view>
         <custom-phone-authorization label="验证账号手机号" @authorized="verifyPhone" @denied="phoneDenied" @failed="notify('手机号授权失败，请重试')">
           <view class="submit bind-button">{{ binding ? '验证中…' : '验证账号手机号' }}</view>

@@ -1,14 +1,14 @@
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { onHide, onShow, onUnload } from '@dcloudio/uni-app'
 import { getBookingSchedule, getScheduledDoctors } from '@/mock/booking-schedule.js'
-import { bookingSchedule, configurationStatus } from '@/store/app-configuration.js'
+import { bookingClock, bookingNow, bookingSchedule, configurationStatus } from '@/store/app-configuration.js'
 import { bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
+import { checkAppAccess } from '@/utils/app-access.js'
 
 const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 const SHIFT_LABELS = { AM: '上午', PM: '下午', FULL: '全天', NIGHT: '晚班' }
 
 const publishedSchedule = computed(() => {
-  if (configurationStatus.value === 'error') return []
   return bookingSchedule.value.map(({ date, doctors, availability }) => ({
     date,
     label: date.slice(5).replace('-', '–'),
@@ -48,11 +48,11 @@ export function bookingSlotKey(slot) {
   return [slot.time_slot, slot.timed ? 'slot' : 'shift', slot.start_time, slot.end_time].join('/')
 }
 
-export function shiftClosed(shift, now = Date.now()) {
-  return Number.isFinite(shift.cutoff_at) && now >= shift.cutoff_at
+export function shiftClosed(shift, now) {
+  return Number.isFinite(shift.cutoff_at) && (!Number.isFinite(now) || now >= shift.cutoff_at)
 }
 
-export function shiftBookable(shift, now = Date.now()) {
+export function shiftBookable(shift, now) {
   return (shift.remaining == null || shift.remaining > 0) && !shiftClosed(shift, now)
 }
 
@@ -75,7 +75,7 @@ export function shiftLabels(day, doctorId, now) {
 export function useBookingCalendar(isDemo = () => directoryDemoMode) {
   const demoSchedule = ref([])
   const selectedDate = ref('')
-  const now = ref(Date.now())
+  const now = ref(bookingNow())
   const schedule = computed(() => isDemo() ? demoSchedule.value : publishedSchedule.value)
   const selectedDay = computed(() => schedule.value.find(day => day.date === selectedDate.value) || schedule.value[0])
   const scheduledDoctors = computed(() => {
@@ -86,16 +86,27 @@ export function useBookingCalendar(isDemo = () => directoryDemoMode) {
   })
 
   let timer
-  function refreshClock() { now.value = Date.now() }
+  let visible = false
+  function refreshClock() { now.value = bookingNow() }
   function tick() {
+    clearTimeout(timer)
     refreshClock()
+    if (now.value === null) return
+    if (now.value >= bookingClock.value.refreshAt) checkAppAccess()
     // All published cutoffs fall on a minute boundary.
     timer = setTimeout(tick, 60_000 - (now.value % 60_000))
   }
-  const stopClock = () => clearTimeout(timer)
+  function stopClock() {
+    visible = false
+    clearTimeout(timer)
+  }
   onShow(() => {
-    stopClock()
+    visible = true
     if (!isDemo()) tick()
+  })
+  watch(bookingClock, () => {
+    if (visible && !isDemo()) tick()
+    else refreshClock()
   })
   onHide(stopClock)
   onUnload(stopClock)

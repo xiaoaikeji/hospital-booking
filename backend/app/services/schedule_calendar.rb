@@ -32,16 +32,18 @@ class ScheduleCalendar
   end
 
   def as_json(options = nil)
+    legacy_timed_schedule = @settings.time_slot_booking? && !options&.fetch(:time_slots, false)
     @dates.map do |date|
       availability = @doctor_ids.each_with_object({}) do |id, result|
         shifts = day_availability(id, date, include_times: true).fetch(:shifts)
-        unless options&.fetch(:time_slots, false)
+        if legacy_timed_schedule
           # Older pickers can only select an entire shift.
           shifts = shifts.map { |shift| shift[:slots] ? shift.except(:slots).merge(remaining: 0) : shift }
         end
         result[id.to_s] = shifts if shifts.any?
       end
-      doctors = availability.transform_values { |shifts| shifts.pluck(:time_slot) }
+      # Early clients use this list alone and consider all listed shifts selectable.
+      doctors = legacy_timed_schedule ? {} : availability.transform_values { |shifts| shifts.pluck(:time_slot) }
       { date: date.iso8601, doctors: doctors, availability: availability }
     end
   end

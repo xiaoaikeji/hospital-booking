@@ -17,7 +17,7 @@ const { bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed,
 const source = readFileSync(new URL('../pages/booking/form.vue', import.meta.url), 'utf8')
 const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
 // Run the page's handlers with the uni-app hooks and calendar store provided by the fixture.
-const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, picking, doctor, date, selectedSlot, name, sex, age, phone, symptoms })`)
+const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, picking, doctor, date, selectedSlot, needsBinding, name, sex, age, phone, symptoms })`)
 
 async function openForm(initial = days(night(4))) {
   const schedule = ref(initial)
@@ -27,6 +27,8 @@ async function openForm(initial = days(night(4))) {
   const bookingSymptomsRequired = ref(false)
   const messages = []
   let mount
+  let resume
+  let phoneRequired = false
   let response = initial
   let requests = 0
   const checkAppAccess = async () => {
@@ -41,7 +43,7 @@ async function openForm(initial = days(night(4))) {
     ref, computed,
     watch() {},
     onLoad(handler) { mount = handler },
-    onShow() {},
+    onShow(handler) { resume = handler },
     directoryDemoMode: false,
     demoMode: false,
     findBookingDoctor: id => ({ id }),
@@ -50,17 +52,19 @@ async function openForm(initial = days(night(4))) {
     shiftBookable,
     signedIn: ref(true),
     loadPatients: async () => [],
-    readProfile: async () => ({ booking_phone_required: false }),
+    readProfile: async () => ({ booking_phone_required: phoneRequired }),
+    nextTick: async () => {},
     patientValidationMessage: () => '',
     bookingSymptomsRequired,
     canOpenBooking: async () => true,
     checkAppAccess,
     canUseApp,
-    uni: { hideKeyboard() {}, showToast({ title }) { messages.push(title) } },
+    uni: { hideKeyboard() {}, pageScrollTo() {}, showToast({ title }) { messages.push(title) } },
   })
   await mount({ id: doctorId, date })
   form.setTime({ doctorId, date, slot: bookingSlots(schedule.value[0], doctorId)[0] })
-  return { ...form, schedule, now, messages, bookingSymptomsRequired, respondWith: value => { response = value }, requests: () => requests }
+  return { ...form, schedule, now, messages, bookingSymptomsRequired, resume, setPhoneRequired: value => { phoneRequired = value },
+    respondWith: value => { response = value }, requests: () => requests }
 }
 
 test('a cached calendar is refreshed before opening and an available selection is retained', async () => {
@@ -131,7 +135,7 @@ test('the next shift and the date filter agree on cutoff, remaining seats and da
   const source = readFileSync(new URL('../pages/booking/components/slot_picker.vue', import.meta.url), 'utf8')
   const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
   const picker = new Script(`${setup}\n({ selectSlot, onlyBookable, visibleDays, canConfirm, choice, shiftText, confirm })`).runInNewContext({
-    computed, ref, bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots, Date: { now: () => now },
+    computed, ref, bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots, bookingNow: () => now,
     watch(sources, handler) { update = () => handler(sources.map(source => source.value)) },
     defineProps: () => props, defineEmits: () => (_event, selection) => confirmations.push(selection),
   })
@@ -244,4 +248,97 @@ test('a timed selection uses its exact shift and times and refreshes without cle
   assert.equal(form.messages.at(-1), '时段已不可约，请重新选择')
   assert.deepEqual([form.name.value, form.sex.value, form.age.value, form.phone.value, form.symptoms.value],
     ['测试就诊人', '女', '30', '13800000000', '测试症状'])
+})
+
+test('resuming a form refreshes a pending phone authorization and preserves the draft', async () => {
+  const form = await openForm()
+  form.name.value = '测试就诊人'
+  form.phone.value = '13800000000'
+  form.symptoms.value = '测试症状'
+
+  form.setPhoneRequired(true)
+  await form.confirmBooking()
+  assert.equal(form.needsBinding.value, true)
+  await form.resume()
+  assert.equal(form.needsBinding.value, true)
+
+  form.setPhoneRequired(false)
+  await form.resume()
+  assert.equal(form.needsBinding.value, false)
+  assert.equal(form.selectedSlot.value.label, '晚班')
+  await form.confirmBooking()
+  assert.equal(form.messages.at(-1), '医院预约受理尚未开放')
+  assert.deepEqual([form.name.value, form.phone.value, form.symptoms.value], ['测试就诊人', '13800000000', '测试症状'])
+})
+
+function clockStore(loadAppConfiguration, deviceNow) {
+  const source = readFileSync(new URL('../store/app-configuration.js', import.meta.url), 'utf8')
+    .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
+  return new Script(`${source}\n;({ bookingClock, bookingNow, bookingSchedule, configurationStatus, refreshAppConfiguration })`)
+    .runInNewContext({ computed, ref, loadAppConfiguration, Date: { now: deviceNow } })
+}
+
+test('device clock offsets of either sign do not affect the countdown from the server sample', async () => {
+  const start = Date.parse('2026-11-30T11:29:00+08:00')
+  const cutoff_at = start + 60_000
+  const shift = { remaining: 1, cutoff_at }
+  for (const offset of [-120_000, 120_000]) {
+    let deviceTime = start + offset
+    const store = clockStore(async () => ({status: 'ready', config: {
+      server_time: start, schedule_refresh_at: Date.parse('2026-12-01T00:00:00+08:00'), schedule: days(shift),
+    }}), () => deviceTime)
+    await store.refreshAppConfiguration()
+    assert.equal(store.bookingNow(), start)
+    assert.equal(shiftBookable(shift, store.bookingNow()), true)
+    deviceTime += 60_000
+    assert.equal(store.bookingNow(), cutoff_at)
+    assert.equal(shiftBookable(shift, store.bookingNow()), false)
+  }
+})
+
+test('the active calendar refreshes at Beijing midnight and retries after a failed refresh', async () => {
+  const midnight = Date.parse('2026-12-01T00:00:00+08:00')
+  let deviceTime = midnight + 119_000
+  let result = { status: 'ready', config: {
+    server_time: midnight - 1000, schedule_refresh_at: midnight, schedule: days(),
+  } }
+  const store = clockStore(async () => await result, () => deviceTime)
+  let show, hide, clockChanged, nextTick, delay, request
+  let refreshes = 0
+  const calendar = new Script(`${calendarSource}\nuseBookingCalendar(() => false)`).runInNewContext({
+    ...store, computed, ref,
+    checkAppAccess() { refreshes++; request = store.refreshAppConfiguration() },
+    onShow(handler) { show = handler }, onHide(handler) { hide = handler }, onUnload() {},
+    watch(_clock, handler) { clockChanged = handler },
+    setTimeout(handler, ms) { nextTick = handler; delay = ms }, clearTimeout() { nextTick = undefined },
+  })
+  await store.refreshAppConfiguration()
+  show()
+  assert.equal(delay, 1000)
+  assert.equal(refreshes, 0)
+
+  deviceTime += 1000
+  result = { status: 'error' }
+  nextTick()
+  await request
+  assert.equal(refreshes, 1)
+  assert.equal(calendar.schedule.value.length, 0)
+  assert.equal(delay, 60_000)
+
+  deviceTime += 60_000
+  let publish
+  result = new Promise(resolve => { publish = resolve })
+  nextTick()
+  assert.equal(calendar.schedule.value.length, 0)
+  const lastDate = '2026-12-14'
+  publish({ status: 'ready', config: {
+    server_time: midnight + 60_000, schedule_refresh_at: midnight + 86_400_000,
+    schedule: [{ date: '2026-12-01', availability: {} }, { date: lastDate, availability: { [doctorId]: [night(1)] } }],
+  } })
+  await request
+  clockChanged()
+  assert.equal(refreshes, 2)
+  assert.equal(nextBookableSlot(calendar.schedule.value, doctorId, calendar.now.value).day.date, lastDate)
+  hide()
+  assert.equal(nextTick, undefined)
 })

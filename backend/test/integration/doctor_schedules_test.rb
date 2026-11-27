@@ -140,6 +140,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     legacy = published_shifts(@monday + 1, time_slots: false).sole
     assert_equal [ "AM", 37, 0 ], legacy.values_at("time_slot", "total", "remaining")
     assert_not legacy.key?("slots")
+    assert response.parsed_body.fetch("schedule").all? { |day| day.fetch("doctors").empty? }
     assert_equal Time.iso8601("2026-12-01T11:30:00+08:00").to_i * 1000, legacy.fetch("cutoff_at")
     get adjustment_page
     assert_select "#adjustment-capacity:not([value])"
@@ -153,6 +154,8 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     configure_time_slots(booking_by_time_slot: false, default_capacity: 23)
     assert_equal [ 50, 25 ], published_shifts(dates.last, time_slots: false).pluck("remaining")
     assert_equal 37, published_shifts(@monday + 1, time_slots: false).sole.fetch("remaining")
+    day = response.parsed_body.fetch("schedule").find { |entry| entry.fetch("date") == (@monday + 1).iso8601 }
+    assert_equal %w[AM], day.fetch("doctors").fetch(@doctor.id.to_s)
     assert_equal 23, published_shifts(@monday, time_slots: false).sole.fetch("remaining")
     assert_equal counts, @doctor.schedules.where(time_slot: "AM").order(:start_date).pluck(:capacity)
   end
@@ -242,7 +245,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_response :see_other
     assert_empty published_shifts(@monday)
     assert_equal %w[AM NIGHT], published_shifts(@monday + 7).pluck("time_slot")
-    delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+    revoke_adjustment
     assert_response :see_other
     assert_equal %w[AM NIGHT], published_shifts(@monday).pluck("time_slot")
   end
@@ -274,14 +277,14 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_select "script[src*='fullcalendar']", count: 0
 
     patch date_adjustment_admins_doctor_schedule_path(@doctor), params: {
-      month: month, date: date, date_adjustment: { time_slot: "AM", capacity: "5" }
+      month: month, date: date, revision: date_form_revision, date_adjustment: { time_slot: "AM", capacity: "5" }
     }
     assert_redirected_to date_path
     follow_redirect!
     assert_select "a[href=?]", calendar_path, text: "排班日历"
 
     patch weekly_admins_doctor_schedule_path(@doctor), params: {
-      month: month, weekly_schedule: { "1" => { time_slot: "PM" } }
+      month: month, revision: schedule_editor.weekly_revision, weekly_schedule: { "1" => { time_slot: "PM" } }
     }
     assert_redirected_to admins_doctor_schedule_path(@doctor, month: month, tab: "weekly")
     follow_redirect!
@@ -291,8 +294,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
   test "a whole date adjustment replaces the week and clearing survives until it is revoked" do
     get admins_doctor_path(@doctor)
     assert_select "a[href=?]", admins_doctor_schedule_path(@doctor), text: "排班"
-    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: { "1" => { time_slot: "AM", capacity: "" } } }
-    assert_response :see_other
+    save_weekly({ "1" => { time_slot: "AM", capacity: "" } })
     assert_nil @doctor.schedules.weekly.sole.capacity
     assert_calendar %w[AM]
     get adjustment_page
@@ -330,7 +332,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
       set_nights(enabled)
       assert_off
     end
-    delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+    revoke_adjustment
     assert_redirected_to adjustment_page
     assert_empty @doctor.schedules.on_date(@monday)
     assert_published_schedule({ @monday => [ shift("AM", "上午") ] })
@@ -343,6 +345,69 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     get admins_operation_log_path(revoke)
     assert_response :success
     assert_select "dd", text: @monday.iso8601
+  end
+
+  test "stale weekly forms show current values and cannot overwrite the latest published shifts" do
+    first_week = { "1" => { time_slot: "AM", capacity: "20" }, "2" => { time_slot: "AM", capacity: "12" } }
+    save_weekly(first_week)
+    get admins_doctor_schedule_path(@doctor, tab: "weekly")
+    original = weekly_form_revision
+    monday_changed = first_week.merge("1" => { time_slot: "AM", capacity: "37" })
+    tuesday_changed = { "2" => { time_slot: "AM", capacity: "8" } }
+
+    invalid = first_week.merge("2" => { time_slot: "AM", capacity: "0" })
+    save_weekly(invalid, revision: original, status: :unprocessable_content)
+    assert_equal original, weekly_form_revision
+    save_weekly(monday_changed, revision: original)
+    save_weekly(first_week.merge(tuesday_changed), revision: original, status: :conflict)
+    assert_select "[role=alert]", text: /排班已被修改/
+    assert_select "#weekday-1-capacity[value='37']"
+    assert_select "#weekday-2-capacity[value='12']"
+    fresh = weekly_form_revision
+    assert_not_equal original, fresh
+    save_weekly(monday_changed.merge(tuesday_changed), revision: fresh)
+
+    save_weekly(first_week.merge("1" => { time_slot: "AM", capacity: "30" }), revision: fresh, status: :conflict)
+    save_weekly(first_week, revision: nil, status: :conflict)
+    assert_equal [ 37, 8 ], [ @monday, @monday + 1 ].map { |date| published_shifts(date).sole.fetch("total") }
+  end
+
+  test "an outdated date adjustment form cannot save or revoke another operator's new entry" do
+    dated_shift(@monday, "PM", capacity: 18)
+    get adjustment_page
+    original = date_form_revision
+    assert_equal original, assert_select("#revoke-date-adjustment input[name='revision']").sole["value"]
+    adjust(revision: original, time_slot: "PM", capacity: "22")
+    assert_response :see_other
+
+    adjust(revision: original, time_slot: "AM", capacity: "12")
+    assert_response :conflict
+    assert_select "#adjustment-capacity[value='22']"
+    revoke_adjustment(revision: original)
+    assert_response :conflict
+    assert_select "[role=alert]", text: /排班已被修改/
+    fresh = date_form_revision
+    assert_equal [ "PM", 22 ], published_shifts(@monday).sole.values_at("time_slot", "total")
+
+    revoke_adjustment(revision: fresh)
+    assert_response :see_other
+    assert_empty published_shifts(@monday)
+  end
+
+  test "the configuration clock and the fourteen-day window change together at Beijing midnight" do
+    future_date = Date.new(2026, 12, 14)
+    dated_shift(future_date, "AM")
+    path = api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    midnight = Time.zone.local(2026, 12, 1)
+    [ midnight - 1.second, midnight ].each do |now|
+      travel_to now
+      get path, params: { schedule_format: "time_slots" }
+      assert_response :success
+      config = response.parsed_body
+      assert_equal [ now.to_i * 1000, (now.to_date + 1).in_time_zone.to_i * 1000 ], config.values_at("server_time", "schedule_refresh_at")
+      assert_equal now.to_date..(now.to_date + 13), Date.iso8601(config.fetch("schedule").first.fetch("date"))..Date.iso8601(config.fetch("schedule").last.fetch("date"))
+      assert_equal now == midnight ? [ "AM" ] : [], config.fetch("schedule").last.fetch("doctors").fetch(@doctor.id.to_s, [])
+    end
   end
 
   test "customer service can read either form but cannot save or revoke an adjustment" do
@@ -367,7 +432,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
       assert_response :forbidden
       adjust(time_slot: "PM")
       assert_response :forbidden
-      delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+      revoke_adjustment
       assert_response :forbidden
     end
     assert_equal "FULL", @doctor.schedules.on_date(@monday).sole.time_slot
@@ -497,7 +562,7 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
       morning = [ shift("AM", "上午", 8) ]
       assert_published_schedule({ @monday => [], (@monday + 7) => morning }, closed: [ @monday ])
 
-      delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+      revoke_adjustment
       assert_redirected_to adjustment_page
       assert_empty @doctor.schedules.on_date(@monday)
       assert_published_schedule({ @monday => morning })
@@ -576,8 +641,14 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
 
   def monday_week = { "1" => { time_slot: "AM", capacity: "8", night: "1", night_capacity: "4" } }
 
-  def save_weekly(week, status: :see_other)
-    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: week }
+  def schedule_editor = ScheduleEditor.new(doctor: @doctor, actor: @operator, request: nil)
+
+  def weekly_form_revision = assert_select("form input[name='revision']").sole["value"]
+
+  def date_form_revision = assert_select("#date-adjustment-editor input[name='revision']").sole["value"]
+
+  def save_weekly(week, status: :see_other, revision: schedule_editor.weekly_revision)
+    patch weekly_admins_doctor_schedule_path(@doctor), params: { weekly_schedule: week, revision: revision }
     assert_response status
   end
 
@@ -597,8 +668,12 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     end
   end
 
-  def adjust(date: @monday, **fields)
-    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: date.iso8601, date_adjustment: fields }
+  def adjust(date: @monday, revision: schedule_editor.date_revision(date), **fields)
+    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: date.iso8601, date_adjustment: fields, revision: revision }
+  end
+
+  def revoke_adjustment(revision: schedule_editor.date_revision(@monday))
+    delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601, revision: revision }
   end
 
   def assert_published_schedule(expected, closed: [])

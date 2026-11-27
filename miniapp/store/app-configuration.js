@@ -5,9 +5,20 @@ import { loadAppConfiguration } from '@/request/http.js'
 
 const appConfiguration = ref(null)
 export const configurationStatus = ref('loading')
+export const bookingClock = ref(null)
+const scheduleCurrent = ref(false)
 const disabledListeners = new Set()
 let pending
 let revision = 0
+
+function elapsedTime() {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now()
+}
+
+export function bookingNow() {
+  const sample = bookingClock.value
+  return sample ? sample.serverTime + Math.max(0, elapsedTime() - sample.receivedAt) : null
+}
 
 export function onAppDisabled(listener) {
   disabledListeners.add(listener)
@@ -21,6 +32,8 @@ function notifyAppDisabled() {
 export function markAppDisabled() {
   revision++
   appConfiguration.value = null
+  scheduleCurrent.value = false
+  bookingClock.value = null
   configurationStatus.value = 'disabled'
   notifyAppDisabled()
 }
@@ -32,9 +45,16 @@ export function refreshAppConfiguration() {
   const started = revision
   pending = loadAppConfiguration().then(({ status, config }) => {
     if (started !== revision) return
-    if (status === 'ready') appConfiguration.value = config
+    scheduleCurrent.value = status === 'ready'
+    if (status === 'ready') {
+      appConfiguration.value = config
+      bookingClock.value = Number.isFinite(config.server_time) && Number.isFinite(config.schedule_refresh_at)
+        ? { serverTime: config.server_time, refreshAt: config.schedule_refresh_at, receivedAt: elapsedTime() }
+        : null
+    }
     if (status === 'disabled') {
       appConfiguration.value = null
+      bookingClock.value = null
       configurationStatus.value = 'disabled'
       notifyAppDisabled()
       return
@@ -65,4 +85,4 @@ export const displayHospitalAddress = computed(() => appConfiguration.value?.app
 
 const emptyDirectory = { departments: [], doctors: [] }
 export const bookingDirectory = computed(() => appConfiguration.value?.directory ?? emptyDirectory)
-export const bookingSchedule = computed(() => appConfiguration.value?.schedule ?? [])
+export const bookingSchedule = computed(() => scheduleCurrent.value && bookingClock.value ? (appConfiguration.value?.schedule ?? []) : [])

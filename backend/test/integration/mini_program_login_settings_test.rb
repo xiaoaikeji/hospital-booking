@@ -129,13 +129,26 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
 
     input = { revision:, require_mobile_auth: "0", booking_enable_evening: "0", booking_by_time_slot: "1",
       max_bookings_per_slot: "6", booking_morning_end_at: "11:30", booking_afternoon_begin_at: "13:30" }
-    [ { max_bookings_per_slot: "0" }, { booking_morning_end_at: "11:15" },
-      { booking_morning_begin_at: "11:30" }, { booking_afternoon_end_at: "17:30" } ].each do |invalid|
+    [ [ { max_bookings_per_slot: "0" }, AppointmentSettings::INVALID_SLOT_CAPACITY ],
+      [ { booking_morning_end_at: "11:15" }, AppointmentSettings::INVALID_TIME ],
+      [ { booking_morning_begin_at: "11:30" }, AppointmentSettings::INVALID_WINDOW ],
+      [ { booking_afternoon_end_at: "17:30" }, AppointmentSettings::OVERLAPPING_WINDOWS ] ].each do |invalid, reason|
       patch admins_system_settings_appointment_path, params: { appointment: input.merge(invalid) }
       assert_response :unprocessable_content
       refute AppointmentSettings.new.time_slot_booking?
       assert_equal "12:00", AppointmentSettings.new.shift_time("booking_morning_end_at")
+      failure = Log.operations_visible_to(@root).where(action: "appointment.update", status: "failed").last!
+      get admins_operation_log_path(failure)
+      assert_response :success
+      assert_select "dd", text: reason
     end
+
+    historical_failure = Log.create!(category: "settings", source: "admin", action: "appointment.update", status: "failed",
+      actor_type: "Admin", actor_id: @root.id, details: { "reason" => "unrecognized-text-fixture", "secret_value" => "hidden-value-fixture" })
+    get admins_operation_log_path(historical_failure)
+    assert_response :success
+    assert_not_includes response.body, "unrecognized-text-fixture"
+    assert_not_includes response.body, "hidden-value-fixture"
 
     patch admins_system_settings_appointment_path, params: { appointment: input }
     assert_redirected_to path

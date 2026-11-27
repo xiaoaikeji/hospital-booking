@@ -1,5 +1,6 @@
 <%= form_with url: weekly_admins_doctor_schedule_path(@doctor), method: :patch, data: { admin_form: true } do %>
   <%= hidden_field_tag :month, calendar_month.strftime("%Y-%m"), id: nil %>
+  <%= hidden_field_tag :revision, @schedule_revision, id: nil if @editable %>
   <% if @editor.errors.any? %><div class="card-body pb-0"><%= render "admins/shared/form_errors", record: @editor %></div><% end %>
   <div class="list-group list-group-flush">
     <div class="list-group-item d-none d-lg-block bg-body py-2 text-secondary fw-medium" aria-hidden="true">

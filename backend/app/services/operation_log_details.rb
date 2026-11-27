@@ -24,7 +24,7 @@ class OperationLogDetails
   }.freeze
   DIRECTORY_ORDER = { "fields" => %w[sort_order], "sort_order" => INTEGER }.freeze
   SCHEDULE_EDIT = { "doctor_id" => ID, "schedule_mode" => %w[每周排班 指定日期调整], "schedule_date" => /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/,
-    "reason" => [ ScheduleEditor::FAILURE, ScheduleEditor::REVOKE_FAILURE ] }.freeze
+    "reason" => [ ScheduleEditor::STALE, ScheduleEditor::FAILURE, ScheduleEditor::REVOKE_FAILURE ] }.freeze
   PLUGIN = { "plugin_appid" => WECHAT_APPID }.freeze
   PLUGIN_VERSION = PLUGIN.merge("version" => VERSION).freeze
   MEDIA = { "kind" => %w[image voice video], "code" => INTEGER }.freeze
@@ -44,7 +44,9 @@ class OperationLogDetails
     "appointment.phone_policy" => { "fields" => %w[require_mobile_auth] },
     "appointment.night_shift" => { "fields" => [ Schedule::NIGHT_SETTING ], "reason" => [ "晚班设置未保存，请重试" ] },
     "appointment.update" => { "fields" => AppointmentSettings::FIELDS, "reason" => [ AppointmentSettings::STALE,
-      AppointmentSettings::INVALID, AppointmentSettings::INVALID_CAPACITY, AppointmentSettings::FAILURE, "请选择是否验证账号手机号和启用晚班" ] },
+      AppointmentSettings::INVALID, AppointmentSettings::INVALID_CAPACITY, AppointmentSettings::INVALID_SLOT_CAPACITY,
+      AppointmentSettings::INVALID_TIME, AppointmentSettings::INVALID_WINDOW, AppointmentSettings::OVERLAPPING_WINDOWS,
+      AppointmentSettings::FAILURE, "请选择是否验证账号手机号和启用晚班" ] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
     "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE, HospitalProfile::INVALID_LOCATION ] },
     "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,

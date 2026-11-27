@@ -16,8 +16,11 @@ module Api
         end
       end
       config[:directory] = directory
-      today = Date.current
+      now = Time.current
+      today = now.to_date
       dates = today..(today + ScheduleCalendar::DAYS - 1)
+      config[:server_time] = (now.to_r * 1000).to_i
+      config[:schedule_refresh_at] = (today + 1).in_time_zone.to_i * 1000
       appointment = AppointmentSettings.new
       config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates, settings: appointment)
         .as_json(time_slots: params[:schedule_format] == "time_slots")
