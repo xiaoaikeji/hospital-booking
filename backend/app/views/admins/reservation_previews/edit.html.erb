@@ -1,5 +1,5 @@
 <% reservation = @reservation %>
-<% detail_path = admins_reservation_path(reservation[:id], @list_context) %>
+<% detail_path = admins_reservation_preview_path(reservation[:id], @list_context) %>
 <% content_for :title, "#{reservation[:number]} · 编辑预约 · Booking 管理后台" %>
 
 <div class="page-header mt-0 mb-3">

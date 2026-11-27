@@ -1,124 +1,65 @@
 <% content_for :title, "预约列表 · Booking 管理后台" %>
-<% filter_url = ->(changes = {}) { admins_reservations_path(@filters.merge(q: @query.presence).merge(changes).compact) } %>
-<% list_context = @filters.merge(q: @query.presence, page: @page).compact %>
+<% empty = @reservations.empty? %>
+<% content_for :fill_content, "true" if empty %>
+<% filter_url = ->(changes) { admins_reservations_path(@filters.merge(changes).compact) } %>
 
-<div class="page-header mt-0 mb-3">
-  <div class="row g-2 align-items-center">
-    <div class="col-auto">
-      <h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :calendar, icon_class: "w-5 h-5" %></span>预约列表</h1>
-    </div>
-    <div class="col-auto ms-auto"><div class="btn-list">
-      <%= link_to "返回概览", admins_root_path, class: "btn" %>
-    </div></div>
-  </div>
-</div>
+<%= render "admins/shared/list_page_header", title: "预约列表", icon: :calendar %>
 
-<% filter_rows = [
-  [ "预约状态", :status, @status_options ],
-  [ "服务项目", :service, @service_options.index_with(&:itself) ],
-  [ "预约日期", :period, @period_options ]
-] %>
-<section class="card mb-3" aria-label="预约筛选条件">
+<section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
   <div class="list-group list-group-flush">
-    <% filter_rows.each do |label, key, options| %>
-      <div class="list-group-item py-2">
-        <div class="row g-2 align-items-center">
-          <div class="col-12 col-md-2 col-xl-1 text-secondary"><%= label %></div>
-          <div class="col">
-            <nav class="nav nav-pills" aria-label="<%= label %>">
-              <% { nil => "全部" }.merge(options).each do |value, title| %>
-                <%= link_to title, filter_url.call(key => value), class: class_names("nav-link", active: @filters[key] == value), aria: { current: ("page" if @filters[key] == value) } %>
-              <% end %>
-            </nav>
-          </div>
-        </div>
-      </div>
-    <% end %>
+    <%= render "admins/shared/list_filter_row", label: "预约日期", key: :period, options: Admins::ReservationsController::PERIODS,
+      selected: @filters[:period], filter_url: filter_url %>
   </div>
 </section>
 
-<section class="card" aria-label="预约记录">
-  <div class="card-header">
-    <%= form_with url: admins_reservations_path, method: :get, class: "row g-3 align-items-center flex-grow-1", html: { role: "search" } do |form| %>
-      <% @filters.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
-      <div class="col-12 col-sm-6 col-md-4 col-xl-3">
-        <%= form.search_field :q, value: @query, class: "form-control", placeholder: "预约号 / 客户 / 手机号", aria: { label: "搜索预约" } %>
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="预约记录">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_reservations_path, method: :get, class: "d-flex flex-wrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
+      <%= hidden_field_tag :period, @filters[:period] if @filters.key?(:period) %>
+      <div class="col-12 col-sm-5 col-lg-3">
+        <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "预约号", aria: { label: "预约号" } %>
       </div>
-      <div class="col-12 col-sm-auto">
-        <div class="btn-list align-items-center">
-          <button type="submit" class="btn">搜索</button>
-          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reservation-new"><%= render "layouts/admins/icon", name: :plus %>添加预约</button>
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reservation-import"><%= render "layouts/admins/icon", name: :import %>导入</button>
-          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reservation-export"><%= render "layouts/admins/icon", name: :export %>导出</button>
-          <% if @query.present? || @filters.any? %><%= link_to "重置", admins_reservations_path, class: "btn btn-ghost-secondary" %><% end %>
-          <span class="text-secondary"><strong class="text-body"><%= @total_count %></strong> 条预约</span>
-        </div>
-      </div>
+      <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+      <% if @filters.any? %>
+        <%= link_to admins_reservations_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+      <% end %>
     <% end %>
   </div>
 
-  <% if @reservations.empty? %>
-    <div class="empty py-6">
-      <div class="empty-icon"><%= render "layouts/admins/icon", name: :calendar %></div>
-      <h2 class="empty-title">没有找到匹配的预约</h2>
-      <p class="empty-subtitle text-secondary">试试其他关键词，或清除筛选条件。</p>
-      <div class="empty-action"><%= link_to "查看全部预约", admins_reservations_path, class: "btn btn-primary" %></div>
-    </div>
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :calendar, title: (@filters.any? ? "没有找到匹配的预约" : "暂无预约记录") %>
   <% else %>
-    <%# Native card table and responsive wrapper from Desktop/tabler-1.7.1/dashboard/tables.html. %>
-    <div class="table-responsive" tabindex="0" role="region" aria-label="预约表格，可横向滚动">
-      <table class="table card-table table-vcenter table-hover text-nowrap">
-        <thead><tr><th scope="col" class="w-1">ID</th><th scope="col">预约编号</th><th scope="col">客户</th><th scope="col">服务项目</th><th scope="col">预约时间</th><th scope="col">服务人员</th><th scope="col">预约来源</th><th scope="col">金额 / 支付状态</th><th scope="col">预约状态</th><th scope="col">操作</th></tr></thead>
-        <tbody>
-          <% @reservations.each do |reservation| %>
-            <tr>
-              <td class="text-secondary">#<%= reservation[:id] %></td>
-              <td><%= link_to reservation[:number], admins_reservation_path(reservation[:id], list_context) %></td>
-              <td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm bg-primary-lt"><%= reservation[:customer].first %></span><div><div class="fw-medium"><%= reservation[:customer] %></div><div class="text-secondary small"><%= reservation[:mobile] %></div></div></div></td>
-              <td><div><%= reservation[:service] %></div><div class="text-secondary small"><%= reservation[:duration] %> 分钟</div></td>
-              <td><div><%= reservation[:starts_at].strftime("%Y-%m-%d") %></div><div class="text-secondary small"><%= reservation[:starts_at].strftime("%H:%M") %> — <%= reservation[:ends_at].strftime("%H:%M") %></div></td>
-              <td><%= reservation[:staff] %></td>
-              <td class="text-secondary"><%= reservation[:source] %></td>
-              <td><div>¥<%= reservation[:amount] %></div><div class="text-<%= reservation[:payment_color] %> small"><%= reservation[:payment_label] %></div></td>
-              <td><span class="badge bg-<%= reservation[:status_color] %>-lt"><%= reservation[:status_label] %></span></td>
-              <td><div class="btn-list flex-nowrap">
-                <%= link_to admins_reservation_path(reservation[:id], list_context), class: "btn btn-sm btn-info", aria: { label: "查看预约 #{reservation[:number]}" } do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
-                <%= link_to edit_admins_reservation_path(reservation[:id], list_context), class: "btn btn-sm btn-outline-primary", aria: { label: "编辑预约 #{reservation[:number]}" } do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
-                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reservation-delete-<%= reservation[:id] %>" aria-label="删除预约 <%= reservation[:number] %>"><%= render "layouts/admins/icon", name: :trash %>删除</button>
-              </div></td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
-    </div>
-  <% end %>
-
-  <% if @total_pages > 1 %>
-  <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
-    <nav aria-label="预约列表分页">
-      <ul class="pagination m-0 flex-wrap">
-        <% if @page == 1 %>
-          <li class="page-item disabled"><span class="page-link page-text" aria-disabled="true">上一页</span></li>
-        <% else %>
-          <li class="page-item"><%= link_to "上一页", filter_url.call(page: @page - 1), class: "page-link page-text" %></li>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead><tr>
+        <th scope="col" class="list-column-id px-2">ID</th>
+        <th scope="col" class="px-2">预约号</th>
+        <th scope="col" class="d-none d-md-table-cell px-2">就诊人</th>
+        <th scope="col" class="d-none d-lg-table-cell px-2">医生 / 科室</th>
+        <th scope="col" class="d-none d-md-table-cell list-column-status px-2">状态</th>
+        <th scope="col" class="d-none d-sm-table-cell px-2">预约时段</th>
+        <th scope="col" class="list-column-action px-2">操作</th>
+      </tr></thead>
+      <tbody>
+        <% @reservations.each do |record| %>
+          <% detail = admins_reservation_path(record.order_no, @list_context) %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{record.id}" %></td>
+            <td class="px-2 text-break"><%= link_to record.order_no, detail %></td>
+            <td class="d-none d-md-table-cell px-2"><%= render "admins/shared/list_text", text: record.patient_name %></td>
+            <td class="d-none d-lg-table-cell px-2">
+              <%= render "admins/shared/list_text", text: record.doctor_name %>
+              <%= render "admins/shared/list_text", text: record.department_name, class_name: "small text-secondary" %>
+            </td>
+            <td class="d-none d-md-table-cell px-2"><span class="badge bg-blue-lt"><%= record.status_label %></span></td>
+            <td class="d-none d-sm-table-cell px-2">
+              <div><%= record.appointment_date.iso8601 %></div>
+              <%= render "admins/shared/list_text", text: record.slot_label, class_name: "small text-secondary" %>
+            </td>
+            <td class="px-2"><%= link_to detail, class: "btn btn-sm btn-info text-nowrap", aria: { label: "查看预约 #{record.order_no}" } do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
+          </tr>
         <% end %>
-        <% (1..@total_pages).each do |number| %>
-          <li class="page-item<%= " active" if number == @page %>"><%= link_to number, filter_url.call(page: number), class: "page-link", aria: { label: "第 #{number} 页", current: ("page" if number == @page) } %></li>
-        <% end %>
-        <% if @page == @total_pages %>
-          <li class="page-item disabled"><span class="page-link page-text" aria-disabled="true">下一页</span></li>
-        <% else %>
-          <li class="page-item"><%= link_to "下一页", filter_url.call(page: @page + 1), class: "page-link page-text" %></li>
-        <% end %>
-      </ul>
-    </nav>
-    <span class="text-secondary">共 <%= @total_count %> 条，显示 <%= @first_record %>–<%= @last_record %> 条 · 第 <%= @page %> / <%= @total_pages %> 页</span>
-  </div>
+      </tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { filter_url.call(page: page) } %>
   <% end %>
 </section>
-
-<% @reservations.each do |reservation| %>
-  <%= render "admins/shared/confirmation_modal", modal_id: "reservation-delete-#{reservation[:id]}", title: "确认删除预约？", context: "#{reservation[:customer]} · #{reservation[:number]}", description: "请确认是否删除这条预约，删除后无法恢复。", confirm_label: "确认删除", color: "danger" %>
-<% end %>
-<%= render "form_modal", modal_id: "reservation-new", title: "添加预约", submit_label: "保存预约", reservation: nil %>
-<%= render "transfer_modals" %>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_25_113000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -77,6 +77,76 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_113000) do
     t.datetime "updated_at", null: false
     t.index ["app_id"], name: "index_app_authorizations_on_app_id", unique: true
     t.index ["initiator_id"], name: "index_app_authorizations_on_initiator_id"
+  end
+
+  create_table "appointments", force: :cascade do |t|
+    t.date "appointment_date", null: false
+    t.datetime "booking_end_at", precision: nil
+    t.datetime "booking_start_at", precision: nil
+    t.datetime "cancel_requested_at", precision: nil
+    t.datetime "cancelled_at", precision: nil
+    t.datetime "completed_at", precision: nil
+    t.datetime "created_at", null: false
+    t.datetime "deleted_at", precision: nil
+    t.bigint "department_id", null: false
+    t.string "department_name", limit: 200, null: false
+    t.bigint "discount_cents", default: 0, null: false
+    t.bigint "doctor_id", null: false
+    t.string "doctor_name", limit: 100, null: false
+    t.bigint "fee_cents", default: 0, null: false
+    t.jsonb "hospital_snapshot", default: {}, null: false
+    t.string "idempotency_key", limit: 64, null: false
+    t.string "mch_id", limit: 100
+    t.string "order_no", limit: 40, null: false
+    t.bigint "paid_amount_cents", default: 0, null: false
+    t.datetime "paid_at", precision: nil
+    t.integer "patient_age", null: false
+    t.integer "patient_gender", limit: 2, default: 0, null: false
+    t.bigint "patient_id"
+    t.string "patient_mobile", limit: 30, null: false
+    t.string "patient_name", limit: 100, null: false
+    t.bigint "payable_amount_cents", default: 0, null: false
+    t.bigint "payer_user_id"
+    t.string "payment_appid", limit: 100
+    t.string "payment_channel", limit: 30, null: false
+    t.datetime "payment_closed_at", precision: nil
+    t.datetime "payment_expires_at", precision: nil
+    t.string "payment_no", limit: 40
+    t.string "payment_platform", limit: 20
+    t.string "payment_status", limit: 20, default: "unpaid", null: false
+    t.jsonb "refund_data", default: {}, null: false
+    t.string "refund_status", limit: 20, default: "none", null: false
+    t.bigint "refunded_amount_cents", default: 0
+    t.text "remark"
+    t.string "slot_label", limit: 100, null: false
+    t.string "source_appid", limit: 100, null: false
+    t.string "source_platform", limit: 20, null: false
+    t.string "status", limit: 30, null: false
+    t.string "time_slot", limit: 10, null: false
+    t.string "transaction_no", limit: 100
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["appointment_date"], name: "index_appointments_on_appointment_date"
+    t.index ["department_id"], name: "index_appointments_on_department_id"
+    t.index ["doctor_id", "appointment_date"], name: "index_appointments_on_doctor_id_and_appointment_date"
+    t.index ["order_no"], name: "index_appointments_on_order_no", unique: true
+    t.index ["patient_id"], name: "index_appointments_on_patient_id"
+    t.index ["payer_user_id"], name: "index_appointments_on_payer_user_id"
+    t.index ["payment_no"], name: "index_appointments_on_payment_no", unique: true
+    t.index ["user_id", "appointment_date"], name: "index_appointments_on_user_id_and_appointment_date"
+    t.index ["user_id", "idempotency_key"], name: "index_appointments_on_user_id_and_idempotency_key", unique: true
+    t.check_constraint "booking_end_at > booking_start_at", name: "appointments_booking_window_valid"
+    t.check_constraint "fee_cents >= 0 AND discount_cents >= 0 AND payable_amount_cents >= 0 AND paid_amount_cents >= 0", name: "appointments_amounts_valid"
+    t.check_constraint "jsonb_typeof(refund_data) = 'object'::text", name: "appointments_refund_data_valid"
+    t.check_constraint "patient_age >= 1 AND patient_age <= 200 AND (patient_gender = ANY (ARRAY[0, 1, 2]))", name: "appointments_patient_valid"
+    t.check_constraint "payment_channel::text = ANY (ARRAY['wechat_jsapi'::character varying, 'douyin'::character varying, 'none'::character varying]::text[])", name: "appointments_payment_channel_valid"
+    t.check_constraint "payment_platform::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "appointments_payment_platform_valid"
+    t.check_constraint "payment_status::text = ANY (ARRAY['unpaid'::character varying, 'paid'::character varying, 'closed'::character varying]::text[])", name: "appointments_payment_status_valid"
+    t.check_constraint "refund_status::text = ANY (ARRAY['none'::character varying, 'requested'::character varying, 'approved'::character varying, 'rejected'::character varying, 'processing'::character varying, 'partial'::character varying, 'refunded'::character varying, 'failed'::character varying]::text[])", name: "appointments_refund_status_valid"
+    t.check_constraint "refunded_amount_cents >= 0 AND refunded_amount_cents <= paid_amount_cents", name: "appointments_refunded_amount_valid"
+    t.check_constraint "source_platform::text = ANY (ARRAY['wechat'::character varying, 'douyin'::character varying]::text[])", name: "appointments_source_platform_valid"
+    t.check_constraint "status::text = ANY (ARRAY['pending_payment'::character varying, 'confirmed'::character varying, 'cancel_requested'::character varying, 'completed'::character varying, 'cancelled'::character varying]::text[])", name: "appointments_status_valid"
+    t.check_constraint "time_slot::text = ANY (ARRAY['FULL'::character varying, 'AM'::character varying, 'PM'::character varying, 'NIGHT'::character varying]::text[])", name: "appointments_time_slot_valid"
   end
 
   create_table "apps", force: :cascade do |t|
@@ -575,6 +645,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_25_113000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
+  add_foreign_key "appointments", "departments"
+  add_foreign_key "appointments", "doctors"
+  add_foreign_key "appointments", "patients", on_delete: :nullify
+  add_foreign_key "appointments", "users"
+  add_foreign_key "appointments", "users", column: "payer_user_id"
   add_foreign_key "apps", "open_platform_accounts"
   add_foreign_key "departments", "departments", column: "parent_id"
   add_foreign_key "doctor_departments", "departments"

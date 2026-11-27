@@ -1,102 +1,61 @@
 <% reservation = @reservation %>
-<% content_for :title, "#{reservation[:number]} · 预约详情 · Booking 管理后台" %>
+<% content_for :title, "#{reservation.order_no} · 预约详情 · Booking 管理后台" %>
 
-<div class="page-header mt-0 mb-3">
-  <div class="row g-2 align-items-center">
-    <div class="col-auto"><h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :calendar, icon_class: "w-5 h-5" %></span>预约详情</h1></div>
-    <div class="col-12 col-lg-auto ms-lg-auto"><div class="btn-list">
-      <%= link_to "返回列表", admins_reservations_path(@list_context), class: "btn text-nowrap" %>
-      <%= link_to edit_admins_reservation_path(reservation[:id], @list_context), class: "btn btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑预约<% end %>
-      <% if @primary_action %><button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#reservation-progress"><%= render "layouts/admins/icon", name: :check %><%= @primary_action[:label] %></button><% end %>
-      <div class="dropdown">
-        <button type="button" class="btn dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false">更多操作</button>
-        <div class="dropdown-menu dropdown-menu-end">
-          <% unless %w[completed cancelled].include?(reservation[:status]) %><button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#reservation-cancel">取消预约</button><% end %>
-          <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#reservation-delete">删除预约</button>
-        </div>
-      </div>
-    </div></div>
-  </div>
-</div>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "预约详情", icon: :calendar } do %>
+  <%= link_to "返回列表", admins_reservations_path(@list_context), class: "btn text-nowrap" %>
+<% end %>
 
 <section class="card mb-3" aria-label="预约概要">
   <div class="card-body">
     <div class="row g-3 align-items-center">
       <div class="col-auto"><span class="avatar avatar-lg bg-primary-lt"><%= render "layouts/admins/icon", name: :calendar, icon_class: "w-5 h-5" %></span></div>
       <div class="col">
-        <div class="d-flex flex-wrap align-items-center gap-2"><h2 class="h2 mb-0"><%= reservation[:service] %></h2><span class="badge bg-<%= reservation[:status_color] %>-lt"><%= reservation[:status_label] %></span></div>
-        <div class="text-secondary text-break mt-1"><%= reservation[:number] %></div>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <h2 class="h2 mb-0 text-break"><%= reservation.order_no %></h2>
+          <span class="badge bg-blue-lt"><%= reservation.status_label %></span>
+        </div>
+        <div class="text-secondary mt-1">创建于 <%= admin_list_time(reservation.created_at) %></div>
       </div>
     </div>
-  </div>
-  <div class="card-body border-top">
-    <ol class="steps steps-counter my-0" aria-label="预约进度">
-      <% @progress_steps.each_with_index do |label, index| %><li class="step-item<%= " active" if index == @current_step %>" aria-current="<%= index == @current_step ? "step" : "false" %>"><span><%= label %></span></li><% end %>
-    </ol>
   </div>
 </section>
 
 <div class="row row-cards">
-  <div class="col-xl-8">
-    <%# Card + Datagrid from Desktop/tabler-1.7.1/dashboard/datagrid.html. %>
+  <div class="col-lg-7">
     <section class="card h-100" aria-labelledby="reservation-info-title">
       <div class="card-header"><h2 class="card-title" id="reservation-info-title">预约信息</h2></div>
-      <div class="card-body"><div class="datagrid">
-        <% {
-          "服务人员" => reservation[:staff], "服务时长" => "#{reservation[:duration]} 分钟",
-          "预约日期" => reservation[:starts_at].strftime("%Y-%m-%d"), "预约时段" => "#{reservation[:starts_at].strftime('%H:%M')} — #{reservation[:ends_at].strftime('%H:%M')}",
-        }.each do |label, value| %><div class="datagrid-item"><div class="datagrid-title"><%= label %></div><div class="datagrid-content"><%= value %></div></div><% end %>
-      </div></div>
-    </section>
-
-  </div>
-
-  <div class="col-xl-4">
-    <section class="card h-100" aria-labelledby="reservation-customer-title">
-      <div class="card-header"><h2 class="card-title" id="reservation-customer-title">客户信息</h2></div>
       <div class="card-body">
-        <div class="d-flex align-items-center gap-3 mb-4"><span class="avatar avatar-lg bg-primary-lt"><%= reservation[:customer].first %></span><div><div class="h3 mb-1"><%= reservation[:customer] %></div><div class="text-secondary"><%= reservation[:mobile] %></div></div></div>
-        <div class="datagrid"><div class="datagrid-item"><div class="datagrid-title">预约来源</div><div class="datagrid-content"><%= reservation[:source] %></div></div></div>
+        <%= render "admins/shared/field_rows", fields: {
+          "预约医生" => reservation.doctor_name, "科室" => reservation.department_name,
+          "预约时间" => "#{reservation.appointment_date.iso8601} · #{reservation.slot_label}",
+          "就诊医院" => reservation.hospital_snapshot["company_name"], "就诊地址" => reservation.hospital_snapshot["address"],
+          "预约来源" => "#{App::PROVIDERS.fetch(reservation.source_platform)}小程序", "症状描述" => reservation.remark
+        }, full: ["预约时间", "症状描述"] %>
       </div>
     </section>
   </div>
-
-  <div class="col-xl-8"><div class="d-flex flex-column gap-3 h-100">
-    <section class="card" aria-labelledby="reservation-notes-title">
-      <div class="card-header"><h2 class="card-title" id="reservation-notes-title">备注信息</h2></div>
-      <div class="card-body"><div class="text-secondary small mb-2">客户备注</div><p class="mb-0"><%= reservation[:note] %></p></div>
+  <div class="col-lg-5">
+    <section class="card h-100" aria-labelledby="reservation-patient-title">
+      <div class="card-header"><h2 class="card-title" id="reservation-patient-title">就诊人信息</h2></div>
+      <div class="card-body">
+        <% patient_fields = {
+          "姓名" => reservation.patient_name, "性别" => reservation.patient_sex, "年龄" => "#{reservation.patient_age} 岁",
+          "联系电话" => reservation.patient_mobile,
+          "预约账号" => link_to(reservation.user.user_no, admins_customer_path(reservation.user))
+        } %>
+        <%= render "admins/shared/field_rows", fields: patient_fields, full: patient_fields.keys %>
+      </div>
     </section>
-
-    <%# Native vertical steps from Desktop/tabler-1.7.1/dashboard/steps.html. %>
-    <section class="card flex-fill" aria-labelledby="reservation-history-title">
-      <div class="card-header"><h2 class="card-title" id="reservation-history-title">操作记录</h2><span class="badge bg-secondary-lt ms-auto"><%= @history.size %> 条</span></div>
-      <div class="card-body"><ul class="steps steps-vertical">
-        <% @history.each_with_index do |event, index| %><li class="step-item<%= " active" if index == @history.length - 1 %>">
-          <div class="d-flex flex-wrap justify-content-between gap-2"><h3 class="h4 mb-0"><%= event[:title] %></h3><time class="text-secondary small" datetime="<%= event[:time].iso8601 %>"><%= event[:time].strftime("%Y-%m-%d %H:%M") %></time></div>
-          <div class="text-secondary mt-1"><%= event[:description] %></div><div class="text-secondary small mt-1">操作人：<%= event[:operator] %></div>
-        </li><% end %>
-      </ul></div>
-    </section>
-  </div></div>
-
-  <div class="col-xl-4">
-    <%# Fee rows follow the native transparent table in Desktop/tabler-1.7.1/dashboard/invoice.html. %>
-    <section class="card h-100" aria-labelledby="reservation-payment-title">
-      <div class="card-header"><h2 class="card-title" id="reservation-payment-title">费用与支付</h2><span class="badge bg-<%= reservation[:payment_color] %>-lt ms-auto"><%= reservation[:payment_label] %></span></div>
-      <div class="card-body"><table class="table table-transparent table-sm mb-0" aria-label="费用明细"><tbody>
-        <tr><td class="text-secondary ps-0">服务金额</td><td class="text-end pe-0">¥<%= reservation[:amount] %></td></tr>
-        <tr><td class="text-secondary ps-0">优惠减免</td><td class="text-end pe-0">¥0.00</td></tr>
-        <tr><td class="fw-semibold ps-0">应付金额</td><td class="fw-semibold text-end pe-0">¥<%= reservation[:amount] %></td></tr>
-      </tbody></table></div>
-      <div class="card-body border-top"><div class="datagrid">
-        <div class="datagrid-item"><div class="datagrid-title">支付方式</div><div class="datagrid-content"><%= @paid_at ? "微信支付" : "尚未支付" %></div></div>
-        <div class="datagrid-item"><div class="datagrid-title">支付时间</div><div class="datagrid-content"><%= @paid_at&.strftime("%Y-%m-%d %H:%M") || "—" %></div></div>
-        <% if reservation[:status] == "cancelled" %><div class="datagrid-item"><div class="datagrid-title">退款金额</div><div class="datagrid-content">¥<%= reservation[:amount] %></div></div><% end %>
-      </div></div>
+  </div>
+  <div class="col-12">
+    <section class="card" aria-labelledby="reservation-amount-title">
+      <div class="card-header"><h2 class="card-title" id="reservation-amount-title">费用信息</h2></div>
+      <div class="card-body">
+        <%= render "admins/shared/field_rows", fields: {
+          "挂号费" => "#{reservation.fee_in_yuan} 元", "实付" => "#{reservation.paid_in_yuan} 元",
+          "支付渠道" => ("免费挂号" if reservation.payment_channel == "none")
+        }, columns: 3 %>
+      </div>
     </section>
   </div>
 </div>
-
-<%= render "admins/shared/confirmation_modal", modal_id: "reservation-delete", title: "确认删除预约", context: "#{reservation[:customer]} · #{reservation[:number]}", description: "请确认是否删除这条预约，删除后无法恢复。", confirm_label: "确认删除", color: "danger" %>
-<% unless %w[completed cancelled].include?(reservation[:status]) %><%= render "admins/shared/confirmation_modal", modal_id: "reservation-cancel", title: "确认取消预约", context: "#{reservation[:customer]} · #{reservation[:number]}", description: "取消后，该预约将不再安排服务，请确认后再操作。", confirm_label: "确认取消", color: "warning" %><% end %>
-<% if @primary_action %><%= render "admins/shared/confirmation_modal", modal_id: "reservation-progress", title: @primary_action[:title], context: "#{reservation[:customer]} · #{reservation[:number]}", description: @primary_action[:description], confirm_label: @primary_action[:label], color: "primary" %><% end %>

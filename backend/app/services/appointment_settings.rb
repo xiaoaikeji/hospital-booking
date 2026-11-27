@@ -38,8 +38,8 @@ class AppointmentSettings
 
   class Invalid < StandardError; end
 
-  def initialize
-    @record = Setting.find_by(key: "appointment")
+  def initialize(lock: false)
+    @record = Setting.lock(lock).find_by(key: "appointment")
   end
 
   def phone_required? = enabled?(PHONE_FIELD)

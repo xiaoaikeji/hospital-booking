@@ -81,7 +81,8 @@ namespace :admins do
   # 兼容旧存储页的书签和已打开的表单。
   resource :system_settings, only: %i[edit update], controller: "system_settings/storage"
   resources :operation_logs, only: %i[index show]
-  resources :reservations, only: %i[index show edit]
+  resources :reservations, only: %i[index show], param: :order_no, constraints: { order_no: /[0-9]{20}/ }
+  resources :reservation_previews, path: "components/reservations", only: %i[index show edit]
   resources :customers, only: %i[index show]
   resources :components, only: :index
 end

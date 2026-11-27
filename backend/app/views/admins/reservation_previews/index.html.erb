@@ -1,0 +1,124 @@
+<% content_for :title, "预约演示 · Booking 管理后台" %>
+<% filter_url = ->(changes = {}) { admins_reservation_previews_path(@filters.merge(q: @query.presence).merge(changes).compact) } %>
+<% list_context = @filters.merge(q: @query.presence, page: @page).compact %>
+
+<div class="page-header mt-0 mb-3">
+  <div class="row g-2 align-items-center">
+    <div class="col-auto">
+      <h1 class="page-title fs-1 gap-3"><span class="text-primary d-inline-flex"><%= render "layouts/admins/icon", name: :calendar, icon_class: "w-5 h-5" %></span>预约演示</h1>
+    </div>
+    <div class="col-auto ms-auto"><div class="btn-list">
+      <%= link_to "返回组件规范", admins_components_path(tab: "list_examples"), class: "btn" %>
+    </div></div>
+  </div>
+</div>
+
+<% filter_rows = [
+  [ "预约状态", :status, @status_options ],
+  [ "服务项目", :service, @service_options.index_with(&:itself) ],
+  [ "预约日期", :period, @period_options ]
+] %>
+<section class="card mb-3" aria-label="预约筛选条件">
+  <div class="list-group list-group-flush">
+    <% filter_rows.each do |label, key, options| %>
+      <div class="list-group-item py-2">
+        <div class="row g-2 align-items-center">
+          <div class="col-12 col-md-2 col-xl-1 text-secondary"><%= label %></div>
+          <div class="col">
+            <nav class="nav nav-pills" aria-label="<%= label %>">
+              <% { nil => "全部" }.merge(options).each do |value, title| %>
+                <%= link_to title, filter_url.call(key => value), class: class_names("nav-link", active: @filters[key] == value), aria: { current: ("page" if @filters[key] == value) } %>
+              <% end %>
+            </nav>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</section>
+
+<section class="card" aria-label="预约记录">
+  <div class="card-header">
+    <%= form_with url: admins_reservation_previews_path, method: :get, class: "row g-3 align-items-center flex-grow-1", html: { role: "search" } do |form| %>
+      <% @filters.each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <div class="col-12 col-sm-6 col-md-4 col-xl-3">
+        <%= form.search_field :q, value: @query, class: "form-control", placeholder: "预约号 / 客户 / 手机号", aria: { label: "搜索预约" } %>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <div class="btn-list align-items-center">
+          <button type="submit" class="btn">搜索</button>
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#reservation-new"><%= render "layouts/admins/icon", name: :plus %>添加预约</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reservation-import"><%= render "layouts/admins/icon", name: :import %>导入</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#reservation-export"><%= render "layouts/admins/icon", name: :export %>导出</button>
+          <% if @query.present? || @filters.any? %><%= link_to "重置", admins_reservation_previews_path, class: "btn btn-ghost-secondary" %><% end %>
+          <span class="text-secondary"><strong class="text-body"><%= @total_count %></strong> 条预约</span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+
+  <% if @reservations.empty? %>
+    <div class="empty py-6">
+      <div class="empty-icon"><%= render "layouts/admins/icon", name: :calendar %></div>
+      <h2 class="empty-title">没有找到匹配的预约</h2>
+      <p class="empty-subtitle text-secondary">试试其他关键词，或清除筛选条件。</p>
+      <div class="empty-action"><%= link_to "查看全部预约", admins_reservation_previews_path, class: "btn btn-primary" %></div>
+    </div>
+  <% else %>
+    <%# Native card table and responsive wrapper from Desktop/tabler-1.7.1/dashboard/tables.html. %>
+    <div class="table-responsive" tabindex="0" role="region" aria-label="预约表格，可横向滚动">
+      <table class="table card-table table-vcenter table-hover text-nowrap">
+        <thead><tr><th scope="col" class="w-1">ID</th><th scope="col">预约编号</th><th scope="col">客户</th><th scope="col">服务项目</th><th scope="col">预约时间</th><th scope="col">服务人员</th><th scope="col">预约来源</th><th scope="col">金额 / 支付状态</th><th scope="col">预约状态</th><th scope="col">操作</th></tr></thead>
+        <tbody>
+          <% @reservations.each do |reservation| %>
+            <tr>
+              <td class="text-secondary">#<%= reservation[:id] %></td>
+              <td><%= link_to reservation[:number], admins_reservation_preview_path(reservation[:id], list_context) %></td>
+              <td><div class="d-flex align-items-center gap-2"><span class="avatar avatar-sm bg-primary-lt"><%= reservation[:customer].first %></span><div><div class="fw-medium"><%= reservation[:customer] %></div><div class="text-secondary small"><%= reservation[:mobile] %></div></div></div></td>
+              <td><div><%= reservation[:service] %></div><div class="text-secondary small"><%= reservation[:duration] %> 分钟</div></td>
+              <td><div><%= reservation[:starts_at].strftime("%Y-%m-%d") %></div><div class="text-secondary small"><%= reservation[:starts_at].strftime("%H:%M") %> — <%= reservation[:ends_at].strftime("%H:%M") %></div></td>
+              <td><%= reservation[:staff] %></td>
+              <td class="text-secondary"><%= reservation[:source] %></td>
+              <td><div>¥<%= reservation[:amount] %></div><div class="text-<%= reservation[:payment_color] %> small"><%= reservation[:payment_label] %></div></td>
+              <td><span class="badge bg-<%= reservation[:status_color] %>-lt"><%= reservation[:status_label] %></span></td>
+              <td><div class="btn-list flex-nowrap">
+                <%= link_to admins_reservation_preview_path(reservation[:id], list_context), class: "btn btn-sm btn-info", aria: { label: "查看预约 #{reservation[:number]}" } do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %>
+                <%= link_to edit_admins_reservation_preview_path(reservation[:id], list_context), class: "btn btn-sm btn-outline-primary", aria: { label: "编辑预约 #{reservation[:number]}" } do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
+                <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#reservation-delete-<%= reservation[:id] %>" aria-label="删除预约 <%= reservation[:number] %>"><%= render "layouts/admins/icon", name: :trash %>删除</button>
+              </div></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <% if @total_pages > 1 %>
+  <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3">
+    <nav aria-label="预约演示分页">
+      <ul class="pagination m-0 flex-wrap">
+        <% if @page == 1 %>
+          <li class="page-item disabled"><span class="page-link page-text" aria-disabled="true">上一页</span></li>
+        <% else %>
+          <li class="page-item"><%= link_to "上一页", filter_url.call(page: @page - 1), class: "page-link page-text" %></li>
+        <% end %>
+        <% (1..@total_pages).each do |number| %>
+          <li class="page-item<%= " active" if number == @page %>"><%= link_to number, filter_url.call(page: number), class: "page-link", aria: { label: "第 #{number} 页", current: ("page" if number == @page) } %></li>
+        <% end %>
+        <% if @page == @total_pages %>
+          <li class="page-item disabled"><span class="page-link page-text" aria-disabled="true">下一页</span></li>
+        <% else %>
+          <li class="page-item"><%= link_to "下一页", filter_url.call(page: @page + 1), class: "page-link page-text" %></li>
+        <% end %>
+      </ul>
+    </nav>
+    <span class="text-secondary">共 <%= @total_count %> 条，显示 <%= @first_record %>–<%= @last_record %> 条 · 第 <%= @page %> / <%= @total_pages %> 页</span>
+  </div>
+  <% end %>
+</section>
+
+<% @reservations.each do |reservation| %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "reservation-delete-#{reservation[:id]}", title: "确认删除预约？", context: "#{reservation[:customer]} · #{reservation[:number]}", description: "请确认是否删除这条预约，删除后无法恢复。", confirm_label: "确认删除", color: "danger" %>
+<% end %>
+<%= render "form_modal", modal_id: "reservation-new", title: "添加预约", submit_label: "保存预约", reservation: nil %>
+<%= render "transfer_modals" %>

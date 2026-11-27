@@ -1,21 +1,22 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { allowedActions, bookingStatus, statusLabels, updateAppointment } from '@/mock/appointments.js'
+import { allowedActions, updateAppointment } from '@/mock/appointments.js'
 import { demoMode, profile } from '@/store/session.js'
-import { useAppointmentRecords } from './appointment-records.js'
+import { recordStatus, recordStatusLabel, useAppointmentRecords } from './appointment-records.js'
 
-const { records, now, error, refresh } = useAppointmentRecords()
 const no = ref('')
+const { records, now, error, loading, refresh } = useAppointmentRecords(no)
 const showResult = ref(false)
 const dialog = ref('')
 onLoad(options => {
   no.value = options.no || ''
   showResult.value = options.created === '1'
 })
-const item = computed(() => records.value.find(row => row.no === no.value))
-const status = computed(() => item.value && bookingStatus(item.value, now.value))
-const actions = computed(() => item.value ? allowedActions(item.value, now.value) : [])
+const item = computed(() => records.value[0])
+const status = computed(() => item.value && recordStatus(item.value, now.value))
+const statusLabel = computed(() => item.value && recordStatusLabel(item.value, now.value))
+const actions = computed(() => demoMode && item.value ? allowedActions(item.value, now.value) : [])
 const success = computed(() => status.value === 'confirmed' && showResult.value)
 const icons = {
   unpaid: '◷', confirming: '◷', reviewing: '◷', refunding: '◷',
@@ -56,26 +57,29 @@ function viewRecords() {
 <template>
   <view class="detail-page">
     <view class="header"><custom-page-header title="预约详情" back /></view>
-    <view v-if="error" class="missing" aria-role="button" @tap="refresh">{{ error }}</view>
+    <view v-if="loading" class="missing" role="status">加载中...</view>
+    <view v-else-if="error" class="missing" aria-role="button" @tap="refresh">{{ error }}</view>
     <view v-else-if="!item" class="missing">暂无该预约记录</view>
     <view v-else class="content">
       <view class="card status-card" role="status">
         <view class="symbol" :class="{ waiting: icons[status] === '◷' }">{{ icons[status] }}</view>
-        <view><view class="status-title">{{ success ? '预约成功' : statusLabels[status] }}</view>
+        <view><view class="status-title">{{ success ? '预约成功' : statusLabel }}</view>
           <view class="subtitle">{{ subtitles[status] }}</view></view>
       </view>
       <view class="card service">
         <view class="section-title">门诊服务</view>
         <view class="row"><text>预约医生</text>{{ item.doctor }}</view>
         <view class="row"><text>科室</text>{{ item.department }}</view>
-        <view class="row"><text>就诊人</text>{{ item.patient.name }}</view>
+        <view class="row"><text>就诊人</text><view>{{ item.patient.name }}<text v-if="!demoMode" class="patient-meta"> · {{ item.patient.sex }} · {{ item.patient.age }} 岁</text></view></view>
         <view class="row"><text>本次联系电话</text>{{ item.phone }}</view>
         <view class="row"><text>预约日期</text>{{ item.date }}</view>
         <view class="row"><text>预约时段</text>{{ item.slot }}</view>
+        <view v-if="item.address" class="row"><text>就诊地址</text><view>{{ item.address }}</view></view>
         <view class="row"><text>挂号费</text>¥{{ item.fee }}</view>
+        <view v-if="!demoMode && item.symptoms" class="row"><text>症状描述</text><view>{{ item.symptoms }}</view></view>
         <view v-if="['refunding','refunded'].includes(status)" class="row"><text>{{ status === 'refunded' ? '已退金额' : '退款金额' }}</text>¥{{ item.fee }}</view>
       </view>
-      <view class="number">模拟预约单号　{{ item.no }}</view>
+      <view class="number">{{ demoMode ? '模拟预约单号' : '预约号' }}　{{ item.no }}</view>
       <view class="footer">
         <button v-if="actions.includes('cancel') && !success" class="secondary" @tap="dialog = 'cancel'">取消预约</button>
         <button v-if="actions.includes('refund') && !success" class="secondary" @tap="dialog = 'refund'">申请退号</button>
@@ -110,6 +114,9 @@ function viewRecords() {
 .section-title::before { content: ''; width: 7rpx; height: 28rpx; border-radius: 4rpx; background: #7299ee; }
 .row { display: flex; align-items: center; justify-content: space-between; min-height: 84rpx; gap: 20rpx; border-top: 1rpx solid #eee; }
 .row text { color: #555; }
+.row > text { flex: none; }
+.row > view { text-align: right; overflow-wrap: anywhere; white-space: pre-wrap; }
+.patient-meta { font-size: 25rpx; }
 .number, .missing { margin: 24rpx 10rpx; color: #777; font-size: 23rpx; }
 .missing { text-align: center; }
 .footer { position: fixed; z-index: 1; bottom: 0; left: 0; right: 0; display: flex; gap: 14rpx; background: #f4f4f6; padding: 16rpx 24rpx calc(24rpx + env(safe-area-inset-bottom)); }

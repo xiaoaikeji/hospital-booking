@@ -6,12 +6,13 @@ let firstVisit = true
 <script setup>
 import { computed, ref } from 'vue'
 import { onUnload } from '@dcloudio/uni-app'
-import { bookingStatus, statusLabels } from '@/mock/appointments.js'
-import { demoMode, signedIn } from '@/store/session.js'
-import { useAppointmentRecords } from './appointment-records.js'
+import { demoMode } from '@/store/session.js'
+import { recordStatus, recordStatusLabel, useAppointmentRecords } from './appointment-records.js'
 
-const { records, now, error, refresh } = useAppointmentRecords()
-const cards = computed(() => records.value.map(item => ({ ...item, status: bookingStatus(item, now.value) })))
+const { records, now, error, loading: fetching, refresh } = useAppointmentRecords()
+const cards = computed(() => records.value.map(item => ({
+  ...item, status: recordStatus(item, now.value), statusLabel: recordStatusLabel(item, now.value),
+})))
 function openDetail(no) {
   uni.navigateTo({ url: '/pages/ucenter/appointment_detail?no=' + no })
 }
@@ -27,7 +28,7 @@ onUnload(() => clearTimeout(timer))
 <template>
   <view class="appointments-page">
     <view class="appointments-header"><custom-page-header title="预约记录" back /></view>
-    <view v-if="loading" class="record-loading" role="status">
+    <view v-if="loading || fetching" class="record-loading" role="status">
       <view class="spinner">
         <view v-for="i in 12" :key="i" class="spoke" :style="{ transform: 'rotate(' + i * 30 + 'deg)', opacity: i / 12 }" />
       </view>
@@ -38,20 +39,20 @@ onUnload(() => clearTimeout(timer))
       <view v-for="item in cards" :key="item.no" class="record" aria-role="link" @tap="openDetail(item.no)">
         <view class="record-heading">
           <text class="doctor">{{ item.doctor }} · {{ item.department }}</text>
-          <text class="state" :class="item.status">{{ statusLabels[item.status] }}</text>
+          <text class="state" :class="item.status">{{ item.statusLabel }}</text>
         </view>
         <view class="record-row"><text class="label">就诊人</text>{{ item.patient.name }}</view>
         <view class="record-row">{{ item.date }}　{{ item.slot }}</view>
         <view class="record-footer">
           <text>挂号费 ¥{{ item.fee }}</text>
-          <text v-if="['unpaid','paymentFailed'].includes(item.status)" class="pay-link">继续支付</text>
+          <text v-if="demoMode && ['unpaid','paymentFailed'].includes(item.status)" class="pay-link">继续支付</text>
           <text v-else class="detail-link">查看详情 ›</text>
         </view>
       </view>
     </view>
     <view v-else class="empty-card">
       <image class="empty-illustration" src="/static/ucenter/empty-appointments.jpg" mode="aspectFit" />
-      <text class="empty-message">{{ !demoMode && signedIn ? '医院预约记录尚未开放' : '暂无预约记录' }}</text>
+      <text class="empty-message">暂无预约记录</text>
     </view>
   </view>
 </template>

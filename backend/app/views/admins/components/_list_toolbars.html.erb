@@ -5,6 +5,7 @@
 <% content_for :fill_content, "true" if empty %>
 
 <%= render layout: "admins/shared/list_page_header", locals: { title: "预约列表", icon: :calendar, heading: :h2 } do %>
+  <%= link_to "查看预约演示", admins_reservation_previews_path, class: "btn text-nowrap" %>
   <button type="button" class="btn btn-primary flex-shrink-0 text-nowrap" data-bs-toggle="modal" data-bs-target="#component-notice">
     <%= render "layouts/admins/icon", name: :plus %>新增预约
   </button>

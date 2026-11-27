@@ -17,9 +17,11 @@ const { bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed,
 const source = readFileSync(new URL('../pages/booking/form.vue', import.meta.url), 'utf8')
 const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
 // Run the page's handlers with the uni-app hooks and calendar store provided by the fixture.
-const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, verifyPhone, picking, doctor, date, selectedSlot, needsBinding, checkingBinding, canAuthorizePhone, name, sex, age, phone, symptoms })`)
+const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, verifyPhone, picking, doctor, date, selectedSlot, needsBinding, checkingBinding, canAuthorizePhone, name, sex, age, phone, symptoms, pendingBooking, departmentName, chooseDepartment, setDepartment })`)
+const orderNo = '20261130090000000001'
+const bookingError = (code, message) => Object.assign(new Error(message), { code, statusCode: 422 })
 
-async function openForm(initial = days(night(4))) {
+async function openForm(initial = days(night(4)), { departmentIds = ['1'], sourceDepartment } = {}) {
   const schedule = ref(initial)
   const now = ref(Date.parse('2026-11-30T07:00:00+08:00'))
   const selectedDate = ref('')
@@ -34,7 +36,11 @@ async function openForm(initial = days(night(4))) {
   let checkResponse
   let bindings = 0
   const checks = []
+  const submissions = []
+  const navigation = []
   let response = initial
+  let submitResult
+  let serial = 0
   let requests = 0
   const checkAppAccess = async () => {
     requests++
@@ -53,7 +59,8 @@ async function openForm(initial = days(night(4))) {
     onUnload() {},
     directoryDemoMode: false,
     demoMode: false,
-    findBookingDoctor: id => ({ id }),
+    findBookingDoctor: id => ({ id, department_ids: departmentIds }),
+    bookingDepartments: ref(departmentIds.map(id => ({ id, name: '科室' + id }))),
     useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {}, now, refreshClock() {} }),
     bookingSlotKey, bookingSlots,
     shiftBookable,
@@ -65,6 +72,15 @@ async function openForm(initial = days(night(4))) {
       checks.push({ ...data })
       return checkResponse ?? { bookable: true, booking_phone_required: phoneRequired, booking_symptoms_required: symptomsRequired }
     },
+    newBookingKey: () => 'fixture-booking-key-' + ++serial,
+    async submitAppointment(data) {
+      submissions.push({ ...data })
+      if (submitResult) return await submitResult()
+      if (symptomsRequired && !data.remark.trim()) throw bookingError('symptoms_required', '请填写症状描述')
+      if (phoneRequired) throw bookingError('phone_required', '请先验证账号手机号')
+      return { order_no: orderNo, outcome: 'created' }
+    },
+    refreshAppConfiguration() {},
     async bindPhone() { bindings++; return { mobile: '10000000001' } },
     nextTick: async () => {},
     patientValidationMessage: () => '',
@@ -72,12 +88,14 @@ async function openForm(initial = days(night(4))) {
     canOpenBooking: async () => true,
     checkAppAccess,
     canUseApp,
-    uni: { hideKeyboard() {}, pageScrollTo() {}, showToast({ title }) { messages.push(title) } },
+    uni: { hideKeyboard() {}, pageScrollTo() {}, showToast({ title }) { messages.push(title) },
+      async navigateTo({ url }) { navigation.push(url) } },
   })
-  await mount({ id: doctorId, date })
+  await mount({ id: doctorId, date, department_id: sourceDepartment })
   form.setTime({ doctorId, date, slot: bookingSlots(schedule.value[0], doctorId)[0] })
-  return { ...form, schedule, now, messages, resume, suspend, checks, bindings: () => bindings,
+  return { ...form, schedule, now, messages, resume, suspend, checks, submissions, navigation, bindings: () => bindings,
     respondToCheck: value => { checkResponse = value },
+    respondToSubmit: handler => { submitResult = handler },
     setPhoneRequired: value => { phoneRequired = value },
     setSymptomsRequired: value => { symptomsRequired = value },
     respondWith: value => { response = value }, requests: () => requests }
@@ -212,16 +230,8 @@ test('required symptoms reject blank input in place and a completed draft can co
 
   form.symptoms.value = '测试症状'
   await form.confirmBooking()
-  assert.equal(form.messages.at(-1), '医院预约受理尚未开放')
-
-  form.symptoms.value = ''
-  form.setSymptomsRequired(false)
-  await form.confirmBooking()
-  assert.deepEqual(form.messages, ['请填写症状描述', '请填写症状描述', '医院预约受理尚未开放', '医院预约受理尚未开放'])
-
-  form.setSymptomsRequired(true)
-  await form.confirmBooking()
-  assert.equal(form.messages.at(-1), '请填写症状描述')
+  assert.deepEqual(form.messages, ['请填写症状描述', '请填写症状描述'])
+  assert.deepEqual(form.navigation, ['/pages/ucenter/appointment_detail?created=1&no=' + orderNo])
   assert.equal(form.selectedSlot.value.label, '晚班')
   assert.equal(form.name.value, '测试就诊人')
   assert.equal(form.phone.value, '13900000000')
@@ -248,14 +258,15 @@ test('a timed selection uses its exact shift and times and refreshes without cle
   assert.equal(form.selectedSlot.value, null)
 
   form.now.value = cutoff_at - 1000
-  form.respondToCheck(Promise.reject(new Error('网络连接失败，请重试')))
+  form.respondToSubmit(() => { throw new Error('网络连接失败，请重试') })
   await form.confirmBooking()
   assert.match(form.messages.at(-1), /网络连接失败，请重试/)
   assert.equal(form.selectedSlot.value.label, '11:30–12:00')
-  form.respondToCheck({ bookable: false, booking_phone_required: false, booking_symptoms_required: false })
+  form.respondToSubmit(() => { throw bookingError('slot_closed', '该时段已截止，请重新选择') })
   await form.confirmBooking()
   assert.equal(form.selectedSlot.value, null)
-  assert.equal(form.messages.at(-1), '时段已不可约，请重新选择')
+  assert.equal(form.messages.at(-1), '该时段已截止，请重新选择')
+  assert.deepEqual(form.submissions[0], form.submissions[1])
   assert.deepEqual([form.name.value, form.sex.value, form.age.value, form.phone.value, form.symptoms.value],
     ['测试就诊人', '女', '30', '13800000000', '测试症状'])
 })
@@ -271,10 +282,11 @@ test('a click after cutoff checks its selection while a foreground calendar repl
   form.resume()
   assert.equal(form.requests(), 1)
   assert.equal(form.selectedSlot.value.label, '11:30–12:00')
-  form.respondToCheck({ bookable: false, booking_phone_required: false, booking_symptoms_required: false })
+  form.respondToSubmit(() => { throw bookingError('slot_closed', '该时段已截止，请重新选择') })
   await form.confirmBooking()
-  assert.deepEqual(form.checks, [{ doctor_id: doctorId, date, time_slot: 'AM', mode: 'slot', start_time: '11:30', end_time: '12:00' }])
-  assert.equal(form.messages.at(-1), '时段已不可约，请重新选择')
+  const { doctor_id, time_slot, mode, start_time, end_time } = form.submissions[0]
+  assert.deepEqual([doctor_id, time_slot, mode, start_time, end_time], [doctorId, 'AM', 'slot', '11:30', '12:00'])
+  assert.equal(form.messages.at(-1), '该时段已截止，请重新选择')
   publish(old)
   assert.equal(form.selectedSlot.value, null)
 })
@@ -310,8 +322,36 @@ test('resuming a form refreshes a pending phone authorization and preserves the 
   assert.equal(form.needsBinding.value, false)
   assert.equal(form.selectedSlot.value.label, '晚班')
   await form.confirmBooking()
-  assert.equal(form.messages.at(-1), '医院预约受理尚未开放')
+  assert.deepEqual(form.navigation, ['/pages/ucenter/appointment_detail?created=1&no=' + orderNo])
   assert.deepEqual([form.name.value, form.phone.value, form.symptoms.value], ['测试就诊人', '13800000000', '测试症状'])
+})
+
+test('a lost response retries the identical submission even after the seat is gone', async () => {
+  const form = await openForm()
+  form.respondToSubmit(() => { throw new Error('网络连接失败，请重试') })
+  await form.confirmBooking()
+  form.schedule.value = days(night(0))
+  assert.equal(form.selectedSlot.value, null)
+  form.respondToSubmit(() => ({ order_no: orderNo, outcome: 'replayed' }))
+  await form.confirmBooking()
+  assert.deepEqual(form.submissions[0], form.submissions[1])
+  assert.deepEqual(form.navigation, ['/pages/ucenter/appointment_detail?created=1&no=' + orderNo])
+})
+
+test('the original form uses a valid source department or asks the patient to pick one', async () => {
+  const ids = ['1', '2']
+  const fromDepartment = await openForm(undefined, { departmentIds: ids, sourceDepartment: '2' })
+  assert.equal(fromDepartment.departmentName.value, '科室2')
+  assert.equal(fromDepartment.chooseDepartment.value, false)
+
+  const direct = await openForm(undefined, { departmentIds: ids, sourceDepartment: '3' })
+  assert.equal(direct.chooseDepartment.value, true)
+  await direct.confirmBooking()
+  assert.equal(direct.messages.at(-1), '请选择科室')
+  assert.equal(direct.submissions.length, 0)
+  direct.setDepartment({ detail: { value: '1' } })
+  await direct.confirmBooking()
+  assert.equal(direct.submissions[0].department_id, '2')
 })
 
 function clockStore(loadAppConfiguration, deviceNow) {

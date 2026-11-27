@@ -25,7 +25,7 @@ module Admins
       @groups = GROUPS
       @tab = params[:tab].presence_in(GROUPS.values.flat_map(&:keys)) || "media"
       @preview_date = Time.current.in_time_zone("Asia/Shanghai").to_date
-      @service_options = ReservationsController::SERVICES
+      @service_options = ReservationPreviewsController::SERVICES
       @clipboard_available = request.ssl? || %w[localhost 127.0.0.1 ::1].include?(request.host)
       @pagination_example, = pagy(Array.new(65), page: 2) if @tab == "records"
       if @tab == "feedback"
@@ -76,7 +76,7 @@ module Admins
     end
 
     def prepare_toolbar_example
-      @toolbar_status_options = ReservationsController::STATUSES.transform_values(&:first)
+      @toolbar_status_options = ReservationPreviewsController::STATUSES.transform_values(&:first)
       @toolbar_status = params[:status].presence_in(@toolbar_status_options.keys)
       @toolbar_query = params[:q].to_s.strip
       @toolbar_ranges = %i[date_range created_date_range].index_with { |field| params[field].to_s.strip }.compact_blank

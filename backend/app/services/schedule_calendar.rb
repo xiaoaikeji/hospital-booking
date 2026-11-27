@@ -32,17 +32,25 @@ class ScheduleCalendar
   end
 
   def bookable_selection?(doctor_id, date, time_slot:, mode:, start_time:, end_time:)
-    return false unless mode == (@settings.time_slot_booking? ? "slot" : "shift")
+    check_selection(doctor_id, date, time_slot:, mode:, start_time:, end_time:) == :bookable
+  end
+
+  def check_selection(doctor_id, date, time_slot:, mode:, start_time:, end_time:)
+    return :selection_changed unless mode == (@settings.time_slot_booking? ? "slot" : "shift")
 
     shift = day_availability(doctor_id, date, include_times: true).fetch(:shifts).find { |entry| entry[:time_slot] == time_slot }
-    return false unless shift
+    return :selection_changed unless shift
 
     selection = shift.fetch(:slots, [ shift ]).find { |entry| entry[:start_time] == start_time && entry[:end_time] == end_time }
-    return false unless selection && selection[:remaining].positive?
+    return :selection_changed unless selection
 
     now = Time.current
     today = now.to_date
-    (today...(today + DAYS)).cover?(date) && now.to_r * 1000 < selection[:cutoff_at]
+    return :slot_closed if date < today || now.to_r * 1000 >= selection[:cutoff_at]
+    return :selection_changed if date >= today + DAYS
+    return :slot_full unless selection[:remaining].positive?
+
+    :bookable
   end
 
   def as_json(options = nil)
@@ -66,7 +74,7 @@ class ScheduleCalendar
 
   def shift_availability(rule, date, include_times:)
     shift = rule.time_slot
-    counts = occupied_counts.fetch([ rule.doctor_id, date, shift ], {})
+    counts = counts_for_shift(rule.doctor_id, date, shift)
     total = if @settings.time_slot_booking?
       limit = @settings.time_slot_capacity(shift)
       [ rule.capacity || limit, limit ].min
@@ -106,9 +114,32 @@ class ScheduleCalendar
     }
   end
 
-  # Formal bookings are not persisted yet. Group them by [doctor_id, date, shift]
-  # when booking opens, with counts keyed by local start time (nil for whole-shift bookings).
+  def counts_for_shift(doctor_id, date, shift)
+    counts = occupied_counts.fetch([ doctor_id, date, shift ], {})
+    case shift
+    when "FULL"
+      # An all-day shift shares its total with the bookings made in either original half.
+      %w[AM PM].reduce(counts) do |combined, half|
+        combined.merge(occupied_counts.fetch([ doctor_id, date, half ], {})) { |_start, left, right| left + right }
+      end
+    when "AM", "PM"
+      range = @settings.slot_ranges(shift).sole
+      from, to = AppointmentSettings::SLOT_TIMES.values_at(range.begin, range.end)
+      previous = occupied_counts.fetch([ doctor_id, date, "FULL" ], {}).select do |start, _count|
+        start.nil? || (start >= from && start < to)
+      end
+      counts.merge(previous) { |_start, left, right| left + right }
+    else
+      counts
+    end
+  end
+
   def occupied_counts
-    @occupied_counts ||= {}
+    @occupied_counts ||= Appointment.confirmed.where(doctor_id: @doctor_ids, appointment_date: @dates)
+      .group(:doctor_id, :appointment_date, :time_slot, :booking_start_at).count.each_with_object({}) do |(key, count), result|
+        doctor_id, date, shift, start = key
+        counts = (result[[ doctor_id, date, shift ]] ||= Hash.new(0))
+        counts[start&.in_time_zone&.strftime("%H:%M")] += count
+      end
   end
 end
