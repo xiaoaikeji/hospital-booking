@@ -16,6 +16,7 @@ namespace :api do
     resources :doctors, only: :index
     resource :session, only: %i[create destroy]
     resource :me, only: %i[show update], controller: :profiles
+    resource :appointment_check, only: :show
     resource :phone_binding, only: :create
     resources :entry_scenes, only: :create
     resources :patients, only: %i[index show update destroy]

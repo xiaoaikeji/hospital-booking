@@ -3,7 +3,7 @@ module Admins
     WEEKLY_FIELDS = Schedule::WEEKDAYS.keys.map(&:to_s).index_with { ScheduleEditor::FIELDS }.freeze
 
     skip_before_action :refresh_storage_configuration
-    before_action :require_directory_editor!, except: :show
+    before_action :require_directory_editor!, except: %i[show clock]
     before_action :load_doctor
     helper_method :calendar_month, :schedule_path
 
@@ -20,6 +20,10 @@ module Admins
       else
         render_schedule(:calendar)
       end
+    end
+
+    def clock
+      render json: { server_time: (Time.current.to_r * 1000).to_i }
     end
 
     def update_weekly
@@ -112,7 +116,8 @@ module Admins
     end
 
     def load_calendar
-      @today = Date.current
+      @calendar_now = Time.current
+      @today = @calendar_now.to_date
       dates = calendar_month.all_month
       calendar = ScheduleCalendar.new([ @doctor.id ], dates, settings: @appointment_settings)
       @calendar_days = dates.to_h do |date|

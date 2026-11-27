@@ -62,6 +62,7 @@
     <%= tag.div id: "doctor-schedule-calendar", class: "doctor-schedule-calendar",
       role: "region", aria: { labelledby: "doctor-schedule-month" },
       data: { initial_date: calendar_month.iso8601, today: @today.iso8601, days: @calendar_days,
+        server_time: (@calendar_now.to_r * 1000).to_i, clock_url: clock_admins_doctor_schedule_path(@doctor),
         adjustment_url: schedule_path(tab: :date) } %>
   </div>
 </div>

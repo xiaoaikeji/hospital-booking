@@ -3,6 +3,13 @@ const days = JSON.parse(calendarElement.dataset.days);
 const adjustmentUrl = new URL(calendarElement.dataset.adjustmentUrl, window.location.href);
 const weekdays = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 
+let serverTime = Number(calendarElement.dataset.serverTime);
+let sampledAt = performance.now();
+
+function hospitalNow() {
+  return serverTime + performance.now() - sampledAt;
+}
+
 function label(text, classes) {
   const span = document.createElement("span");
   span.className = classes;
@@ -63,7 +70,7 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
       if (shift.total !== null) {
         const status = label("", "d-block d-md-inline");
         status.dataset.shiftStatus = shift.time_slot;
-        updateShiftStatus(status, shift, Date.now());
+        updateShiftStatus(status, shift, hospitalNow());
         row.append(
           label(" · ", "d-none d-md-inline"), label(`共 ${shift.total} 号`, "d-block d-md-inline"),
           label(" · ", "d-none d-md-inline"), status
@@ -95,7 +102,7 @@ calendar.render();
 let timer;
 function refreshShiftStatuses() {
   clearTimeout(timer);
-  const now = Date.now();
+  const now = hospitalNow();
   for (const cell of calendarElement.querySelectorAll(".fc-daygrid-day[data-date]")) {
     const date = cell.dataset.date;
     const link = cell.querySelector(".fc-daygrid-day-number");
@@ -108,8 +115,28 @@ function refreshShiftStatuses() {
   }
   timer = setTimeout(refreshShiftStatuses, 60_000 - (now % 60_000));
 }
-window.addEventListener("pageshow", refreshShiftStatuses);
+
+let clockRequest = 0;
+async function syncClock() {
+  const request = ++clockRequest;
+  const serverTimeAtRequest = hospitalNow();
+  refreshShiftStatuses();
+  try {
+    const response = await fetch(calendarElement.dataset.clockUrl, { headers: { Accept: "application/json" }, cache: "no-store" });
+    if (!response.ok) return;
+    const receivedAt = performance.now();
+    const { server_time: latest } = await response.json();
+    if (request !== clockRequest || !Number.isFinite(latest)) return;
+    serverTime = latest >= serverTimeAtRequest ? Math.max(latest, serverTime + receivedAt - sampledAt) : latest;
+    sampledAt = receivedAt;
+    refreshShiftStatuses();
+  } catch {
+    // Continue from the last server sample until the next successful sync.
+  }
+}
+
+window.addEventListener("pageshow", syncClock);
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) refreshShiftStatuses();
+  if (!document.hidden) syncClock();
 });
 refreshShiftStatuses();

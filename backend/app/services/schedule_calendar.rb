@@ -31,6 +31,20 @@ class ScheduleCalendar
     { adjusted: effective.adjusted, off: effective.off, shifts: shifts }
   end
 
+  def bookable_selection?(doctor_id, date, time_slot:, mode:, start_time:, end_time:)
+    return false unless mode == (@settings.time_slot_booking? ? "slot" : "shift")
+
+    shift = day_availability(doctor_id, date, include_times: true).fetch(:shifts).find { |entry| entry[:time_slot] == time_slot }
+    return false unless shift
+
+    selection = shift.fetch(:slots, [ shift ]).find { |entry| entry[:start_time] == start_time && entry[:end_time] == end_time }
+    return false unless selection && selection[:remaining].positive?
+
+    now = Time.current
+    today = now.to_date
+    (today...(today + DAYS)).cover?(date) && now.to_r * 1000 < selection[:cutoff_at]
+  end
+
   def as_json(options = nil)
     legacy_timed_schedule = @settings.time_slot_booking? && !options&.fetch(:time_slots, false)
     @dates.map do |date|

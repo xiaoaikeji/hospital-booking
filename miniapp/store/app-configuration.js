@@ -43,14 +43,21 @@ export function refreshAppConfiguration() {
   if (configurationStatus.value !== 'disabled') configurationStatus.value = 'loading'
 
   const started = revision
+  const serverTimeAtRequest = bookingNow()
   pending = loadAppConfiguration().then(({ status, config }) => {
     if (started !== revision) return
     scheduleCurrent.value = status === 'ready'
     if (status === 'ready') {
       appConfiguration.value = config
-      bookingClock.value = Number.isFinite(config.server_time) && Number.isFinite(config.schedule_refresh_at)
-        ? { serverTime: config.server_time, refreshAt: config.schedule_refresh_at, receivedAt: elapsedTime() }
-        : null
+      if (Number.isFinite(config.server_time) && Number.isFinite(config.schedule_refresh_at)) {
+        // A reply sampled during this request may arrive after a cutoff we have already reached.
+        const serverTime = serverTimeAtRequest !== null && config.server_time >= serverTimeAtRequest
+          ? Math.max(config.server_time, bookingNow())
+          : config.server_time
+        bookingClock.value = { serverTime, refreshAt: config.schedule_refresh_at, receivedAt: elapsedTime() }
+      } else {
+        bookingClock.value = null
+      }
     }
     if (status === 'disabled') {
       appConfiguration.value = null

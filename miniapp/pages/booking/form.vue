@@ -1,10 +1,10 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue'
-import { onLoad, onShow } from '@dcloudio/uni-app'
+import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app'
 import { bookingDepartments, directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
 import { bookingNotice, bookingSymptomsRequired, displayFreeFeeWhenFeeIsZero, displayHospitalAddress, hospitalProfile } from '@/store/app-configuration.js'
 import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
-import { bindPhone, demoMode, readProfile, signedIn } from '@/store/session.js'
+import { bindPhone, demoMode, readProfile, requestForUser, signedIn } from '@/store/session.js'
 import { canOpenBooking } from '@/utils/booking-navigation.js'
 import { canUseApp, checkAppAccess } from '@/utils/app-access.js'
 import { hospitalLocation, openHospitalLocation } from '@/utils/hospital-location.js'
@@ -46,7 +46,14 @@ const slotText = computed(() => selectedSlot.value?.label || (fromDemo.value || 
 const picking = ref(false)
 const phone = ref('')
 const needsBinding = ref(false)
+const checkingBinding = ref(false)
 const binding = ref(false)
+const canAuthorizePhone = computed(() => {
+  if (!needsBinding.value || checkingBinding.value || binding.value) return false
+  if (selectedSlot.value) return true
+  const selection = slotSelection.value
+  return !schedule.value.length && !!selection && shiftBookable(selection.slot, now.value)
+})
 const name = ref('')
 const sex = ref('')
 const age = ref('')
@@ -62,6 +69,7 @@ const createdNo = ref('')
 let requestNo = ''
 let openedDetail = false
 let openingEditor = false
+let visibilityRevision = 0
 
 onLoad(async options => {
   if (!await canOpenBooking('form', options)) return
@@ -77,28 +85,30 @@ onLoad(async options => {
   }
 })
 
-onShow(async () => {
+onShow(() => {
   if (openedDetail) {
     if (getCurrentPages().length > 1) uni.navigateBack()
     else uni.redirectTo({ url: '/pages/ucenter/appointments' })
     return
   }
   if (!bookingParams.value || fromDemo.value) return
-  await checkAppAccess()
-  if (!needsBinding.value) return
-  try {
-    const user = await readProfile()
-    if (!user?.booking_phone_required) needsBinding.value = false
-  } catch {
-    needsBinding.value = false
-  }
+  checkAppAccess()
+  if (needsBinding.value) return recheckPhoneRequirement()
+  checkingBinding.value = false
 })
+
+function suspendBookingChecks() {
+  visibilityRevision++
+  if (!fromDemo.value && needsBinding.value) checkingBinding.value = true
+}
+onHide(suspendBookingChecks)
+onUnload(suspendBookingChecks)
 
 watch([schedule, now], ([days]) => {
   if (!days.length) picking.value = false
-  else if (!fromDemo.value && !selectedSlot.value) {
-    slotSelection.value = null
-    needsBinding.value = false
+  else if (!fromDemo.value && slotSelection.value && !selectedSlot.value && !checkingBinding.value && !submitting.value) {
+    if (needsBinding.value) reselectSlot()
+    else slotSelection.value = null
   }
 })
 
@@ -200,6 +210,7 @@ function setTime(selection) {
   selectedDate.value = selection.date
   slotSelection.value = selection
   needsBinding.value = false
+  checkingBinding.value = false
   picking.value = false
 }
 
@@ -207,13 +218,50 @@ function notify(title) {
   uni.showToast({ title, icon: 'none' })
 }
 
+function reselectSlot() {
+  slotSelection.value = null
+  needsBinding.value = false
+  notify('时段已不可约，请重新选择')
+}
+
+async function checkSelection({ doctorId, date, slot }) {
+  const result = await requestForUser('appointment_check', { data: {
+    doctor_id: doctorId, date, time_slot: slot.time_slot, mode: slot.timed ? 'slot' : 'shift',
+    start_time: slot.start_time, end_time: slot.end_time,
+  } })
+  if ([result?.bookable, result?.booking_phone_required, result?.booking_symptoms_required].some(value => typeof value !== 'boolean')) {
+    throw new Error('排班暂不可用，请重试')
+  }
+  return result
+}
+
+async function recheckPhoneRequirement() {
+  checkingBinding.value = true
+  const revision = visibilityRevision
+  const selection = slotSelection.value
+  try {
+    if (!selection) return reselectSlot()
+    const result = await checkSelection(selection)
+    if (revision !== visibilityRevision || selection !== slotSelection.value) return
+    if (!result.bookable || (schedule.value.length && !selectedSlot.value)) return reselectSlot()
+    needsBinding.value = result.booking_phone_required
+  } catch (error) {
+    if (revision !== visibilityRevision || selection !== slotSelection.value) return
+    needsBinding.value = false
+    notify(error.message || '暂时无法核对预约，请重试')
+  } finally {
+    if (revision === visibilityRevision) checkingBinding.value = false
+  }
+}
+
 function phoneDenied() {
+  if (!canAuthorizePhone.value) return
   needsBinding.value = false
   notify('已取消授权，预约内容已保留')
 }
 
 async function verifyPhone(result) {
-  if (binding.value) return
+  if (!canAuthorizePhone.value) return
   binding.value = true
   try {
     const user = await bindPhone(result)
@@ -228,10 +276,12 @@ async function verifyPhone(result) {
 }
 
 async function confirmBooking() {
-  if (submitting.value || binding.value || openedDetail) return
+  if (submitting.value || checkingBinding.value || binding.value || openedDetail) return
+  const selection = slotSelection.value
+  const revision = visibilityRevision
   if (!createdNo.value) {
     refreshClock()
-    if (!slotSelection.value) return notify('请选择时段')
+    if (!selection) return notify('请选择时段')
     const message = patientValidationMessage({ name: name.value, sex: sex.value, age: age.value })
     if (message) return notify(message)
   }
@@ -239,21 +289,25 @@ async function confirmBooking() {
   uni.hideKeyboard()
   try {
     if (!createdNo.value) {
-      if (!fromDemo.value) {
-        if (!await canUseApp()) return
-        if (!schedule.value.length) return notify('排班暂不可用，请重试')
+      let user
+      let phoneRequired
+      let symptomsRequired = bookingSymptomsRequired.value
+      if (fromDemo.value) {
+        user = await readProfile()
+        if (!user) return notify('请先登录')
         refreshClock()
-        if (!selectedSlot.value) {
-          slotSelection.value = null
-          return notify('时段已不可约，请重新选择')
-        }
+        if (!selectedSlot.value) return notify('请选择时段')
+        phoneRequired = user.booking_phone_required
+      } else {
+        // Confirmation needs a server decision initiated by this click.
+        const result = await checkSelection(selection)
+        if (revision !== visibilityRevision || selection !== slotSelection.value) return
+        if (!result.bookable) return reselectSlot()
+        phoneRequired = result.booking_phone_required
+        symptomsRequired = result.booking_symptoms_required
       }
-      if (bookingSymptomsRequired.value && !symptoms.value.trim()) return notify('请填写症状描述')
-      const user = await readProfile()
-      if (!user) return notify('请先登录')
-      refreshClock()
-      if (!selectedSlot.value) return notify('请选择时段')
-      if (user.booking_phone_required) {
+      if (symptomsRequired && !symptoms.value.trim()) return notify('请填写症状描述')
+      if (phoneRequired) {
         needsBinding.value = true
         await nextTick()
         uni.pageScrollTo({ selector: '#phone-binding', duration: 180 })
@@ -273,7 +327,7 @@ async function confirmBooking() {
     await uni.navigateTo({ url: '/pages/ucenter/appointment_detail?created=1&no=' + createdNo.value })
     openedDetail = true
   } catch (error) {
-    notify(createdNo.value ? '已创建预约，点击查看详情' : error.message || '提交失败，请重试')
+    if (revision === visibilityRevision) notify(createdNo.value ? '已创建预约，点击查看详情' : error.message || '提交失败，请重试')
   } finally {
     submitting.value = false
   }
@@ -322,10 +376,11 @@ async function confirmBooking() {
         </view>
       </view>
       <view class="demo-note">{{ demoMode ? '本地模拟预约，请使用虚构就诊资料' : '正式预约受理尚未开放' }}</view>
-      <view v-if="needsBinding && selectedSlot" id="phone-binding">
+      <button v-if="checkingBinding || binding" class="submit" hover-class="none" disabled>{{ binding ? '验证中…' : '正在核对预约…' }}</button>
+      <view v-else-if="canAuthorizePhone" id="phone-binding">
         <view class="binding-note">医院要求先验证账号手机号。本次联系电话可填写家属号码。</view>
-        <custom-phone-authorization label="验证账号手机号" @authorized="verifyPhone" @denied="phoneDenied" @failed="notify('手机号授权失败，请重试')">
-          <view class="submit bind-button">{{ binding ? '验证中…' : '验证账号手机号' }}</view>
+        <custom-phone-authorization label="验证账号手机号" @authorized="verifyPhone" @denied="phoneDenied" @failed="canAuthorizePhone && notify('手机号授权失败，请重试')">
+          <view class="submit bind-button">验证账号手机号</view>
         </custom-phone-authorization>
       </view>
       <button v-else class="submit" hover-class="none" :disabled="submitting" @tap="confirmBooking">{{ submitting ? '确认中…' : createdNo ? '查看预约详情' : '确定预约' }}</button>

@@ -32,6 +32,7 @@ namespace :admins do
     patch :status, on: :member
     get :image, on: :member
     resource :schedule, only: :show, controller: :doctor_schedules do
+      get :clock
       patch :weekly, action: :update_weekly
       patch :date_adjustment, action: :update_date_adjustment
       delete :date_adjustment, action: :revoke_date_adjustment, as: :revoke_date_adjustment

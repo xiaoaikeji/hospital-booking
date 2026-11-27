@@ -38,6 +38,19 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_equal({ "adjusted" => true, "off" => false, "shifts" => [] }, days.fetch("2026-12-24"))
   end
 
+  test "a read-only operator can refresh the server clock used by the calendar" do
+    sign_in Admin.create!(username: "calendar_customer_service", role: "customer_service")
+    path = clock_admins_doctor_schedule_path(@doctor)
+    get admins_doctor_schedule_path(@doctor)
+    assert_select "#doctor-schedule-calendar[data-clock-url=?][data-server-time=?]", path, (Time.current.to_i * 1000).to_s
+
+    travel 2.minutes
+    get path
+    assert_response :ok
+    assert_equal({ "server_time" => Time.current.to_i * 1000 }, response.parsed_body)
+    assert_equal "no-store", response.headers["Cache-Control"]
+  end
+
   test "export includes the matching doctor beyond page one and matches every shift in the month calendar" do
     department = @doctor.departments.ordered.first
     @doctor.update!(status: 0, sort_order: 99, display_on_homepage: false)
