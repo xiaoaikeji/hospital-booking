@@ -5,5 +5,12 @@
 <% else %>
   <th scope="col" class="directory-title px-2">职称</th>
   <th scope="col" class="directory-secondary px-2">所属科室</th>
-  <th scope="col" class="directory-fee px-2">挂号费</th>
+  <th scope="col" class="directory-fee px-2" aria-sort="<%= { "fee_asc" => "ascending", "fee_desc" => "descending" }.fetch(@filters[:sort], "none") %>">
+    <%= form_with url: admins_doctors_path, method: :get, id: "doctor-fee-sort" do %>
+      <% @filters.except(:sort).each do |key, value| %>
+        <%= hidden_field_tag key, value, id: nil %>
+      <% end %>
+      <%= render "admins/doctors/fee_sort" %>
+    <% end %>
+  </th>
 <% end %>

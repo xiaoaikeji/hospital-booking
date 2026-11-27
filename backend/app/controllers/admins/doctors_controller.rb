@@ -3,9 +3,24 @@ module Admins
     ENTRY_MODEL = Doctor
     ENTRY_TITLE = "医生资料"
     ENTRY_LABEL = "医生"
+    REMOVE_FAILURE = "医生未移除，请重试"
 
-    before_action(only: :export_schedule) { require_directory_editor! }
+    before_action(only: %i[destroy export_schedule]) { require_directory_editor! }
     before_action :load_department_options, only: :index
+
+    def destroy
+      Doctor.transaction(requires_new: true) do
+        @entry = entry_scope.lock.find(params[:id])
+        @entry.update!(deleted_at: Time.current)
+        audit(:destroy, fields: [ "deleted_at" ])
+      end
+      redirect_to directory_path, notice: "医生已移除", status: :see_other
+    rescue ActiveRecord::RecordNotFound
+      raise
+    rescue ActiveRecord::ActiveRecordError
+      audit(:destroy, status: "failed", reason: REMOVE_FAILURE)
+      redirect_to directory_path, alert: REMOVE_FAILURE, status: :see_other
+    end
 
     def export_schedule
       filters = list_filters
@@ -16,7 +31,7 @@ module Admins
       return export_failed(filters, details, ScheduleExport::INVALID_MONTH) unless month
 
       begin
-        doctors = list_scope(filters).ordered
+        doctors = list_scope(filters.except(:sort)).ordered
         file, row_count = ScheduleExport.new(doctors, month).build
       rescue StandardError => error
         Rails.logger.error { "Schedule export failed (#{error.class.name})" }
@@ -40,21 +55,18 @@ module Admins
       department_id = department_id.to_i if department_id.is_a?(String) && /\A[1-9][0-9]{0,18}\z/.match?(department_id)
       department_id = nil unless department_id.is_a?(Integer) && department_id.between?(1, 2**63 - 1)
       homepage = params[:display_on_homepage].presence_in(%w[0 1])
-      super.merge(q: query, department_id: department_id, display_on_homepage: homepage).compact
+      sort = params[:sort].presence_in(Doctor::FEE_SORT_DIRECTIONS.keys)
+      super.merge(q: query, department_id: department_id, display_on_homepage: homepage, sort: sort).compact
     end
 
     def list_scope(filters)
       rows = super.includes(:departments)
-      if (query = filters[:q])
-        rows = rows.where("doctors.name ILIKE ?", "%#{Doctor.sanitize_sql_like(query)}%")
-      end
-      if (department_id = filters[:department_id])
-        rows = rows.where(id: DoctorDepartment.where(department_id:).select(:doctor_id))
-      end
+      rows = rows.named_like(filters[:q]) if filters[:q]
+      rows = rows.in_department(filters[:department_id]) if filters[:department_id]
       if filters.key?(:display_on_homepage)
         rows = rows.where(display_on_homepage: filters[:display_on_homepage] == "1")
       end
-      rows
+      rows.by_fee(filters[:sort])
     end
 
     def export_month(value)
@@ -75,7 +87,7 @@ module Admins
 
     def entry_details
       { "职称" => @entry.main_title, "所属科室" => @entry.department_names,
-        "挂号费" => "#{@entry.fee_in_yuan} 元", "首页展示" => (@entry.display_on_homepage? ? "是" : "否"),
+        "挂号费" => "#{@entry.fee_in_yuan} 元", "首页推荐" => (@entry.display_on_homepage? ? "是" : "否"),
         "擅长" => @entry.good_in, "简介" => @entry.introduction }
     end
 
@@ -118,6 +130,13 @@ module Admins
       if fields.delete("fee")
         audit(:change_fee, fields: [ "fee" ], fee: @entry.fee_in_yuan)
       end
+    end
+
+    def audit(action, status: "success", **details)
+      if details[:fields]&.include?("display_on_homepage")
+        details[:display_on_homepage] = @entry.display_on_homepage?
+      end
+      super(action, status:, **details)
     end
   end
 end

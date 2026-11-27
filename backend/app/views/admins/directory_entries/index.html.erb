@@ -20,7 +20,7 @@
     <%= render "admins/shared/list_filter_row", label: "状态", key: :status, options: DirectoryEntry::STATUSES,
       selected: @filters[:status], filter_url: filter_url %>
     <% if doctor %>
-      <%= render "admins/shared/list_filter_row", label: "首页展示", key: :display_on_homepage, options: { "1" => "是", "0" => "否" },
+      <%= render "admins/shared/list_filter_row", label: "首页推荐", key: :display_on_homepage, options: { "1" => "是", "0" => "否" },
         selected: @filters[:display_on_homepage], filter_url: filter_url %>
       <%= render "admins/doctors/department_filter" %>
     <% end %>
@@ -90,6 +90,9 @@
                   <% else %>
                     <%= button_to polymorphic_path([:status, :admins, entry]), method: :patch, params: { status: 1 }, class: "btn btn-sm btn-outline-success text-nowrap" do %><%= render "layouts/admins/icon", name: :check %>启用<% end %>
                   <% end %>
+                  <% if doctor %>
+                    <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(entry, :remove) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>移除</button>
+                  <% end %>
                 <% end %>
               </div>
             </td>
@@ -116,5 +119,13 @@
       color: "warning", title: "停用#{entry_label}", context: entry.name,
       description: (doctor ? "停用后，该医生将在小程序隐藏。" : "停用后，该科室及其下级科室将在小程序隐藏。"),
       cancel_icon: :close, confirm_icon: :alert, confirm_label: "确认停用" %>
+  <% end %>
+  <% if doctor && editable %>
+    <% form_id = dom_id(entry, :remove) %>
+    <%= form_with url: admins_doctor_path(entry), method: :delete, id: form_id, data: { admin_form: true }, html: { hidden: true } do %><% end %>
+    <%= render "admins/shared/confirmation_modal", modal_id: "#{form_id}-confirmation", form_id: form_id,
+      color: "danger", title: "移除医生", context: entry.name,
+      description: "移除后，后台医生列表和小程序将不再显示该医生。医生档案、科室关联和排班会保留。",
+      cancel_icon: :close, confirm_icon: :trash, confirm_label: "确认移除" %>
   <% end %>
 <% end %>

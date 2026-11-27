@@ -11,6 +11,7 @@ class Log < ApplicationRecord
     [ "booking", "doctor.disable" ] => "停用医生",
     [ "booking", "doctor.reorder" ] => "调整医生排序",
     [ "booking", "doctor.change_fee" ] => "修改医生挂号费",
+    [ "booking", "doctor.destroy" ] => "移除医生",
     [ "booking", "schedule.create" ] => "新增排班",
     [ "booking", "schedule.update" ] => "修改排班",
     [ "booking", "schedule.revoke" ] => "撤销日期调整",

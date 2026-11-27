@@ -215,6 +215,101 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "doctor searches order matching decimal fees before pagination and keep hospital order for ties" do
+    department = Department.create!(name: "儿科")
+    other = Department.create!(name: "眼科")
+    hidden = Department.create!(name: "门诊部", status: 0)
+    hidden_child = Department.create!(name: "儿保", parent: hidden)
+    high = Doctor.create!(name: "张甲", fee: 35, sort_order: 1, departments: [ department ])
+    middle = Doctor.create!(name: "张乙", fee: "18.5", sort_order: 3, departments: [ department ])
+    earlier = Doctor.create!(name: "张丙", fee: "18.5", sort_order: 2, departments: [ department ])
+    free = Doctor.create!(name: "张丁", fee: 0, sort_order: 40, departments: [ department, other, hidden_child ])
+    Doctor.create!(name: "张戊", fee: 0, departments: [ other ])
+    Doctor.create!(name: "张己", fee: 0, status: 0, departments: [ department ])
+    # An imported directory can span a page even though new records must obey the enabled limit.
+    imported = Doctor.insert_all!(Array.new(18) { |i| { name: "张医师#{i}", fee: 35, sort_order: 4 } }).rows.flatten
+    DoctorDepartment.insert_all!(imported.map { |id| { doctor_id: id, department_id: department.id } })
+    api_path = api_mini_program_doctors_path(@mini_program.appid)
+    query = { q: " 张 ", department_id: department.id }
+
+    get api_path, params: query
+    assert_response :success
+    assert_equal [ high.id, earlier.id, middle.id ], response.parsed_body.fetch("doctors").first(3).pluck("id").map(&:to_i)
+    get api_path, params: query.merge(sort: "fee_asc")
+    result = response.parsed_body
+    assert_equal [ free.id, earlier.id, middle.id, high.id, *imported.first(16) ].map(&:to_s), result.fetch("doctors").pluck("id")
+    assert_equal [ "0", "18.5", "18.5", "35" ], result.fetch("doctors").first(4).pluck("fee")
+    assert_equal [ department.id, other.id ].map(&:to_s).sort, result.fetch("doctors").first.fetch("department_ids").sort
+    get api_path, params: query.merge(sort: "fee_desc", page: result.fetch("next_page"))
+    assert_equal [ middle.id, free.id ].map(&:to_s), response.parsed_body.fetch("doctors").pluck("id")
+    assert_nil response.parsed_body.fetch("next_page")
+    get api_path, params: query.merge(department_id: hidden_child.id)
+    assert_empty response.parsed_body.fetch("doctors")
+
+    get admins_doctors_path, params: query.merge(sort: "fee_asc", status: 1, display_on_homepage: 1)
+    assert_select "th[aria-sort=ascending] form[action=?]", admins_doctors_path do
+      assert_select "button[name=sort][value=fee_desc]"
+      assert_select "input[name=q][value=?]", "张"
+      assert_select "input[name=department_id][value=?]", department.id.to_s
+      assert_select "input[name=status][value='1']"
+      assert_select "input[name=display_on_homepage][value='1']"
+    end
+    assert_select "tbody > tr" do |rows|
+      assert_equal [ free.id, earlier.id, middle.id, high.id ].map { |id| "doctor_#{id}" }, rows.first(4).map { |row| row["id"] }
+    end
+  end
+
+  test "homepage recommendation uses the stored preference and removing a doctor archives their department links and schedule" do
+    departments = %w[儿科 眼科].map { |name| Department.create!(name:) }
+    doctor = Doctor.create!(name: "张医师", departments:, recommend: true)
+    date = Date.current
+    shift = doctor.schedules.create!(start_date: date, end_date: date, weekday: date.wday, time_slot: "AM", capacity: 20)
+    api_path = api_mini_program_doctors_path(@mini_program.appid)
+    config_path = api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+
+    get edit_admins_doctor_path(doctor)
+    assert_select "label", text: "首页推荐" do
+      assert_select "input[name='doctor[display_on_homepage]'][checked]"
+    end
+    patch admins_doctor_path(doctor), params: { doctor: { display_on_homepage: "0", recommend: "0" } }
+    assert_redirected_to admins_doctors_path
+    assert doctor.reload.recommend?
+    update = Log.find_by!(action: "doctor.update", target_id: doctor.id)
+    assert_equal({ "fields" => [ "display_on_homepage" ], "display_on_homepage" => false }, update.details)
+    get config_path
+    assert_equal false, response.parsed_body.dig("directory", "doctors", 0, "display_on_homepage")
+    assert_equal "AM", response.parsed_body.dig("schedule", 0, "doctors", doctor.id.to_s, 0)
+    departments.each do |department|
+      get api_path, params: { department_id: department.id }
+      assert_equal [ doctor.id.to_s ], response.parsed_body.fetch("doctors").pluck("id")
+    end
+
+    delete admins_doctor_path(doctor)
+    assert_redirected_to admins_doctors_path
+    assert doctor.reload.deleted_at?
+    assert_equal departments.map(&:id).sort, doctor.department_ids.sort
+    assert_equal [ shift.id ], doctor.schedules.ids
+    removal = Log.find_by!(action: "doctor.destroy", target_id: doctor.id, status: "success")
+    assert_equal @admin.id, removal.actor_id
+    get admins_operation_log_path(removal)
+    assert_response :success
+    get admins_doctors_path
+    assert_select "#doctor_#{doctor.id}", count: 0
+    get admins_doctor_path(doctor)
+    assert_response :not_found
+    get admins_doctor_schedule_path(doctor)
+    assert_response :not_found
+    get config_path
+    assert_empty response.parsed_body.dig("directory", "doctors")
+    assert_empty response.parsed_body.dig("schedule", 0, "doctors")
+    get api_path, params: { q: "张", department_id: departments.first.id }
+    assert_empty response.parsed_body.fetch("doctors")
+    @mini_program.update!(status: "disabled")
+    get api_path
+    assert_response :forbidden
+    assert_equal "disabled", response.parsed_body.fetch("status")
+  end
+
   test "operators can maintain the directory while customer service can only view it" do
     operator = Admin.create!(username: "directory_operator", role: "operator")
     staff = Admin.create!(username: "directory_support", role: "customer_service")
@@ -235,8 +330,9 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     doctor = Doctor.find_by!(name: "运营医生")
     open_session do |browser|
       browser.post admin_session_path, params: { admin: { username: staff.username, password: Admin::DEFAULT_PASSWORD } }
-      browser.get admins_doctors_path
+      browser.get admins_doctors_path, params: { q: "运营", sort: "fee_asc", display_on_homepage: 1 }
       assert_equal 200, browser.response.status
+      assert_select browser.html_document, "th[aria-sort=ascending]"
       assert_select browser.html_document, "#sidebar-menu a[href=?]", admins_departments_path
       assert_select browser.html_document, "a[href=?]", new_admins_doctor_path, count: 0
       assert_select browser.html_document, "a[href=?]", admins_doctor_path(doctor), text: /查看/
@@ -245,7 +341,9 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
       browser.get admins_doctor_path(doctor)
       assert_equal 200, browser.response.status
       assert_select browser.html_document, "dd", text: "20 元"
-      browser.patch admins_doctor_path(doctor), params: { doctor: { fee: "1" } }
+      browser.patch admins_doctor_path(doctor), params: { doctor: { fee: "1", display_on_homepage: "0" } }
+      assert_equal 403, browser.response.status
+      browser.delete admins_doctor_path(doctor)
       assert_equal 403, browser.response.status
       browser.patch status_admins_doctor_path(doctor), params: { status: 0 }
       assert_equal 403, browser.response.status
@@ -254,5 +352,7 @@ class BookingDirectoryTest < ActionDispatch::IntegrationTest
     end
     assert department.reload.enabled?
     assert_equal "20", doctor.reload.fee_in_yuan
+    assert doctor.display_on_homepage?
+    assert_nil doctor.deleted_at
   end
 end

@@ -1,11 +1,18 @@
 class Doctor < DirectoryEntry
   ENABLED_LIMIT = 5
   ENABLED_LOCK_ID = 71_020_022
+  FEE_SORT_DIRECTIONS = { "fee_asc" => :asc, "fee_desc" => :desc }.freeze
 
   has_many :doctor_departments
   has_many :departments, through: :doctor_departments
   has_many :schedules
   scope :current, -> { where(deleted_at: nil) }
+  scope :named_like, ->(query) { where("doctors.name ILIKE ?", "%#{sanitize_sql_like(query)}%") }
+  scope :in_department, ->(id) { where(id: DoctorDepartment.where(department_id: id).select(:doctor_id)) }
+  scope :by_fee, ->(sort) do
+    direction = FEE_SORT_DIRECTIONS[sort]
+    order(fee: direction) if direction
+  end
   normalizes :main_title, :description, :good_in, :introduction, with: ->(value) { value.strip.presence }
 
   validates :main_title, length: { maximum: 100, too_long: "最多 100 个字符" }

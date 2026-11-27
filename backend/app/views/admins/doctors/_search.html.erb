@@ -11,5 +11,8 @@
     <% if @filters.any? %>
       <%= link_to admins_doctors_path, class: "btn flex-shrink-0 text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
     <% end %>
+    <% if @entries.any? %>
+      <div class="directory-fee-compact"><%= render "admins/doctors/fee_sort", compact: true %></div>
+    <% end %>
   <% end %>
 </div>

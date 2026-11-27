@@ -48,6 +48,8 @@ class ScheduleEditor
   def revoke_date(date)
     target = nil
     @doctor.with_lock(requires_new: true) do
+      raise ActiveRecord::RecordNotFound if @doctor.deleted_at?
+
       rows = @doctor.schedules.on_date(date).order(:id)
       target = rows.first
       if target
@@ -56,6 +58,8 @@ class ScheduleEditor
       end
     end
     true
+  rescue ActiveRecord::RecordNotFound
+    raise
   rescue ActiveRecord::ActiveRecordError
     errors.add(:base, REVOKE_FAILURE)
     audit(:revoke, target, date: date, status: "failed", reason: REVOKE_FAILURE)
@@ -68,6 +72,8 @@ class ScheduleEditor
     action = :update
     target = nil
     @doctor.with_lock(requires_new: true) do
+      raise ActiveRecord::RecordNotFound if @doctor.deleted_at?
+
       current = scope.active.order(:id).to_a
       action = :create if current.empty?
       target = current.first
@@ -76,6 +82,8 @@ class ScheduleEditor
       audit(action, changed, date: date) if changed
     end
     true
+  rescue ActiveRecord::RecordNotFound
+    raise
   rescue Invalid, ActiveRecord::ActiveRecordError => error
     errors.add(:base, error.is_a?(Invalid) ? error.message : FAILURE)
     audit(action, target, date: date, status: "failed", reason: FAILURE)

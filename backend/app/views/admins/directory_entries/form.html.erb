@@ -25,13 +25,10 @@
         <h2 class="card-title mb-3" id="doctor-display-settings">展示设置</h2>
         <div class="row g-3">
           <div class="col-sm-6">
-            <div class="d-flex flex-wrap align-items-center gap-3" role="group" aria-labelledby="doctor-display-position">
-              <span class="form-label mb-0" id="doctor-display-position">展示位置</span>
-              <label class="form-check form-switch mb-0">
-                <%= f.check_box :display_on_homepage, { class: "form-check-input", role: "switch" } %>
-                <span class="form-check-label">小程序首页</span>
-              </label>
-            </div>
+            <label class="form-check form-switch mb-0">
+              <%= f.check_box :display_on_homepage, { class: "form-check-input", role: "switch" } %>
+              <span class="form-check-label">首页推荐</span>
+            </label>
           </div>
           <% if @entry.new_record? %>
             <div class="col-sm-6">

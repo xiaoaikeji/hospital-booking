@@ -44,13 +44,16 @@ module Admins
       raise ActionController::BadRequest unless %w[0 1].include?(desired)
 
       action = desired == "1" ? :enable : :disable
-      @entry.with_lock(requires_new: true) do
+      entry_model.transaction(requires_new: true) do
+        @entry = entry_scope.lock.find(@entry.id)
         if @entry.status != desired.to_i
           @entry.update!(status: desired)
           audit(action, fields: [ "status" ], status_value: @entry.status)
         end
       end
       redirect_to directory_path, notice: "#{entry_label}#{DirectoryEntry::STATUSES.fetch(@entry.status)}", status: :see_other
+    rescue ActiveRecord::RecordNotFound
+      raise
     rescue ActiveRecord::ActiveRecordError => error
       audit(action, status: "failed", reason: STATUS_FAILURE)
       reason = @entry.errors[:status].first if error.is_a?(ActiveRecord::RecordInvalid) && error.record == @entry
@@ -108,6 +111,8 @@ module Admins
     rescue IntegrationSettings::ConfigurationError
       audit(action, status: "failed", reason: SAVE_FAILURE)
       raise
+    rescue ActiveRecord::RecordNotFound
+      raise
     rescue MediaUpload::Invalid, MediaUpload::Failed, ActiveRecord::ActiveRecordError => error
       @submitted_attributes = attributes
       @entry.attachment_changes.delete("image")
@@ -122,7 +127,7 @@ module Admins
 
     def persist_entry(action, attributes, blob: nil, remove_image: false)
       entry_model.transaction(requires_new: true) do
-        @entry.lock! if @entry.persisted?
+        @entry = entry_scope.lock.find(@entry.id) if @entry.persisted?
         fields = assign_entry_attributes(attributes)
         if blob || (remove_image && @entry.image.attached?)
           @entry.image = blob

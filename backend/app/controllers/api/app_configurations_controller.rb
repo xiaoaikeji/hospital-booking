@@ -1,5 +1,7 @@
 module Api
   class AppConfigurationsController < ActionController::API
+    include BookingDirectory
+
     before_action :load_app
 
     def show
@@ -48,7 +50,7 @@ module Api
         department = Department.find_by(id: params[:id])
         department if department&.visible_in_booking?
       else
-        Doctor.current.enabled.with_attached_image.find_by(id: params[:id])
+        booking_doctor_scope.find_by(id: params[:id])
       end
       render_image(entry&.image)
     end
@@ -56,30 +58,17 @@ module Api
     private
 
     def directory
-      department_ids = booking_departments.map { |department, _depth| department.id }.to_set
       {
         departments: booking_departments.map do |department, depth|
           image_url = directory_image_url("departments", department)
           { id: department.id.to_s, name: department.name, depth: depth,
             icon: (department.name.each_grapheme_cluster.first unless image_url), image_url: image_url }
         end,
-        doctors: booking_doctors.map do |doctor|
-          visible_ids = doctor.doctor_departments.filter_map do |link|
-            link.department_id.to_s if department_ids.include?(link.department_id)
-          end
-          doctor.slice(:name, :main_title, :good_in, :introduction, :display_on_homepage).merge(
-            id: doctor.id.to_s, fee: doctor.fee_in_yuan, department_ids: visible_ids, image_url: directory_image_url("doctors", doctor)
-          )
-        end
+        doctors: serialize_booking_doctors(booking_doctors)
       }
     end
 
-    def booking_departments = @booking_departments ||= Department.booking_rows
-    def booking_doctors = @booking_doctors ||= Doctor.current.enabled.ordered.includes(:doctor_departments).with_attached_image.to_a
-
-    def directory_image_url(collection, entry)
-      api_app_directory_image_url(@app.provider, @app.appid, collection, entry.id, entry.image.blob.key) if entry.image.attached?
-    end
+    def booking_doctors = @booking_doctors ||= booking_doctor_scope.ordered.to_a
 
     def render_image(image)
       raise ActiveRecord::RecordNotFound unless image&.attached? && image.blob.key == params[:key]

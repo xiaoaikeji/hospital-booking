@@ -6,6 +6,7 @@ import DateStrip from './components/date_strip.vue'
 import { openBooking } from '@/utils/booking-navigation.js'
 import DoctorCard from './components/doctor_card.vue'
 import { scheduleMessage, shiftLabels, useBookingCalendar } from './booking-calendar.js'
+import { useDoctorList } from './doctor-list.js'
 import { bookingDepartments, bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
 import { configurationStatus, showUnscheduledDoctors } from '@/store/app-configuration.js'
 import { handleTabShow, requestTabLogin } from '@/utils/guest-tab.js'
@@ -18,13 +19,15 @@ const modes = [
 ]
 const { schedule, selectedDay, scheduledDoctors, loadDay, refresh, now } = useBookingCalendar()
 const doctorQuery = ref('')
+const query = computed(() => mode.value === 'doctor' && !directoryDemoMode ? { q: doctorQuery.value.trim() } : null)
+const { doctors: searchResults, status: doctorListStatus, refresh: refreshDoctors } = useDoctorList(query, 180)
 const visibleDoctors = computed(() => {
   if (mode.value === 'date') {
     if (!selectedDay.value) return []
     return showUnscheduledDoctors.value ? bookingDoctors.value : scheduledDoctors.value
   }
-  const query = doctorQuery.value.trim()
-  return bookingDoctors.value.filter(doctor => doctor.name.includes(query))
+  if (!directoryDemoMode) return searchResults.value
+  return bookingDoctors.value.filter(doctor => doctor.name.includes(doctorQuery.value.trim()))
 })
 
 onShow(() => {
@@ -75,8 +78,11 @@ onTabItemTap(() => requestTabLogin('/pages/booking/index'))
           :doctor="doctor" :date="mode === 'date' ? selectedDay.date : ''" :demo="directoryDemoMode"
           :unscheduled="mode === 'date' && !scheduledDoctors.includes(doctor)"
           :shifts="mode === 'date' ? shiftLabels(selectedDay, doctor.id, now) : []" />
-        <view v-if="!visibleDoctors.length" class="empty-results" role="status">
-          {{ mode === 'date' ? (directoryDemoMode ? '当日暂无排班' : scheduleMessage) : '未找到匹配的医生' }}
+        <view v-if="mode === 'doctor' && !directoryDemoMode && doctorListStatus === 'error'" class="empty-results"
+          aria-role="button" @tap="refreshDoctors()">医生资料暂不可用，点击重试</view>
+        <view v-else-if="!visibleDoctors.length" class="empty-results" role="status">
+          <template v-if="mode === 'date'">{{ directoryDemoMode ? '当日暂无排班' : scheduleMessage }}</template>
+          <template v-else>{{ !directoryDemoMode && doctorListStatus === 'loading' ? '正在读取医生资料' : '未找到匹配的医生' }}</template>
         </view>
       </view>
     </view>

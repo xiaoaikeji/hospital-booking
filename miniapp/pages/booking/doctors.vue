@@ -1,28 +1,37 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import DoctorCard from './components/doctor_card.vue'
+import { useDoctorList } from './doctor-list.js'
 import { bookingDepartments, bookingDoctors, directoryDemoMode } from '@/store/booking-directory.js'
-import { configurationStatus } from '@/store/app-configuration.js'
 import { checkAppAccess } from '@/utils/app-access.js'
 
-const sorts = [
-  { label: '综合排序', value: '' }, { label: '满意度', value: 'satisfaction' },
+const defaultSort = { label: '综合排序', value: '' }
+const demoSorts = [
+  defaultSort, { label: '满意度', value: 'satisfaction' },
   { label: '接诊量', value: 'visits' }, { label: '推荐度', value: 'recommendation' },
+]
+const feeSorts = [
+  defaultSort, { label: '挂号费从低到高', value: 'fee_asc' }, { label: '挂号费从高到低', value: 'fee_desc' },
 ]
 const filters = computed(() => {
   const department = [{ label: '全部科室', value: '' }, ...bookingDepartments.value.map(item => ({
     label: item.name, value: directoryDemoMode ? item.name : item.id,
   }))]
-  return directoryDemoMode ? { department, sort: sorts } : { department }
+  return { department, sort: directoryDemoMode ? demoSorts : feeSorts }
 })
 const selection = reactive({ department: '', sort: '' })
+const doctorQuery = ref('')
 const openFilter = ref('')
 const selected = key => filters.value[key].find(option => option.value === selection[key]) ?? filters.value[key][0]
+const department = computed(() => selected('department').value)
+const query = computed(() => directoryDemoMode ? null : { q: doctorQuery.value, department_id: department.value, sort: selection.sort })
+const { doctors, status, refresh } = useDoctorList(query)
+
 const filteredDoctors = computed(() => {
-  const department = selected('department').value
+  if (!directoryDemoMode) return doctors.value
   const result = bookingDoctors.value.filter(doctor =>
-    !department || (directoryDemoMode ? doctor.department === department : doctor.department_ids.includes(department)))
+    (!department.value || doctor.department === department.value) && doctor.name.includes(doctorQuery.value))
   const sort = selection.sort
   if (sort === 'visits') result.sort((a, b) => b.visits - a.visits)
   else if (sort) result.sort((a, b) => a.mockRanks[sort] - b.mockRanks[sort])
@@ -30,9 +39,22 @@ const filteredDoctors = computed(() => {
 })
 
 function selectOption(option) {
-  selection[openFilter.value] = option.value
+  const key = openFilter.value
+  if (selection[key] !== option.value) {
+    selection[key] = option.value
+    uni.pageScrollTo({ scrollTop: 0, duration: 0 })
+  }
   openFilter.value = ''
 }
+onLoad(({ q = '' }) => {
+  if (typeof q !== 'string') return
+
+  try {
+    doctorQuery.value = decodeURIComponent(q).trim()
+  } catch {
+    doctorQuery.value = q.trim()
+  }
+})
 onShow(checkAppAccess)
 </script>
 
@@ -56,9 +78,11 @@ onShow(checkAppAccess)
     </view>
     <view v-if="openFilter" class="filter-backdrop" aria-label="收起筛选" @tap="openFilter = ''" @touchmove.stop.prevent />
     <view class="doctor-results">
-      <DoctorCard v-for="doctor in filteredDoctors" :key="doctor.id" :doctor="doctor" :demo="directoryDemoMode" />
-      <view v-if="!filteredDoctors.length" class="empty-results" role="status">
-        {{ configurationStatus === 'loading' ? '正在读取医生资料' : configurationStatus === 'error' ? '医生资料暂不可用' : '暂无医生' }}
+      <DoctorCard v-for="doctor in filteredDoctors" :key="doctor.id" :doctor="doctor" :demo="directoryDemoMode"
+        :department-id="directoryDemoMode ? '' : department" />
+      <view v-if="!directoryDemoMode && status === 'error'" class="empty-results" aria-role="button" @tap="refresh()">医生资料暂不可用，点击重试</view>
+      <view v-else-if="!filteredDoctors.length" class="empty-results" role="status">
+        {{ !directoryDemoMode && status === 'loading' ? '正在读取医生资料' : '暂无医生' }}
       </view>
     </view>
   </view>

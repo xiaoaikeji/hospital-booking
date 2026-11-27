@@ -13,6 +13,7 @@ namespace :api do
   get "avatars/:signed_id", to: "user_avatars#show", as: :user_avatar, format: false
 
   scope "apps/wechat/:appid", module: :mini_program, as: :mini_program do
+    resources :doctors, only: :index
     resource :session, only: %i[create destroy]
     resource :me, only: %i[show update], controller: :profiles
     resource :phone_binding, only: :create
