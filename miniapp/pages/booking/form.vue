@@ -12,7 +12,7 @@ import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
 import { loadPatients, patientValidationMessage } from './patient-profiles.js'
-import { bookingShifts, scheduleMessage, shiftClosed, useBookingCalendar } from './booking-calendar.js'
+import { bookingShifts, scheduleMessage, shiftBookable, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -37,7 +37,7 @@ const slot = ref('')
 const shifts = computed(() => bookingShifts(selectedDay.value, doctor.value?.id))
 const selectedSlot = computed(() => {
   if (date.value !== selectedDate.value) return ''
-  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shift.remaining !== 0 && !shiftClosed(shift, now.value))) ? slot.value : ''
+  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shiftBookable(shift, now.value))) ? slot.value : ''
 })
 const slotText = computed(() => selectedSlot.value || (fromDemo.value || shifts.value.length ? '请选择时段' : scheduleMessage.value))
 const picking = ref(false)
@@ -81,7 +81,10 @@ onShow(() => {
   else uni.redirectTo({ url: '/pages/ucenter/appointments' })
 })
 
-watch(schedule, days => { if (!days.length) picking.value = false })
+watch([schedule, now], ([days]) => {
+  if (!days.length) picking.value = false
+  else if (!fromDemo.value && !selectedSlot.value) slot.value = ''
+})
 
 watch(signedIn, active => {
   if (active) return
@@ -168,7 +171,7 @@ async function selectTime() {
   if (fromDemo.value) {
     refresh()
   } else {
-    if (!await canUseApp()) return
+    if (!await canUseApp() || !doctor.value) return
     if (!schedule.value.length) return notify('排班暂不可用，请重试')
     refreshClock()
     slot.value = selectedSlot.value

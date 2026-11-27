@@ -1,9 +1,9 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
 import { demoMode } from '@/store/session.js'
-import { bookingShifts, shiftClosed } from '../booking-calendar.js'
+import { bookingShifts, shiftBookable, shiftClosed } from '../booking-calendar.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
@@ -14,26 +14,41 @@ const props = defineProps({
   demo: Boolean,
 })
 const emit = defineEmits(['cancel', 'confirm'])
+const onlyBookable = ref(false)
 const selectedDate = ref(props.date)
-const day = computed(() => props.schedule.find(item => item.date === selectedDate.value) || props.schedule[0])
-const slots = computed(() => {
-  if (!props.demo) return bookingShifts(day.value, props.doctorId)
-  return demoMode ? getAvailableSlots(day.value, props.doctorId) : getBookingSlots(day.value, props.doctorId)
-})
+const visibleDays = computed(() => onlyBookable.value
+  ? props.schedule.filter(day => slotsForDay(day).some(item => shiftBookable(item, props.now)))
+  : props.schedule)
+const day = computed(() => visibleDays.value.find(item => item.date === selectedDate.value) || visibleDays.value[0])
+const slots = computed(() => slotsForDay(day.value))
 const choice = ref(props.selectedSlot)
-const canPick = (item, now = props.now) => props.demo ? item.remaining > 0 : item.remaining !== 0 && !shiftClosed(item, now)
-const canConfirmAt = now => day.value.date === selectedDate.value && slots.value.some(item => item.label === choice.value && canPick(item, now))
+const canConfirmAt = now => day.value?.date === selectedDate.value && slots.value.some(item => item.label === choice.value && shiftBookable(item, now))
 const canConfirm = computed(() => canConfirmAt(props.now))
-const initialAnchor = 'day-' + day.value.date
+const scrollAnchor = ref(day.value ? 'day-' + day.value.date : '')
+
+watch([day, canConfirm], ([activeDay, bookable]) => {
+  if (!bookable) choice.value = ''
+  const activeDate = activeDay?.date || ''
+  if (selectedDate.value !== activeDate) {
+    selectedDate.value = activeDate
+    scrollAnchor.value = activeDate ? 'day-' + activeDate : ''
+  }
+})
+
+function slotsForDay(day) {
+  if (!day) return []
+  if (!props.demo) return bookingShifts(day, props.doctorId)
+  return demoMode ? getAvailableSlots(day, props.doctorId) : getBookingSlots(day, props.doctorId)
+}
 
 function selectDay(item) {
-  if (day.value.date === item.date) return
+  if (day.value?.date === item.date) return
   selectedDate.value = item.date
   choice.value = ''
 }
 
 function selectSlot(item) {
-  if (canPick(item, Date.now())) choice.value = item.label
+  if (shiftBookable(item)) choice.value = item.label
 }
 
 function shiftText(item) {
@@ -53,11 +68,16 @@ function confirm() {
   <view class="backdrop">
     <view class="dismiss-area" @tap="$emit('cancel')" @touchmove.stop.prevent />
     <view class="slot-sheet" aria-role="dialog" aria-label="选择预约时段">
-      <view class="sheet-title">预约</view>
+      <view class="sheet-heading">
+        <view class="sheet-title">预约</view>
+        <checkbox-group @change="onlyBookable = !!$event.detail.value.length">
+          <label class="only-bookable"><checkbox value="bookable" :checked="onlyBookable" color="#5ba6e5" />只看有号</label>
+        </checkbox-group>
+      </view>
       <view v-if="demo" class="sheet-note">为了更好的服务，请提前一天预约</view>
-      <scroll-view scroll-x class="day-strip" :scroll-into-view="initialAnchor" :show-scrollbar="false">
+      <scroll-view v-if="visibleDays.length" scroll-x class="day-strip" :scroll-into-view="scrollAnchor" :show-scrollbar="false">
         <view class="days">
-          <view v-for="item in schedule" :id="'day-' + item.date" :key="item.date" class="day"
+          <view v-for="item in visibleDays" :id="'day-' + item.date" :key="item.date" class="day"
             :class="{ active: item.date === day.date }" @tap="selectDay(item)">
             <text>{{ item.weekday }}</text><text class="day-date">{{ item.label }}</text>
           </view>
@@ -65,15 +85,16 @@ function confirm() {
       </scroll-view>
       <scroll-view scroll-y class="slots-scroll">
         <view class="slots">
-          <button v-for="item in slots" :key="item.label" class="slot" :class="{ 'shift-slot': !demo, chosen: canConfirm && item.label === choice, full: !canPick(item) }"
-            :disabled="!canPick(item)" @tap="selectSlot(item)">
+          <button v-for="item in slots" :key="item.label" class="slot" :class="{ 'shift-slot': !demo, chosen: canConfirm && item.label === choice, full: !shiftBookable(item, now) }"
+            :disabled="!shiftBookable(item, now)" @tap="selectSlot(item)">
             <template v-if="demo">
               <text>{{ item.label }}</text><text class="remaining">余号：{{ item.remaining }}</text>
             </template>
             <text v-else>{{ shiftText(item) }}</text>
           </button>
         </view>
-        <view v-if="!demo && !slots.length" class="sheet-note" role="status">当日暂无排班</view>
+        <view v-if="onlyBookable && !visibleDays.length" class="sheet-note" role="status">暂无可约日期</view>
+        <view v-else-if="!demo && !slots.length" class="sheet-note" role="status">当日暂无排班</view>
       </scroll-view>
       <view class="sheet-actions">
         <button class="cancel" @tap="$emit('cancel')">取消</button>
@@ -87,7 +108,10 @@ function confirm() {
 .backdrop { position: fixed; inset: 0; z-index: 3; display: flex; align-items: flex-end; background: rgba(0,0,0,.40); }
 .dismiss-area { position: absolute; inset: 0; }
 .slot-sheet { position: relative; display: flex; flex-direction: column; box-sizing: border-box; width: 100%; height: min(1184rpx, 82vh); padding-bottom: env(safe-area-inset-bottom); background: #fff; animation: sheet-in .22s ease-out; }
-.sheet-title { margin: 30rpx 30rpx 0; font-size: 28rpx; line-height: 42rpx; }
+.sheet-heading { display: flex; align-items: center; justify-content: space-between; margin: 30rpx 30rpx 0; }
+.sheet-title { font-size: 28rpx; line-height: 42rpx; }
+.only-bookable { display: flex; align-items: center; color: #555; font-size: 24rpx; line-height: 42rpx; }
+.only-bookable checkbox { transform: scale(.75); }
 .sheet-note { margin: 0 30rpx; font-size: 24rpx; line-height: 36rpx; }
 .day-strip { flex: none; margin-top: 18rpx; white-space: nowrap; }
 .days { display: inline-flex; vertical-align: top; }

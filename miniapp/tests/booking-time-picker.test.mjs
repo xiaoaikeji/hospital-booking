@@ -11,7 +11,7 @@ const ref = value => ({ value })
 const computed = read => ({ get value() { return read() } })
 const calendarSource = readFileSync(new URL('../pages/booking/booking-calendar.js', import.meta.url), 'utf8')
   .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
-const { bookingShifts, shiftClosed } = new Script(`${calendarSource}\n({ bookingShifts, shiftClosed })`)
+const { bookingShifts, shiftBookable, shiftClosed, nextBookableShift } = new Script(`${calendarSource}\n({ bookingShifts, shiftBookable, shiftClosed, nextBookableShift })`)
   .runInNewContext({ computed })
 const source = readFileSync(new URL('../pages/booking/form.vue', import.meta.url), 'utf8')
 const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
@@ -45,7 +45,7 @@ async function openForm() {
     findBookingDoctor: id => ({ id }),
     useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {}, now: ref(Date.now()), refreshClock() {} }),
     bookingShifts,
-    shiftClosed,
+    shiftBookable,
     signedIn: ref(true),
     loadPatients: async () => [],
     readProfile: async () => ({ booking_phone_required: false }),
@@ -114,35 +114,62 @@ test('a failed refresh keeps the draft and allows a fresh retry', async () => {
   assert.equal(form.selectedSlot.value, '晚班')
 })
 
-test('a mounted picker rejects a same-day shift at cutoff and allows the next day', () => {
+test('the next shift and the date filter agree on cutoff, remaining seats and days off', () => {
   const cutoff = Date.parse('2026-11-30T12:00:00+08:00')
   const nextDate = '2026-12-01'
   const morning = cutoff_at => ({ time_slot: 'AM', label: '上午', total: 25, remaining: 25, cutoff_at })
   const todayShift = morning(cutoff)
-  const tomorrowShift = morning(cutoff + 86_400_000)
-  const tomorrow = { date: nextDate, availability: { [doctorId]: [tomorrowShift] } }
-  const props = { schedule: [...days(todayShift), tomorrow], doctorId, date, now: cutoff - 1000 }
+  const tonight = { ...night(4), cutoff_at: cutoff + 9 * 3_600_000 }
+  const fullDay = { date: nextDate, availability: { [doctorId]: [{ ...morning(cutoff + 86_400_000), remaining: 0 }] } }
+  const dayOff = { date: '2026-12-02', availability: {} }
+  const props = { schedule: [...days(todayShift, tonight), fullDay, dayOff], doctorId, date, now: cutoff - 1000 }
   let now = props.now
+  let update
   const confirmations = []
   const source = readFileSync(new URL('../pages/booking/components/slot_picker.vue', import.meta.url), 'utf8')
   const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
-  const picker = new Script(`${setup}\n({ selectDay, selectSlot, canConfirm, shiftText, confirm })`).runInNewContext({
-    computed, ref, bookingShifts, shiftClosed, Date: { now: () => now },
+  const picker = new Script(`${setup}\n({ selectSlot, onlyBookable, visibleDays, canConfirm, choice, shiftText, confirm })`).runInNewContext({
+    computed, ref, bookingShifts, shiftBookable, shiftClosed, Date: { now: () => now },
+    watch(sources, handler) { update = () => handler(sources.map(source => source.value)) },
     defineProps: () => props, defineEmits: () => (_event, selection) => confirmations.push(selection.date),
   })
 
+  assert.equal(picker.visibleDays.value.length, 3)
+  assert.equal(nextBookableShift(props.schedule, doctorId, now).shift.label, '上午')
   picker.selectSlot(todayShift)
   assert.equal(picker.canConfirm.value, true)
   now = cutoff
   picker.confirm()
   assert.deepEqual(confirmations, [])
   props.now = now
+  picker.onlyBookable.value = true
+  update()
+  assert.equal(picker.visibleDays.value.length, 1)
+  assert.equal(picker.visibleDays.value[0].date, date)
   assert.equal(picker.canConfirm.value, false)
+  assert.equal(picker.choice.value, '')
   assert.match(picker.shiftText(todayShift), /已截止/)
-  picker.selectDay(tomorrow)
-  picker.selectSlot(tomorrowShift)
+  assert.equal(nextBookableShift(props.schedule, doctorId, now).shift.label, '晚班')
+  picker.selectSlot(tonight)
   picker.confirm()
-  assert.deepEqual(confirmations, [nextDate])
+  assert.deepEqual(confirmations, [date])
+
+  now = props.now = tonight.cutoff_at
+  update()
+  assert.equal(picker.visibleDays.value.length, 0)
+  assert.equal(picker.canConfirm.value, false)
+  assert.equal(nextBookableShift(props.schedule, doctorId, now), undefined)
+  picker.onlyBookable.value = false
+  update()
+  assert.equal(picker.visibleDays.value.length, 3)
+  assert.equal(picker.choice.value, '')
+
+  const later = { date: '2026-12-03', availability: { [doctorId]: [morning(cutoff + 3 * 86_400_000)] } }
+  props.schedule = [...props.schedule, later]
+  picker.onlyBookable.value = true
+  update()
+  assert.equal(picker.visibleDays.value[0].date, later.date)
+  assert.equal(nextBookableShift(props.schedule, doctorId, now).day.date, later.date)
 })
 
 test('required symptoms reject blank input in place and a completed draft can continue', async () => {

@@ -4,10 +4,22 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
 import { canOpenBooking, openBooking } from '@/utils/booking-navigation.js'
 import { checkAppAccess } from '@/utils/app-access.js'
+import { nextBookableShift, scheduleMessage, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
 const doctor = computed(() => bookingParams.value && findBookingDoctor(bookingParams.value.id, fromDemo.value))
+const { schedule, now } = useBookingCalendar(() => fromDemo.value)
+const nextShiftText = computed(() => {
+  if (!doctor.value || fromDemo.value) return ''
+  if (!schedule.value.length) return scheduleMessage.value
+  const next = nextBookableShift(schedule.value, doctor.value.id, now.value)
+  if (!next) return '暂无可约班次'
+
+  const { day, shift } = next
+  const remaining = shift.remaining == null ? '' : ` · 剩 ${shift.remaining} 号`
+  return day.weekday + shift.label + remaining
+})
 
 onLoad(async options => {
   if (!await canOpenBooking('doctor', options)) return
@@ -44,6 +56,7 @@ function book() {
           <view v-if="doctor.biography" class="description">{{ doctor.biography }}</view>
           <view v-if="!fromDemo" class="section-title">挂号费</view>
           <view v-if="!fromDemo" class="description">{{ doctor.fee }} 元</view>
+          <view v-if="nextShiftText" class="description"><text class="next-shift-label">最近可约</text>{{ nextShiftText }}</view>
         </view>
       </view>
       <button class="book" hover-class="none" @tap="book">立即预约</button>
@@ -70,6 +83,7 @@ function book() {
 .section-title { display: flex; align-items: center; gap: 18rpx; margin: 34rpx 0 24rpx; color: #64a8d8; font-size: 28rpx; line-height: 42rpx; }
 .section-title::before { content: ''; box-sizing: border-box; width: 34rpx; height: 34rpx; border: 5rpx solid #62a9df; border-radius: 50%; }
 .description { color: #666; font-size: 24rpx; line-height: 46rpx; }
+.next-shift-label { margin-right: 20rpx; color: #333; }
 .book { position: fixed; left: 52rpx; right: 52rpx; bottom: calc(50rpx + env(safe-area-inset-bottom)); border-radius: 16rpx; color: #fff; background: #5da6e6; font-size: 26rpx; line-height: 68rpx; }
 .book::after { border: 0; }
 .unavailable { padding: 40rpx; text-align: center; color: #888; }

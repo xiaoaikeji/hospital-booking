@@ -34,6 +34,17 @@ export function shiftClosed(shift, now = Date.now()) {
   return Number.isFinite(shift.cutoff_at) && now >= shift.cutoff_at
 }
 
+export function shiftBookable(shift, now = Date.now()) {
+  return (shift.remaining == null || shift.remaining > 0) && !shiftClosed(shift, now)
+}
+
+export function nextBookableShift(schedule, doctorId, now) {
+  for (const day of schedule) {
+    const shift = bookingShifts(day, doctorId).find(item => shiftBookable(item, now))
+    if (shift) return { day, shift }
+  }
+}
+
 export function shiftLabels(day, doctorId, now) {
   return bookingShifts(day, doctorId).map(shift => shiftClosed(shift, now) ? shift.label + '（已截止）' : shift.label)
 }
