@@ -38,13 +38,14 @@ export function markAppDisabled() {
   notifyAppDisabled()
 }
 
-export function refreshAppConfiguration() {
-  if (pending) return pending
+export function refreshAppConfiguration({ fresh = false } = {}) {
+  if (pending && !fresh) return pending
+  if (fresh) scheduleCurrent.value = false
   if (configurationStatus.value !== 'disabled') configurationStatus.value = 'loading'
 
-  const started = revision
+  const started = ++revision
   const serverTimeAtRequest = bookingNow()
-  pending = loadAppConfiguration().then(({ status, config }) => {
+  const request = loadAppConfiguration().then(({ status, config }) => {
     if (started !== revision) return
     scheduleCurrent.value = status === 'ready'
     if (status === 'ready') {
@@ -68,8 +69,9 @@ export function refreshAppConfiguration() {
     }
     // 停用已由服务端确认，后续读取失败时仍等待明确恢复。
     if (status !== 'error' || configurationStatus.value !== 'disabled') configurationStatus.value = status
-  }).finally(() => { pending = null })
-  return pending
+  }).finally(() => { if (pending === request) pending = null })
+  pending = request
+  return request
 }
 
 export const appName = computed(() => {

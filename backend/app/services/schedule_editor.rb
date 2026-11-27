@@ -8,6 +8,7 @@ class ScheduleEditor
   REVOKE_FAILURE = "日期调整未撤销，请重试"
   class Invalid < StandardError; end
   class Stale < Invalid; end
+  attr_reader :affected_bookings
 
   def initialize(doctor:, actor:, request:)
     @doctor = doctor
@@ -46,17 +47,17 @@ class ScheduleEditor
   end
 
   def save_date(date, input, revision:)
+    @affected_bookings = {}
     save(@doctor.schedules.on_date(date), date: date, revision: revision) do |current, night_enabled|
+      calendar = ScheduleCalendar.new([ @doctor.id ], date..date, night_enabled: true)
       inherited = current.empty? && (!night_enabled || !input.key?(:night))
-      previous = current
-      if inherited
-        previous = ScheduleCalendar.new([ @doctor.id ], date..date, night_enabled: true).day(@doctor.id, date).shifts
-      end
+      previous = inherited ? calendar.day(@doctor.id, date).shifts : current
 
       shifts = parse_shifts(input, night_enabled, date.iso8601, previous: previous)
       # Only an existing shift can stay inherited. An empty day needs an explicit OFF.
       next [] if inherited && shifts.any? && shifts == previous.map { |rule| shift_attributes(rule) }
 
+      @affected_bookings = calendar.booked_counts(@doctor.id, date).except(*shifts.pluck(:time_slot)).select { |_shift, count| count.positive? }
       shifts << { time_slot: "OFF", capacity: nil } if shifts.empty?
       shifts.map { |shift| shift.merge(weekday: date.wday, start_date: date, end_date: date) }
     end

@@ -19,6 +19,7 @@ const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/
 // Run the page's handlers with the uni-app hooks and calendar store provided by the fixture.
 const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, verifyPhone, picking, doctor, date, selectedSlot, needsBinding, checkingBinding, canAuthorizePhone, name, sex, age, phone, symptoms, pendingBooking, departmentName, chooseDepartment, setDepartment })`)
 const orderNo = '20261130090000000001'
+const NO_BOOKABLE_DEPARTMENT = '该医生暂无可预约科室'
 const bookingError = (code, message) => Object.assign(new Error(message), { code, statusCode: 422 })
 
 async function openForm(initial = days(night(4)), { departmentIds = ['1'], sourceDepartment } = {}) {
@@ -38,6 +39,7 @@ async function openForm(initial = days(night(4)), { departmentIds = ['1'], sourc
   const checks = []
   const submissions = []
   const navigation = []
+  const configurationRefreshes = []
   let response = initial
   let submitResult
   let serial = 0
@@ -80,7 +82,8 @@ async function openForm(initial = days(night(4)), { departmentIds = ['1'], sourc
       if (phoneRequired) throw bookingError('phone_required', '请先验证账号手机号')
       return { order_no: orderNo, outcome: 'created' }
     },
-    refreshAppConfiguration() {},
+    refreshAppConfiguration(options) { configurationRefreshes.push({ ...options }) },
+    NO_BOOKABLE_DEPARTMENT,
     async bindPhone() { bindings++; return { mobile: '10000000001' } },
     nextTick: async () => {},
     patientValidationMessage: () => '',
@@ -93,7 +96,7 @@ async function openForm(initial = days(night(4)), { departmentIds = ['1'], sourc
   })
   await mount({ id: doctorId, date, department_id: sourceDepartment })
   form.setTime({ doctorId, date, slot: bookingSlots(schedule.value[0], doctorId)[0] })
-  return { ...form, schedule, now, messages, resume, suspend, checks, submissions, navigation, bindings: () => bindings,
+  return { ...form, schedule, now, messages, resume, suspend, checks, submissions, navigation, configurationRefreshes, bindings: () => bindings,
     respondToCheck: value => { checkResponse = value },
     respondToSubmit: handler => { submitResult = handler },
     setPhoneRequired: value => { phoneRequired = value },
@@ -336,6 +339,7 @@ test('a lost response retries the identical submission even after the seat is go
   await form.confirmBooking()
   assert.deepEqual(form.submissions[0], form.submissions[1])
   assert.deepEqual(form.navigation, ['/pages/ucenter/appointment_detail?created=1&no=' + orderNo])
+  assert.deepEqual(form.configurationRefreshes, [{ fresh: true }])
 })
 
 test('the original form uses a valid source department or asks the patient to pick one', async () => {
@@ -354,12 +358,60 @@ test('the original form uses a valid source department or asks the patient to pi
   assert.equal(direct.submissions[0].department_id, '2')
 })
 
+test('a doctor remains viewable while booking entries with no department are stopped', async () => {
+  const source = readFileSync(new URL('../utils/booking-navigation.js', import.meta.url), 'utf8')
+    .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
+  const links = []
+  const toasts = []
+  const pages = [{ route: 'pages/booking/form' }]
+  const navigation = new Script(`${source}\n({ openBooking, canOpenBooking })`).runInNewContext({
+    signedIn: ref(true), directoryDemoMode: false, findBookingDoctor: () => ({ department_ids: [] }),
+    canUseApp: async () => true, getCurrentPages: () => pages,
+    uni: { navigateTo({ url }) { links.push(url) }, redirectTo({ url }) { links.push(url) }, showToast({ title }) { toasts.push(title) } },
+  })
+  const context = { id: doctorId }
+  navigation.openBooking('doctor', context)
+  navigation.openBooking('form', context)
+  assert.deepEqual(links, ['/pages/booking/doctor?id=' + doctorId])
+  assert.deepEqual(toasts, [NO_BOOKABLE_DEPARTMENT])
+  assert.equal(await navigation.canOpenBooking('form', context), false)
+  assert.equal(links.at(-1), '/pages/booking/doctor?id=' + doctorId)
+
+  const form = await openForm(undefined, { departmentIds: [] })
+  await form.selectTime()
+  await form.confirmBooking()
+  assert.equal(form.picking.value, false)
+  assert.deepEqual(form.submissions, [])
+  assert.deepEqual(form.messages, [NO_BOOKABLE_DEPARTMENT, NO_BOOKABLE_DEPARTMENT])
+})
+
 function clockStore(loadAppConfiguration, deviceNow) {
   const source = readFileSync(new URL('../store/app-configuration.js', import.meta.url), 'utf8')
     .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
   return new Script(`${source}\n;({ bookingClock, bookingNow, bookingSchedule, configurationStatus, refreshAppConfiguration })`)
     .runInNewContext({ computed, ref, loadAppConfiguration, Date: { now: deviceNow } })
 }
+
+test('after a booking only the new schedule response can publish the last seat', async () => {
+  const time = Date.parse('2026-11-30T08:00:00+08:00')
+  const response = remaining => ({
+    status: 'ready', config: { server_time: time, schedule_refresh_at: time + 86_400_000, schedule: days(night(remaining)) },
+  })
+  let requests = 0
+  let releaseOld, releaseNew
+  const replies = [response(1), new Promise(resolve => { releaseOld = resolve }), new Promise(resolve => { releaseNew = resolve })]
+  const store = clockStore(async () => await replies[requests++], () => time)
+  await store.refreshAppConfiguration()
+  const old = store.refreshAppConfiguration()
+  const fresh = store.refreshAppConfiguration({ fresh: true })
+  assert.equal(requests, 3)
+  assert.equal(store.bookingSchedule.value.length, 0)
+  releaseNew(response(0))
+  await fresh
+  releaseOld(response(1))
+  await old
+  assert.equal(store.bookingSchedule.value[0].availability[doctorId][0].remaining, 0)
+})
 
 test('device clock offsets of either sign do not affect the countdown from the server sample', async () => {
   const start = Date.parse('2026-11-30T11:29:00+08:00')

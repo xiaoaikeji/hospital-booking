@@ -6,7 +6,7 @@ import { bookingNotice, bookingSymptomsRequired, displayFreeFeeWhenFeeIsZero, di
 import { createAppointment, newAppointmentNo } from '@/mock/appointments.js'
 import { newBookingKey, submitAppointment } from '@/request/appointments.js'
 import { bindPhone, demoMode, readProfile, requestForUser, signedIn } from '@/store/session.js'
-import { canOpenBooking } from '@/utils/booking-navigation.js'
+import { canOpenBooking, NO_BOOKABLE_DEPARTMENT } from '@/utils/booking-navigation.js'
 import { canUseApp, checkAppAccess } from '@/utils/app-access.js'
 import { hospitalLocation, openHospitalLocation } from '@/utils/hospital-location.js'
 import SlotPicker from './components/slot_picker.vue'
@@ -213,6 +213,7 @@ async function selectTime() {
     refresh()
   } else {
     if (!await canUseApp() || !doctor.value) return
+    if (!departments.value.length) return notify(NO_BOOKABLE_DEPARTMENT)
     if (!schedule.value.length) return notify('排班暂不可用，请重试')
     refreshClock()
     if (!selectedSlot.value) slotSelection.value = null
@@ -300,6 +301,7 @@ async function confirmBooking() {
   const revision = visibilityRevision
   if (!createdNo.value && !pendingBooking.value) {
     refreshClock()
+    if (!fromDemo.value && !departments.value.length) return notify(NO_BOOKABLE_DEPARTMENT)
     if (!selection) return notify('请选择时段')
     const message = !patientId.value && patientValidationMessage({ name: name.value, sex: sex.value, age: age.value })
     if (message) return notify(message)
@@ -377,7 +379,7 @@ async function submitRealBooking(revision) {
     }
   } else {
     createdNo.value = result.order_no
-    refreshAppConfiguration()
+    refreshAppConfiguration({ fresh: true })
   }
 }
 

@@ -39,7 +39,7 @@ module Admins
       @date = required_date
       @date_fields = params.expect(date_adjustment: ScheduleEditor::FIELDS).to_h
       if @editor.save_date(@date, @date_fields, revision: params[:revision])
-        redirect_to schedule_path(tab: :date, date: @date), notice: "日期调整已保存", status: :see_other
+      redirect_to schedule_path(tab: :date, date: @date), notice: date_adjustment_notice, status: :see_other
       else
         render_failed_schedule(:date)
       end
@@ -55,6 +55,15 @@ module Admins
     end
 
     private
+
+    def date_adjustment_notice
+      affected = @editor.affected_bookings.map do |shift, count|
+        "#{ScheduleCalendar::SHIFT_LABELS.fetch(shift)}已有 #{count} 笔预约"
+      end
+      return "日期调整已保存" if affected.empty?
+
+      "日期调整已保存。#{affected.join('，')}，请联系受影响的患者"
+    end
 
     def render_failed_schedule(tab)
       if @editor.stale?

@@ -27,8 +27,13 @@ class ScheduleCalendar
 
   def day_availability(doctor_id, date, include_times: false)
     effective = day(doctor_id, date)
-    shifts = effective.shifts.map { |rule| shift_availability(rule, date, include_times: include_times) }
+    counts = counts_by_shift(doctor_id, date, effective.shifts)
+    shifts = effective.shifts.map { |rule| shift_availability(rule, date, counts.fetch(rule.time_slot), include_times:) }
     { adjusted: effective.adjusted, off: effective.off, shifts: shifts }
+  end
+
+  def booked_counts(doctor_id, date)
+    counts_by_shift(doctor_id, date, day(doctor_id, date).shifts).transform_values { |counts| counts.values.sum }
   end
 
   def bookable_selection?(doctor_id, date, time_slot:, mode:, start_time:, end_time:)
@@ -72,9 +77,8 @@ class ScheduleCalendar
 
   private
 
-  def shift_availability(rule, date, include_times:)
+  def shift_availability(rule, date, counts, include_times:)
     shift = rule.time_slot
-    counts = counts_for_shift(rule.doctor_id, date, shift)
     total = if @settings.time_slot_booking?
       limit = @settings.time_slot_capacity(shift)
       [ rule.capacity || limit, limit ].min
@@ -114,24 +118,36 @@ class ScheduleCalendar
     }
   end
 
-  def counts_for_shift(doctor_id, date, shift)
-    counts = occupied_counts.fetch([ doctor_id, date, shift ], {})
-    case shift
-    when "FULL"
-      # An all-day shift shares its total with the bookings made in either original half.
-      %w[AM PM].reduce(counts) do |combined, half|
-        combined.merge(occupied_counts.fetch([ doctor_id, date, half ], {})) { |_start, left, right| left + right }
+  def counts_by_shift(doctor_id, date, rules)
+    counts = rules.map(&:time_slot).uniq.index_with { Hash.new(0) }
+    return counts if counts.empty?
+
+    shift_at_time = {}
+    counts.each_key do |shift|
+      @settings.slot_ranges(shift).each do |range|
+        range.each { |index| shift_at_time[AppointmentSettings::SLOT_TIMES.fetch(index)] = shift }
       end
-    when "AM", "PM"
-      range = @settings.slot_ranges(shift).sole
-      from, to = AppointmentSettings::SLOT_TIMES.values_at(range.begin, range.end)
-      previous = occupied_counts.fetch([ doctor_id, date, "FULL" ], {}).select do |start, _count|
-        start.nil? || (start >= from && start < to)
-      end
-      counts.merge(previous) { |_start, left, right| left + right }
-    else
-      counts
     end
+
+    SHIFT_LABELS.each_key do |original|
+      occupied_counts.fetch([ doctor_id, date, original ], {}).each do |start, count|
+        # A half-hour follows its clock time when a shift boundary moves.
+        if (current = shift_at_time[start])
+          counts.fetch(current)[start] += count
+        else
+          counts.each do |shift, times|
+            times[start] += count if covers_original_shift?(shift, original, whole_shift: start.nil?)
+          end
+        end
+      end
+    end
+    counts
+  end
+
+  def covers_original_shift?(shift, original, whole_shift:)
+    shift == original ||
+      (shift == "FULL" && %w[AM PM].include?(original)) ||
+      (whole_shift && original == "FULL" && %w[AM PM].include?(shift))
   end
 
   def occupied_counts

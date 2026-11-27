@@ -163,7 +163,15 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
       assert_response :created
     end
     assert_equal [ "AM", 1 ], published_shift.values_at("time_slot", "remaining")
-    change_shift("PM")
+    operator = Admin.create!(username: "fixture_schedule_operator", role: "operator")
+    sign_in operator
+    editor = ScheduleEditor.new(doctor: @doctor, actor: operator, request: nil)
+    patch date_adjustment_admins_doctor_schedule_path(@doctor), params: {
+      date: @day.iso8601, revision: editor.date_revision(@day), date_adjustment: { time_slot: "PM", capacity: "5" }
+    }
+    assert_response :see_other
+    follow_redirect!
+    assert_includes response.body, "上午已有 4 笔预约，请联系受影响的患者"
     assert_equal [ "PM", 5 ], published_shift.values_at("time_slot", "remaining")
     change_shift("FULL")
     full = published_shift
@@ -173,6 +181,43 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal 0, published_shift.fetch("remaining")
     assert_equal [ [ "AM", "09:00–09:30" ] ] * 4, @owner.appointments.where(time_slot: "AM").pluck(:time_slot, :slot_label)
+  end
+
+  test "a booked half-hour stays full when hospital hours move it to another shift" do
+    @settings.update!(settings: @settings.settings.merge(Schedule::NIGHT_SETTING => true))
+    @schedule.update!(time_slot: "PM")
+    @doctor.schedules.create!(weekday: @day.wday, start_date: @day, time_slot: "NIGHT", capacity: 10)
+    afternoon = { time_slot: "PM", start_time: "16:30", end_time: "17:00" }
+    5.times do |index|
+      submit(patient_name: "满号示例#{index}", **afternoon)
+      assert_response :created
+    end
+    @settings.update!(settings: @settings.settings.merge(
+      "booking_afternoon_end_at" => "16:30", "booking_evening_begin_at" => "16:30"
+    ))
+    night = published_shift("NIGHT")
+    assert_equal 5, night.fetch("remaining")
+    assert_equal [ "16:30", "17:00", 0 ], night.fetch("slots").first.values_at("start_time", "end_time", "remaining")
+    assert_equal 5, published_shift("PM").fetch("remaining")
+
+    evening = afternoon.merge(time_slot: "NIGHT")
+    assert_not checked(**evening).fetch("bookable")
+    submit(patient_name: "满号示例重选", **evening)
+    assert_rejected "slot_full"
+    assert_equal [ [ "PM", "16:30–17:00" ] ] * 5, @owner.appointments.pluck(:time_slot, :slot_label)
+  end
+
+  test "component actions and container examples open their demo reservation" do
+    sign_in Admin.create!(username: "fixture_component_operator", role: "operator")
+    get admins_components_path(tab: "actions")
+    assert_response :ok
+    assert_select "a[href=?]", admins_reservation_preview_path(1)
+    assert_select "a[href=?]", edit_admins_reservation_preview_path(1)
+    get admins_components_path(tab: "containers")
+    assert_response :ok
+    assert_select "a[href=?]", admins_reservation_preview_path(1), text: "完整详情"
+    get admins_reservation_preview_path(1)
+    assert_response :ok
   end
 
   test "fee, invalid department, symptoms and phone requirements never consume a seat or save a patient" do
@@ -227,10 +272,11 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     response.parsed_body
   end
 
-  def published_shift
+  def published_shift(time_slot = nil)
     get api_app_configuration_path("wechat", @mini_program.appid), params: { schedule_format: "time_slots" }
     assert_response :ok
-    response.parsed_body.fetch("schedule").first.fetch("availability").fetch(@doctor.id.to_s).sole
+    shifts = response.parsed_body.fetch("schedule").first.fetch("availability").fetch(@doctor.id.to_s)
+    time_slot ? shifts.find { |shift| shift["time_slot"] == time_slot } : shifts.sole
   end
 
   def change_shift(shift)
