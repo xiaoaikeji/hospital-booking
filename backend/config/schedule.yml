@@ -7,3 +7,7 @@ mini_program_sessions_cleanup:
 user_ip_location:
   cron: "*/5 * * * *"
   class: "UserIpLocationWorker"
+appointment_payment_reconciliation:
+  cron: "* * * * *"
+  class: "Appointments::ReconcileDueWorker"
+  description: "核对预约支付、关单及退款"

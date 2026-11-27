@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_27_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -86,6 +86,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
     t.datetime "cancel_requested_at", precision: nil
     t.datetime "cancelled_at", precision: nil
     t.datetime "completed_at", precision: nil
+    t.bigint "completed_by_admin_id"
     t.datetime "created_at", null: false
     t.datetime "deleted_at", precision: nil
     t.bigint "department_id", null: false
@@ -108,8 +109,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
     t.bigint "payable_amount_cents", default: 0, null: false
     t.bigint "payer_user_id"
     t.string "payment_appid", limit: 100
+    t.datetime "payment_cancel_requested_at", precision: nil
     t.string "payment_channel", limit: 30, null: false
     t.datetime "payment_closed_at", precision: nil
+    t.jsonb "payment_data", default: {}, null: false
     t.datetime "payment_expires_at", precision: nil
     t.string "payment_no", limit: 40
     t.string "payment_platform", limit: 20
@@ -127,16 +130,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["appointment_date"], name: "index_appointments_on_appointment_date"
+    t.index ["completed_by_admin_id"], name: "index_appointments_on_completed_by_admin_id"
     t.index ["department_id"], name: "index_appointments_on_department_id"
     t.index ["doctor_id", "appointment_date"], name: "index_appointments_on_doctor_id_and_appointment_date"
     t.index ["order_no"], name: "index_appointments_on_order_no", unique: true
     t.index ["patient_id"], name: "index_appointments_on_patient_id"
     t.index ["payer_user_id"], name: "index_appointments_on_payer_user_id"
+    t.index ["payment_channel", "mch_id", "transaction_no"], name: "index_appointments_on_channel_transaction", unique: true, where: "(transaction_no IS NOT NULL)"
+    t.index ["payment_expires_at"], name: "index_appointments_on_pending_payment_expiry", where: "((status)::text = 'pending_payment'::text)"
     t.index ["payment_no"], name: "index_appointments_on_payment_no", unique: true
+    t.index ["refund_data"], name: "index_appointments_on_refund_data", opclass: :jsonb_path_ops, using: :gin
+    t.index ["refund_status"], name: "index_appointments_on_pending_refunds", where: "((refund_status)::text = ANY ((ARRAY['approved'::character varying, 'processing'::character varying])::text[]))"
     t.index ["user_id", "appointment_date"], name: "index_appointments_on_user_id_and_appointment_date"
     t.index ["user_id", "idempotency_key"], name: "index_appointments_on_user_id_and_idempotency_key", unique: true
     t.check_constraint "booking_end_at > booking_start_at", name: "appointments_booking_window_valid"
     t.check_constraint "fee_cents >= 0 AND discount_cents >= 0 AND payable_amount_cents >= 0 AND paid_amount_cents >= 0", name: "appointments_amounts_valid"
+    t.check_constraint "jsonb_typeof(payment_data) = 'object'::text", name: "appointments_payment_data_valid"
     t.check_constraint "jsonb_typeof(refund_data) = 'object'::text", name: "appointments_refund_data_valid"
     t.check_constraint "patient_age >= 1 AND patient_age <= 200 AND (patient_gender = ANY (ARRAY[0, 1, 2]))", name: "appointments_patient_valid"
     t.check_constraint "payment_channel::text = ANY (ARRAY['wechat_jsapi'::character varying, 'douyin'::character varying, 'none'::character varying]::text[])", name: "appointments_payment_channel_valid"
@@ -645,6 +654,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_27_100000) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "app_authorizations", "admins", column: "initiator_id"
   add_foreign_key "app_authorizations", "apps"
+  add_foreign_key "appointments", "admins", column: "completed_by_admin_id"
   add_foreign_key "appointments", "departments"
   add_foreign_key "appointments", "doctors"
   add_foreign_key "appointments", "patients", on_delete: :nullify

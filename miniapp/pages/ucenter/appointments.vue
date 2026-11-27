@@ -45,7 +45,8 @@ onUnload(() => clearTimeout(timer))
         <view class="record-row">{{ item.date }}　{{ item.slot }}</view>
         <view class="record-footer">
           <text>挂号费 ¥{{ item.fee }}</text>
-          <text v-if="demoMode && ['unpaid','paymentFailed'].includes(item.status)" class="pay-link">继续支付</text>
+          <text v-if="item.canPay || (demoMode && ['unpaid','paymentFailed'].includes(item.status))" class="pay-link">继续支付</text>
+          <text v-else-if="item.refundStatus && item.refundStatus !== 'none'" class="state">{{ item.refundLabel }}</text>
           <text v-else class="detail-link">查看详情 ›</text>
         </view>
       </view>
@@ -66,7 +67,7 @@ onUnload(() => clearTimeout(timer))
 .doctor { padding-left: 14rpx; border-left: 7rpx solid #659fea; font-size: 29rpx; font-weight: 600; }
 .state { flex: none; color: #666; font-size: 25rpx; }
 .confirmed { color: #438bc7; }
-.unpaid, .confirming, .reviewing, .refunding { color: #a86810; }
+.unpaid, .confirming, .reviewing, .refunding, .pending_payment, .cancel_requested { color: #a86810; }
 .record-row, .record-footer { border-top: 1rpx solid #eee; }
 .record-row { padding: 14rpx 0; }
 .label { margin-right: 42rpx; color: #666; }

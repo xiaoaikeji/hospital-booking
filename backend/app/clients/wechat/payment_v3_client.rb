@@ -37,9 +37,9 @@ module Wechat
     def prepay(payment, description:, client_ip:, notify_url:)
       data = request(:post, "/v3/pay/transactions/jsapi", {
         appid: payment.fetch("appid"), mchid: @merchant_id, description: description,
-        out_trade_no: payment.fetch("payment_no"), notify_url: notify_url,
+        out_trade_no: payment.fetch("payment_no"), notify_url: notify_url, time_expire: payment["expires_at"],
         amount: { total: payment.fetch("amount_cents"), currency: "CNY" }, payer: { openid: payment.fetch("openid") }
-      })
+      }.compact)
       data["prepay_id"]
     end
 

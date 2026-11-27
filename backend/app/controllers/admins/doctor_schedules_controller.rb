@@ -29,7 +29,7 @@ module Admins
     def update_weekly
       @weekly_fields = params.expect(weekly_schedule: [ WEEKLY_FIELDS ]).to_h
       if @editor.save_weekly(@weekly_fields, revision: params[:revision])
-        redirect_to schedule_path(tab: :weekly), notice: "每周排班已保存", status: :see_other
+        redirect_to schedule_path(tab: :weekly), notice: schedule_notice("每周排班已保存"), status: :see_other
       else
         render_failed_schedule(:weekly)
       end
@@ -39,7 +39,7 @@ module Admins
       @date = required_date
       @date_fields = params.expect(date_adjustment: ScheduleEditor::FIELDS).to_h
       if @editor.save_date(@date, @date_fields, revision: params[:revision])
-      redirect_to schedule_path(tab: :date, date: @date), notice: date_adjustment_notice, status: :see_other
+        redirect_to schedule_path(tab: :date, date: @date), notice: schedule_notice("日期调整已保存"), status: :see_other
       else
         render_failed_schedule(:date)
       end
@@ -48,7 +48,7 @@ module Admins
     def revoke_date_adjustment
       @date = required_date
       if @editor.revoke_date(@date, revision: params[:revision])
-        redirect_to schedule_path(tab: :date, date: @date), notice: "日期调整已撤销", status: :see_other
+        redirect_to schedule_path(tab: :date, date: @date), notice: schedule_notice("日期调整已撤销"), status: :see_other
       else
         render_failed_schedule(:date)
       end
@@ -56,13 +56,13 @@ module Admins
 
     private
 
-    def date_adjustment_notice
-      affected = @editor.affected_bookings.map do |shift, count|
+    def schedule_notice(message)
+      affected = @editor.affected_bookings.to_h.map do |shift, count|
         "#{ScheduleCalendar::SHIFT_LABELS.fetch(shift)}已有 #{count} 笔预约"
       end
-      return "日期调整已保存" if affected.empty?
+      return message if affected.empty?
 
-      "日期调整已保存。#{affected.join('，')}，请联系受影响的患者"
+      "#{message}。#{affected.join('，')}，请联系受影响的患者"
     end
 
     def render_failed_schedule(tab)

@@ -1,7 +1,9 @@
 require "test_helper"
+require_relative "../support/wechat_pay_protocol"
 
 class MiniProgramAppointmentRacesTest < ActionDispatch::IntegrationTest
   include Rails.application.routes.url_helpers
+  include WechatPayProtocol
 
   self.use_transactional_tests = false
 
@@ -19,6 +21,10 @@ class MiniProgramAppointmentRacesTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
+    if @payment_profile_ids
+      Setting.where("key LIKE 'wechat_pay%'").where.not(id: @payment_profile_ids).delete_all
+      Setting.find_by!(key: "wechat_pay").update!(settings: @payment_profile_settings) if @payment_profile_settings
+    end
     user_ids = @users&.map(&:id)
     if user_ids
       Log.where(actor_type: "User", actor_id: user_ids).delete_all
@@ -37,17 +43,20 @@ class MiniProgramAppointmentRacesTest < ActionDispatch::IntegrationTest
     @mini_program&.destroy!
   end
 
-  test "different accounts and departments share the doctor's last seat" do
+  test "different accounts and departments share the last paid seat" do
+    enable_paid_bookings
     @doctors.first.schedules.sole.update!(capacity: 1)
     results = race([ 0, draft(department_id: @departments.first.id) ], [ 1, draft(department_id: @departments.last.id) ])
     assert_equal [ 201, 422 ], results.map(&:first).sort
     assert_equal "slot_full", results.find { |status, _body| status == 422 }.last.fetch("code")
-    assert_equal 1, Appointment.where(doctor: @doctors.first, appointment_date: @day).count
+    appointment = Appointment.where(doctor: @doctors.first, appointment_date: @day).sole
+    assert_equal [ "pending_payment", 2000, 0 ], appointment.attributes.values_at("status", "payable_amount_cents", "paid_amount_cents")
     calendar = ScheduleCalendar.new([ @doctors.first.id ], @day..@day)
     assert_equal 0, calendar.day_availability(@doctors.first.id, @day).fetch(:shifts).sole.fetch(:remaining)
   end
 
   test "two concurrent submissions after five appointments on the same visit date leave exactly six" do
+    enable_paid_bookings
     @second_program = App.create!(provider: "wechat", status: "active", appid: "race-#{SecureRandom.hex(8)}")
     @clients << client_for(@users.first, @second_program)
     5.times do |index|
@@ -62,6 +71,15 @@ class MiniProgramAppointmentRacesTest < ActionDispatch::IntegrationTest
 
   private
 
+  def enable_paid_bookings
+    @payment_profile_ids = Setting.where("key LIKE 'wechat_pay%'").ids
+    @payment_profile_settings = Setting.find_by(key: "wechat_pay")&.settings
+    @doctors.first.update!(fee: 20)
+    generate_payment_keys
+    settings = WechatPaySettings.new
+    assert settings.save(payment_settings("v3").merge("revision" => settings.revision), actor: nil)
+  end
+
   def draft(**fields)
     {
       doctor_id: @doctors.first.id, department_id: @departments.first.id, date: @day.iso8601,
@@ -71,14 +89,14 @@ class MiniProgramAppointmentRacesTest < ActionDispatch::IntegrationTest
   end
 
   def client_for(user, app)
-    identity = user.user_apps.create!(app: app, openid: "fixture-#{user.id}")
-    [ app.appid, { "Authorization" => "Bearer #{MiniProgramSession.issue!(identity).fetch(:token)}" } ]
+    identity = user.user_apps.create!(app: app, openid: "fixture-#{user.id}", last_sign_in_at: Time.current)
+    [ api_mini_program_appointments_path(app.appid), { "Authorization" => "Bearer #{MiniProgramSession.issue!(identity).fetch(:token)}" } ]
   end
 
   def request_booking(client_index, payload)
-    appid, headers = @clients.fetch(client_index)
+    path, headers = @clients.fetch(client_index)
     session = ActionDispatch::Integration::Session.new(Rails.application)
-    session.post(api_mini_program_appointments_path(appid), params: { appointment: payload }, headers: headers, as: :json)
+    session.post(path, params: { appointment: payload }, headers: headers, as: :json)
     [ session.response.status, session.response.parsed_body ]
   end
 

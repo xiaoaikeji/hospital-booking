@@ -11,9 +11,15 @@ module Wechat
     end
 
     def prepay(payment, description:, client_ip:, notify_url:)
+      window = {}
+      if payment["expires_at"]
+        zone = Time.find_zone!("Asia/Shanghai")
+        window = { time_start: Time.iso8601(payment.fetch("starts_at")).in_time_zone(zone).strftime("%Y%m%d%H%M%S"),
+          time_expire: Time.iso8601(payment.fetch("expires_at")).in_time_zone(zone).strftime("%Y%m%d%H%M%S") }
+      end
       response = request("/pay/unifiedorder", payment, body: description, spbill_create_ip: client_ip, notify_url: notify_url,
         openid: payment.fetch("openid"), out_trade_no: payment.fetch("payment_no"), total_fee: payment.fetch("amount_cents"),
-        fee_type: "CNY", trade_type: "JSAPI")
+        fee_type: "CNY", trade_type: "JSAPI", **window)
       raise Payments::InvalidResult unless response["trade_type"] == "JSAPI"
       response["prepay_id"]
     end

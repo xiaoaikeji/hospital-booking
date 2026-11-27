@@ -17,7 +17,14 @@ namespace :api do
     resource :session, only: %i[create destroy]
     resource :me, only: %i[show update], controller: :profiles
     resource :appointment_check, only: :show
-    resources :appointments, only: %i[index show create], param: :order_no, constraints: { order_no: /[0-9]{20}/ }
+    resources :appointments, only: %i[index show create], param: :order_no, constraints: { order_no: /[0-9]{20}/ } do
+      member do
+        post :checkout, path: "payment"
+        post :check_payment
+        post :cancel
+        post :return_booking
+      end
+    end
     resource :phone_binding, only: :create
     resources :entry_scenes, only: :create
     resources :patients, only: %i[index show update destroy]

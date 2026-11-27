@@ -92,6 +92,10 @@ class Log < ApplicationRecord
     [ "settings", "appointment.phone_policy" ] => "修改预约手机号验证设置",
     [ "settings", "appointment.night_shift" ] => "修改晚班设置",
     [ "settings", "appointment.update" ] => "修改预约设置",
+    [ "booking", "appointment.complete" ] => "登记已就诊",
+    [ "booking", "appointment.refund_request" ] => "发起退号或退差价",
+    [ "booking", "appointment.refund_review" ] => "审核退号或退差价",
+    [ "booking", "appointment.refund_sync" ] => "核对微信退款",
     [ "settings", "wechat_pay.update" ] => "修改微信支付设置",
     [ "settings", "map_settings.update" ] => "修改地图服务设置",
     [ "settings", "personal_appearance.update" ] => "修改个人外观"

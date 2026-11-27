@@ -151,7 +151,7 @@ class ScheduleCalendar
   end
 
   def occupied_counts
-    @occupied_counts ||= Appointment.confirmed.where(doctor_id: @doctor_ids, appointment_date: @dates)
+    @occupied_counts ||= Appointment.occupying.where(doctor_id: @doctor_ids, appointment_date: @dates)
       .group(:doctor_id, :appointment_date, :time_slot, :booking_start_at).count.each_with_object({}) do |(key, count), result|
         doctor_id, date, shift, start = key
         counts = (result[[ doctor_id, date, shift ]] ||= Hash.new(0))

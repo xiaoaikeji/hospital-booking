@@ -77,7 +77,8 @@ class Payments
       id = fresh
       with_payment(payment_no) do |order|
         current = order.payment_context
-        raise Unavailable if current["prepay_attempt"] != attempt || current["closed"] || current["transaction_id"].present?
+        check_payable!(current)
+        raise Unavailable if current["prepay_attempt"] != attempt
         raise DeliveryError, "预支付凭证写入失败" unless order.save_checkout!({ "prepay_id" => id, "prepay_expires_at" => expiry }) == true
         true
       end
@@ -96,6 +97,7 @@ class Payments
     result = query(payment_no)
     return result unless result[:state] == "NOTPAY"
     payment = context(payment_no)
+    return query(payment_no) if payment["closed"] || payment["transaction_id"].present?
     client, = channel(payment)
     begin
       client.close(payment)
@@ -187,6 +189,8 @@ class Payments
 
   def check_payable!(payment)
     raise Error, "支付单已结清或已关闭" if payment["transaction_id"].present? || payment["closed"]
+    raise Error, "预约正在关闭，请查看预约结果" if payment["closing"]
+    raise Error, "已超过预约付款时间" if payment["expires_at"] && Time.iso8601(payment["expires_at"]) <= Time.current
   end
 
   def reusable_prepay?(payment, deadline)

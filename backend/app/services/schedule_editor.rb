@@ -47,7 +47,6 @@ class ScheduleEditor
   end
 
   def save_date(date, input, revision:)
-    @affected_bookings = {}
     save(@doctor.schedules.on_date(date), date: date, revision: revision) do |current, night_enabled|
       calendar = ScheduleCalendar.new([ @doctor.id ], date..date, night_enabled: true)
       inherited = current.empty? && (!night_enabled || !input.key?(:night))
@@ -57,7 +56,6 @@ class ScheduleEditor
       # Only an existing shift can stay inherited. An empty day needs an explicit OFF.
       next [] if inherited && shifts.any? && shifts == previous.map { |rule| shift_attributes(rule) }
 
-      @affected_bookings = calendar.booked_counts(@doctor.id, date).except(*shifts.pluck(:time_slot)).select { |_shift, count| count.positive? }
       shifts << { time_slot: "OFF", capacity: nil } if shifts.empty?
       shifts.map { |shift| shift.merge(weekday: date.wday, start_date: date, end_date: date) }
     end
@@ -72,7 +70,9 @@ class ScheduleEditor
       target = rows.first
       check_revision!(revision, date)
       if target
+        before = covered_bookings(date)
         rows.delete_all
+        record_affected_bookings(before, date)
         audit(:revoke, target, date: date)
       end
     end
@@ -84,6 +84,34 @@ class ScheduleEditor
   end
 
   private
+
+  def covered_bookings(date)
+    return {} if date && date < Date.current
+
+    bookings = Appointment.awaiting_visit.where(doctor: @doctor, appointment_date: date || (Date.current..)).to_a
+    return {} if bookings.empty?
+
+    dates = bookings.map(&:appointment_date).minmax
+    settings = AppointmentSettings.new
+    calendar = ScheduleCalendar.new([ @doctor.id ], dates.first..dates.last, settings: settings)
+    bookings.filter_map do |booking|
+      shifts = calendar.day(@doctor.id, booking.appointment_date).shifts
+      covered = shifts.any? { |shift| covers_booking?(booking, shift.time_slot, settings) }
+      [ booking.id, booking.time_slot ] if covered
+    end.to_h
+  end
+
+  def covers_booking?(booking, shift, settings)
+    if booking.booking_start_at
+      index = AppointmentSettings::SLOT_TIMES.index(booking.booking_start_at.in_time_zone.strftime("%H:%M"))
+      return index && settings.slot_ranges(shift).any? { |range| range.cover?(index) }
+    end
+    shift == booking.time_slot || (shift == "FULL" && booking.time_slot.in?(%w[AM PM]))
+  end
+
+  def record_affected_bookings(before, date)
+    @affected_bookings = before.except(*covered_bookings(date).keys).values.tally
+  end
 
   def revision_for(rows, date: nil)
     attributes = rows.map { |row| row.attributes.values_at(*REVISION_FIELDS) }
@@ -106,8 +134,12 @@ class ScheduleEditor
       target = current.first
       check_revision!(revision, date)
       shifts = yield(current, Schedule.night_enabled?)
+      before = covered_bookings(date)
       changed = replace(current, shifts)
-      audit(action, changed, date: date) if changed
+      if changed
+        record_affected_bookings(before, date)
+        audit(action, changed, date: date)
+      end
     end
     true
   rescue ActiveRecord::RecordNotFound

@@ -13,7 +13,6 @@ module Appointments
       symptoms_required: "请填写症状描述",
       phone_required: "请先验证账号手机号",
       invalid_contact: "请输入有效的本次联系电话",
-      fee_changed: "当前挂号费为 %{fee} 元，本轮仅受理免费预约",
       daily_limit: "当天预约已达上限（6 笔）",
       same_name: "这个时段已有同名就诊人的预约，是否继续？"
     }.freeze
@@ -29,9 +28,10 @@ module Appointments
 
     Result = Data.define(:appointment, :outcome)
 
-    def initialize(user:, app:, attributes:)
+    def initialize(user:, app:, identity:, attributes:)
       @user = user
       @app = app
+      @identity = identity
       @input = attributes
     end
 
@@ -54,7 +54,6 @@ module Appointments
       reject!(:selection_changed) unless doctor
       department = doctor.departments.find_by(id: parse_id(@input["department_id"]))
       reject!(:department_unavailable) unless department&.visible_in_booking?
-      reject!(:fee_changed, fee: doctor.fee_in_yuan) unless doctor.fee.zero?
       reject!(:daily_limit) if @user.appointments.where(appointment_date: @date).count >= DAILY_LIMIT
 
       profile = patient || Patient.new(user: @user, name: @input["patient_name"], gender: @input["patient_gender"], age: @input["patient_age"])
@@ -74,16 +73,23 @@ module Appointments
         reject!(:invalid_contact) unless /\A\+?[0-9]{6,15}\z/.match?(contact)
         reject!(:same_name) if same_name
 
+        fee = (doctor.fee * 100).to_i
+        payment = Payments.new.prepare(app: @app, identity: @identity, payment_no: Appointment.generate_order_no, amount_cents: fee) if fee.positive?
+        # Reserving the payment profile can wait on a configuration write.
+        if payment
+          result = calendar.check_selection(doctor.id, @date, **@selection)
+          reject!(result) unless result == :bookable
+        end
         record = @user.appointments.create!(
           order_no: Appointment.generate_order_no, idempotency_key: key,
           doctor: doctor, department: department, patient: patient,
           source_platform: @app.provider, source_appid: @app.appid,
-          status: "confirmed", appointment_date: @date, time_slot: @selection.fetch(:time_slot),
+          appointment_date: @date, time_slot: @selection.fetch(:time_slot),
           slot_label: slot_label, booking_start_at: @starts_at, booking_end_at: @ends_at,
           doctor_name: doctor.name, department_name: department.name, hospital_snapshot: hospital,
           patient_name: profile.name, patient_gender: profile.gender, patient_age: profile.age,
           patient_mobile: contact, remark: remark,
-          fee_cents: (doctor.fee * 100).to_i, paid_amount_cents: 0, payment_channel: "none", payment_status: "paid"
+          fee_cents: fee, payable_amount_cents: fee, **payment_attributes(payment)
         )
         [ record, true ]
       end
@@ -91,6 +97,19 @@ module Appointments
     end
 
     private
+
+    def payment_attributes(payment)
+      return { status: "confirmed", payment_channel: "none", payment_status: "paid" } unless payment
+
+      created = Time.current.change(usec: 0)
+      {
+        status: "pending_payment", payment_status: "unpaid", payment_channel: "wechat_jsapi",
+        payment_platform: @app.provider, payment_appid: @app.appid, payer_user: @user,
+        payment_no: payment.fetch("payment_no"), mch_id: payment.fetch("merchant_id"),
+        created_at: created, payment_expires_at: created + 30.minutes,
+        payment_data: payment.except("payment_no", "merchant_id", "appid", "amount_cents")
+      }
+    end
 
     def read_selection
       @doctor_id = parse_id(@input["doctor_id"])
@@ -128,7 +147,7 @@ module Appointments
     end
 
     def matching_bookings
-      bookings = @user.appointments.confirmed.where(doctor_id: @doctor_id, appointment_date: @date)
+      bookings = @user.appointments.current.occupying.where(doctor_id: @doctor_id, appointment_date: @date)
       if @starts_at
         bookings.where(booking_start_at: @starts_at, booking_end_at: @ends_at)
       else

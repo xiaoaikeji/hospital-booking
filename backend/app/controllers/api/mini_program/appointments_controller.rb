@@ -3,6 +3,14 @@ module Api
     class AppointmentsController < BaseController
       INDEX_FIELDS = %i[order_no doctor_name department_name patient_name appointment_date slot_label status].freeze
       DETAIL_FIELDS = %i[patient_mobile patient_gender patient_age paid_amount_cents hospital_snapshot remark].freeze
+      before_action :load_appointment, except: %i[index create]
+
+      rescue_from ActiveRecord::RecordNotFound do
+        render_error(:not_found, "appointment_not_found", "暂无该预约记录")
+      end
+      rescue_from Appointment::InvalidOperation do |error|
+        render_error(:unprocessable_content, "appointment_operation_unavailable", error.message)
+      end
 
       def index
         records = @user.appointments.current.newest_first
@@ -10,10 +18,7 @@ module Api
       end
 
       def show
-        record = @user.appointments.current.find_by(order_no: params[:order_no])
-        return render_error(:not_found, "appointment_not_found", "暂无该预约记录") unless record
-
-        render json: summary(record).merge(record.slice(*DETAIL_FIELDS), patient_sex: record.patient_sex)
+        render json: detail(@appointment)
       end
 
       def create
@@ -22,7 +27,7 @@ module Api
           patient_id patient_name patient_gender patient_age patient_mobile remark save_patient confirm_same_name
         ]).to_h
         result = with_current_user do
-          outcome = Appointments::Create.new(user: @user, app: @app, attributes: attributes).call
+          outcome = Appointments::Create.new(user: @user, app: @app, identity: @identity, attributes: attributes).call
           record_creation!(target: outcome.appointment) if outcome.outcome == "created"
           outcome
         end
@@ -32,6 +37,9 @@ module Api
       rescue Appointments::Create::Rejected => error
         record_failure(error.code)
         render_error(:unprocessable_content, error.code, error.message)
+      rescue Payments::Error, WechatPaySettings::Invalid
+        record_failure(:payment_unavailable)
+        render_error(:service_unavailable, "payment_unavailable", "微信支付暂不可用，请稍后重试")
       rescue ActionController::ParameterMissing
         record_failure(:invalid_request)
         render_error(:bad_request, "invalid_request", Appointments::Create::MESSAGES.fetch(:invalid_request))
@@ -44,10 +52,85 @@ module Api
         unavailable
       end
 
+      def checkout
+        service = with_current_user do
+          load_appointment
+          payment_service
+        end
+        unless original_payer?(@appointment)
+          return render_error(:unprocessable_content, "original_payment_app_required", "请在原预约小程序继续支付")
+        end
+
+        payment_params = service.checkout(app: @app, identity: @identity, client_ip: request.remote_ip)
+        render json: { payment_no: @appointment.payment_no, payment_params: payment_params }
+      rescue Payments::Error, WechatPaySettings::Invalid
+        render_error(:service_unavailable, "payment_unavailable", "暂时无法调起支付，请查看预约结果后重试")
+      end
+
+      def check_payment
+        payment_service.reconcile!
+        render json: detail(@appointment)
+      end
+
+      def cancel
+        service = with_current_user do
+          load_appointment
+          payment_service.tap(&:request_cancel!)
+        end
+        service.reconcile!
+        render json: detail(@appointment)
+      end
+
+      def return_booking
+        input = params.expect(refund: [ :idempotency_key ])
+        service, id = with_current_user do
+          load_appointment
+          service = Appointments::Refunds.new(@appointment, source: "user", actor: @user, request: request)
+          [ service, service.request!(kind: "cancel", key: input[:idempotency_key]) ]
+        end
+        service.reconcile!(id)
+        render json: detail(@appointment)
+      end
+
       private
 
+      def load_appointment
+        @appointment = @user.appointments.current.find_by!(order_no: params[:order_no])
+      end
+
+      def payment_service = Appointments::Payment.new(@appointment, source: "user", actor: @user, request: request)
+
+      def original_payer?(record)
+        record.payer_user_id == @user.id && record.payment_appid == @app.appid && record.payment_data["openid"] == @identity.openid
+      end
+
       def summary(record)
-        record.slice(*INDEX_FIELDS).merge(fee: record.fee_in_yuan, status_label: record.status_label)
+        record.slice(*INDEX_FIELDS).merge(
+          fee: record.fee_in_yuan, status_label: record.status_label, refund_status: record.refund_status,
+          refund_label: record.refund_label, payment_status: record.payment_status, payment_closing: record.payment_closing?,
+          payment_checking: record.payment_checking?, payment_started: record.payment_data["prepay_attempted"] == true,
+          payment_expires_at: record.payment_expires_at&.iso8601,
+          can_pay: record.pending_payment? && !record.payment_closing? && !record.payment_checking? && original_payer?(record)
+        )
+      end
+
+      def detail(record)
+        summary(record).merge(record.slice(*DETAIL_FIELDS), patient_sex: record.patient_sex,
+          server_time: (Time.current.to_r * 1000).to_i, paid: record.paid_in_yuan,
+          can_return: record.patient_can_return?, can_cancel: record.pending_payment? && !record.payment_closing?,
+          original_payment_app: original_payer?(record), refunds: record.refund_items.map { |item| refund_summary(item) })
+      end
+
+      def refund_summary(item)
+        status = item.fetch("status")
+        no_charge = item["amount_cents"] == 0 && item["kind"] == "cancel"
+        {
+          id: item.fetch("id"), kind: item.fetch("kind"), status: status,
+          status_label: (no_charge && status == "succeeded" ? "已退号" : Appointment::REFUND_ITEM_LABELS.fetch(status)),
+          amount: (Appointment.cents_in_yuan(item["amount_cents"]) if item["amount_cents"] && !no_charge),
+          cash: (Appointment.cents_in_yuan(item["payer_refund_cents"]) unless item["payer_refund_cents"].nil?),
+          reason: item["reason"], review_note: item["review_note"], refunded_at: item["refunded_at"]
+        }
       end
 
       def unavailable

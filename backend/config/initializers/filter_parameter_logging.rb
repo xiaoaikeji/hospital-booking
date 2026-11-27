@@ -6,9 +6,9 @@
 Rails.application.config.filter_parameters += [
   # Filter the entire form payload, including newly added fields and query-string variants.
   /\A(?:app|map|notification_settings|storage_settings|wechat_pay|credentials)(?:\z|\[|%5b)/i,
-  /\A(?:appointment|patient)(?:\z|\[|%5b)/i,
+  /\A(?:appointment|patient|refund)(?:\z|\[|%5b)/i,
   # SQL bind logging sees these JSON columns as a whole, including legacy values.
-  /\A(?:settings|details|response_data|error_message|hospital_snapshot|refund_data)\z/i,
+  /\A(?:settings|details|response_data|error_message|hospital_snapshot|payment_data|refund_data)\z/i,
   # SQL bind logging uses unqualified column names, including patients.name.
   /\A(?:name|remark|gender|age)\z/i, :patient_name, :patient_gender, :patient_age, :symptom,
   :passw, :email, :secret, :token, :_key, :crypt, :salt, :certificate, :otp, :ssn, :cvv, :cvc,

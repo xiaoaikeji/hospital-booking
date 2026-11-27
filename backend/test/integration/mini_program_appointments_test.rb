@@ -220,7 +220,7 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
-  test "fee, invalid department, symptoms and phone requirements never consume a seat or save a patient" do
+  test "invalid department, symptoms and phone requirements never consume a seat or save a patient" do
     outside = Department.create!(name: "未关联科室")
     foreign_patient = @other.patients.create!(name: "他人档案", gender: 1, age: 40)
     @settings.update!(settings: @settings.settings.merge("require_booking_remark" => true, "require_mobile_auth" => true))
@@ -229,11 +229,6 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
       assert_rejected "patient_not_found"
       submit(department_id: outside.id, save_patient: true)
       assert_rejected "department_unavailable"
-      @doctor.update!(fee: 9.5)
-      submit(save_patient: true)
-      assert_rejected "fee_changed"
-      assert_includes response.parsed_body.fetch("message"), "9.5"
-      @doctor.update!(fee: 0)
       submit(remark: " \u3000 ", save_patient: true)
       assert_rejected "symptoms_required"
       submit(remark: "虚构症状", save_patient: true)
@@ -242,6 +237,13 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal 5, published_shift.fetch("remaining")
     assert Log.where(action: "appointment.create", status: "failed").all? { |log| log.details.keys == [ "reason" ] }
     @owner.verify_mobile!("10000000001")
+    @doctor.update!(fee: 9.5)
+    assert_no_difference [ -> { Appointment.count }, -> { @owner.patients.count } ] do
+      submit(remark: "虚构症状", save_patient: true)
+      assert_response :service_unavailable
+      assert_equal "payment_unavailable", response.parsed_body.fetch("code")
+    end
+    @doctor.update!(fee: 0)
     submit(remark: "虚构症状", save_patient: true)
     assert_response :created
   end

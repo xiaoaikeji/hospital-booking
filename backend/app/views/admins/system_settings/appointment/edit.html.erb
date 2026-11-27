@@ -12,7 +12,8 @@
       ["require_booking_remark", "预约时症状必填", "开启后，患者需填写症状描述才能确认预约。"],
       ["display_free_fee_when_fee_is_zero", "零元挂号显示「免费」", "关闭后，预约表单收起零元医生的挂号费一行。"],
       ["display_hospital_address", "预约页显示就诊地址", "开启后在预约表单显示「医院资料」中填写的地址。"],
-      [AppointmentSettings::TIME_SLOT_FIELD, "启用分时预约", "患者可选择一个 30 分钟时段。各时段共用所属班次的号源。"]
+      [AppointmentSettings::TIME_SLOT_FIELD, "启用分时预约", "患者可选择一个 30 分钟时段。各时段共用所属班次的号源。"],
+      [AppointmentSettings::REFUND_REVIEW_FIELD, "退款需要审核", "适用于患者退号、医院退号和后台退差价。开启后，审核同意才办理退号或发起退款。"]
     ] %>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-xl-3 gx-4 gy-3 align-items-center">
       <% rules.each do |field, label, help| %>

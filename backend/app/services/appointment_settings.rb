@@ -9,7 +9,11 @@ class AppointmentSettings
     "display_hospital_address" => false
   }.freeze
   TIME_SLOT_FIELD = "booking_by_time_slot"
-  SWITCH_DEFAULTS = { PHONE_FIELD => false, Schedule::NIGHT_SETTING => false, TIME_SLOT_FIELD => false, **PUBLIC_SWITCH_DEFAULTS }.freeze
+  REFUND_REVIEW_FIELD = "refund_requires_review"
+  SWITCH_DEFAULTS = {
+    PHONE_FIELD => false, Schedule::NIGHT_SETTING => false, TIME_SLOT_FIELD => false,
+    REFUND_REVIEW_FIELD => true, **PUBLIC_SWITCH_DEFAULTS
+  }.freeze
   NOTICE_FIELD = "booking_notice"
   CAPACITY_FIELD = "default_capacity"
   SLOT_CAPACITY_FIELD = "max_bookings_per_slot"
@@ -45,6 +49,7 @@ class AppointmentSettings
   def phone_required? = enabled?(PHONE_FIELD)
   def night_enabled? = enabled?(Schedule::NIGHT_SETTING)
   def time_slot_booking? = enabled?(TIME_SLOT_FIELD)
+  def refund_requires_review? = enabled?(REFUND_REVIEW_FIELD)
   def booking_notice = value(NOTICE_FIELD)
   def default_capacity = parse_capacity(value(CAPACITY_FIELD)) || DEFAULT_CAPACITY
   def max_bookings_per_slot = parse_capacity(value(SLOT_CAPACITY_FIELD)) || DEFAULT_SLOT_CAPACITY

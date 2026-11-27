@@ -23,7 +23,9 @@ export function useAppointmentRecords(orderNo) {
   function updateClock() {
     clearTimeout(timer)
     now.value = Date.now()
-    const next = records.value.reduce((earliest, record) => Math.min(earliest, nextChangeAt(record, now.value)), Infinity)
+    const next = demoMode
+      ? records.value.reduce((earliest, record) => Math.min(earliest, nextChangeAt(record, now.value)), Infinity)
+      : (orderNo && records.value[0]?.status === 'pending_payment' ? now.value + 1000 : Infinity)
     if (Number.isFinite(next)) timer = setTimeout(updateClock, next - now.value)
   }
   async function refresh() {
@@ -48,9 +50,16 @@ export function useAppointmentRecords(orderNo) {
     } finally {
       if (started === revision) {
         loading.value = false
-        if (demoMode) updateClock()
+        updateClock()
       }
     }
+  }
+  function replace(record) {
+    revision++
+    records.value = [record]
+    loading.value = false
+    error.value = ''
+    updateClock()
   }
   function stop() {
     revision++
@@ -66,5 +75,5 @@ export function useAppointmentRecords(orderNo) {
   onShow(refresh)
   onHide(stop)
   onUnload(stop)
-  return { records, now, error, loading, refresh }
+  return { records, now, error, loading, refresh, replace }
 }
