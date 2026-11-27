@@ -1,14 +1,13 @@
 class ScheduleCalendar
   DAYS = 14
   SHIFT_LABELS = Schedule::DAY_SLOTS.merge("NIGHT" => "晚班").freeze
-  CUTOFF_HOURS = { "AM" => 12, "PM" => 17, "FULL" => 17, "NIGHT" => 21 }.freeze
   Day = Data.define(:adjusted, :off, :shifts)
 
   def initialize(doctor_ids, dates, settings: AppointmentSettings.new, night_enabled: settings.night_enabled?)
     @doctor_ids = doctor_ids
     @dates = dates
     @night_enabled = night_enabled
-    @default_capacity = settings.default_capacity
+    @settings = settings
     rules = Schedule.active.where(doctor_id: doctor_ids, start_date: ..dates.last)
       .where("end_date IS NULL OR (end_date = start_date AND start_date >= ?)", dates.first).order(:id).to_a
     weekly, adjustments = rules.partition(&:weekly?)
@@ -26,23 +25,19 @@ class ScheduleCalendar
     Day.new(adjusted: adjustment.present?, off: false, shifts: shifts.sort_by { |rule| rule.night? ? 1 : 0 })
   end
 
-  def day_availability(doctor_id, date)
+  def day_availability(doctor_id, date, include_times: false)
     effective = day(doctor_id, date)
-    shifts = effective.shifts.map do |rule|
-      slot = rule.time_slot
-      total = rule.capacity || @default_capacity
-      remaining = [ total - occupied_counts.fetch([ doctor_id, date, slot ], 0), 0 ].max
-      { time_slot: slot, label: SHIFT_LABELS.fetch(slot), total: total, remaining: remaining }
-    end
+    shifts = effective.shifts.map { |rule| shift_availability(rule, date, include_times: include_times) }
     { adjusted: effective.adjusted, off: effective.off, shifts: shifts }
   end
 
-  def as_json(*)
+  def as_json(options = nil)
     @dates.map do |date|
       availability = @doctor_ids.each_with_object({}) do |id, result|
-        shifts = day_availability(id, date).fetch(:shifts).map do |shift|
-          cutoff = date.in_time_zone.change(hour: CUTOFF_HOURS.fetch(shift.fetch(:time_slot)))
-          shift.merge(cutoff_at: cutoff.to_i * 1000)
+        shifts = day_availability(id, date, include_times: true).fetch(:shifts)
+        unless options&.fetch(:time_slots, false)
+          # Older pickers can only select an entire shift.
+          shifts = shifts.map { |shift| shift[:slots] ? shift.except(:slots).merge(remaining: 0) : shift }
         end
         result[id.to_s] = shifts if shifts.any?
       end
@@ -53,7 +48,50 @@ class ScheduleCalendar
 
   private
 
-  # Formal appointments are not stored yet. Load their counts for @doctor_ids and @dates here when booking opens.
+  def shift_availability(rule, date, include_times:)
+    shift = rule.time_slot
+    counts = occupied_counts.fetch([ rule.doctor_id, date, shift ], {})
+    total = if @settings.time_slot_booking?
+      limit = @settings.time_slot_capacity(shift)
+      [ rule.capacity || limit, limit ].min
+    else
+      rule.capacity || @settings.default_capacity
+    end
+    remaining = [ total - counts.values.sum, 0 ].max
+    availability = { time_slot: shift, label: SHIFT_LABELS.fetch(shift), total: total, remaining: remaining }
+    return availability unless include_times
+
+    ranges = @settings.slot_ranges(shift)
+    midnight = date.in_time_zone
+    cutoff = @settings.time_slot_booking? ? ranges.last.end - 1 : ranges.last.end
+    availability.merge!(time_range(midnight, ranges.first.begin, ranges.last.end, cutoff: cutoff))
+    if @settings.time_slot_booking?
+      availability[:slots] = ranges.flat_map do |range|
+        range.map { |index| time_range(midnight, index, index + 1, cutoff: index) }
+      end
+      future_seats = 0
+      per_slot = @settings.max_bookings_per_slot
+      availability[:slots].reverse_each do |slot|
+        free = [ per_slot - counts.fetch(slot[:start_time], 0), 0 ].max
+        future_seats += free
+        slot[:remaining] = [ remaining, free ].min
+        # The shift figure for when this is the first slot that hasn't started.
+        slot[:shift_available] = [ remaining, future_seats ].min
+      end
+    end
+    availability
+  end
+
+  def time_range(midnight, start_index, end_index, cutoff:)
+    {
+      start_time: AppointmentSettings::SLOT_TIMES.fetch(start_index),
+      end_time: AppointmentSettings::SLOT_TIMES.fetch(end_index),
+      cutoff_at: (midnight.to_i + cutoff * AppointmentSettings::SLOT_MINUTES * 60) * 1000
+    }
+  end
+
+  # Formal bookings are not persisted yet. Group them by [doctor_id, date, shift]
+  # when booking opens, with counts keyed by local start time (nil for whole-shift bookings).
   def occupied_counts
     @occupied_counts ||= {}
   end

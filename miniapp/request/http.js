@@ -63,6 +63,7 @@ export async function loadAppConfiguration() {
     if (!appId) return { status: 'demo' }
     const response = await uni.request({
       url: buildApiUrl(appId, 'configuration'),
+      data: { schedule_format: 'time_slots' },
       timeout: 10000,
     })
     return configurationResult(appId, response)

@@ -12,7 +12,7 @@ import SlotPicker from './components/slot_picker.vue'
 import PatientPicker from './components/patient_picker.vue'
 import PatientFields from './components/patient_fields.vue'
 import { loadPatients, patientValidationMessage } from './patient-profiles.js'
-import { bookingShifts, scheduleMessage, shiftBookable, useBookingCalendar } from './booking-calendar.js'
+import { bookingSlotKey, bookingSlots, scheduleMessage, shiftBookable, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -33,13 +33,16 @@ const departmentName = computed(() => {
 })
 const { schedule, selectedDate, selectedDay, refresh, now, refreshClock } = useBookingCalendar(() => fromDemo.value)
 const date = computed(() => selectedDay.value?.date || '')
-const slot = ref('')
-const shifts = computed(() => bookingShifts(selectedDay.value, doctor.value?.id))
+const slotSelection = ref(null)
+const slots = computed(() => bookingSlots(selectedDay.value, doctor.value?.id))
 const selectedSlot = computed(() => {
-  if (date.value !== selectedDate.value) return ''
-  return (fromDemo.value || shifts.value.some(shift => shift.label === slot.value && shiftBookable(shift, now.value))) ? slot.value : ''
+  const selection = slotSelection.value
+  if (!selection || selection.date !== date.value || selection.doctorId !== doctor.value?.id) return null
+  if (fromDemo.value) return selection.slot
+  const key = bookingSlotKey(selection.slot)
+  return slots.value.find(slot => bookingSlotKey(slot) === key && shiftBookable(slot, now.value)) || null
 })
-const slotText = computed(() => selectedSlot.value || (fromDemo.value || shifts.value.length ? '请选择时段' : scheduleMessage.value))
+const slotText = computed(() => selectedSlot.value?.label || (fromDemo.value || slots.value.length ? '请选择时段' : scheduleMessage.value))
 const picking = ref(false)
 const phone = ref('')
 const needsBinding = ref(false)
@@ -83,7 +86,7 @@ onShow(() => {
 
 watch([schedule, now], ([days]) => {
   if (!days.length) picking.value = false
-  else if (!fromDemo.value && !selectedSlot.value) slot.value = ''
+  else if (!fromDemo.value && !selectedSlot.value) slotSelection.value = null
 })
 
 watch(signedIn, active => {
@@ -174,7 +177,7 @@ async function selectTime() {
     if (!await canUseApp() || !doctor.value) return
     if (!schedule.value.length) return notify('排班暂不可用，请重试')
     refreshClock()
-    slot.value = selectedSlot.value
+    if (!selectedSlot.value) slotSelection.value = null
   }
   if (schedule.value.length) picking.value = true
 }
@@ -182,7 +185,7 @@ async function selectTime() {
 function setTime(selection) {
   refreshClock()
   selectedDate.value = selection.date
-  slot.value = selection.slot
+  slotSelection.value = selection
   picking.value = false
 }
 
@@ -214,17 +217,28 @@ async function confirmBooking() {
   if (submitting.value || binding.value || openedDetail) return
   if (!createdNo.value) {
     refreshClock()
-    if (!selectedSlot.value) return notify('请选择时段')
+    if (!slotSelection.value) return notify('请选择时段')
     const message = patientValidationMessage({ name: name.value, sex: sex.value, age: age.value })
     if (message) return notify(message)
-    if (bookingSymptomsRequired.value && !symptoms.value.trim()) return notify('请填写症状描述')
   }
   submitting.value = true
   uni.hideKeyboard()
   try {
     if (!createdNo.value) {
+      if (!fromDemo.value) {
+        if (!await canUseApp()) return
+        if (!schedule.value.length) return notify('排班暂不可用，请重试')
+        refreshClock()
+        if (!selectedSlot.value) {
+          slotSelection.value = null
+          return notify('时段已不可约，请重新选择')
+        }
+      }
+      if (bookingSymptomsRequired.value && !symptoms.value.trim()) return notify('请填写症状描述')
       const user = await readProfile()
       if (!user) return notify('请先登录')
+      refreshClock()
+      if (!selectedSlot.value) return notify('请选择时段')
       if (user.booking_phone_required) {
         needsBinding.value = true
         await nextTick()
@@ -236,7 +250,7 @@ async function confirmBooking() {
       if (!demoMode) return notify('医院预约受理尚未开放')
       requestNo ||= newAppointmentNo()
       const record = createAppointment(user.user_no, requestNo, {
-        doctorId: doctor.value.id, date: date.value, slot: selectedSlot.value, phone: contact,
+        doctorId: doctor.value.id, date: date.value, slot: selectedSlot.value.label, phone: contact,
         name: name.value, sex: sex.value, age: age.value, symptoms: symptoms.value,
         patientId: patientId.value, savePatient: savePatient.value,
       })

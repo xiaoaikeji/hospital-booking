@@ -11,21 +11,23 @@ const ref = value => ({ value })
 const computed = read => ({ get value() { return read() } })
 const calendarSource = readFileSync(new URL('../pages/booking/booking-calendar.js', import.meta.url), 'utf8')
   .replace(/^import .*\n/gm, '').replace(/^export /gm, '')
-const { bookingShifts, shiftBookable, shiftClosed, nextBookableShift } = new Script(`${calendarSource}\n({ bookingShifts, shiftBookable, shiftClosed, nextBookableShift })`)
+const { bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots, nextBookableSlot } = new Script(
+  `${calendarSource}\n({ bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots, nextBookableSlot })`)
   .runInNewContext({ computed })
 const source = readFileSync(new URL('../pages/booking/form.vue', import.meta.url), 'utf8')
 const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
 // Run the page's handlers with the uni-app hooks and calendar store provided by the fixture.
 const bookingForm = new Script(`${setup}\n({ selectTime, setTime, confirmBooking, picking, doctor, date, selectedSlot, name, sex, age, phone, symptoms })`)
 
-async function openForm() {
-  const schedule = ref(days(night(4)))
+async function openForm(initial = days(night(4))) {
+  const schedule = ref(initial)
+  const now = ref(Date.parse('2026-11-30T07:00:00+08:00'))
   const selectedDate = ref('')
   const selectedDay = computed(() => schedule.value.find(day => day.date === selectedDate.value) || schedule.value[0])
   const bookingSymptomsRequired = ref(false)
   const messages = []
   let mount
-  let response
+  let response = initial
   let requests = 0
   const checkAppAccess = async () => {
     requests++
@@ -43,8 +45,8 @@ async function openForm() {
     directoryDemoMode: false,
     demoMode: false,
     findBookingDoctor: id => ({ id }),
-    useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {}, now: ref(Date.now()), refreshClock() {} }),
-    bookingShifts,
+    useBookingCalendar: () => ({ schedule, selectedDate, selectedDay, refresh() {}, now, refreshClock() {} }),
+    bookingSlotKey, bookingSlots,
     shiftBookable,
     signedIn: ref(true),
     loadPatients: async () => [],
@@ -57,8 +59,8 @@ async function openForm() {
     uni: { hideKeyboard() {}, showToast({ title }) { messages.push(title) } },
   })
   await mount({ id: doctorId, date })
-  form.setTime({ date, slot: '晚班' })
-  return { ...form, schedule, messages, bookingSymptomsRequired, respondWith: value => { response = value }, requests: () => requests }
+  form.setTime({ doctorId, date, slot: bookingSlots(schedule.value[0], doctorId)[0] })
+  return { ...form, schedule, now, messages, bookingSymptomsRequired, respondWith: value => { response = value }, requests: () => requests }
 }
 
 test('a cached calendar is refreshed before opening and an available selection is retained', async () => {
@@ -74,7 +76,7 @@ test('a cached calendar is refreshed before opening and an available selection i
     await opening
   }
   assert.equal(form.schedule.value[0].availability[doctorId][0].remaining, 1)
-  assert.equal(form.selectedSlot.value, '晚班')
+  assert.equal(form.selectedSlot.value.label, '晚班')
   assert.equal(form.picking.value, true)
 })
 
@@ -83,14 +85,14 @@ test('a removed or full shift stays deselected when it becomes available again',
     const form = await openForm()
     form.respondWith(unavailable)
     await form.selectTime()
-    assert.equal(form.selectedSlot.value, '')
+    assert.equal(form.selectedSlot.value, null)
     form.picking.value = false
 
     form.respondWith(days(night(4)))
     await form.selectTime()
     assert.equal(form.requests(), 2)
     assert.equal(form.picking.value, true)
-    assert.equal(form.selectedSlot.value, '')
+    assert.equal(form.selectedSlot.value, null)
   }
 })
 
@@ -111,7 +113,7 @@ test('a failed refresh keeps the draft and allows a fresh retry', async () => {
   form.respondWith(days(night(4)))
   await form.selectTime()
   assert.equal(form.picking.value, true)
-  assert.equal(form.selectedSlot.value, '晚班')
+  assert.equal(form.selectedSlot.value.label, '晚班')
 })
 
 test('the next shift and the date filter agree on cutoff, remaining seats and days off', () => {
@@ -129,13 +131,13 @@ test('the next shift and the date filter agree on cutoff, remaining seats and da
   const source = readFileSync(new URL('../pages/booking/components/slot_picker.vue', import.meta.url), 'utf8')
   const setup = source.match(/<script setup>\s*([\s\S]*?)<\/script>/)[1].replace(/^import .*\n/gm, '')
   const picker = new Script(`${setup}\n({ selectSlot, onlyBookable, visibleDays, canConfirm, choice, shiftText, confirm })`).runInNewContext({
-    computed, ref, bookingShifts, shiftBookable, shiftClosed, Date: { now: () => now },
+    computed, ref, bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots, Date: { now: () => now },
     watch(sources, handler) { update = () => handler(sources.map(source => source.value)) },
-    defineProps: () => props, defineEmits: () => (_event, selection) => confirmations.push(selection.date),
+    defineProps: () => props, defineEmits: () => (_event, selection) => confirmations.push(selection),
   })
 
   assert.equal(picker.visibleDays.value.length, 3)
-  assert.equal(nextBookableShift(props.schedule, doctorId, now).shift.label, '上午')
+  assert.equal(nextBookableSlot(props.schedule, doctorId, now).slot.label, '上午')
   picker.selectSlot(todayShift)
   assert.equal(picker.canConfirm.value, true)
   now = cutoff
@@ -149,16 +151,16 @@ test('the next shift and the date filter agree on cutoff, remaining seats and da
   assert.equal(picker.canConfirm.value, false)
   assert.equal(picker.choice.value, '')
   assert.match(picker.shiftText(todayShift), /已截止/)
-  assert.equal(nextBookableShift(props.schedule, doctorId, now).shift.label, '晚班')
+  assert.equal(nextBookableSlot(props.schedule, doctorId, now).slot.label, '晚班')
   picker.selectSlot(tonight)
   picker.confirm()
-  assert.deepEqual(confirmations, [date])
+  assert.deepEqual(confirmations.map(selection => [selection.doctorId, selection.date, selection.slot.time_slot]), [[doctorId, date, 'NIGHT']])
 
   now = props.now = tonight.cutoff_at
   update()
   assert.equal(picker.visibleDays.value.length, 0)
   assert.equal(picker.canConfirm.value, false)
-  assert.equal(nextBookableShift(props.schedule, doctorId, now), undefined)
+  assert.equal(nextBookableSlot(props.schedule, doctorId, now), undefined)
   picker.onlyBookable.value = false
   update()
   assert.equal(picker.visibleDays.value.length, 3)
@@ -169,7 +171,7 @@ test('the next shift and the date filter agree on cutoff, remaining seats and da
   picker.onlyBookable.value = true
   update()
   assert.equal(picker.visibleDays.value[0].date, later.date)
-  assert.equal(nextBookableShift(props.schedule, doctorId, now).day.date, later.date)
+  assert.equal(nextBookableSlot(props.schedule, doctorId, now).day.date, later.date)
 })
 
 test('required symptoms reject blank input in place and a completed draft can continue', async () => {
@@ -183,7 +185,7 @@ test('required symptoms reject blank input in place and a completed draft can co
     form.symptoms.value = blank
     await form.confirmBooking()
     assert.equal(form.messages.at(-1), '请填写症状描述')
-    assert.deepEqual([form.doctor.value.id, form.date.value, form.selectedSlot.value,
+    assert.deepEqual([form.doctor.value.id, form.date.value, form.selectedSlot.value.label,
       form.name.value, form.sex.value, form.age.value, form.phone.value, form.symptoms.value],
     [doctorId, date, '晚班', '测试就诊人', '女', '30', '13900000000', blank])
   }
@@ -192,8 +194,54 @@ test('required symptoms reject blank input in place and a completed draft can co
   await form.confirmBooking()
   assert.equal(form.messages.at(-1), '医院预约受理尚未开放')
 
-  form.bookingSymptomsRequired.value = false
   form.symptoms.value = ''
+  form.respondWith(Promise.resolve(days(night(4))).then(result => {
+    form.bookingSymptomsRequired.value = false
+    return result
+  }))
   await form.confirmBooking()
   assert.deepEqual(form.messages, ['请填写症状描述', '请填写症状描述', '医院预约受理尚未开放', '医院预约受理尚未开放'])
+
+  form.respondWith(Promise.resolve(days(night(4))).then(result => {
+    form.bookingSymptomsRequired.value = true
+    return result
+  }))
+  await form.confirmBooking()
+  assert.equal(form.messages.at(-1), '请填写症状描述')
+  assert.equal(form.selectedSlot.value.label, '晚班')
+  assert.equal(form.name.value, '测试就诊人')
+  assert.equal(form.phone.value, '13900000000')
+})
+
+test('a timed selection uses its exact shift and times and refreshes without clearing the patient draft', async () => {
+  const cutoff_at = Date.parse('2026-11-30T11:30:00+08:00')
+  const lastSlot = { start_time: '11:30', end_time: '12:00', cutoff_at, remaining: 1, shift_available: 1 }
+  const morning = { time_slot: 'AM', label: '上午', total: 37, remaining: 12, slots: [lastSlot] }
+  const calendar = days(morning)
+  const form = await openForm(calendar)
+  form.name.value = '测试就诊人'
+  form.sex.value = '女'
+  form.age.value = '30'
+  form.phone.value = '13800000000'
+  form.symptoms.value = '测试症状'
+
+  const latest = nextBookableSlot(calendar, doctorId, cutoff_at - 1000).slot
+  assert.equal(latest.label, '11:30–12:00')
+  assert.equal(latest.remaining, 1)
+  assert.equal(bookingSlotKey(form.selectedSlot.value), 'AM/slot/11:30/12:00')
+  form.now.value = cutoff_at
+  assert.equal(nextBookableSlot(calendar, doctorId, cutoff_at), undefined)
+  assert.equal(form.selectedSlot.value, null)
+
+  form.now.value = cutoff_at - 1000
+  form.respondWith([])
+  await form.confirmBooking()
+  assert.match(form.messages.at(-1), /排班暂不可用，请重试/)
+  assert.equal(form.selectedSlot.value, null)
+  form.respondWith(days({ ...morning, time_slot: 'PM' }))
+  await form.confirmBooking()
+  assert.equal(form.selectedSlot.value, null)
+  assert.equal(form.messages.at(-1), '时段已不可约，请重新选择')
+  assert.deepEqual([form.name.value, form.sex.value, form.age.value, form.phone.value, form.symptoms.value],
+    ['测试就诊人', '女', '30', '13800000000', '测试症状'])
 })

@@ -19,7 +19,8 @@ module Api
       today = Date.current
       dates = today..(today + ScheduleCalendar::DAYS - 1)
       appointment = AppointmentSettings.new
-      config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates, settings: appointment).as_json
+      config[:schedule] = ScheduleCalendar.new(booking_doctors.map(&:id), dates, settings: appointment)
+        .as_json(time_slots: params[:schedule_format] == "time_slots")
       config[:appointment] = appointment.public_values
       profile = HospitalProfile.new
       config[:hospital] = profile.public_values

@@ -1,0 +1,15 @@
+<% limit = @slot_limits&.[](shift) %>
+<% warning = limit && value.to_i > limit %>
+<% hint = if warning
+  "按当前时段最多可约 #{limit} 人"
+elsif limit && value.blank?
+  "按时段自动计算，共 #{limit} 号"
+end %>
+<%= label_tag id, title, class: field_label_class %>
+<%= number_field_tag "#{scope}[#{field}]", value, id: id, class: "form-control", min: 1, max: 2_147_483_647, step: 1,
+  placeholder: (@default_capacity_hint if shift && !@slot_limits), disabled: !@editable || !shift,
+  data: { default_capacity_hint: @default_capacity_hint, slot_limits: @slot_limits },
+  aria: { label: "#{label}#{title}", describedby: ("#{id}-hint" if @slot_limits) } %>
+<% if @slot_limits %>
+  <div id="<%= id %>-hint" class="<%= class_names("form-hint", "text-warning" => warning) %>" <%= tag.attributes(hidden: hint.blank?) %>><%= hint %></div>
+<% end %>

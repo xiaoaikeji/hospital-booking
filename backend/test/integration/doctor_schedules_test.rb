@@ -115,11 +115,136 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     assert_published_schedule({ @monday => explicit, blank_date => [ shift("FULL", "全天", 25) ] })
     assert_equal @doctor.department_ids.map(&:to_s).sort, response.parsed_body.dig("directory", "doctors").sole.fetch("department_ids").sort
 
-    counts = { [ @doctor.id, @monday, "FULL" ] => 7, [ @doctor.id, @monday, "NIGHT" ] => 6 }
+    counts = { [ @doctor.id, @monday, "FULL" ] => { nil => 7 }, [ @doctor.id, @monday, "NIGHT" ] => { nil => 6 } }
     calendar = ScheduleCalendar.new([ @doctor.id ], blank_date..@monday)
     calendar.define_singleton_method(:occupied_counts) { counts }
     assert_equal [ [ 30, 23 ], [ 5, 0 ] ], calendar.day_availability(@doctor.id, @monday).fetch(:shifts).map { |row| row.values_at(:total, :remaining) }
     assert_equal 25, calendar.day_availability(@doctor.id, blank_date).fetch(:shifts).sole.fetch(:remaining)
+  end
+
+  test "time-slot mode computes the capacity of each shift without rewriting the saved number" do
+    dates = @monday..(@monday + 2)
+    counts = [ nil, 37, 50 ]
+    dates.zip(counts).each { |date, capacity| dated_shift(date, "AM", capacity: capacity) }
+    dated_shift(dates.last, "NIGHT", capacity: 25)
+    set_nights(true)
+    assert_published_schedule(dates.zip([ 20, 37, 50 ]).to_h do |date, total|
+      [ date, [ shift("AM", "上午", total), (shift("NIGHT", "晚班", 25) if date == dates.last) ].compact ]
+    end)
+
+    configure_time_slots
+    assert_published_schedule(dates.zip([ 40, 37, 40 ]).to_h do |date, total|
+      [ date, [ shift("AM", "上午", total), (shift("NIGHT", "晚班", 25) if date == dates.last) ].compact ]
+    end)
+    assert_equal [ 5 ] * 8, published_shifts(dates.last).first.fetch("slots").pluck("remaining")
+    legacy = published_shifts(@monday + 1, time_slots: false).sole
+    assert_equal [ "AM", 37, 0 ], legacy.values_at("time_slot", "total", "remaining")
+    assert_not legacy.key?("slots")
+    assert_equal Time.iso8601("2026-12-01T11:30:00+08:00").to_i * 1000, legacy.fetch("cutoff_at")
+    get adjustment_page
+    assert_select "#adjustment-capacity:not([value])"
+    assert_select "#adjustment-capacity-hint", text: "按时段自动计算，共 40 号"
+    get admins_doctor_schedule_path(@doctor, tab: "date", date: dates.last.iso8601)
+    assert_select "#adjustment-capacity[value='50']"
+    assert_select "#adjustment-capacity-hint", text: "按当前时段最多可约 40 人"
+
+    configure_time_slots(max_bookings_per_slot: 4)
+    assert_equal [ 32, 25 ], published_shifts(dates.last).pluck("total")
+    configure_time_slots(booking_by_time_slot: false, default_capacity: 23)
+    assert_equal [ 50, 25 ], published_shifts(dates.last, time_slots: false).pluck("remaining")
+    assert_equal 37, published_shifts(@monday + 1, time_slots: false).sole.fetch("remaining")
+    assert_equal 23, published_shifts(@monday, time_slots: false).sole.fetch("remaining")
+    assert_equal counts, @doctor.schedules.where(time_slot: "AM").order(:start_date).pluck(:capacity)
+  end
+
+  test "the last shift seat can be booked at any open slot and the last slot closes at its start" do
+    rule = dated_shift(@monday, "AM", capacity: 37)
+    dated_shift(@monday, "NIGHT", capacity: 9)
+    set_nights(true)
+    other = Doctor.create!(name: "另一位医生", departments: @doctor.departments)
+    other.schedules.create!(weekday: @monday.wday, start_date: @monday, time_slot: "AM")
+    configure_time_slots
+    counts = %w[08:00 08:30 09:00 09:30 10:00 10:30 11:00 11:30].zip([ 5, 5, 4, 5, 4, 5, 4, 4 ]).to_h
+    occupancy = { [ @doctor.id, @monday, "AM" ] => counts }
+    new_calendar = -> do
+      source = ScheduleCalendar.new([ @doctor.id, other.id ], @monday..@monday)
+      source.define_singleton_method(:occupied_counts) { occupancy }
+      source
+    end
+    calendar = new_calendar.call
+    morning = ->(source) { source.day_availability(@doctor.id, @monday, include_times: true).fetch(:shifts).first }
+    bookable = ->(options, now) { options.select { |option| option[:remaining].positive? && option[:cutoff_at] > now.to_i * 1000 } }
+    assert_equal 1, morning.call(calendar)[:remaining]
+    before = Time.zone.local(2026, 11, 30, 8, 45)
+    candidates = bookable.call(morning.call(calendar)[:slots], before)
+    assert_equal %w[09:00 10:00 11:00 11:30], candidates.pluck(:start_time)
+    assert_equal [ 1 ] * 4, candidates.pluck(:remaining)
+    assert_equal [ 1 ] * 4, candidates.pluck(:shift_available)
+    candidates.each do |option|
+      counts[option[:start_time]] += 1
+      assert_empty bookable.call(morning.call(calendar)[:slots], before)
+      counts[option[:start_time]] -= 1
+    end
+    rule.update!(capacity: 35)
+    reduced = new_calendar.call
+    assert_equal 0, morning.call(reduced).fetch(:remaining)
+    assert_equal 0, morning.call(reduced).fetch(:slots).last.fetch(:shift_available)
+    assert_equal 9, reduced.day_availability(@doctor.id, @monday).fetch(:shifts).last.fetch(:remaining)
+    assert_equal 40, reduced.day_availability(other.id, @monday).fetch(:shifts).sole.fetch(:remaining)
+    rule.update!(capacity: 37)
+
+    counts.replace({ "08:00" => 5, "08:30" => 5, "09:00" => 5, "09:30" => 5, "10:00" => 1, "11:30" => 4 })
+    morning_shift = morning.call(calendar)
+    assert_equal 12, morning_shift[:remaining]
+    assert_equal 1, morning_shift[:slots].last.fetch(:shift_available)
+    at_1120 = Time.iso8601("2026-11-30T11:20:00+08:00")
+    assert_equal [ [ "11:30", "12:00", 1 ] ], bookable.call(morning_shift[:slots], at_1120).map { |slot| slot.values_at(:start_time, :end_time, :remaining) }
+    assert_empty bookable.call(morning_shift[:slots], at_1120 + 10.minutes)
+
+    configure_time_slots(booking_by_time_slot: false)
+    whole_shift = morning.call(new_calendar.call)
+    assert_equal 12, bookable.call([ whole_shift ], at_1120 + 39.minutes).sole[:remaining]
+    assert_empty bookable.call([ whole_shift ], at_1120 + 40.minutes)
+
+    counts.replace({ "09:00" => 4 })
+    configure_time_slots(max_bookings_per_slot: 3)
+    reduced_slots = morning.call(new_calendar.call).fetch(:slots).index_by { |slot| slot.fetch(:start_time) }
+    assert_equal [ 0, 3 ], reduced_slots.values_at("09:00", "09:30").pluck(:remaining)
+    assert_equal 20, morning.call(new_calendar.call).fetch(:remaining)
+  end
+
+  test "both departments use the same adjusted slots and a full day skips the lunch break" do
+    configure_time_slots(booking_morning_begin_at: "08:30", booking_afternoon_begin_at: "13:30", booking_afternoon_end_at: "16:30")
+    set_nights(true)
+    save_weekly(monday_week)
+    adjust(time_slot: "PM", capacity: "37", night: "1", night_capacity: "4")
+    assert_response :see_other
+    dated_shift(@monday + 1, "FULL")
+
+    @doctor.department_ids.each do |department_id|
+      get api_mini_program_doctors_path(@mini_program.appid), params: { department_id: department_id }
+      assert_response :success
+      assert_equal @doctor.id.to_s, response.parsed_body.fetch("doctors").sole.fetch("id")
+    end
+    adjusted = published_shifts(@monday)
+    assert_equal %w[PM NIGHT], adjusted.pluck("time_slot")
+    assert_equal [ "13:30", "17:00" ], adjusted.map { |row| row.fetch("slots").first.fetch("start_time") }
+    assert_equal %w[AM NIGHT], published_shifts(@monday + 7).pluck("time_slot")
+    full = published_shifts(@monday + 1).sole
+    assert_equal [ "FULL", 65 ], full.values_at("time_slot", "total")
+    assert_equal %w[08:30 09:00 09:30 10:00 10:30 11:00 11:30 13:30 14:00 14:30 15:00 15:30 16:00], full.fetch("slots").pluck("start_time")
+    assert_equal Time.iso8601("2026-12-01T16:00:00+08:00").to_i * 1000, full.fetch("cutoff_at")
+    set_nights(false)
+    assert_equal [ adjusted.first ], published_shifts(@monday)
+    set_nights(true)
+    assert_equal adjusted, published_shifts(@monday)
+    adjust(time_slot: "", night: "0")
+    assert_response :see_other
+    assert_empty published_shifts(@monday)
+    assert_equal %w[AM NIGHT], published_shifts(@monday + 7).pluck("time_slot")
+    delete date_adjustment_admins_doctor_schedule_path(@doctor), params: { date: @monday.iso8601 }
+    assert_response :see_other
+    assert_equal %w[AM NIGHT], published_shifts(@monday).pluck("time_slot")
   end
 
   test "the selected month survives a date adjustment and a weekly save" do
@@ -436,6 +561,19 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
     setting.save!
   end
 
+  def configure_time_slots(**fields)
+    setting = Setting.find_or_initialize_by(key: "appointment")
+    { booking_by_time_slot: true, **fields }.each { |field, value| setting.write_value(field.to_s, value) }
+    setting.save!
+  end
+
+  def published_shifts(date, time_slots: true)
+    get api_app_configuration_path(@mini_program.provider, @mini_program.appid), params: (time_slots ? { schedule_format: "time_slots" } : {})
+    assert_response :success
+    days = response.parsed_body.fetch("schedule").index_by { |day| day.fetch("date") }
+    days.fetch(date.iso8601).fetch("availability").fetch(@doctor.id.to_s, [])
+  end
+
   def monday_week = { "1" => { time_slot: "AM", capacity: "8", night: "1", night_capacity: "4" } }
 
   def save_weekly(week, status: :see_other)
@@ -452,7 +590,11 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
   def calendar_days(month)
     get admins_doctor_schedule_path(@doctor, month: month)
     assert_response :success
-    JSON.parse(assert_select("#doctor-schedule-calendar").sole["data-days"])
+    JSON.parse(assert_select("#doctor-schedule-calendar").sole["data-days"]).tap do |days|
+      days.each_value do |day|
+        day.fetch("shifts").each { |shift| shift.except!("cutoff_at", "start_time", "end_time", "slots") }
+      end
+    end
   end
 
   def adjust(date: @monday, **fields)
@@ -469,16 +611,18 @@ class DoctorSchedulesTest < ActionDispatch::IntegrationTest
       end
     end
 
-    get api_app_configuration_path(@mini_program.provider, @mini_program.appid)
+    get api_app_configuration_path(@mini_program.provider, @mini_program.appid), params: { schedule_format: "time_slots" }
     assert_response :success
     days = response.parsed_body.fetch("schedule").index_by { |day| day.fetch("date") }
     expected.each do |date, shifts|
       day = days.fetch(date.iso8601)
       published = day.fetch("availability").fetch(@doctor.id.to_s, [])
-      assert_equal shifts, published.map { |shift| shift.except("cutoff_at") }, date.iso8601
+      assert_equal shifts, published.map { |shift| shift.except("cutoff_at", "start_time", "end_time", "slots") }, date.iso8601
       published.each do |shift|
         hour = { "AM" => 12, "PM" => 17, "FULL" => 17, "NIGHT" => 21 }.fetch(shift.fetch("time_slot"))
-        assert_equal Time.new(date.year, date.month, date.day, hour, 0, 0, "+08:00").to_i * 1000, shift.fetch("cutoff_at")
+        cutoff = Time.new(date.year, date.month, date.day, hour, 0, 0, "+08:00")
+        cutoff -= 30.minutes if shift.key?("slots")
+        assert_equal cutoff.to_i * 1000, shift.fetch("cutoff_at")
       end
       assert_equal shifts.pluck("time_slot"), day.fetch("doctors").fetch(@doctor.id.to_s, []), date.iso8601
     end

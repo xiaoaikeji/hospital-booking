@@ -30,6 +30,24 @@ export function bookingShifts(day, doctorId) {
   })
 }
 
+export function shiftSlots(shift) {
+  return shift.slots?.map(slot => ({
+    ...slot,
+    time_slot: shift.time_slot,
+    label: `${slot.start_time}–${slot.end_time}`,
+    timed: true,
+  })) ?? [shift]
+}
+
+export function bookingSlots(day, doctorId) {
+  return bookingShifts(day, doctorId).flatMap(shiftSlots)
+}
+
+export function bookingSlotKey(slot) {
+  if (!slot.time_slot) return slot.label
+  return [slot.time_slot, slot.timed ? 'slot' : 'shift', slot.start_time, slot.end_time].join('/')
+}
+
 export function shiftClosed(shift, now = Date.now()) {
   return Number.isFinite(shift.cutoff_at) && now >= shift.cutoff_at
 }
@@ -38,15 +56,20 @@ export function shiftBookable(shift, now = Date.now()) {
   return (shift.remaining == null || shift.remaining > 0) && !shiftClosed(shift, now)
 }
 
-export function nextBookableShift(schedule, doctorId, now) {
+export function nextBookableSlot(schedule, doctorId, now) {
   for (const day of schedule) {
-    const shift = bookingShifts(day, doctorId).find(item => shiftBookable(item, now))
-    if (shift) return { day, shift }
+    const slot = bookingSlots(day, doctorId).find(item => shiftBookable(item, now))
+    if (slot) return { day, slot }
   }
 }
 
 export function shiftLabels(day, doctorId, now) {
-  return bookingShifts(day, doctorId).map(shift => shiftClosed(shift, now) ? shift.label + '（已截止）' : shift.label)
+  return bookingShifts(day, doctorId).map(shift => {
+    const slots = shift.slots ?? [shift]
+    if (slots.every(slot => shiftClosed(slot, now))) return shift.label + '（已截止）'
+    if (!slots.some(slot => shiftBookable(slot, now))) return shift.label + '（已满）'
+    return shift.label
+  })
 }
 
 export function useBookingCalendar(isDemo = () => directoryDemoMode) {

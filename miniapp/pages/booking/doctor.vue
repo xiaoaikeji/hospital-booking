@@ -4,7 +4,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app'
 import { directoryDemoMode, findBookingDoctor } from '@/store/booking-directory.js'
 import { canOpenBooking, openBooking } from '@/utils/booking-navigation.js'
 import { checkAppAccess } from '@/utils/app-access.js'
-import { nextBookableShift, scheduleMessage, useBookingCalendar } from './booking-calendar.js'
+import { nextBookableSlot, scheduleMessage, useBookingCalendar } from './booking-calendar.js'
 
 const bookingParams = ref(null)
 const fromDemo = computed(() => directoryDemoMode || bookingParams.value?.demo === '1')
@@ -13,12 +13,13 @@ const { schedule, now } = useBookingCalendar(() => fromDemo.value)
 const nextShiftText = computed(() => {
   if (!doctor.value || fromDemo.value) return ''
   if (!schedule.value.length) return scheduleMessage.value
-  const next = nextBookableShift(schedule.value, doctor.value.id, now.value)
-  if (!next) return '暂无可约班次'
+  const next = nextBookableSlot(schedule.value, doctor.value.id, now.value)
+  if (!next) return '暂无可约时段'
 
-  const { day, shift } = next
-  const remaining = shift.remaining == null ? '' : ` · 剩 ${shift.remaining} 号`
-  return day.weekday + shift.label + remaining
+  const { day, slot } = next
+  const remaining = slot.remaining == null ? '' : ` · 剩 ${slot.remaining} 号`
+  const label = slot.timed ? ` ${slot.label}` : slot.label
+  return day.weekday + label + remaining
 })
 
 onLoad(async options => {

@@ -84,6 +84,9 @@ module Admins
       @appointment_settings = AppointmentSettings.new
       @night_enabled = @appointment_settings.night_enabled?
       @default_capacity_hint = "默认：#{@appointment_settings.default_capacity}"
+      if @appointment_settings.time_slot_booking?
+        @slot_limits = ScheduleCalendar::SHIFT_LABELS.keys.index_with { |shift| @appointment_settings.time_slot_capacity(shift) }
+      end
       case tab
       when :calendar
         load_calendar
@@ -101,7 +104,7 @@ module Admins
       dates = calendar_month.all_month
       calendar = ScheduleCalendar.new([ @doctor.id ], dates, settings: @appointment_settings)
       @calendar_days = dates.to_h do |date|
-        [ date.iso8601, calendar.day_availability(@doctor.id, date) ]
+        [ date.iso8601, calendar.day_availability(@doctor.id, date, include_times: true) ]
       end
     end
 

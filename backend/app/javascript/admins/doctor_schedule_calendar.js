@@ -19,6 +19,21 @@ function statusLabel(text, colorClass) {
   return row;
 }
 
+function updateShiftStatus(status, shift, now) {
+  const closed = now >= shift.cutoff_at;
+  const available = shift.slots?.find((slot) => now < slot.cutoff_at)?.shift_available ?? shift.remaining;
+  if (closed) status.textContent = "已截止";
+  else if (shift.slots) status.textContent = `当前可约 ${available} 号`;
+  else status.textContent = available === 0 ? "已满" : `剩 ${available} 号`;
+  status.classList.toggle("text-secondary", closed);
+  status.classList.toggle("text-danger", !closed && available === 0);
+}
+
+function updateDayLabel(link, date) {
+  const details = Array.from(link.children).slice(1).map((entry) => entry.dataset.label || entry.textContent);
+  link.setAttribute("aria-label", [date, ...details].join("，"));
+}
+
 const calendar = new FullCalendar.Calendar(calendarElement, {
   initialView: "dayGridMonth",
   initialDate: calendarElement.dataset.initialDate,
@@ -42,14 +57,16 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
       entries.push(label("无排班", "d-block text-secondary"));
     }
 
-    for (const {label: shift, total, remaining} of day.shifts) {
+    for (const shift of day.shifts) {
       const row = label("", "d-block text-body mt-1");
-      row.append(label(shift, "fw-medium"));
-      if (total !== null) {
+      row.append(label(shift.label, "fw-medium"));
+      if (shift.total !== null) {
+        const status = label("", "d-block d-md-inline");
+        status.dataset.shiftStatus = shift.time_slot;
+        updateShiftStatus(status, shift, Date.now());
         row.append(
-          label(" · ", "d-none d-md-inline"), label(`共 ${total} 号`, "d-block d-md-inline"),
-          label(" · ", "d-none d-md-inline"),
-          label(remaining === 0 ? "已满" : `剩 ${remaining} 号`, remaining === 0 ? "d-block d-md-inline text-danger" : "d-block d-md-inline")
+          label(" · ", "d-none d-md-inline"), label(`共 ${shift.total} 号`, "d-block d-md-inline"),
+          label(" · ", "d-none d-md-inline"), status
         );
       }
       entries.push(row);
@@ -64,8 +81,7 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
     adjustmentUrl.searchParams.set("date", date);
     link.href = adjustmentUrl.href;
     link.classList.add("stretched-link");
-    const details = Array.from(link.children).slice(1).map((entry) => entry.dataset.label || entry.textContent);
-    link.setAttribute("aria-label", [date, ...details].join("，"));
+    updateDayLabel(link, date);
     if (isToday) link.setAttribute("aria-current", "date");
 
     el.addEventListener("pointerenter", (event) => {
@@ -75,3 +91,25 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
   }
 });
 calendar.render();
+
+let timer;
+function refreshShiftStatuses() {
+  clearTimeout(timer);
+  const now = Date.now();
+  for (const cell of calendarElement.querySelectorAll(".fc-daygrid-day[data-date]")) {
+    const date = cell.dataset.date;
+    const link = cell.querySelector(".fc-daygrid-day-number");
+    if (!days[date]?.shifts.length || !link) continue;
+    for (const status of link.querySelectorAll("[data-shift-status]")) {
+      const shift = days[date].shifts.find((item) => item.time_slot === status.dataset.shiftStatus);
+      updateShiftStatus(status, shift, now);
+    }
+    updateDayLabel(link, date);
+  }
+  timer = setTimeout(refreshShiftStatuses, 60_000 - (now % 60_000));
+}
+window.addEventListener("pageshow", refreshShiftStatuses);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) refreshShiftStatuses();
+});
+refreshShiftStatuses();

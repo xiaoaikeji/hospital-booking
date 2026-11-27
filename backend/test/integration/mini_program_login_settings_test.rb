@@ -118,6 +118,49 @@ class MiniProgramLoginSettingsTest < ActionDispatch::IntegrationTest
     assert_audit "appointment.update", "success", row, "require_mobile_auth"
   end
 
+  test "time-slot settings validate all windows and preserve the per-slot limit when switched off" do
+    path = edit_admins_system_settings_appointment_path
+    revision = edit_revision(path)
+    assert_select "#appointment_booking_by_time_slot:not([checked])"
+    assert_select "#appointment_max_bookings_per_slot[value='5'][disabled]"
+    assert_select "#appointment_booking_morning_begin_at option[selected][value='08:00']"
+    assert_select "#appointment_booking_afternoon_begin_at option[selected][value='12:00']"
+    assert_select "#appointment_booking_evening_end_at option[selected][value='21:00']"
+
+    input = { revision:, require_mobile_auth: "0", booking_enable_evening: "0", booking_by_time_slot: "1",
+      max_bookings_per_slot: "6", booking_morning_end_at: "11:30", booking_afternoon_begin_at: "13:30" }
+    [ { max_bookings_per_slot: "0" }, { booking_morning_end_at: "11:15" },
+      { booking_morning_begin_at: "11:30" }, { booking_afternoon_end_at: "17:30" } ].each do |invalid|
+      patch admins_system_settings_appointment_path, params: { appointment: input.merge(invalid) }
+      assert_response :unprocessable_content
+      refute AppointmentSettings.new.time_slot_booking?
+      assert_equal "12:00", AppointmentSettings.new.shift_time("booking_morning_end_at")
+    end
+
+    patch admins_system_settings_appointment_path, params: { appointment: input }
+    assert_redirected_to path
+    row = Setting.find_by!(key: "appointment")
+    assert_audit "appointment.update", "success", row, "booking_by_time_slot", "max_bookings_per_slot",
+      "booking_morning_end_at", "booking_afternoon_begin_at"
+    follow_redirect!
+    assert_select "#appointment_booking_by_time_slot[checked]"
+    assert_select "#appointment_max_bookings_per_slot[value='6']:not([disabled])"
+
+    patch admins_system_settings_appointment_path, params: {
+      appointment: { revision:, require_mobile_auth: "0", booking_enable_evening: "0", booking_notice: "旧表单的须知" }
+    }
+    assert_response :unprocessable_content
+    assert_select "[role=alert]", /配置已变化/
+    assert_equal [ 6, nil ], row.reload.settings.values_at("max_bookings_per_slot", "booking_notice")
+
+    patch admins_system_settings_appointment_path, params: {
+      appointment: input.except(:max_bookings_per_slot).merge(revision: AppointmentSettings.new.revision, booking_by_time_slot: "0")
+    }
+    assert_redirected_to path
+    assert_equal [ false, 6, "11:30", "13:30" ],
+      row.reload.settings.values_at("booking_by_time_slot", "max_bookings_per_slot", "booking_morning_end_at", "booking_afternoon_begin_at")
+  end
+
   test "only registered WeChat mini programs can be assigned and departures refresh UnionIDs without changing user ownership" do
     a, b, c = %w[share_a share_b share_c].map { |appid| App.create!(provider: "wechat", appid: appid) }
     official = App.create!(provider: "wechat", app_type: "official_account", appid: "official_only")

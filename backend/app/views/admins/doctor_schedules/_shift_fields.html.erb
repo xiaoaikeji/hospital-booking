@@ -1,8 +1,7 @@
 <% column_class = "col-12 col-sm-6 col-lg" %>
 <% field_label_class = class_names("form-label", "d-lg-none" => local_assigns[:compact]) %>
 <% night_selected = fields[:night] == "1" %>
-<% day_selected = Schedule::DAY_SLOTS.key?(fields[:time_slot]) %>
-<div class="row g-2 align-items-end">
+<div class="row g-2">
   <div class="<%= column_class %>">
     <%= label_tag "#{prefix}-time-slot", "日间班次", class: field_label_class %>
     <%= select_tag "#{scope}[time_slot]", options_for_select([["无日间班次", ""]] + Schedule::DAY_SLOTS.map { |code, name| [name, code] }, fields[:time_slot].to_s),
@@ -10,13 +9,11 @@
       data: { enhanced_select: ("single" if @editable), schedule_capacity: "#{prefix}-capacity" }, aria: { label: "#{label}日间班次" } %>
   </div>
   <div class="<%= column_class %>">
-    <%= label_tag "#{prefix}-capacity", "日间号数", class: field_label_class %>
-    <%= number_field_tag "#{scope}[capacity]", fields[:capacity], id: "#{prefix}-capacity", class: "form-control",
-      min: 1, max: 2_147_483_647, step: 1, placeholder: (@default_capacity_hint if day_selected), disabled: !@editable || !day_selected,
-      data: { default_capacity_hint: @default_capacity_hint }, aria: { label: "#{label}日间号数" } %>
+    <%= render "capacity_field", scope: scope, id: "#{prefix}-capacity", field: :capacity, value: fields[:capacity],
+      shift: fields[:time_slot].presence_in(Schedule::DAY_SLOTS.keys), title: "日间号数", label: label, field_label_class: field_label_class %>
   </div>
   <% if @night_enabled %>
-    <div class="<%= class_names("col-12 col-sm-6 col-lg-2", "align-self-lg-center" => local_assigns[:compact]) %>">
+    <div class="col-12 col-sm-6 col-lg-2">
       <label class="form-check d-flex align-items-center gap-2 ps-0 mb-0 py-2" for="<%= prefix %>-night">
         <%= hidden_field_tag "#{scope}[night]", "0", id: nil if @editable %>
         <%= check_box_tag "#{scope}[night]", "1", night_selected, id: "#{prefix}-night", class: "form-check-input m-0",
@@ -25,10 +22,8 @@
       </label>
     </div>
     <div class="<%= column_class %>">
-      <%= label_tag "#{prefix}-night-capacity", "晚班号数", class: field_label_class %>
-      <%= number_field_tag "#{scope}[night_capacity]", fields[:night_capacity], id: "#{prefix}-night-capacity", class: "form-control",
-        min: 1, max: 2_147_483_647, step: 1, placeholder: (@default_capacity_hint if night_selected), disabled: !@editable || !night_selected,
-        data: { default_capacity_hint: @default_capacity_hint }, aria: { label: "#{label}晚班号数" } %>
+      <%= render "capacity_field", scope: scope, id: "#{prefix}-night-capacity", field: :night_capacity, value: fields[:night_capacity],
+        shift: ("NIGHT" if night_selected), title: "晚班号数", label: label, field_label_class: field_label_class %>
     </div>
   <% end %>
 </div>

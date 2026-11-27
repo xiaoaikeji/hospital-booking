@@ -3,13 +3,13 @@ import { computed, ref, watch } from 'vue'
 import { getAvailableSlots } from '@/mock/appointments.js'
 import { getBookingSlots } from '@/mock/booking-schedule.js'
 import { demoMode } from '@/store/session.js'
-import { bookingShifts, shiftBookable, shiftClosed } from '../booking-calendar.js'
+import { bookingShifts, bookingSlotKey, bookingSlots, shiftBookable, shiftClosed, shiftSlots } from '../booking-calendar.js'
 
 const props = defineProps({
   schedule: { type: Array, required: true },
   doctorId: { type: [Number, String], required: true },
   date: { type: String, required: true },
-  selectedSlot: { type: String, default: '' },
+  selectedSlot: { type: Object, default: null },
   now: { type: Number, required: true },
   demo: Boolean,
 })
@@ -20,9 +20,18 @@ const visibleDays = computed(() => onlyBookable.value
   ? props.schedule.filter(day => slotsForDay(day).some(item => shiftBookable(item, props.now)))
   : props.schedule)
 const day = computed(() => visibleDays.value.find(item => item.date === selectedDate.value) || visibleDays.value[0])
-const slots = computed(() => slotsForDay(day.value))
-const choice = ref(props.selectedSlot)
-const canConfirmAt = now => day.value?.date === selectedDate.value && slots.value.some(item => item.label === choice.value && shiftBookable(item, now))
+const sections = computed(() => {
+  const shifts = props.demo ? [] : bookingShifts(day.value, props.doctorId)
+  if (shifts.some(shift => shift.slots)) {
+    return shifts.map(shift => ({ key: shift.time_slot, title: shiftHeading(shift), slots: shiftSlots(shift) }))
+  }
+  const options = slotsForDay(day.value)
+  return options.length ? [{ key: 'day', slots: options }] : []
+})
+const slots = computed(() => sections.value.flatMap(section => section.slots))
+const choice = ref(props.selectedSlot ? bookingSlotKey(props.selectedSlot) : '')
+const chosenSlot = computed(() => slots.value.find(item => bookingSlotKey(item) === choice.value))
+const canConfirmAt = now => day.value?.date === selectedDate.value && !!chosenSlot.value && shiftBookable(chosenSlot.value, now)
 const canConfirm = computed(() => canConfirmAt(props.now))
 const scrollAnchor = ref(day.value ? 'day-' + day.value.date : '')
 
@@ -37,7 +46,7 @@ watch([day, canConfirm], ([activeDay, bookable]) => {
 
 function slotsForDay(day) {
   if (!day) return []
-  if (!props.demo) return bookingShifts(day, props.doctorId)
+  if (!props.demo) return bookingSlots(day, props.doctorId)
   return demoMode ? getAvailableSlots(day, props.doctorId) : getBookingSlots(day, props.doctorId)
 }
 
@@ -48,19 +57,32 @@ function selectDay(item) {
 }
 
 function selectSlot(item) {
-  if (shiftBookable(item)) choice.value = item.label
+  if (shiftBookable(item)) choice.value = bookingSlotKey(item)
+}
+
+function shiftHeading(shift) {
+  const next = shift.slots.find(slot => !shiftClosed(slot, props.now))
+  const status = next ? `当前可约 ${next.shift_available} 号` : '已截止'
+  return `${shift.label} · 共 ${shift.total} 号 · ${status}`
 }
 
 function shiftText(item) {
   const parts = [item.label]
   if (item.total != null) parts.push(`共 ${item.total} 号`)
-  if (shiftClosed(item, props.now)) parts.push('已截止')
-  else if (item.total != null) parts.push(item.remaining === 0 ? '已满' : `剩 ${item.remaining} 号`)
+  const status = slotStatus(item)
+  if (status) parts.push(status)
   return parts.join(' · ')
 }
 
+function slotStatus(item) {
+  if (shiftClosed(item, props.now)) return '已截止'
+  if (item.remaining === 0) return '已满'
+  if (item.remaining != null) return `${item.timed ? '余' : '剩'} ${item.remaining} 号`
+  return ''
+}
+
 function confirm() {
-  if (canConfirmAt(Date.now())) emit('confirm', { date: day.value.date, slot: choice.value })
+  if (canConfirmAt(Date.now())) emit('confirm', { doctorId: props.doctorId, date: day.value.date, slot: chosenSlot.value })
 }
 </script>
 
@@ -84,21 +106,25 @@ function confirm() {
         </view>
       </scroll-view>
       <scroll-view scroll-y class="slots-scroll">
-        <view class="slots">
-          <button v-for="item in slots" :key="item.label" class="slot" :class="{ 'shift-slot': !demo, chosen: canConfirm && item.label === choice, full: !shiftBookable(item, now) }"
-            :disabled="!shiftBookable(item, now)" @tap="selectSlot(item)">
-            <template v-if="demo">
-              <text>{{ item.label }}</text><text class="remaining">余号：{{ item.remaining }}</text>
-            </template>
-            <text v-else>{{ shiftText(item) }}</text>
-          </button>
+        <view v-for="section in sections" :key="section.key" class="slot-section">
+          <view v-if="section.title" class="shift-heading">{{ section.title }}</view>
+          <view v-if="section.slots.length" class="slots">
+            <button v-for="item in section.slots" :key="bookingSlotKey(item)" class="slot"
+              :class="{ 'shift-slot': !demo && !item.timed, chosen: canConfirm && bookingSlotKey(item) === choice, full: !shiftBookable(item, now) }"
+              :disabled="!shiftBookable(item, now)" @tap="selectSlot(item)">
+              <template v-if="demo || item.timed">
+                <text>{{ item.label }}</text><text class="remaining">{{ demo ? `余号：${item.remaining}` : slotStatus(item) }}</text>
+              </template>
+              <text v-else>{{ shiftText(item) }}</text>
+            </button>
+          </view>
         </view>
         <view v-if="onlyBookable && !visibleDays.length" class="sheet-note" role="status">暂无可约日期</view>
         <view v-else-if="!demo && !slots.length" class="sheet-note" role="status">当日暂无排班</view>
       </scroll-view>
       <view class="sheet-actions">
         <button class="cancel" @tap="$emit('cancel')">取消</button>
-        <button class="confirm" :class="{ disabled: !canConfirm }" :disabled="!canConfirm" @tap="confirm">确定<text v-if="canConfirm"> ({{ day.label }} {{ choice }})</text></button>
+        <button class="confirm" :class="{ disabled: !canConfirm }" :disabled="!canConfirm" @tap="confirm">确定<text v-if="canConfirm"> ({{ day.label }} {{ chosenSlot.label }})</text></button>
       </view>
     </view>
   </view>
@@ -119,7 +145,9 @@ function confirm() {
 .day.active { border-color: #5fa8e3; }
 .day-date { font-size: 22rpx; line-height: 32rpx; }
 .slots-scroll { flex: 1; height: 0; min-height: 0; }
-.slots { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18rpx; padding: 40rpx 30rpx; }
+.slot-section { padding: 26rpx 30rpx 14rpx; }
+.shift-heading { margin-bottom: 18rpx; font-size: 26rpx; line-height: 38rpx; }
+.slots { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 18rpx; }
 .slot { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6rpx; box-sizing: border-box; width: 100%; height: 112rpx; padding: 0; border: 1rpx solid #dedfeb; border-radius: 8rpx; background: #f2f2fc; color: #111; font-size: 25rpx; line-height: 32rpx; }
 .shift-slot { height: auto; min-height: 112rpx; padding: 10rpx 6rpx; overflow-wrap: anywhere; }
 .slot.full { background: #f8f8f8; color: #ccc; }

@@ -1,12 +1,23 @@
 document.querySelectorAll("[data-schedule-capacity]").forEach((shift) => {
   const capacity = document.getElementById(shift.dataset.scheduleCapacity);
+  const limits = JSON.parse(capacity.dataset.slotLimits || "null");
+  const hint = document.getElementById(`${capacity.id}-hint`);
   const updateCapacity = () => {
-    const enabled = shift.type === "checkbox" ? shift.checked : shift.value !== "";
-    capacity.disabled = shift.disabled || !enabled;
-    capacity.placeholder = enabled ? capacity.dataset.defaultCapacityHint : "";
+    const code = shift.type === "checkbox" ? (shift.checked ? "NIGHT" : "") : shift.value;
+    capacity.disabled = shift.disabled || !code;
+    capacity.placeholder = code && !limits ? capacity.dataset.defaultCapacityHint : "";
+    if (!hint) return;
+
+    const limit = limits[code];
+    const warning = Boolean(limit && Number(capacity.value) > limit);
+    hint.textContent = warning ? `按当前时段最多可约 ${limit} 人` :
+      limit && capacity.value === "" && !capacity.validity.badInput ? `按时段自动计算，共 ${limit} 号` : "";
+    hint.classList.toggle("text-warning", warning);
+    hint.hidden = !hint.textContent;
   };
 
   shift.addEventListener("change", updateCapacity);
+  capacity.addEventListener("input", updateCapacity);
   updateCapacity();
 });
 
