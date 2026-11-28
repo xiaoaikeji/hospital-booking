@@ -44,7 +44,7 @@
 <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="预约记录">
   <div class="card-header flex-shrink-0">
     <%= form_with url: admins_reservations_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
-      <% @filters.except(:q, :period, :date_range).each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <% @filters.except(:q, :period, :date_range, :booking_time).each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
       <div class="col-12 col-sm-6 col-lg-3">
         <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "预约号", aria: { label: "预约号" } %>
       </div>
@@ -53,9 +53,8 @@
           prefix: "预约日期", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
       </div>
       <div class="col-12 col-sm-6 col-lg-2">
-        <%# Fixed options are only a preview of the time-slot control. %>
-        <%= select_tag "reservation_slot_preview", options_for_select([["时段（预览）", ""], "09:00–09:30", "09:30–10:00", "10:00–10:30", "10:30–11:00"]),
-          name: nil, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "预约时段样式预览" } %>
+        <%= form.select :booking_time, @time_options, { include_blank: "全部时段", selected: @filters[:booking_time] },
+          class: "form-select", data: { enhanced_select: "single" }, aria: { label: "预约时段" } %>
       </div>
       <div class="col-auto btn-list">
         <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>

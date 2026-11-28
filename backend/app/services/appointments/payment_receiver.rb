@@ -89,7 +89,10 @@ module Appointments
         else
           if @appointment.pending_payment?
             data = @appointment.payment_data.merge("trade_state" => state)
-            data["prepay_outcome"] = "accepted" if data["prepay_outcome"].in?(%w[in_flight rejected])
+            case data["prepay_outcome"]
+            when "in_flight" then data["prepay_outcome"] = "in_flight_order_found"
+            when "rejected" then data["prepay_outcome"] = "accepted"
+            end
             @appointment.update!(payment_data: data) if data != @appointment.payment_data
           end
         end

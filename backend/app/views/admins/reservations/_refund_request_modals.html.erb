@@ -5,6 +5,7 @@
 
 <% actions.each do |kind, title, url| %>
   <% difference = kind == "difference" %>
+  <% free_return = !difference && reservation.available_refund_cents.zero? %>
   <% waiting = !difference && reservation.refund_difference_pending? %>
   <div class="modal modal-blur fade" id="refund-<%= kind %>" tabindex="-1" aria-labelledby="refund-<%= kind %>-title" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -31,7 +32,7 @@
                 <p id="refund-available" class="form-hint mb-0">当前可退 <%= remaining %> 元</p>
               </div>
             <% else %>
-              <p>当前可退 <%= remaining %> 元</p>
+              <% unless free_return %><p>当前可退 <%= remaining %> 元</p><% end %>
               <% if waiting %><p class="text-secondary">已有退差价尚未办结，收到微信结果后可确认退号。</p><% end %>
             <% end %>
             <%= form.label :reason, "#{difference ? '退差价' : '退号'}原因", class: "form-label required", for: "#{kind}-reason" %>
@@ -39,7 +40,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn me-auto" data-bs-dismiss="modal">取消</button>
-            <%= tag.button "核对退款", type: "submit", class: "btn btn-primary", disabled: waiting %>
+            <%= tag.button (free_return ? "核对退号" : "核对退款"), type: "submit", class: "btn btn-primary", disabled: waiting %>
           </div>
         <% end %>
       </div>

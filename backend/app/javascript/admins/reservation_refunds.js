@@ -35,12 +35,13 @@
       draft = form;
       const amount = form.elements.namedItem("refund[amount]");
       const cents = form.elements.namedItem("refund[confirmed_available]").value;
+      const freeReturn = form.dataset.refundDraft === "return" && Number(cents) === 0;
       const yuan = (amount ? Number(amount.value) : Number(cents) / 100).toFixed(2);
       dialog.querySelector("#confirm-hospital-refund-title").textContent = form.dataset.refundTitle;
-      dialog.querySelector("#confirm-hospital-refund-description").textContent = form.dataset.refundEffect;
-      dialog.querySelector("[data-refund-summary-amount]").textContent = `本次退款 ${yuan} 元`;
+      dialog.querySelector("#confirm-hospital-refund-description").textContent = freeReturn ? "确认后取消预约并释放号源" : form.dataset.refundEffect;
+      dialog.querySelector("[data-refund-summary-amount]").textContent = freeReturn ? "" : `本次退款 ${yuan} 元`;
       dialog.querySelector("[data-refund-summary-reason]").textContent = reason.value.trim();
-      confirm.textContent = `确认退款 ¥${yuan}`;
+      confirm.textContent = freeReturn ? "确认退号" : `确认退款 ¥${yuan}`;
 
       const editor = form.closest(".modal");
       editor.addEventListener("hidden.bs.modal", () => {
