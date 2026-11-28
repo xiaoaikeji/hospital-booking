@@ -29,6 +29,10 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
 
   teardown { remove_wechat_stubs }
 
+  def run
+    Sidekiq.testing!(:fake) { super }
+  end
+
   test "resume after the slot starts and expire from the first creation without freeing early" do
     draft = booking_draft
     order = book!(draft)
@@ -562,10 +566,186 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal "0", response.parsed_body.fetch("refunds").sole.fetch("cash")
   end
 
+  test "hospital opts into review alone before enabling confirmations and cancellations" do
+    start_hospital_notices
+    configure_notice("return_requested", "{event_name} {patient} {phone_tail} {requested}")
+    order = book!
+    stub_checkout(order)
+    post_checkout(order)
+    2.times { settle_payment(order, cash: 1300) }
+    assert_empty delivered_notices
+    key = SecureRandom.uuid
+    2.times { request_return(order, key: key) }
+    assert_equal ["退号待审核 虚＊ 0007 20元"], delivered_notices
+    review(order, 1, "reject", "保留预约")
+    assert_equal "confirmed", order.reload.status
+    configure_notice("return_requested", "停用", enabled: false)
+    configure_notice("appointment_returned", "{result} {payable} {paid} {requested} {refunded}")
+    request_return(order)
+    stub_v3_refunds(order)
+    2.times { review(order, 2, "approve") }
+    assert_equal ["退号待审核 虚＊ 0007 20元", "预约已取消 20元 13元 20元 0元"], delivered_notices
+
+    configure_notice("appointment_confirmed", "{order_no} {paid}")
+    automatic_review
+    @doctor.update!(fee: 0)
+    free = book!
+    request_return(free)
+    assert_equal ["#{free.order_no} 0元", "预约已取消 0元 0元 0元 0元"], delivered_notices.last(2)
+    other = book!
+    post return_booking_admins_reservation_path(other.order_no), params: { refund: refund_form(other, reason: "停诊") }
+    assert_equal ["#{other.order_no} 0元", "预约已取消 0元 0元 0元 0元"], delivered_notices.last(2)
+    assert_equal 6, Notification.count
+  end
+
+  test "a close origin survives reconciliation and late payment wins exactly once" do
+    start_hospital_notices
+    configure_notice("unpaid_cancelled", "{order_no} {result} {paid}")
+    configure_notice("appointment_confirmed", "{order_no} {paid}")
+    unpaid = book!
+    2.times { post "#{patient_path(unpaid)}/cancel", headers: @headers, as: :json }
+    assert_equal ["#{unpaid.order_no} 未付款，预约已关单 0元"], delivered_notices
+    staff = book!
+    cancel_as_staff(staff)
+    paid = book!
+    stub_checkout(paid)
+    post_checkout(paid)
+    state = "USERPAYING"
+    stub_query(paid) { payment_result(paid, state) }
+    post "#{patient_path(paid)}/cancel", headers: @headers, as: :json
+    assert_equal 1, Notification.count
+    state = "SUCCESS"
+    Appointments::ReconcileWorker.new.perform(paid.id)
+    settle_payment(paid)
+    assert_equal ["#{unpaid.order_no} 未付款，预约已关单 0元", "#{paid.order_no} 20元"], delivered_notices
+  end
+
+  test "only verified refund exceptions notify once per refund" do
+    start_hospital_notices
+    configure_notice("refund_attention", "{kind} {refund_no} {requested} {failure_reason}")
+    configure_notice("appointment_returned", "{result}")
+    order = book!
+    settle_payment(order)
+    requests = stub_v3_refunds(order)
+    results = []
+    %w[SUCCESS CLOSED CLOSED].each do |state|
+      post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(order, reason: "调价", amount: 5) }
+      request = requests.last
+      assert_equal results, delivered_notices
+      if state == "CLOSED"
+        send_notification(order, "refund", v3_refund_result(order, request, "ABNORMAL", nil))
+        assert_equal results, delivered_notices
+      end
+      2.times { send_notification(order, "refund", v3_refund_result(order, request, state, 500)) }
+      results << "退差价 #{request.fetch('out_refund_no')} 5元 微信已关闭本次退款" if state == "CLOSED"
+      assert_equal results, delivered_notices
+      assert_equal "confirmed", order.reload.status
+    end
+    assert_equal 2, Notification.count
+  end
+
+  test "rolled back notices, missing keys and disabled queued templates never reach the group" do
+    start_hospital_notices
+    configure_notice("appointment_confirmed", "{order_no}")
+    @doctor.update!(fee: 0)
+    Appointment.transaction(requires_new: true) do
+      book!
+      assert_equal 1, Notification.count
+      raise ActiveRecord::Rollback
+    end
+    assert_empty Notification.all
+    setting = Setting.find_by!(key: "wechat_notifications")
+    setting.write_value("webhook_key", nil)
+    setting.save!
+    free = book!
+    assert_empty Notification.all
+    automatic_review
+    request_return(free)
+    setting.write_value("webhook_key", "fixture-hospital-rotated")
+    setting.save!
+    other = book!
+    notice = Notification.sole
+    configure_notice("appointment_confirmed", "{order_no}", enabled: false)
+    Notifications::Delivery.run(notice.id)
+    assert_equal ["skipped", []], [notice.reload.delivery_outcome, notice.retryable_ids]
+    configure_notice("appointment_confirmed", "{order_no}")
+    Notifications::Delivery.run(notice.id)
+    assert_empty @group_messages
+    assert_equal "confirmed", other.reload.status
+  end
+
+  test "hospital templates reject unknown variables, legacy review categories and unauthorized writes" do
+    start_hospital_notices
+    input = { notification_content: { messages: [{ type: "text", content: { text: "{openid}" } }] } }
+    patch admins_hospital_notice_path, params: input, as: :json
+    assert_response :unprocessable_content
+    assert_includes response.parsed_body.fetch("error"), "不可用的变量"
+    get edit_admins_hospital_notice_path(event: "passed")
+    assert_response :not_found
+    sign_in @operator
+    get edit_admins_hospital_notice_path
+    assert_response :forbidden
+    post preview_admins_hospital_notice_path, params: input, as: :json
+    assert_response :forbidden
+    patch admins_hospital_notice_path, params: input, as: :json
+    assert_response :forbidden
+    assert_nil Setting.find_by(key: Appointments::GroupNotice.setting_key("appointment_confirmed"))
+  end
+
+  test "a failed group delivery preserves payment and retries only the saved message" do
+    start_hospital_notices
+    configure_notice("appointment_confirmed", "{patient} {paid}")
+    order = book!
+    @group_code = 93000
+    settle_payment(order, cash: 0)
+    notice = Notification.sole
+    2.times { Notifications::Delivery.run(notice.id) }
+    assert_equal ["虚＊ 0元"], @group_messages
+    assert_equal ["failed", ["msg_1"]], [notice.reload.status, notice.retryable_ids]
+    assert_equal ["confirmed", 0, 0], [order.reload.status, order.paid_amount_cents, remaining(order)]
+    refute_match(/fixture-hospital-robot|unsafe-provider-detail|10000000007/, [notice.payload, notice.response_data].to_json)
+    configure_notice("appointment_confirmed", "新模板")
+    @group_code = 0
+    post retry_failed_admins_notification_path(notice), params: {message_ids: notice.retryable_ids}
+    Notifications::Delivery.run(notice.id)
+    assert_equal ["虚＊ 0元", "虚＊ 0元"], @group_messages
+    assert_equal "sent", notice.reload.status
+  end
+
   private
 
   def order_logs(order, action)
     Log.where(action: "appointment.#{action}", target_type: "Appointment", target_id: order.id)
+  end
+
+  def start_hospital_notices
+    sign_in Admin.create!(username: "fixture_notice_admin", role: "super_admin")
+    setting = Setting.create!(key: "wechat_notifications")
+    setting.write_value("webhook_key", "fixture-hospital-robot")
+    setting.save!
+    @group_messages = []
+    @stubs.post("/cgi-bin/webhook/send") do |env|
+      @group_messages << JSON.parse(env.body).dig("text", "content")
+      response_for(errcode: @group_code || 0, errmsg: "unsafe-provider-detail")
+    end
+  end
+
+  def configure_notice(event, text, enabled: true)
+    get edit_admins_hospital_notice_path(event: event)
+    assert_response :ok
+    revision = JSON.parse(css_select("[data-reply-editor]").sole["data-input"]).fetch("revision")
+    patch admins_hospital_notice_path(event: event), as: :json, params: {
+      notification_content: { enabled: enabled, revision: revision, messages: [{ type: "text", content: { text: text } }] }
+    }
+    assert_response :ok
+  end
+
+  def delivered_notices
+    Notification.order(:id).each do |row|
+      Notifications::Delivery.run(row.id)
+      assert_equal "sent", row.reload.status
+    end
+    @group_messages.dup
   end
 
   def booking_draft

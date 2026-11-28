@@ -31,7 +31,7 @@ module Notifications
             "error_message" => "发送进程中断，请到渠道核实该条消息"))
         end
         next unless result["status"] == "pending"
-        if subject.respond_to?(:notification_deliverable?) && !subject.notification_deliverable?
+        if subject.respond_to?(:notification_deliverable?) && !subject.notification_deliverable?(@row.event)
           save_result(message, result.merge("status" => "failed", "stage" => "disabled", "error_message" => "此事件通知已关闭"))
           next
         end

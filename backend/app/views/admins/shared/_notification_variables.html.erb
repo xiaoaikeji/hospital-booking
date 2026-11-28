@@ -9,6 +9,7 @@
         <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2 px-0">
           <div class="text-break">
             <div class="fw-medium"><%= field.fetch("label") %></div>
+            <% if local_assigns[:show_examples] %><div class="small text-secondary">示例：<%= field["example"] %></div><% end %>
             <% if field["hint"] %><div class="small text-secondary"><%= field["hint"] %></div><% end %>
           </div>
           <%= tag.button "{#{key}}", type: "button", class: "btn btn-sm btn-ghost text-primary font-monospace text-wrap text-break",

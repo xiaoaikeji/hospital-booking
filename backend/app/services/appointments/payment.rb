@@ -78,6 +78,9 @@ module Appointments
       return if @appointment.payment_cancel_requested_at?
 
       attributes = { payment_cancel_requested_at: Time.current }
+      if reason == "patient_requested" && !@appointment.payment_closing?
+        attributes[:payment_data] = @appointment.payment_data.merge("patient_requested_close" => true)
+      end
       if staff_reason
         attributes[:payment_data] = @appointment.payment_data.merge(
           "staff_cancellation" => { "admin_id" => @audit[:actor].id, "reason" => staff_reason }

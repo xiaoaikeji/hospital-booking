@@ -41,6 +41,7 @@ module Appointments
         @appointment.update!(status: "cancelled", payment_status: "closed", cancelled_at: now, payment_closed_at: now,
           payment_data: @appointment.payment_data.merge("trade_state" => state))
         @appointment.record_event!("payment_closed", **@audit, details: { payment_no: @appointment.payment_no, channel_outcome: state })
+        GroupNotice.publish("unpaid_cancelled", @appointment) if patient_requested_close?
         true
       end
 
@@ -72,6 +73,16 @@ module Appointments
 
       private
 
+      def patient_requested_close?
+        return @appointment.payment_data["patient_requested_close"] if @appointment.payment_data.key?("patient_requested_close")
+        requested = @appointment.payment_cancel_requested_at
+        return false unless requested && @appointment.payment_expires_at && requested < @appointment.payment_expires_at
+
+        # Orders already closing at upgrade only have the original audit entry.
+        Log.where(target_type: "Appointment", target_id: @appointment.id, action: "appointment.payment_close_requested", source: "user")
+          .exists?(["details ->> 'reason' = ?", "patient_requested"])
+      end
+
       def apply_payment!(result)
         state = result.fetch(:state)
         case state
@@ -84,6 +95,7 @@ module Appointments
             payment_data: @appointment.payment_data.merge("trade_state" => state))
           @appointment.record_event!("payment_confirmed", **@audit,
             details: { payment_no: @appointment.payment_no, paid_amount_cents: @appointment.paid_amount_cents })
+          GroupNotice.publish("appointment_confirmed", @appointment)
         when "CLOSED"
           close_unpaid!(state)
         else
@@ -131,6 +143,7 @@ module Appointments
         @appointment.record_event!("refund_result", **@audit, details: refund_details(item).merge(
           channel_outcome: state, payer_refund_cents: item["payer_refund_cents"]
         ).compact)
+        GroupNotice.publish("refund_attention", @appointment, item) if item["status"] == "failed"
         true
       end
 

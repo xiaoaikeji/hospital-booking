@@ -15,7 +15,7 @@ class WechatNotificationEvent < ApplicationRecord
   end
 
   # Completed and queued notifications retain their original channel and delivery policy.
-  def notification_deliverable?
+  def notification_deliverable?(_event = nil)
     row = Setting.find_by(key: Notifications::WecomSettings::GROUP)
     return false unless Array(row&.settings&.fetch("kinds", [])).include?(kind)
     config = Notifications::WecomSettings.new(row)

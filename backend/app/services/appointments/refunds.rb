@@ -51,6 +51,11 @@ module Appointments
         attributes.merge!(approve!(item)) if auto
         @appointment.write_refunds!(items, **attributes)
         event!(staff? ? "hospital_refund" : "refund_request", item, automatic: auto, outcome: item.fetch("status"))
+        if attributes[:cancelled_at]
+          GroupNotice.publish("appointment_returned", @appointment, item)
+        elsif !auto && kind == "cancel"
+          GroupNotice.publish("return_requested", @appointment, item)
+        end
         item.fetch("id")
       end
     end
@@ -81,6 +86,7 @@ module Appointments
         end
         @appointment.write_refunds!(items, **attributes)
         event!("refund_review", item, decision: decision, outcome: item.fetch("status"))
+        GroupNotice.publish("appointment_returned", @appointment, item) if attributes[:cancelled_at]
       end
     end
 

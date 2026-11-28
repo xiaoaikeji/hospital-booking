@@ -29,6 +29,10 @@ class Appointment < ApplicationRecord
   scope :awaiting_visit, -> { current.where(status: ACTIVE_BOOKING_STATES) }
   scope :newest_first, -> { order(created_at: :desc, id: :desc) }
 
+  def notification_deliverable?(event)
+    !Appointments::GroupNotice::EVENTS.key?(event) || Appointments::GroupNotice.deliverable?(event)
+  end
+
   def fee_in_yuan = self.class.cents_in_yuan(fee_cents)
   def paid_in_yuan = self.class.cents_in_yuan(paid_amount_cents)
   def patient_sex = GENDERS.fetch(patient_gender)

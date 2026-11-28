@@ -35,6 +35,7 @@ module AdminsHelper
         [ "通用海报", admins_posters_path, "admins/posters" ]
       ] ]
       groups << [ "通知管理", :bell, [
+        [ "医院业务通知", edit_admins_hospital_notice_path, "admins/hospital_notices" ],
         [ "回复内容", admins_reply_contents_path, %w[admins/reply_contents admins/reply_rules] ],
         [ "微信模板消息", admins_template_messages_path, "admins/template_messages" ],
         [ "发送记录", admins_notifications_path, %w[admins/notifications admins/wechat_notifications] ]

@@ -10,6 +10,9 @@ namespace :admins do
   resource :account, only: %i[edit update]
   resources :plugins, only: :index
   resource :user_sharing, only: %i[edit update], controller: "user_sharing"
+  resource :hospital_notice, only: %i[edit update] do
+    post :preview
+  end
   resources :notifications, only: %i[index show] do
     post :retry_failed, on: :member
   end

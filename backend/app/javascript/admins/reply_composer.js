@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const variableDrawer = root.querySelector("[data-notification-variables]");
   const accordionToggle = root.querySelector("[data-reply-accordion-toggle]");
   let busy = false, dirty = false, variableTarget = null, expandedMessage = reply.messages[0];
-  interval.addEventListener("input", () => { dirty = true; });
+  interval?.addEventListener("input", () => { dirty = true; });
   const newId = () => crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, "0")).join("");
   const node = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls; if (text) n.textContent = text; return n; };
   function field(parent, title, key, value, multiline = false) {
@@ -121,8 +121,29 @@ document.addEventListener("DOMContentLoaded", () => {
       box.querySelectorAll("[data-content]").forEach(control => { m.content[control.dataset.content] = control.value; });
     });
   }
+  const enabled = root.querySelector("[data-notice-enabled]");
+  enabled?.addEventListener("change", () => { dirty = true; });
+  let previewTimer, previewVersion = 0;
   function drawPreview() {
     read(); preview.replaceChildren();
+    if (root.dataset.preview) {
+      clearTimeout(previewTimer);
+      const version = ++previewVersion;
+      previewTimer = setTimeout(async () => {
+        try {
+          const result = await request(root.dataset.preview, "POST", { notification_content: { messages: reply.messages } });
+          if (version !== previewVersion) return;
+          for (const text of result.texts) {
+            const box = node("div", "card card-body mb-2 text-break", text);
+            box.style.whiteSpace = "pre-wrap";
+            preview.append(box);
+          }
+        } catch (e) {
+          if (version === previewVersion) preview.textContent = e.message;
+        }
+      }, 180);
+      return;
+    }
     reply.messages.forEach(m => {
       const box = node("div", "card card-body mb-2 text-break"); box.style.whiteSpace = "pre-wrap";
       const rendered = window.NotificationVariables ? window.NotificationVariables.render(m.content.text, variables, examples) : m.content.text;
@@ -293,10 +314,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!validateFields()) return;
     read();
     busy = true;
-    const sendInterval = interval.value === "" ? null : interval.valueAsNumber;
+    const sendInterval = !interval?.value ? null : interval.valueAsNumber;
     window.adminForms.setBusy(root, true);
     try {
-      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, send_interval: sendInterval, name: reply.name, messages: reply.messages } });
+      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, enabled: enabled?.checked, scope: scope?.value || input.scope, send_interval: sendInterval, name: reply.name, messages: reply.messages } });
       dirty = false;
       if (root.dataset.inline === "true" && window.opener) { window.opener.postMessage({ type: "booking.reply.saved", ...result, appId: new URL(location.href).pathname.split("/")[3] }, location.origin); window.close(); }
       else location.assign(root.dataset.back);

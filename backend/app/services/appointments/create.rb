@@ -91,6 +91,7 @@ module Appointments
           patient_mobile: contact, remark: remark,
           fee_cents: fee, payable_amount_cents: fee, **payment_attributes(payment)
         )
+        GroupNotice.publish("appointment_confirmed", record) if record.status == "confirmed"
         [ record, true ]
       end
       Result.new(appointment, "created")

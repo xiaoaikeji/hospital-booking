@@ -87,8 +87,8 @@ class OperationLogDetails
     "notification.code_bind" => { "fields" => %w[code_bind] },
     "notification.template_bind" => { "fields" => %w[template_bind] },
     "notification.template_unbind" => { "fields" => %w[template_unbind] },
-    "notification.wecom_content" => { "fields" => %w[messages send_interval],
-      "event" => %w[passed rejected delayed published failed violation appeal_1 appeal_2 appeal_3 category_2 category_3] },
+    "notification.wecom_content" => { "fields" => %w[messages send_interval enabled],
+      "event" => %w[passed rejected delayed published failed violation appeal_1 appeal_2 appeal_3 category_2 category_3] + Appointments::GroupNotice::EVENTS.keys },
     "wechat.notification_settings" => {
       "fields" => %w[webhook_key same_robot kinds pull_violations],
       "reason" => [
