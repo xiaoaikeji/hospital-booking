@@ -46,14 +46,18 @@ class Payments
       "appid" => app.appid, "openid" => identity.openid, "prepay_attempted" => false)
   end
 
+  def checkout(payment_no, ...)
+    number!(payment_no)
+    CheckoutLock.synchronize(payment_no) { checkout_locked(payment_no, ...) }
+  end
+
   # Commit the first request parameters before contacting WeChat. A missing attempt
   # marker on an older order means the result of its last request is unknown.
-  def checkout(payment_no, app:, identity:, description: nil, client_ip: nil)
+  private def checkout_locked(payment_no, app:, identity:, description: nil, client_ip: nil)
     payment = context(payment_no)
     check_identity!(app, identity)
     raise Error, "当前小程序或付款人与原单不符" unless payment["appid"] == app.appid && payment["openid"] == identity.openid
     check_payable!(payment)
-    raise CheckoutInFlight if IN_FLIGHT_OUTCOMES.include?(payment["prepay_outcome"])
 
     client, config = channel(payment)
     id, expiry = payment.values_at("prepay_id", "prepay_expires_at")
@@ -62,7 +66,6 @@ class Payments
       args, attempt, can_rule_out_order = with_payment(payment_no) do |order|
         current = order.payment_context
         check_payable!(current)
-        raise CheckoutInFlight if IN_FLIGHT_OUTCOMES.include?(current["prepay_outcome"])
         raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
         original = current["checkout_request"] || checkout_request(payment, description, client_ip)
         attempt = SecureRandom.uuid
@@ -223,7 +226,8 @@ class Payments
   end
 
   def reusable_prepay?(payment, deadline)
-    return true if deadline && deadline > PREPAY_MARGIN.from_now
+    interrupted = IN_FLIGHT_OUTCOMES.include?(payment["prepay_outcome"])
+    return true if !interrupted && deadline && deadline > PREPAY_MARGIN.from_now
     return false if payment["prepay_attempted"] == false && payment["prepay_id"].blank?
     return false if payment["prepay_outcome"] == "rejected"
 
@@ -238,7 +242,7 @@ class Payments
     raise Error, "原支付单状态为 #{state}，无法继续调起收银台"
   rescue ChannelError => error
     missing = payment.fetch("version") == "v2" ? "ORDERNOTEXIST" : "ORDER_NOT_EXIST"
-    raise unless error.code == missing
+    raise unless error.code == missing && !interrupted
     false
   end
 

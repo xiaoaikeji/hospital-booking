@@ -132,6 +132,23 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     assert_empty css_select("#booking_time option").map(&:text).grep(/–/)
   end
 
+  test "a selected half hour stays visible when another department has only a later booking" do
+    submit
+    assert_response :created
+    submit(department_id: @other_department.id, start_time: "09:30", end_time: "10:00")
+    assert_response :created
+    other_number = response.parsed_body.fetch("order_no")
+    sign_in Admin.create!(username: "filter_operator", role: "operator")
+
+    slot = "09:00–09:30"
+    get admins_reservations_path, params: { department_id: @other_department.id, booking_time: slot }
+    assert_select "#booking_time option[selected]", text: slot
+    assert_select "tbody tr", count: 0
+    get admins_reservations_path, params: { department_id: @other_department.id, booking_time: "" }
+    assert_select "tbody tr", count: 1
+    assert_select "td a", text: other_number
+  end
+
   test "replay precedes fee, cutoff and availability and never saves a second frequent patient" do
     @schedule.update!(capacity: 1)
     payload = { idempotency_key: "fixture-retry-after-response-loss", save_patient: true }

@@ -65,7 +65,7 @@ module Api
         render json: { payment_no: @appointment.payment_no, payment_params: payment_params }
       rescue Payments::CheckoutInFlight
         render_error(:service_unavailable, "payment_processing", "支付正在处理，请稍后查看")
-      rescue Payments::Error, WechatPaySettings::Invalid
+      rescue Payments::Error, WechatPaySettings::Invalid, ActiveRecord::ActiveRecordError
         render_error(:service_unavailable, "payment_unavailable", "暂时无法调起支付，请查看预约结果后重试")
       end
 

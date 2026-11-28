@@ -17,7 +17,7 @@ module Admins
       dates = @filters[:date_range] ? list_date_range(@filters[:date_range]) : legacy_period
       @date_range = @filters[:date_range] || (dates && [ dates.begin, dates.end ].uniq.join(" – "))
       time_filter = ReservationTimeFilter.new(filtered_appointments(dates))
-      @time_options = time_filter.options
+      @time_options = time_filter.options(@filters[:booking_time])
       @pagy, @reservations = pagy(:offset, time_filter.matching(@filters[:booking_time]), limit: 20)
       @list_context = @filters.merge(page: (@pagy.page if @pagy.page > 1)).compact
     end

@@ -10,9 +10,9 @@ class ReservationTimeFilter
     @start_clock = "(booking_start_at AT TIME ZONE #{zone})::time"
   end
 
-  def options
+  def options(selected)
     starts = half_hours.unscope(:order, :select).distinct.pluck(Arel.sql("to_char(#{@start_clock}, 'HH24:MI')"))
-    SHIFTS.invert.to_a + WINDOWS.select { |window| starts.include?(window.first(5)) }
+    SHIFTS.invert.to_a + WINDOWS.select { |window| window == selected || starts.include?(window.first(5)) }
   end
 
   def matching(value)
