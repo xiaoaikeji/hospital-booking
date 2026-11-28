@@ -16,7 +16,9 @@ module Admins
       @department_options = Department.where(id: Appointment.current.select(:department_id)).order(:name, :id).pluck(:name, :id)
       dates = @filters[:date_range] ? list_date_range(@filters[:date_range]) : legacy_period
       @date_range = @filters[:date_range] || (dates && [ dates.begin, dates.end ].uniq.join(" – "))
-      @pagy, @reservations = pagy(:offset, filtered_appointments(dates), limit: 20)
+      time_filter = ReservationTimeFilter.new(filtered_appointments(dates))
+      @time_options = time_filter.options
+      @pagy, @reservations = pagy(:offset, time_filter.matching(@filters[:booking_time]), limit: 20)
       @list_context = @filters.merge(page: (@pagy.page if @pagy.page > 1)).compact
     end
 
@@ -94,6 +96,7 @@ module Admins
       tab = "refund_reviews" if params[:tab] == "refund_reviews"
       {
         tab: tab,
+        booking_time: (params[:booking_time] if ReservationTimeFilter.valid?(params[:booking_time])),
         period: (params[:period].presence_in(PERIODS.keys) unless date_range),
         date_range: date_range,
         status: (params[:status].presence_in(Appointment::STATUS_LABELS.keys) unless tab),

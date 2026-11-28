@@ -176,40 +176,63 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   end
 
   %w[v2 v3].each do |version|
-    test "a verified #{version} first refusal and missing order releases tomorrow's last seat after cancellation" do
-      @version = version
-      config = WechatPaySettings.new
-      assert config.save(payment_settings(version).merge("revision" => config.revision), actor: nil)
-      tomorrow = Date.current.tomorrow
-      @doctor.schedules.create!(time_slot: "AM", weekday: tomorrow.wday, start_date: tomorrow, capacity: 1)
-      order = book!(booking_draft.merge(date: tomorrow.iso8601))
-      stub_prepay_rejection(order)
-      2.times do
-        post "#{patient_path(order)}/payment", headers: @headers, as: :json
-        assert_response :service_unavailable
-        assert_equal "rejected", order.reload.payment_data["prepay_outcome"]
-      end
-      get patient_path(order), headers: @headers, as: :json
-      assert response.parsed_body.fetch("can_pay")
-      assert_equal 0, remaining(order)
-      stub_missing_payment(order)
+    %w[patient staff expiry].each do |closing|
+      test "overlapping #{version} checkout releases one seat and restores quota after rejection and #{closing}" do
+        @version = version
+        config = WechatPaySettings.new
+        assert config.save(payment_settings(version).merge("revision" => config.revision), actor: nil)
+        tomorrow = Date.tomorrow
+        @doctor.schedules.create!(time_slot: "AM", weekday: tomorrow.wday, start_date: tomorrow, capacity: 8)
+        draft = booking_draft.merge(date: tomorrow.iso8601)
+        order = book!(draft)
+        AppointmentSettings::SLOT_TIMES[16..22].each_cons(2) do |start_at, end_at|
+          next if start_at == "09:30"
+          book!(draft.merge(idempotency_key: SecureRandom.uuid, start_time: start_at, end_time: end_at))
+        end
+        extra = draft.merge(idempotency_key: SecureRandom.uuid, start_time: "11:00", end_time: "11:30")
+        post_booking(extra)
+        assert_equal "daily_limit", response.parsed_body.fetch("code")
 
-      if version == "v3"
-        sign_in @operator
-        cancel_as_staff(order)
-      else
-        travel_to @started_at + 30.minutes
-      end
-      4.times { Appointments::ReconcileWorker.new.perform(order.id) }
-      assert_equal [ "cancelled", "closed", 1 ], [ order.reload.status, order.payment_status, remaining(order) ]
-      assert_equal "ORDER_NOT_CREATED", order_logs(order, "payment_closed").sole.details.fetch("channel_outcome")
-      refute @user.appointments.occupying.exists?(order.id)
+        second = open_session
+        headers = { "Authorization" => "Bearer #{MiniProgramSession.issue!(@identity).fetch(:token)}" }
+        calls = 0
+        stub_prepay_rejection(order) do
+          calls += 1
+          next unless calls == 1
 
-      another_user = User.create!(platform: "wechat")
-      identity = another_user.user_apps.create!(app: @mini_program, openid: "fixture-second-patient", last_sign_in_at: Time.current)
-      @headers = { "Authorization" => "Bearer #{MiniProgramSession.issue!(identity).fetch(:token)}" }
-      replacement = book!(booking_draft.merge(date: tomorrow.iso8601))
-      assert_equal [ another_user.id, 0 ], [ replacement.user_id, remaining(replacement) ]
+          second.post "#{patient_path(order)}/payment", headers: headers, as: :json
+          assert_equal "payment_processing", second.response.parsed_body.fetch("code")
+        end
+        2.times do
+          post "#{patient_path(order)}/payment", headers: @headers, as: :json
+          assert_response :service_unavailable
+          assert_equal "rejected", order.reload.payment_data["prepay_outcome"]
+        end
+        get patient_path(order), headers: @headers, as: :json
+        assert response.parsed_body.fetch("can_pay")
+        assert_equal 2, calls # One original request and one retry after its signed rejection.
+        assert_equal 0, remaining(order)
+        stub_missing_payment(order)
+        case closing
+        when "staff"
+          sign_in @operator
+          cancel_as_staff(order)
+        when "patient"
+          post "#{patient_path(order)}/cancel", headers: @headers, as: :json
+          assert_response :ok
+        end
+        travel_to @started_at + 12.hours
+        3.times { Appointments::ReconcileWorker.new.perform(order.id) }
+        assert_equal [ "cancelled", "closed", 1 ], [ order.reload.status, order.payment_status, remaining(order) ]
+        assert_equal "ORDER_NOT_CREATED", order_logs(order, "payment_closed").sole.details.fetch("channel_outcome")
+        assert_equal @user.id, book!(extra).user_id
+
+        another_user = User.create!(platform: "wechat")
+        identity = another_user.user_apps.create!(app: @mini_program, openid: "fixture-second-patient", last_sign_in_at: Time.current)
+        @headers = { "Authorization" => "Bearer #{MiniProgramSession.issue!(identity).fetch(:token)}" }
+        replacement = book!(draft.merge(idempotency_key: SecureRandom.uuid))
+        assert_equal [ another_user.id, 0 ], [ replacement.user_id, remaining(replacement) ]
+      end
     end
   end
 
@@ -248,15 +271,15 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
         body = { code: "APPID_MCHID_NOT_MATCH" }.to_json
         [ 400, v3_headers(body).merge("Wechatpay-Signature" => "bad-signature"), body ]
       when 2
+        Appointments::ReconcileWorker.new.perform(order.id)
         retry_session = open_session
         retry_session.post "#{patient_path(order)}/payment", headers: @headers, as: :json
-        assert_equal 200, retry_session.response.status
+        assert_equal "payment_processing", retry_session.response.parsed_body.fetch("code")
         send_notification(order, "payment", payment_result(order), open_session)
         body = { code: "APPID_MCHID_NOT_MATCH" }.to_json
         [ 400, v3_headers(body), body ]
       else
-        body = { prepay_id: "wx_fixture_retry" }.to_json
-        [ 200, v3_headers(body), body ]
+        flunk "Duplicate prepay"
       end
     end
 
@@ -270,8 +293,8 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     Appointments::ReconcileWorker.new.perform(order.id)
     post "#{patient_path(order)}/payment", headers: @headers, as: :json
     assert_response :service_unavailable
-    assert_equal [ "confirmed", 2000, "accepted", "wx_fixture_retry" ],
-      [ order.reload.status, order.paid_amount_cents, *order.payment_data.values_at("prepay_outcome", "prepay_id") ]
+    assert_equal [ "confirmed", 2000, 0 ], [ order.reload.status, order.paid_amount_cents, remaining(order) ]
+    assert_empty order_logs(order, "payment_closed")
   end
 
   test "six closed pending bookings stop counting against the account on the same visit date" do
@@ -546,11 +569,13 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   def stub_prepay_rejection(order)
     if @version == "v2"
       stub_wechat("v2", :post, "/pay/unifiedorder") do |fields|
+        yield
         assert_equal order.payment_no, fields.fetch("out_trade_no")
         { "result_code" => "FAIL", "err_code" => "APPID_MCHID_NOT_MATCH" }
       end
     else
       stub_wechat("v3", :post, "/v3/pay/transactions/jsapi", status: 400) do |fields|
+        yield
         assert_equal order.payment_no, fields.fetch("out_trade_no")
         { "code" => "APPID_MCHID_NOT_MATCH" }
       end

@@ -12,6 +12,7 @@ class Payments
   class Unavailable < Error
     def initialize(message = nil) = super(message || "微信支付结果待核实，请按原单号查询")
   end
+  class CheckoutInFlight < Unavailable; end
   class RefundNotFound < Unavailable; end
   class DeliveryError < Error; end
   class ChannelError < Error
@@ -25,6 +26,7 @@ class Payments
 
   class PrepayRejected < ChannelError; end
 
+  IN_FLIGHT_OUTCOMES = %w[in_flight in_flight_order_found].freeze
   PAYMENT_STATES = %w[SUCCESS NOTPAY USERPAYING CLOSED REVOKED PAYERROR REFUND].freeze
   REFUND_STATES = %w[PROCESSING SUCCESS CLOSED ABNORMAL].freeze
   NUMBER = /\A[0-9]{20}\z/
@@ -51,6 +53,7 @@ class Payments
     check_identity!(app, identity)
     raise Error, "当前小程序或付款人与原单不符" unless payment["appid"] == app.appid && payment["openid"] == identity.openid
     check_payable!(payment)
+    raise CheckoutInFlight if IN_FLIGHT_OUTCOMES.include?(payment["prepay_outcome"])
 
     client, config = channel(payment)
     id, expiry = payment.values_at("prepay_id", "prepay_expires_at")
@@ -59,6 +62,7 @@ class Payments
       args, attempt, can_rule_out_order = with_payment(payment_no) do |order|
         current = order.payment_context
         check_payable!(current)
+        raise CheckoutInFlight if IN_FLIGHT_OUTCOMES.include?(current["prepay_outcome"])
         raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
         original = current["checkout_request"] || checkout_request(payment, description, client_ip)
         attempt = SecureRandom.uuid
@@ -75,16 +79,13 @@ class Payments
       begin
         fresh = client.prepay(payment, description: args.fetch("description"), client_ip: args["client_ip"], notify_url: notify_url(config, payment, "payment"))
         validate_prepay!(fresh)
+        # A repeated ID keeps its original lifetime. Finish this attempt even when it has expired.
+        raise Unavailable if fresh == id && !deadline&.future?
       rescue Error, WechatPaySettings::Invalid => error
         record_checkout_failure!(payment_no, attempt, rejected: can_rule_out_order && error.is_a?(PrepayRejected))
         raise
       end
-      # A newly signed response containing the same ID does not renew its lifetime.
-      if fresh == id
-        raise Unavailable unless deadline&.future?
-      else
-        expiry = new_expiry
-      end
+      expiry = new_expiry unless fresh == id
       id = fresh
       with_payment(payment_no) do |order|
         current = order.payment_context
@@ -199,8 +200,12 @@ class Payments
   def record_checkout_failure!(payment_no, attempt, rejected:)
     with_payment(payment_no) do |order|
       current = order.payment_context
-      next true unless current["prepay_attempt"] == attempt && current["prepay_outcome"] == "in_flight"
+      next true unless current["prepay_attempt"] == attempt && IN_FLIGHT_OUTCOMES.include?(current["prepay_outcome"])
       next true if current["closed"] || current["transaction_id"].present?
+
+      if current["prepay_outcome"] == "in_flight_order_found"
+        next order.save_checkout!("prepay_outcome" => "accepted")
+      end
 
       order.save_checkout!("prepay_outcome" => (rejected ? "rejected" : "unknown"),
         "trade_state" => (rejected ? "NOTPAY" : "UNKNOWN"))

@@ -24,10 +24,11 @@
 
   <% if editable && item["status"] == "requested" %>
     <% available = reservation.refund_confirmation_balance(item) %>
+    <% free_return = cancel && available.zero? %>
     <% waiting = cancel && reservation.refund_difference_pending? %>
     <% confirm_amount = format("%.2f", (cancel ? available : item.fetch("amount_cents")).to_d / 100) %>
     <% review_summary = capture do %>
-      <p class="fs-2 fw-bold mb-2">本次退款 <%= confirm_amount %> 元</p>
+      <% unless free_return %><p class="fs-2 fw-bold mb-2">本次退款 <%= confirm_amount %> 元</p><% end %>
       <% if item["reason"].present? %>
         <p class="text-break mb-0"><%= item["reason"] %></p>
       <% end %>
@@ -51,8 +52,8 @@
     <% else %>
       <%= render "admins/shared/confirmation_modal", modal_id: "#{anchor}-approval", form_id: "#{anchor}-review",
         submitter_id: "#{anchor}-approve", color: "warning", title: (cancel ? "同意退号申请" : "同意退差价申请"),
-        context: reservation.order_no, description: (cancel ? "将取消预约" : "原预约保留"), summary: review_summary,
-        cancel_label: "返回修改", confirm_class: "text-dark", confirm_label: "确认退款 ¥#{confirm_amount}" %>
+        context: reservation.order_no, description: (free_return ? "确认后取消预约并释放号源" : (cancel ? "将取消预约" : "原预约保留")), summary: review_summary,
+        cancel_label: "返回修改", confirm_class: "text-dark", confirm_label: (free_return ? "确认退号" : "确认退款 ¥#{confirm_amount}") %>
     <% end %>
     <%= render "admins/shared/confirmation_modal", modal_id: "#{anchor}-rejection", form_id: "#{anchor}-review",
       submitter_id: "#{anchor}-reject", color: "warning", title: (cancel ? "拒绝退号申请" : "拒绝退差价申请"),

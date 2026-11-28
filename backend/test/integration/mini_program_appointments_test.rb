@@ -84,6 +84,54 @@ class MiniProgramAppointmentsTest < ActionDispatch::IntegrationTest
     refute_includes response.body, number
   end
 
+  test "reservation time filtering uses the saved booking window and current hospital shifts before pagination" do
+    submit
+    assert_response :created
+    base = Appointment.sole
+    base.update!(time_slot: "FULL")
+    sample = lambda do |shift, clock, label|
+      starts = Time.zone.parse("#{@day} #{clock}") if clock
+      copy = base.dup
+      copy.update!(time_slot: shift, slot_label: label, booking_start_at: starts, booking_end_at: starts && starts + 30.minutes,
+        idempotency_key: SecureRandom.uuid, order_no: Appointment.generate_order_no)
+      copy.order_no
+    end
+    morning = sample.call("AM", nil, "上午 09:00–09:30")
+    first = sample.call("AM", "08:00", "08:00–08:30")
+    last = sample.call("FULL", "11:30", "11:30–12:00")
+    noon = sample.call("FULL", "12:00", "12:00–12:30")
+    evening = sample.call("NIGHT", "17:00", "17:00–17:30")
+    full = sample.call("FULL", nil, "全天 08:00–17:00")
+    sign_in Admin.create!(username: "filter_operator", role: "operator")
+    results = lambda do |value|
+      get admins_reservations_path, params: { booking_time: value, department_id: @department.id }
+      assert_response :ok
+      css_select("tbody tr td:nth-child(2) a").map { |link| link.text.strip }.sort
+    end
+    assert_equal [ morning, first, base.order_no, last ].sort, results.call("AM")
+    assert_equal [ noon ], results.call("PM")
+    assert_equal [ evening ], results.call("NIGHT")
+    assert_equal [ full ], results.call("FULL")
+    assert_equal [ base.order_no ], results.call("09:00–09:30")
+
+    @settings.update!(settings: { "booking_morning_end_at" => "11:30" })
+    assert_equal [ morning, first, base.order_no ].sort, results.call("AM")
+    assert_equal [ last ], results.call("11:30–12:00")
+    assert_select "tbody td", text: /11:30–12:00/
+    @settings.update!(settings: { "booking_morning_begin_at" => "09:00", "booking_morning_end_at" => "09:30" })
+    assert_equal [ morning, base.order_no ].sort, results.call("AM")
+    assert_equal [ base.order_no ], results.call("09:00–09:30")
+
+    20.times { sample.call("AM", nil, "上午 09:00–09:30") }
+    options = %w[08:00–08:30 09:00–09:30 11:30–12:00 12:00–12:30 17:00–17:30]
+    [ 1, 2 ].each do |page|
+      get admins_reservations_path, params: { page: page }
+      assert_equal options, css_select("#booking_time option").map(&:text).grep(/–/)
+    end
+    get admins_reservations_path, params: { department_id: @other_department.id }
+    assert_empty css_select("#booking_time option").map(&:text).grep(/–/)
+  end
+
   test "replay precedes fee, cutoff and availability and never saves a second frequent patient" do
     @schedule.update!(capacity: 1)
     payload = { idempotency_key: "fixture-retry-after-response-loss", save_patient: true }
