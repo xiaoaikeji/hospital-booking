@@ -54,6 +54,10 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
         visible.each do |log|
           get admins_operation_log_path(log)
           assert_response :success
+          if log.action == "personal_appearance.update"
+            assert_select "button[data-bs-target='#theme-settings']", text: "查看个人外观", count: log.target_id == admin.id ? 1 : 0
+            assert_select "a", text: "查看业务记录", count: 0
+          end
         end
         hidden.each do |log|
           get admins_operation_log_path(log)
@@ -61,6 +65,19 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
         end
       end
     end
+  end
+
+  test "system failures show only supported filters and safe reasons" do
+    admin = Admin.create!(username: "fixture_system_admin", role: "super_admin")
+    login(admin)
+    %w[payment_unavailable write_failed private-fixture-text].each do |reason|
+      Log.record!(source: "user", category: "booking", action: "appointment.create", status: "failed", details: { reason: reason })
+    end
+    get admins_system_logs_path(source: "scheduler", status: "started")
+    %w[微信支付暂不可用 预约写入失败 预约创建失败].each { |label| assert_select "tbody td", text: label }
+    assert_select "nav[aria-label=结果] a", text: "已开始", count: 0
+    assert_select "input[value=scheduler]", count: 0
+    assert_not_includes response.body, "private-fixture-text"
   end
 
   test "each execution status has the same label in the filter, list and detail" do

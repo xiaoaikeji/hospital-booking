@@ -144,16 +144,26 @@ module Appointments
     def sync!(id)
       require_staff!
       item = find_item!(@appointment.reload.refund_items, id)
-      raise Appointment::InvalidOperation, "该申请尚未提交微信" unless item["attempted"]
+      unless item["attempted"]
+        record_sync_failure(item, "该申请尚未提交微信")
+        raise Appointment::InvalidOperation, "该申请尚未提交微信"
+      end
 
-      @payments.query_refund(@appointment.payment_no, refund_no: item.fetch("refund_no"))
-      event!("refund_sync", item)
+      @payments.query_refund(@appointment.payment_no, refund_no: item.fetch("refund_no")) do
+        raise ActiveRecord::RecordNotSaved unless event!("refund_sync", item).persisted?
+      end
     rescue Payments::Error, WechatPaySettings::Invalid
-      event!("refund_sync", item, status: "failed")
+      record_sync_failure(item, "微信退款查询失败")
       raise Appointment::InvalidOperation, "微信退款结果待核实，请稍后重试"
     end
 
     private
+
+    def record_sync_failure(item, reason)
+      event!("refund_sync", item, status: "failed", reason: reason)
+    rescue ActiveRecord::ActiveRecordError
+      Rails.logger.warn("核对退款失败审计未能写入")
+    end
 
     def staff? = @actor.is_a?(Admin) && @actor.enabled? && @actor.maintain_booking_directory?
 

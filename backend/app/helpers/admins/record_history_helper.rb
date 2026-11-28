@@ -49,19 +49,33 @@ module Admins::RecordHistoryHelper
     when "wechat_pay.gateway_error"
       Wechat::PaymentV3Client.diagnostic_details(log.details)[:reason] || "微信支付网关异常（历史详情已隐藏）"
     when "appointment.create"
-      Appointments::Create::MESSAGES.stringify_keys.fetch(reason, "预约创建失败")
+      { "payment_unavailable" => "微信支付暂不可用", "write_failed" => "预约写入失败" }
+        .fetch(reason) { Appointments::Create::MESSAGES.stringify_keys.fetch(reason, "预约创建失败") }
     when "admin.create" then "控制台初始化管理员"
     end
+  end
+
+  def record_target_link(log)
+    label = "查看业务记录"
+    if log.target_type == "Appointment"
+      order = Appointment.readable_by_admin(current_admin).find_by(id: log.target_id)
+      return unless order
+
+      refund_id = log.details["refund_record_id"] if log.details.is_a?(Hash)
+      item = order.readable_refund_items.find { |row| row["id"] == refund_id } if refund_id
+      if item
+        label = item["kind"] == "cancel" && item["amount_cents"] == 0 ? "查看退号记录" : "查看退款记录"
+      end
+      path = admins_reservation_path(order.order_no, anchor: ("refund-#{refund_id}" if item))
+    else
+      path = record_target_path(log)
+    end
+    link_to label, path, class: "btn btn-sm btn-info mt-3" if path
   end
 
   def record_target_path(log)
     id = log.target_id
     case log.target_type
-    when "Appointment"
-      order = Appointment.current.find_by(id: id)
-      refund_id = log.details["refund_record_id"] if log.details.is_a?(Hash)
-      item = order&.refund_items&.find { |row| row["id"] == refund_id && refund_id.is_a?(Integer) }
-      admins_reservation_path(order.order_no, anchor: ("refund-#{refund_id}" if item)) if order
     when "Doctor" then admins_doctor_path(id) if Doctor.current.exists?(id)
     when "Department" then admins_department_path(id) if Department.exists?(id)
     when "Schedule"
@@ -83,6 +97,7 @@ module Admins::RecordHistoryHelper
       when "app.user_sharing" then edit_admins_user_sharing_path
       end
     when "Admin"
+      return if log.action == "personal_appearance.update"
       return edit_admins_account_path if log.action == "admin.password" && id == current_admin.id
       edit_admins_administrator_path(id) if current_admin.super_admin? && Admin.exists?(id)
     when "Link" then edit_admins_page_link_path(id) if current_admin.super_admin? && Link.exists?(id)

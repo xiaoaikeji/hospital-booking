@@ -2,9 +2,11 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "系统记录", icon: :history } do %><% end %>
 <section class="card">
   <% url = ->(changes) { admins_system_logs_path(@filters.merge(changes).compact) } %>
-  <%= render "admins/shared/list_filter_row", label: "来源", key: :source, options: Admins::RecordHistoryHelper::SYSTEM_SOURCES.slice("system", "user", "console"), selected: @filters[:source], filter_url: url %>
-  <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::OperationLogsController::STATUSES.transform_values(&:first), selected: @filters[:status], filter_url: url %>
-  <div class="card-header"><%= form_with url: admins_system_logs_path, method: :get, class: "d-flex gap-2" do |form| %>
+  <div class="list-group list-group-flush">
+    <%= render "admins/shared/list_filter_row", label: "来源", key: :source, options: Admins::SystemLogsController::SOURCES, selected: @filters[:source], filter_url: url %>
+    <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::SystemLogsController::STATUSES, selected: @filters[:status], filter_url: url %>
+  </div>
+  <div class="card-header"><%= form_with url: admins_system_logs_path, method: :get, class: "d-flex flex-wrap gap-2" do |form| %>
     <% @filters.slice(:source, :status).each do |key, value| %><%= form.hidden_field key, value: value %><% end %>
     <%= render "admins/shared/date_field", id: "system-range", name: :date_range, value: @filters[:date_range], prefix: "记录", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
     <%= form.submit "查询", class: "btn" %><%= link_to "重置筛选", admins_system_logs_path, class: "btn" if @filters.any? %>

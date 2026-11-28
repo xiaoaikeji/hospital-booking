@@ -8,7 +8,7 @@ module Admins
         render :registration_error, status: :unprocessable_content
         next
       end
-      audit(action_name, status: "failed") if action_name.in?(%w[create update enable disable])
+      audit(action_name, status: "failed") if action_name.in?(%w[create update])
       render json: error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }, status: :unprocessable_content
     end
 
@@ -47,16 +47,30 @@ module Admins
     end
 
     def enable
-      @template.change_enabled!(true) { audit("enable") }
-      redirect_to admins_hospital_notices_path, status: :see_other
+      change_enabled(true)
     end
 
     def disable
-      @template.change_enabled!(false) { audit("disable") }
-      redirect_to admins_hospital_notices_path, status: :see_other
+      change_enabled(false)
     end
 
     private
+
+    def change_enabled(value)
+      @template.change_enabled!(value) { audit(action_name) }
+      redirect_to admins_hospital_notices_path, status: :see_other
+    rescue ActiveRecord::ActiveRecordError, Notifications::Error
+      reason = value ? "模板启用失败" : "模板停用失败"
+      begin
+        audit(action_name, status: "failed", details: { reason: reason })
+      rescue ActiveRecord::ActiveRecordError
+        Rails.logger.warn("通知模板失败审计未能写入")
+      end
+      respond_to do |format|
+        format.html { redirect_to admins_hospital_notices_path, alert: reason, status: :see_other }
+        format.json { render json: { error: reason }, status: :unprocessable_content }
+      end
+    end
 
     def prepare_editor
       text = "{event_name}\n预约号：{order_no}"
@@ -82,9 +96,10 @@ module Admins
       render json: { saved: true }
     end
 
-    def audit(action, status: "success")
-      Log.record!(category: "notification", action: "notification.hospital_#{action}", actor: current_admin,
-        target: @template, request: request, status: status)
+    def audit(action, status: "success", details: {})
+      entry = Log.record!(category: "notification", action: "notification.hospital_#{action}", actor: current_admin,
+        target: @template, request: request, status: status, details: details)
+      raise ActiveRecord::RecordNotSaved unless entry.persisted?
     end
 
     def load_template

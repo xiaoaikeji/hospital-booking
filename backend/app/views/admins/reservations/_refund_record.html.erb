@@ -1,9 +1,6 @@
 <% cancel = item["kind"] == "cancel" %>
 <% no_charge = cancel && item["amount_cents"] == 0 %>
 <% label = no_charge && item["status"] == "succeeded" ? "已退号" : Appointment::REFUND_ITEM_LABELS.fetch(item["status"]) %>
-<% cash = "#{Appointment.cents_in_yuan(item["payer_refund_cents"])} 元" unless item["payer_refund_cents"].nil? %>
-<% cash ||= "待核对" if item["amount_cents"].to_i.positive? && item["status"] == "succeeded" %>
-<% amount = "#{Appointment.cents_in_yuan(item["amount_cents"])} 元" if item["amount_cents"] %>
 <% anchor = reservation_refund_anchor(item) %>
 
 <article class="list-group-item py-3" id="<%= anchor %>">
@@ -14,11 +11,11 @@
   <% fields = { "退款单号" => (item["refund_no"] unless no_charge),
     "发起人" => (item["requested_by_type"] == "Admin" ? @refund_admins[item["requested_by_id"]]&.display_name : "患者"),
     "审核人" => @refund_admins[item["reviewed_by_admin_id"]]&.display_name,
-    "申请时间" => (admin_list_time(Time.iso8601(item["created_at"])) if item["created_at"].present?),
-    "退款金额" => (amount unless no_charge),
+    "申请时间" => admin_list_time(refund_time(item["created_at"])),
+    "退款金额" => ((item["amount_cents"].nil? ? "待确定" : financial_amount(item["amount_cents"])) unless no_charge),
     "原因" => item["reason"], "审核意见" => item["review_note"],
-    "现金退款" => cash,
-    "退款时间" => (admin_list_time(Time.iso8601(item["refunded_at"])) if item["refunded_at"])
+    "现金退款" => (refund_cash_label(item) unless no_charge),
+    "退款时间" => admin_list_time(refund_time(item["refunded_at"]))
   }.compact %>
   <%= render "admins/shared/field_rows", fields: fields, full: ["原因", "审核意见"] %>
 

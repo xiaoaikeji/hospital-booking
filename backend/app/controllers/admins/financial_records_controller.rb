@@ -6,13 +6,27 @@ module Admins
       @refunds = request.path_parameters[:kind] == "refunds"
       @filters = params.permit(:date_range, :q, :status).to_h.symbolize_keys.compact_blank
       @filters.delete(:status) unless @refunds && Appointment::REFUND_ITEM_LABELS.key?(@filters[:status])
-      rows = Appointment.current.where(payment_channel: "wechat_jsapi", payment_status: "paid")
+      rows = Appointment.wechat_receipts
       if @refunds
-        # Expand before filtering/counting so each row (including page boundaries) is one refund.
-        rows = rows.joins("CROSS JOIN LATERAL jsonb_array_elements(appointments.refund_data->'items') WITH ORDINALITY AS refunds(item, ordinal)")
-          .select("appointments.id, appointments.order_no, item, ordinal, NULLIF(item->>'created_at', '')::timestamptz AS recorded_at")
+        # Guard the function itself as well as pruning bookings before the lateral join.
+        items = "appointments.refund_data->'items'"
+        rows = rows.where("jsonb_typeof(#{items}) = 'array' AND #{items}->0 IS NOT NULL")
+          .joins("CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(#{items}) = 'array' THEN #{items} END) WITH ORDINALITY AS refunds(item, ordinal)")
+          .where("jsonb_typeof(item->'id') = 'number' AND item->>'id' ~ '^[1-9][0-9]*$'")
+          .where("item->>'kind' IN ('cancel','admin_refund') AND item->>'status' IN (?)", Appointment::REFUND_ITEM_LABELS.keys)
+          .where(<<~SQL.squish)
+            ((jsonb_typeof(item->'amount_cents') = 'number' AND item->>'amount_cents' ~ '^[0-9]+$')
+              OR (item->>'amount_cents' IS NULL AND item->>'kind' = 'cancel' AND item->>'status' <> 'succeeded'))
+            AND NOT item @> '{"kind":"cancel","amount_cents":0}'
+          SQL
+          .select(<<~SQL.squish)
+            appointments.id, order_no, item, ordinal,
+            CASE WHEN item->>'created_at' ~ '#{Appointment::REFUND_TIME_FORMAT}'
+              THEN (jsonb_path_query_first_tz(item, '$.created_at.datetime()', '{}', true) #>> '{}')::timestamptz
+            END AS recorded_at
+          SQL
         rows = rows.where("item->>'status' = ?", @filters[:status]) if @filters[:status]
-        search_columns = ["order_no", "item->>'refund_no'"]
+        search_columns = ["order_no", "payment_no", "item->>'refund_no'"]
       else
         rows = rows.select(:id, :order_no, :payment_no, :transaction_no, :payable_amount_cents, :paid_amount_cents, "paid_at AS recorded_at")
         search_columns = %w[order_no payment_no transaction_no]

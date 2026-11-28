@@ -1,5 +1,5 @@
 <% reservation = @reservation %>
-<% can_cancel_payment = current_admin.maintain_booking_directory? && reservation.pending_payment? && !reservation.payment_cancel_requested_at? %>
+<% can_cancel_payment = @editable && reservation.pending_payment? && !reservation.payment_cancel_requested_at? %>
 <% content_for :title, "#{reservation.order_no} · 预约详情 · Booking 管理后台" %>
 <% content_for :mobile_theme_menu, "true" %>
 <% content_for :head do %>
@@ -7,13 +7,13 @@
 <% end %>
 
 <%= render layout: "admins/shared/list_page_header", locals: { title: "预约详情", icon: :calendar } do %>
-  <% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
+  <% if @editable && reservation.can_complete? %>
     <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-completed-visit"><%= render "layouts/admins/icon", name: :check %>登记已就诊</button>
   <% end %>
   <%= link_to reservation_list_return_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 
-<% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
+<% if @editable && reservation.can_complete? %>
   <%= form_with url: complete_admins_reservation_path(reservation.order_no, @list_context), method: :patch, id: "complete-visit", hidden: true do %><% end %>
   <% description = "请确认患者已经就诊。登记后，预约将办结并关闭退号入口。" %>
   <% if reservation.refund_items.any? { |item| item["kind"] == "cancel" && item["status"] == "requested" } %>
@@ -32,6 +32,7 @@
         <div class="d-flex flex-wrap align-items-center gap-2">
           <h2 class="h2 mb-0 text-break"><%= reservation.order_no %></h2>
           <%= reservation_badge(reservation) %>
+          <% if reservation.deleted_at? %><span class="badge bg-secondary-lt">已归档</span><% end %>
         </div>
         <div class="text-secondary mt-1">创建于 <%= admin_list_time(reservation.created_at) %></div>
         <% if reservation.completed_at %>

@@ -15,12 +15,31 @@ module Admins::ReservationsHelper
 
   def financial_amount(cents) = cents.nil? ? "待核对" : "#{Appointment.cents_in_yuan(cents)} 元"
 
-  def reservation_list_return_path
-    filters = params.permit(filters: %i[date_range q status page]).fetch(:filters, {})
-    if current_admin.view_financial_records?
-      return admins_refund_records_path(filters) if params[:ledger] == "refunds"
-      return admins_payment_records_path(filters) if params[:ledger] == "payments"
+  def refund_cash_label(item)
+    case item["status"]
+    when "succeeded"
+      cash = item["payer_refund_cents"]
+      return financial_amount(cash) if cash.is_a?(Integer) && cash >= 0
+      return "待核对" if item["amount_cents"].to_i.positive?
+
+      "—"
+    when "failed", "rejected" then "未退款"
+    else Appointment::REFUND_ITEM_LABELS.fetch(item["status"])
     end
+  end
+
+  def refund_time(value)
+    return unless value.is_a?(String) && value.match?(/#{Appointment::REFUND_TIME_FORMAT}/)
+
+    DateTime.rfc3339(value).in_time_zone
+  rescue Date::Error
+    nil
+  end
+
+  def reservation_list_return_path
+    return admins_refund_records_path(@list_context.fetch(:filters, {})) if @list_context[:ledger] == "refunds"
+    return admins_payment_records_path(@list_context.fetch(:filters, {})) if @list_context[:ledger] == "payments"
+
     admins_reservations_path(@list_context)
   end
 
@@ -30,7 +49,7 @@ module Admins::ReservationsHelper
 
   def reservation_refund_statuses(record)
     statuses = [ record.refund_status ]
-    statuses << "requested" if record.refund_items.any? { |item| item["status"] == "requested" }
+    statuses << "requested" if record.readable_refund_items.any? { |item| item["status"] == "requested" }
     statuses.delete("none")
     statuses.delete("requested") if record.status == "cancel_requested"
     statuses.uniq

@@ -58,7 +58,9 @@ class OperationLogDetails
     "appointment.payment_confirmed" => APPOINTMENT_PAYMENT.merge("paid_amount_cents" => 0..ID.end),
     "appointment.hospital_refund" => BOOKING_REFUND.merge("automatic" => :boolean),
     "appointment.refund_review" => BOOKING_REFUND.merge("decision" => %w[approve reject], "reason" => %w[visit_completed]),
-    "appointment.refund_sync" => BOOKING_REFUND,
+    "appointment.refund_sync" => BOOKING_REFUND.merge("reason" => %w[该申请尚未提交微信 微信退款查询失败]),
+    "notification.hospital_enable" => { "reason" => ["模板启用失败"] },
+    "notification.hospital_disable" => { "reason" => ["模板停用失败"] },
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
     "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE, HospitalProfile::INVALID_LOCATION ] },
     "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,
@@ -155,6 +157,7 @@ class OperationLogDetails
       value = safe_value(key, details[key], rule)
       fields[key] = value unless value.nil?
     end
+    allowed.delete("refund_no") if allowed["kind"] == "cancel" && allowed["amount_cents"] == 0
     rows = allowed.to_h do |key, value|
       value = DirectoryEntry::STATUSES.fetch(value) if key == "status_value" && value.is_a?(Integer)
       value = PAYMENT_CLOSE_OUTCOMES.fetch(value) if key == "channel_outcome"

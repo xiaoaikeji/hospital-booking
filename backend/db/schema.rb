@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -134,6 +134,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
     t.index ["department_id"], name: "index_appointments_on_department_id"
     t.index ["doctor_id", "appointment_date"], name: "index_appointments_on_doctor_id_and_appointment_date"
     t.index ["order_no"], name: "index_appointments_on_order_no", unique: true
+    t.index ["paid_at", "id"], name: "index_appointments_on_wechat_receipts", order: { paid_at: "DESC NULLS LAST", id: :desc }, where: "(((payment_channel)::text = 'wechat_jsapi'::text) AND ((payment_status)::text = 'paid'::text))"
     t.index ["patient_id"], name: "index_appointments_on_patient_id"
     t.index ["payer_user_id"], name: "index_appointments_on_payer_user_id"
     t.index ["payment_channel", "mch_id", "transaction_no"], name: "index_appointments_on_channel_transaction", unique: true, where: "(transaction_no IS NOT NULL)"
@@ -293,12 +294,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
     t.string "target_type", limit: 100
     t.text "user_agent"
     t.index ["action"], name: "index_logs_on_action"
+    t.index ["actor_type", "actor_id", "created_at", "id"], name: "index_logs_on_actor_history"
     t.index ["category"], name: "index_logs_on_category"
     t.index ["correlation_id"], name: "index_logs_on_correlation_id"
     t.index ["created_at"], name: "index_logs_on_created_at"
     t.index ["job_id"], name: "index_logs_on_job_id"
     t.index ["request_id"], name: "index_logs_on_request_id"
     t.index ["source"], name: "index_logs_on_source"
+    t.index ["target_type", "target_id", "created_at", "id"], name: "index_logs_on_target_history"
   end
 
   create_table "mini_program_audits", force: :cascade do |t|

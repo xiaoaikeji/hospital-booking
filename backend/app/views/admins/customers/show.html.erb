@@ -84,7 +84,7 @@
       <div class="list-group-item"><%= admin_list_time(log.created_at) %> ·
         <% if log.action == "mini_program.entry" %>
           <% identity = @identities.detect { |row| row.id == log.target_id } %>
-          进入<%= identity.app_name %> · <%= safe_entry_scene(log, identity) %>
+          进入<%= identity.app_name.presence || identity.appid %> · <%= safe_entry_scene(log, identity) %>
         <% else %>
           <%= Admins::RecordHistoryHelper::PATIENT_EVENTS.fetch(log.action) %> #<%= log.target_id %>
         <% end %>

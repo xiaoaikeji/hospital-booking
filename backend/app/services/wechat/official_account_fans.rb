@@ -11,7 +11,7 @@ module Wechat
         require_direct_access!
         previous = OfficialAccountFanSync.active.find_by(app: @app)
         return false if previous&.busy?
-        previous&.update!(state: "failed", error: "任务已中断")
+        finish!(previous, "failed", error: "任务已中断") if previous
         row = OfficialAccountFanSync.create!(app: @app, operator: actor)
         Wechat.log!(@app, "fan_sync", actor: actor, request: request, status: "started", details: { sync_id: row.id })
         row

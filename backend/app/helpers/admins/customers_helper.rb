@@ -19,6 +19,7 @@ module Admins::CustomersHelper
   def safe_entry_scene(log, identity)
     data = log.details.is_a?(Hash) ? log.details : {}
     code = data["launch_scene"]
+    code = code.to_i if code.is_a?(String) && code.match?(/\A[0-9]{4}\z/)
     return "渠道入口" if data["channel_scene"].present? && code.nil?
     return "场景未记录" unless code.is_a?(Integer) && (1000..9999).cover?(code)
 

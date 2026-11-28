@@ -97,6 +97,23 @@ class OfficialAccountFansTest < ActionDispatch::IntegrationTest
     assert_not_includes Log.where(action: "wechat.fan_sync").pluck(:details).to_json, "first"
   end
 
+  test "a replacement records the interrupted run once under its own account" do
+    old = OfficialAccountFanSync.create!(app: @a, operator: @admin, state: "running", updated_at: 2.hours.ago)
+    Sidekiq.testing!(:fake) do
+      2.times { post sync_admins_app_fans_path(@a) }
+      WechatPlatform::FanSyncWorker.drain
+    end
+    2.times { WechatPlatform::FanSyncWorker.new.perform(old.id) }
+    assert_equal "failed", old.reload.state
+    assert_equal "success", OfficialAccountFanSync.where(app: @a).last.state
+    failures = Log.where(source: "job", action: "wechat.fan_sync", status: "failed")
+    assert_equal [@a.id, old.id], [failures.sole.target_id, failures.sole.details.fetch("sync_id")]
+    get admins_app_path(@a)
+    assert_select ".list-group-item", text: /同步公众号粉丝.*失败/, count: 1
+    get admins_app_path(@b)
+    assert_select ".list-group-item", text: /同步公众号粉丝.*失败/, count: 0
+  end
+
   test "分页每百人取资料、完整名单才核销、其他账号与同步期间的回调不受影响" do
     @ids = ["gone"]
     sync

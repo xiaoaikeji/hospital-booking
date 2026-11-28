@@ -23,10 +23,14 @@ module Admins
     end
 
     def show
-      @list_context = list_filters.merge(params.permit(:page).to_h.symbolize_keys)
-      @events = Log.where(target_type: "Appointment", target_id: @reservation.id, category: "booking",
-        status: %w[started success], action: Admins::RecordHistoryHelper::APPOINTMENT_EVENTS.keys).order(:created_at, :id)
-      items = @reservation.refund_items
+      @list_context = detail_context
+      items = @reservation.readable_refund_items
+      @editable = current_admin.maintain_booking_directory? && !@reservation.deleted_at? && items == @reservation.refund_items
+      @reservation.refund_data = { "items" => items }
+      @reservation.readonly!
+      events = Log.where(target_type: "Appointment", target_id: @reservation.id, category: "booking",
+        status: %w[started success], action: Admins::RecordHistoryHelper::APPOINTMENT_EVENTS.keys).order(created_at: :desc, id: :desc)
+      @events_pagy, @events = pagy(:offset, events, limit: 20, page_key: "events_page")
       @refund_by_id = items.index_by { |item| item["id"] }.except(nil)
       admin_ids = items.filter_map { |item| item["requested_by_id"] if item["requested_by_type"] == "Admin" }
       admin_ids.concat(items.filter_map { |item| item["reviewed_by_admin_id"] })
@@ -93,10 +97,13 @@ module Admins
       else {}
       end
       @reservation.record_event!(event, source: "admin", actor: current_admin, request: request, status: "failed", details: details)
+    rescue ActiveRecord::ActiveRecordError
+      Rails.logger.warn("预约失败审计未能写入")
     end
 
     def load_reservation
-      @reservation = Appointment.current.find_by!(order_no: params[:order_no])
+      scope = action_name == "show" ? Appointment.readable_by_admin(current_admin) : Appointment.current
+      @reservation = scope.find_by!(order_no: params[:order_no])
     end
 
     def request_refund(kind)
@@ -109,7 +116,31 @@ module Admins
     end
 
     def refund_service = Appointments::Refunds.new(@reservation, source: "admin", actor: current_admin, request: request)
-    def reservation_path = admins_reservation_path(@reservation.order_no, list_filters.merge(params.permit(:page).to_h.symbolize_keys))
+    def reservation_path = admins_reservation_path(@reservation.order_no, detail_context)
+
+    def detail_context
+      ledger = params[:ledger].presence_in(%w[payments refunds]) if current_admin.view_financial_records?
+      return list_filters.merge(params.permit(:page).to_h.symbolize_keys) unless ledger
+
+      input = params[:filters]
+      return { ledger: ledger } unless input.is_a?(ActionController::Parameters)
+
+      filters = {}
+      q = input[:q]
+      filters[:q] = q.strip if q.is_a?(String) && q.strip.match?(/\A[[:alnum:]_-]{1,80}\z/)
+      filters[:status] = input[:status] if ledger == "refunds" && Appointment::REFUND_ITEM_LABELS.key?(input[:status])
+      filters[:page] = input[:page] if input[:page].to_s.match?(/\A[1-9]\d{0,8}\z/)
+      date = input[:date_range]
+      filters[:date_range] = date if date.is_a?(String) && date.present? && valid_ledger_date?(date)
+      { ledger: ledger, filters: filters }
+    end
+
+    def valid_ledger_date?(date)
+      range = list_date_range(date)
+      range.begin.nil? || range.end.nil? || range.begin <= range.end
+    rescue ActionController::BadRequest
+      false
+    end
 
     def list_filters
       date_range = params[:date_range].presence if params[:date_range].is_a?(String)

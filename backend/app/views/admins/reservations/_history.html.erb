@@ -1,4 +1,4 @@
-<section class="card mt-3" aria-label="预约动态">
+<section id="booking-history" class="card mt-3" aria-label="预约动态">
   <div class="card-header"><h2 class="card-title">预约动态</h2></div>
   <div class="list-group list-group-flush">
     <% if @events.empty? %><div class="list-group-item text-secondary">暂无预约动态</div><% end %>
@@ -7,8 +7,9 @@
         <time class="text-secondary"><%= admin_list_time(log.created_at) %></time>
         <span><%= appointment_event_actor(log) %></span><strong><%= appointment_event_summary(log) %></strong>
         <% item = log.details.is_a?(Hash) && @refund_by_id[log.details["refund_record_id"]] %>
-        <% if item %><%= link_to "退款单 #{item["refund_no"].presence || item["id"]}", "#refund-#{item["id"]}" %><% end %>
+        <% if item %><%= link_to (item["kind"] == "cancel" && item["amount_cents"] == 0 ? "退号记录" : "退款单 #{item["refund_no"].presence || item["id"]}"), "#refund-#{item["id"]}" %><% end %>
       </div>
     <% end %>
   </div>
+  <%= render "admins/shared/pagination", pagy: @events_pagy, url: ->(page) { admins_reservation_path(@reservation.order_no, @list_context.merge(events_page: page, anchor: "booking-history")) } %>
 </section>

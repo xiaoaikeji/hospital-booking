@@ -11,6 +11,7 @@ class Appointment < ApplicationRecord
   }.freeze
   REFUND_ITEM_LABELS = REFUND_LABELS.slice("requested", "approved", "rejected", "processing", "failed")
     .merge("succeeded" => "已退款").freeze
+  REFUND_TIME_FORMAT = '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$'
   ACTIVE_REFUND_STATES = %w[requested approved processing].freeze
   ACTIVE_BOOKING_STATES = %w[pending_payment confirmed cancel_requested].freeze
 
@@ -25,6 +26,12 @@ class Appointment < ApplicationRecord
   self.filter_attributes += %i[payment_data refund_data]
 
   scope :current, -> { where(deleted_at: nil) }
+  scope :wechat_receipts, -> { where(payment_channel: "wechat_jsapi", payment_status: "paid") }
+
+  def self.readable_by_admin(admin)
+    admin.view_financial_records? ? current.or(wechat_receipts) : current
+  end
+
   scope :occupying, -> { where(status: [ *ACTIVE_BOOKING_STATES, "completed" ]) }
   scope :awaiting_visit, -> { current.where(status: ACTIVE_BOOKING_STATES) }
   scope :newest_first, -> { order(created_at: :desc, id: :desc) }
@@ -43,6 +50,25 @@ class Appointment < ApplicationRecord
   def payment_checking? = pending_payment? && payment_data["trade_state"].present? && payment_data["trade_state"] != "NOTPAY"
 
   def refund_items = refund_data.fetch("items", [])
+
+  # Read projection for historical JSON. Never feed the filtered items back into a write.
+  def readable_refund_items
+    items = refund_data["items"]
+    return [] unless items.is_a?(Array)
+
+    items.filter_map do |item|
+      next unless item.is_a?(Hash) && item["id"].is_a?(Integer) && item["id"].positive?
+      next unless REFUND_ITEM_LABELS.key?(item["status"]) && %w[cancel admin_refund].include?(item["kind"])
+
+      amount = item["amount_cents"]
+      undecided = amount.nil? && item["kind"] == "cancel" && item["status"] != "succeeded"
+      next unless undecided || (amount.is_a?(Integer) && amount >= 0)
+
+      cash = item["payer_refund_cents"]
+      cash.nil? || (cash.is_a?(Integer) && cash >= 0) ? item : item.except("payer_refund_cents")
+    end
+  end
+
   def active_refunds = refund_items.select { |item| ACTIVE_REFUND_STATES.include?(item.fetch("status")) }
   def succeeded_refunds = refund_items.select { |item| item.fetch("status") == "succeeded" }
   def confirmed_refunded_cash_cents
@@ -53,7 +79,7 @@ class Appointment < ApplicationRecord
   def remaining_gross_cents = payable_amount_cents - succeeded_refunds.sum { |item| item.fetch("amount_cents") }
   def available_refund_cents = remaining_gross_cents - active_refunds.sum { |item| item["amount_cents"].to_i }
   def refund_difference_pending? = active_refunds.any? { |item| item["kind"] == "admin_refund" }
-  def refund_confirmation_balance(item = nil) = available_refund_cents + item&.fetch("amount_cents").to_i
+  def refund_confirmation_balance(item = nil) = available_refund_cents + item&.dig("amount_cents").to_i
 
   def patient_can_return? = status == "confirmed" && payment_status == "paid" && appointment_date >= Date.current
   def return_failed? = status == "cancelled" && refund_items.reverse.find { |item| item["kind"] == "cancel" }&.fetch("status") == "failed"

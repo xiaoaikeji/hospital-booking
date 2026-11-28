@@ -155,10 +155,10 @@ class Payments
     deliver(payment, result, refund_no: refund_no)
   end
 
-  def query_refund(payment_no, refund_no:)
+  def query_refund(payment_no, refund_no:, &on_confirmed)
     payment, = refund_context(payment_no, refund_no)
     client, = channel(payment)
-    deliver(payment, client.query_refund(payment, refund_no), refund_no: refund_no)
+    deliver(payment, client.query_refund(payment, refund_no), refund_no: refund_no, &on_confirmed)
   rescue ChannelError => error
     raise unless %w[REFUNDNOTEXIST RESOURCE_NOT_EXISTS].include?(error.code)
     # Absence immediately after submission does not release the business reservation.
@@ -322,6 +322,7 @@ class Payments
       # V3 refunds identify the app by the verified original paid transaction.
       result[:appid] ||= payment.fetch("appid")
       raise DeliveryError, "支付业务写入失败" unless order.apply!(result) == true
+      yield if block_given?
       result
     end
     raise DeliveryError, "支付业务写入失败" unless committed.equal?(result)

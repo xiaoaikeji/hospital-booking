@@ -84,8 +84,10 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       { "code" => "ORDER_PAID" }
     end
     sign_in @operator
-    cancel_as_staff(order)
+    context = { ledger: "payments", filters: { q: order.order_no, page: "2" } }
+    cancel_as_staff(order, context: context)
     follow_redirect!
+    assert_select "a[href=?]", admins_payment_records_path(context[:filters]), text: /返回列表/
     assert_includes response.body, "微信已确认收款"
     assert_select "button", text: "医院退号", count: 1
     assert_select "button", text: "取消待支付预约", count: 0
@@ -417,8 +419,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     settle_payment(order)
     request_return(order)
     sign_in @operator
-    patch complete_admins_reservation_path(order.order_no)
-    assert_response :see_other
+    context = { ledger: "payments", filters: { q: order.order_no, page: "2" } }
+    patch complete_admins_reservation_path(order.order_no, context)
+    assert_redirected_to admins_reservation_path(order.order_no, context)
     assert_equal [ "completed", @operator.id, @started_at, 0 ], [ order.reload.status, order.completed_by_admin_id, order.completed_at, remaining(order) ]
     assert_equal "rejected", order.refund_items.sole.fetch("status")
     request_return(order, expected: :unprocessable_content)
@@ -449,8 +452,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
     sign_in @operator
     requests = stub_v3_refunds(order)
-    post return_booking_admins_reservation_path(order.order_no), params: { refund: refund_form(order, reason: "虚构医生停诊") }
-    assert_response :see_other
+    context = { ledger: "payments", filters: { q: order.payment_no, page: "2" } }
+    post return_booking_admins_reservation_path(order.order_no, context), params: { refund: refund_form(order, reason: "虚构医生停诊") }
+    assert_redirected_to admins_reservation_path(order.order_no, context)
     assert_equal [ "cancelled", "processing", "虚构医生停诊" ], [ order.reload.status, order.refund_status, order.refund_items.sole["reason"] ]
     assert_equal 2000, requests.sole.dig("amount", "refund")
     assert_empty ScheduleCalendar.new([ @doctor.id ], order.appointment_date..order.appointment_date).day_availability(@doctor.id, order.appointment_date)[:shifts]
@@ -488,7 +492,18 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
         stub_wechat("v3", :get, "/v3/refund/domestic/refunds/#{second.fetch('out_refund_no')}") do
           v3_refund_result(order, second, "SUCCESS", difference)
         end
-        post sync_refund_admins_reservation_path(order.order_no, order.refund_items.last.fetch("id"))
+        item_id = order.refund_items.last.fetch("id")
+        reject_audit = ->(row) { throw(:abort) if row.action == "appointment.refund_sync" && row.status == "success" }
+        begin
+          Log.set_callback(:create, :before, reject_audit)
+          assert_raises(ActiveRecord::RecordNotSaved) do
+            Appointments::Refunds.new(order, source: "admin", actor: @operator).sync!(item_id)
+          end
+        ensure
+          Log.skip_callback(:create, :before, reject_audit)
+        end
+        assert_nil order.reload.refund_items.last["payer_refund_cents"]
+        post sync_refund_admins_reservation_path(order.order_no, item_id)
         assert_response :see_other
         2.times { send_v3_refund(order, second, difference) }
         assert_equal 800, order.reload.refunded_amount_cents
@@ -520,6 +535,161 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a fully refunded receipt retains just one financial refund when the patient returns the booking" do
+    order = book!
+    settle_payment(order)
+    sign_in @operator
+    requests = stub_v3_refunds(order)
+    context = { ledger: "payments", filters: { q: order.order_no, page: "1" } }
+    post refund_difference_admins_reservation_path(order.order_no, context), params: { refund: refund_form(order, reason: "虚构调价", amount: "20") }
+    assert_redirected_to admins_reservation_path(order.order_no, context)
+    send_v3_refund(order, requests.sole, 2000)
+    request_return(order)
+    patch review_refund_admins_reservation_path(order.order_no, 2, context), params: { refund: { decision: "approve", confirmed_available: 0 } }
+    assert_redirected_to admins_reservation_path(order.order_no, context)
+    assert_equal 1, requests.size
+    assert_equal 1, order_logs(order, "return_completed").count
+    order.update!(deleted_at: Time.current)
+    get admins_operation_log_path(order_logs(order, "refund_review").sole)
+    assert_select "a[href=?]", admins_reservation_path(order.order_no, anchor: "refund-2"), text: "查看退号记录"
+    assert_select "dt", text: "退款单号", count: 0
+    refund_no = order.refund_items.first.fetch("refund_no")
+    [order.order_no, order.payment_no, refund_no].each do |number|
+      get admins_refund_records_path(q: number)
+      assert_select "tbody tr", count: 1
+      assert_select "tbody td:nth-child(3)", text: refund_no
+    end
+    get admins_payment_records_path(q: order.payment_no)
+    assert_select "tbody tr", count: 1
+    get admins_reservation_path(order.order_no, ledger: "refunds")
+    assert_select "span", text: "已归档"
+    assert_select "a[href=?]", admins_refund_records_path, text: /返回列表/
+    assert_select "a[href='#refund-2']", text: "退号记录"
+    post sync_refund_admins_reservation_path(order.order_no, 1)
+    assert_response :not_found
+    sign_in Admin.create!(username: "fixture_archived_support", role: "customer_service")
+    get admins_reservation_path(order.order_no, ledger: "refunds")
+    assert_response :not_found
+    get patient_path(order), headers: @headers, as: :json
+    assert_response :not_found
+  end
+
+  test "template switch failure rolls back its sibling and leaves one readable failure log" do
+    start_hospital_notices
+    configure_notice("appointment_confirmed", "虚构原模板")
+    original = HospitalNoticeTemplate.find_by!(enabled: true)
+    alternate = HospitalNoticeTemplate.create!(name: "虚构替代模板", event: original.event, messages: original.messages)
+    generation = original.generation
+    reject_enable = ->(template) { throw(:abort) if template.id == alternate.id && template.enabled? }
+    HospitalNoticeTemplate.set_callback(:update, :before, reject_enable)
+    rollback_disable = ->(entry) { raise ActiveRecord::Rollback if entry.action == "notification.hospital_disable" && entry.status == "success" }
+    Log.set_callback(:create, :before, rollback_disable)
+    [[enable_admins_hospital_notice_path(alternate), "模板启用失败"], [disable_admins_hospital_notice_path(original), "模板停用失败"]].each do |path, reason|
+      assert_difference -> { Log.where(category: "notification", status: "failed").count } do
+        patch path
+        assert_redirected_to admins_hospital_notices_path
+        follow_redirect!
+        assert_includes response.body, reason
+      end
+      entry = Log.where(category: "notification", status: "failed").last
+      get admins_operation_log_path(entry)
+      assert_select "dd", text: reason
+      assert_equal [true, generation], [original.reload.enabled?, original.generation]
+      refute alternate.reload.enabled?
+    end
+  ensure
+    HospitalNoticeTemplate.skip_callback(:update, :before, reject_enable) if reject_enable
+    Log.skip_callback(:create, :before, rollback_disable) if rollback_disable
+  end
+
+  test "refund query failure is recorded once and a failed audit preserves the operator alert" do
+    order = book!
+    settle_payment(order)
+    sign_in @operator
+    requests = stub_v3_refunds(order)
+    post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(order, reason: "虚构调价", amount: "5") }
+    stub_wechat("v3", :get, "/v3/refund/domestic/refunds/#{requests.sole.fetch('out_refund_no')}", status: 500) { { "code" => "SYSTEM_ERROR" } }
+    failures = order_logs(order, "refund_sync").where(status: "failed")
+    assert_difference -> { failures.count } do
+      post sync_refund_admins_reservation_path(order.order_no, 1)
+      assert_match(/稍后重试/, flash[:alert])
+    end
+    assert_equal "微信退款查询失败", failures.sole.details.fetch("reason")
+    reject_log = ->(entry) { throw(:abort) if entry.action == "appointment.refund_sync" && entry.status == "failed" }
+    Log.set_callback(:create, :before, reject_log)
+    post sync_refund_admins_reservation_path(order.order_no, 1)
+    assert_response :see_other
+    assert_match(/稍后重试/, flash[:alert])
+  ensure
+    Log.skip_callback(:create, :before, reject_log) if reject_log
+  end
+
+  test "oldest booking events remain reachable with tied timestamps" do
+    order = book!
+    25.times { order.record_event!("checkout", source: "user", actor: @user) }
+    sign_in @operator
+    get admins_reservation_path(order.order_no, ledger: "payments")
+    assert_select "#booking-history .list-group-item", count: 20
+    get css_select("#booking-history a").find { |a| a.text == "下一页" }["href"]
+    assert_select "#booking-history .list-group-item", text: /创建预约/, count: 1
+    assert_select "a[href=?]", admins_payment_records_path, text: /返回列表/
+  end
+
+  test "historical JSON and unreliable dates cannot hide other refunds" do
+    order = book!
+    settle_payment(order)
+    sign_in @operator
+    [ {}, { items: nil }, { items: {} } ].each do |data|
+      order.update!(refund_data: data)
+      get admins_refund_records_path
+      assert_response :success
+      get admins_reservation_path(order.order_no, ledger: "refunds", filters: "invalid")
+      assert_select "a[href=?]", admins_refund_records_path, text: /返回列表/
+    end
+    times = %w[2026-11-26T16:15:00Z 2026-11-26T16:15:00+00:00 2026-11-27T00:15:00+08:00 2026-02-30T00:00:00Z invalid]
+    items = times.map.with_index do |time, index|
+      { id: index + 1, refund_no: Appointment.generate_order_no, kind: "admin_refund", status: "rejected",
+        amount_cents: 100, created_at: time, refunded_at: time }
+    end
+    order.update!(refund_data: { items: [nil, "invalid", {}, *items] })
+    get admins_refund_records_path(date_range: "2026-11-27")
+    assert_select "tbody tr", count: 3
+    assert_select "tbody td:first-child", text: "2026-11-27 00:15", count: 3
+    get admins_refund_records_path
+    assert_select "tbody tr", count: 5
+    assert_select "tbody td:first-child", text: "—", count: 2
+    get admins_reservation_path(order.order_no)
+    assert_select "article", count: 5
+    assert_select "#refund-1 dd", text: "2026-11-27 00:15", count: 2
+    assert_select "#refund-4 dd", text: "—", minimum: 2
+  end
+
+  test "an unsubmitted return during a difference keeps its unknown amount and original ledger filter" do
+    order = book!
+    settle_payment(order)
+    sign_in @operator
+    stub_v3_refunds(order)
+    post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(order, reason: "虚构调价", amount: "5") }
+    request_return(order)
+    filters = { status: "requested", q: order.order_no, page: "1" }
+    get admins_refund_records_path(filters)
+    assert_select "tbody tr", count: 1
+    assert_select "tbody td:nth-child(5)", text: "待确定"
+    assert_select "tbody td:nth-child(6)", text: "退款审核中"
+    get css_select("tbody a").sole["href"]
+    assert_select "a[href=?]", admins_refund_records_path(filters), text: /返回列表/
+    context = { ledger: "refunds", filters: filters }
+    assert_difference -> { order_logs(order, "refund_sync").where(status: "failed").count } do
+      post sync_refund_admins_reservation_path(order.order_no, 2, context)
+      assert_match(/尚未提交微信/, flash[:alert])
+    end
+    patch review_refund_admins_reservation_path(order.order_no, 2, context), params: { refund: { decision: "reject", note: "虚构保留原号" } }
+    follow_redirect!
+    get css_select("a").find { |a| a.text.include?("返回列表") }["href"]
+    assert_equal admins_refund_records_path(filters), request.fullpath
+    assert_select "tbody tr", count: 0
+  end
+
   test "refund pagination and permissions apply to detail rows" do
     order = book!
     settle_payment(order)
@@ -535,7 +705,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_select "a[href$=?]", "#refund-2"
     get admins_refund_records_path(q: items.third.fetch(:refund_no))
     assert_select "tbody tr", count: 1
-    assert_select "tbody td", text: "待核对"
+    assert_select "tbody tr", text: /#{items.third.fetch(:refund_no)}/ do
+      assert_select "td:nth-child(6)", text: "未退款"
+    end
     get admins_reservation_path(order.order_no)
     assert_response :success
     get admins_system_logs_path
@@ -960,8 +1132,8 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal({ "AM" => 1 }, editor.affected_bookings)
   end
 
-  def cancel_as_staff(order, reason: "虚构医生停诊", expected: :see_other)
-    post cancel_pending_payment_admins_reservation_path(order.order_no), params: { payment_cancellation: { reason: reason } }
+  def cancel_as_staff(order, reason: "虚构医生停诊", expected: :see_other, context: {})
+    post cancel_pending_payment_admins_reservation_path(order.order_no, context), params: { payment_cancellation: { reason: reason } }
     assert_response expected
   end
 

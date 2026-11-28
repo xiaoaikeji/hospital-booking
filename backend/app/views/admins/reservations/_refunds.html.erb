@@ -1,4 +1,4 @@
-<% editable = current_admin.maintain_booking_directory? %>
+<% editable = @editable %>
 <% can_return = editable && reservation.hospital_can_return? %>
 <% can_refund = editable && reservation.price_refund_allowed? && reservation.available_refund_cents.positive? %>
 <% pending, history = reservation.refund_items.reverse.partition { |item| item["status"] == "requested" } %>
