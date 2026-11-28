@@ -176,6 +176,50 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   end
 
   %w[v2 v3].each do |version|
+    test "#{version} reopens the cashier after an interrupted local prepay write" do
+      @version = version
+      config = WechatPaySettings.new
+      assert config.save(payment_settings(version).merge("revision" => config.revision), actor: nil)
+      order = book!
+      calls = stub_checkout(order)
+      # Let the in-flight marker commit, then fail the database write of the returned ID.
+      db = Appointment.connection
+      constraint = "fixture_interrupted_prepay"
+      db.add_check_constraint(:appointments, "id <> #{order.id} OR NOT (payment_data ? 'prepay_id')", name: constraint)
+      begin
+        post "#{patient_path(order)}/payment", headers: @headers, as: :json
+        assert_response :service_unavailable
+        assert_equal "payment_unavailable", response.parsed_body.fetch("code")
+      ensure
+        db.remove_check_constraint(:appointments, name: constraint)
+      end
+      assert_equal [ 2000 ], calls
+      assert_nil order.reload.payment_data["prepay_id"]
+
+      if version == "v2"
+        stub_wechat(version, :post, "/pay/orderquery") { payment_result(order, "NOTPAY") }
+      else
+        stub_query(order) { payment_result(order, "NOTPAY") }
+      end
+      [ 5, 25 ].each do |minutes|
+        travel_to @started_at + minutes.minutes
+        Appointments::ReconcileWorker.new.perform(order.id)
+        get patient_path(order), headers: @headers, as: :json
+        assert response.parsed_body.fetch("can_pay")
+        params = post_checkout(order)
+        assert_equal "prepay_id=wx_fixture_checkout", params.fetch("package")
+        if version == "v2"
+          assert_equal v2_signature(params.except("paySign").merge("appId" => @mini_program.appid)), params.fetch("paySign")
+        else
+          message = [ @mini_program.appid, *params.values_at("timeStamp", "nonceStr", "package"), "" ].join("\n")
+          assert @merchant_key.public_key.verify("SHA256", Base64.strict_decode64(params.fetch("paySign")), message)
+        end
+      end
+      assert_equal [ 2000, 2000 ], calls
+      assert_equal @started_at + 30.minutes, order.reload.payment_expires_at
+      assert_equal 0, remaining(order)
+    end
+
     %w[patient staff expiry].each do |closing|
       test "overlapping #{version} checkout releases one seat and restores quota after rejection and #{closing}" do
         @version = version
