@@ -3,6 +3,7 @@ require "openssl"
 
 module Wechat
   class PaymentV3Client
+    PREPAY_REJECTIONS = %w[PARAM_ERROR INVALID_REQUEST SIGN_ERROR APPID_MCHID_NOT_MATCH MCH_NOT_EXISTS NO_AUTH].freeze
     ORIGIN = "https://api.mch.weixin.qq.com"
     SCHEME = "WECHATPAY2-SHA256-RSA2048"
     GATEWAY_ERRORS = {
@@ -41,6 +42,10 @@ module Wechat
         amount: { total: payment.fetch("amount_cents"), currency: "CNY" }, payer: { openid: payment.fetch("openid") }
       }.compact)
       data["prepay_id"]
+    rescue Payments::ChannelError => error
+      raise unless PREPAY_REJECTIONS.include?(error.code)
+
+      raise Payments::PrepayRejected.new(error.code, error.message)
     end
 
     def checkout_params(appid, prepay_id)

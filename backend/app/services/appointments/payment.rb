@@ -1,5 +1,7 @@
 module Appointments
   class Payment
+    CANCEL_REASON_LIMIT = 500
+
     def initialize(appointment, source:, actor: nil, request: nil)
       @appointment = appointment
       @audit = { source: source, actor: actor, request: request }
@@ -15,38 +17,39 @@ module Appointments
       result.fetch("payment_params")
     end
 
-    def request_cancel!
+    def request_cancel!(reason: nil)
+      staff_reason = checked_staff_reason!(reason) if @audit[:source] == "admin"
       @appointment.with_lock do
         if @appointment.pending_payment?
-          start_closing!("patient_requested")
-        elsif @appointment.payment_status != "closed"
-          raise Appointment::InvalidOperation, "支付状态已变化，请查看预约详情办理退号"
+          next start_closing!(staff_reason ? "工作人员申请取消" : "patient_requested", staff_reason:)
         end
+        next if @appointment.payment_status == "closed"
+        next if staff_reason && @appointment.status == "confirmed" && @appointment.payment_status == "paid"
+
+        raise Appointment::InvalidOperation, "支付状态已变化，请查看预约详情办理退号"
       end
     end
 
     def reconcile!
-      action = @appointment.with_lock do
+      action, attempt, outcome = @appointment.with_lock do
         next unless @appointment.pending_payment?
 
         if @appointment.payment_closing?
           start_closing!("expired")
-          if @appointment.payment_data["prepay_attempted"] == false
+          if @appointment.payment_data["prepay_attempted"] == false && @appointment.payment_data["prepay_id"].blank?
             PaymentReceiver::Order.new(@appointment, @audit).close_unpaid!("NOT_CREATED")
             next
           end
-          :close
+          [ :close, *@appointment.payment_data.values_at("prepay_attempt", "prepay_outcome") ]
         elsif @appointment.payment_data["prepay_attempted"]
-          :query
+          [ :query, *@appointment.payment_data.values_at("prepay_attempt", "prepay_outcome") ]
         end
       end
       @payments.public_send(action, @appointment.payment_no) if action
     rescue Payments::ChannelError => error
-      return if reconcile_missing_order!(error)
-
-      mark_unknown!
+      reconcile_missing_order!(error, attempt, outcome) || mark_unknown!(attempt, outcome)
     rescue Payments::Error, WechatPaySettings::Invalid
-      mark_unknown!
+      mark_unknown!(attempt, outcome)
     ensure
       @appointment.reload
     end
@@ -59,25 +62,43 @@ module Appointments
       end
     end
 
-    def start_closing!(reason)
-      return if @appointment.payment_cancel_requested_at?
+    def checked_staff_reason!(reason)
+      admin = @audit[:actor]
+      unless admin.is_a?(Admin) && admin.enabled? && admin.maintain_booking_directory?
+        raise Appointment::InvalidOperation, "没有办理权限"
+      end
+      note = reason.to_s.strip.presence
+      raise Appointment::InvalidOperation, "请填写取消原因" unless note
+      raise Appointment::InvalidOperation, "取消原因最多 #{CANCEL_REASON_LIMIT} 字" if note.length > CANCEL_REASON_LIMIT
 
-      @appointment.update!(payment_cancel_requested_at: Time.current)
-      @appointment.record_event!("payment_close_requested", **@audit, details: { reason: reason })
+      note
     end
 
-    def reconcile_missing_order!(error)
+    def start_closing!(reason, staff_reason: nil)
+      return if @appointment.payment_cancel_requested_at?
+
+      attributes = { payment_cancel_requested_at: Time.current }
+      if staff_reason
+        attributes[:payment_data] = @appointment.payment_data.merge(
+          "staff_cancellation" => { "admin_id" => @audit[:actor].id, "reason" => staff_reason }
+        )
+      end
+      @appointment.update!(**attributes)
+      @appointment.record_event!("payment_close_requested", **@audit, details: { reason: reason },
+        status: staff_reason ? "started" : "success")
+    end
+
+    def reconcile_missing_order!(error, attempt, outcome)
       expected = @appointment.payment_data["version"] == "v2" ? "ORDERNOTEXIST" : "ORDER_NOT_EXIST"
       return false unless error.code == expected
 
       @appointment.with_lock do
         next true unless @appointment.pending_payment?
-        next false if @appointment.payment_data["prepay_id"].present?
+        next true unless current_attempt?(attempt, outcome)
+        next false unless outcome == "rejected" && @appointment.payment_data["prepay_id"].blank?
 
         if @appointment.payment_closing?
-          # No payment parameters were issued. A late prepay cannot issue any
-          # after we persist the close intent under the same appointment lock.
-          PaymentReceiver::Order.new(@appointment, @audit).close_unpaid!("NOT_CREATED")
+          PaymentReceiver::Order.new(@appointment, @audit).close_unpaid!("ORDER_NOT_CREATED")
         else
           store_state!("NOTPAY")
         end
@@ -85,8 +106,17 @@ module Appointments
       end
     end
 
-    def mark_unknown!
-      @appointment.with_lock { store_state!("UNKNOWN") if @appointment.pending_payment? }
+    def mark_unknown!(attempt, outcome)
+      @appointment.with_lock do
+        if @appointment.pending_payment? && current_attempt?(attempt, outcome) &&
+            (outcome != "rejected" || @appointment.payment_closing?)
+          store_state!("UNKNOWN")
+        end
+      end
+    end
+
+    def current_attempt?(attempt, outcome)
+      @appointment.payment_data.values_at("prepay_attempt", "prepay_outcome") == [ attempt, outcome ]
     end
 
     def store_state!(state)

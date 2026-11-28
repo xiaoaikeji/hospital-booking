@@ -9,7 +9,7 @@ module Appointments
       @payments = Payments.new(receiver: PaymentReceiver.new(**@audit))
     end
 
-    def request!(kind:, key:, reason: nil, amount: nil)
+    def request!(kind:, key:, reason: nil, amount: nil, confirmed_available: nil)
       @appointment.with_lock do
         unless staff? || (kind == "cancel" && @actor.is_a?(User) && @actor.id == @appointment.user_id)
           raise Appointment::InvalidOperation, "没有办理权限"
@@ -26,8 +26,13 @@ module Appointments
 
         if kind == "cancel"
           active = @appointment.active_refunds.find { |row| row["kind"] == "cancel" }
-          next active.fetch("id") if active
+          if active
+            raise Appointment::InvalidOperation, "请在原申请上处理退号" if staff? && active["status"] == "requested"
+
+            next active.fetch("id")
+          end
         end
+        check_confirmation!(confirmed_available, kind) if staff?
         cents = request_amount!(kind, amount)
         explanation = checked_note(reason, required: staff?)
         time = Time.current.iso8601
@@ -42,15 +47,15 @@ module Appointments
         if kind == "cancel" && @appointment.status == "confirmed"
           attributes = { status: "cancel_requested", cancel_requested_at: Time.current }
         end
-        auto = !AppointmentSettings.new(lock: "FOR SHARE").refund_requires_review?
+        auto = staff? || !AppointmentSettings.new(lock: "FOR SHARE").refund_requires_review?
         attributes.merge!(approve!(item)) if auto
         @appointment.write_refunds!(items, **attributes)
-        event!("refund_request", item, automatic: auto)
+        event!(staff? ? "hospital_refund" : "refund_request", item, automatic: auto, outcome: item.fetch("status"))
         item.fetch("id")
       end
     end
 
-    def review!(id, decision:, note: nil)
+    def review!(id, decision:, note: nil, confirmed_available: nil)
       require_staff!
       unless %w[approve reject].include?(decision)
         raise Appointment::InvalidOperation, "请选择有效的审核结果"
@@ -67,13 +72,15 @@ module Appointments
 
         review_item!(item, decision, checked_note(note, required: decision == "reject"))
         attributes = if decision == "approve"
+          check_confirmation!(confirmed_available, item.fetch("kind"), item: item)
+          item["amount_cents"] = @appointment.remaining_gross_cents if item["kind"] == "cancel"
           approve!(item)
         else
           item["status"] = "rejected"
           restore_booking(item)
         end
         @appointment.write_refunds!(items, **attributes)
-        event!("refund_review", item, decision: decision)
+        event!("refund_review", item, decision: decision, outcome: item.fetch("status"))
       end
     end
 
@@ -106,7 +113,7 @@ module Appointments
         next if item["next_check_at"] && Time.iso8601(item["next_check_at"]).future?
 
         if item["status"] == "approved" && item["kind"] == "cancel"
-          next if @appointment.active_refunds.any? { |row| row["kind"] == "admin_refund" }
+          next if @appointment.refund_difference_pending?
 
           item["amount_cents"] = @appointment.remaining_gross_cents
           if item["amount_cents"].zero?
@@ -150,6 +157,16 @@ module Appointments
 
     def find_item!(items, id)
       items.find { |row| row.fetch("id").to_s == id.to_s } || raise(ActiveRecord::RecordNotFound)
+    end
+
+    def check_confirmation!(confirmed_available, kind, item: nil)
+      available = @appointment.refund_confirmation_balance(item)
+      unless confirmed_available.to_s == available.to_s
+        raise Appointment::InvalidOperation, "可退金额已更新，当前可退 #{Appointment.cents_in_yuan(available)} 元，请重新核对并确认"
+      end
+      if kind == "cancel" && @appointment.refund_difference_pending?
+        raise Appointment::InvalidOperation, "已有退差价尚未办结，请核对结果后再确认退号"
+      end
     end
 
     def request_amount!(kind, amount)

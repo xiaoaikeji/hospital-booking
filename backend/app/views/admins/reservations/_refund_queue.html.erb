@@ -24,7 +24,7 @@
           <div class="small text-secondary"><%= render "admins/shared/list_text", text: record.department_name %></div>
         </td>
         <td class="d-none d-sm-table-cell px-2"><%= type %></td>
-        <td class="px-2"><%= render "admins/shared/list_text", text: "#{Appointment.cents_in_yuan(item['amount_cents'].to_i)} 元" %></td>
+        <td class="px-2"><%= render "admins/shared/list_text", text: (item["amount_cents"] ? "#{Appointment.cents_in_yuan(item['amount_cents'])} 元" : "待核对") %></td>
         <td class="d-none d-md-table-cell px-2"><%= render "admins/shared/list_text", text: admin_list_time(Time.iso8601(item.fetch("created_at"))) %></td>
         <td class="px-2"><%= link_to decision_url, class: "btn btn-sm btn-info text-nowrap" do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
       </tr>

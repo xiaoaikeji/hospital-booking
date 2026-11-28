@@ -10,10 +10,10 @@
         <% if can_return || can_refund %>
           <div class="card-actions btn-list">
             <% if can_return %>
-              <button type="button" class="btn btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-return"><%= render "layouts/admins/icon", name: :alert %><%= reservation.return_failed? ? "重新申请退号退款" : "申请医院退号" %></button>
+              <button type="button" class="btn btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#refund-return"><%= render "layouts/admins/icon", name: :alert %><%= reservation.return_failed? ? "重新发起退号退款" : "医院退号" %></button>
             <% end %>
             <% if can_refund %>
-              <button type="button" class="btn btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-difference"><%= render "layouts/admins/icon", name: :wallet %>申请退差价</button>
+              <button type="button" class="btn btn-outline-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#refund-difference"><%= render "layouts/admins/icon", name: :wallet %>退差价</button>
             <% end %>
           </div>
         <% end %>

@@ -23,6 +23,8 @@ class Payments
     end
   end
 
+  class PrepayRejected < ChannelError; end
+
   PAYMENT_STATES = %w[SUCCESS NOTPAY USERPAYING CLOSED REVOKED PAYERROR REFUND].freeze
   REFUND_STATES = %w[PROCESSING SUCCESS CLOSED ABNORMAL].freeze
   NUMBER = /\A[0-9]{20}\z/
@@ -54,20 +56,29 @@ class Payments
     id, expiry = payment.values_at("prepay_id", "prepay_expires_at")
     deadline = Time.iso8601(expiry) if id.present? && expiry.present?
     unless reusable_prepay?(payment, deadline)
-      args, attempt = with_payment(payment_no) do |order|
+      args, attempt, can_rule_out_order = with_payment(payment_no) do |order|
         current = order.payment_context
         check_payable!(current)
         raise Unavailable unless current["prepay_attempt"] == payment["prepay_attempt"]
         original = current["checkout_request"] || checkout_request(payment, description, client_ip)
         attempt = SecureRandom.uuid
-        unless order.save_checkout!({ "checkout_request" => original, "prepay_attempted" => true, "prepay_attempt" => attempt }) == true
+        # A later rejection can't rule out an order from an earlier ambiguous attempt.
+        can_rule_out_order = current["prepay_id"].blank? &&
+          (current["prepay_attempted"] == false || current["prepay_outcome"] == "rejected")
+        unless order.save_checkout!({ "checkout_request" => original, "prepay_attempted" => true,
+            "prepay_attempt" => attempt, "prepay_outcome" => "in_flight" }) == true
           raise DeliveryError, "预支付请求写入失败"
         end
-        [ original, attempt ]
+        [ original, attempt, can_rule_out_order ]
       end
       new_expiry = 2.hours.from_now.iso8601
-      fresh = client.prepay(payment, description: args.fetch("description"), client_ip: args["client_ip"], notify_url: notify_url(config, payment, "payment"))
-      validate_prepay!(fresh)
+      begin
+        fresh = client.prepay(payment, description: args.fetch("description"), client_ip: args["client_ip"], notify_url: notify_url(config, payment, "payment"))
+        validate_prepay!(fresh)
+      rescue Error, WechatPaySettings::Invalid => error
+        record_checkout_failure!(payment_no, attempt, rejected: can_rule_out_order && error.is_a?(PrepayRejected))
+        raise
+      end
       # A newly signed response containing the same ID does not renew its lifetime.
       if fresh == id
         raise Unavailable unless deadline&.future?
@@ -77,12 +88,14 @@ class Payments
       id = fresh
       with_payment(payment_no) do |order|
         current = order.payment_context
-        check_payable!(current)
-        raise Unavailable if current["prepay_attempt"] != attempt
-        raise DeliveryError, "预支付凭证写入失败" unless order.save_checkout!({ "prepay_id" => id, "prepay_expires_at" => expiry }) == true
+        raise Unavailable if current["prepay_attempt"] != attempt || current["closed"] || current["transaction_id"].present?
+        attributes = { "prepay_id" => id, "prepay_expires_at" => expiry, "prepay_outcome" => "accepted" }
+        attributes["trade_state"] = "NOTPAY" if current["trade_state"] == "UNKNOWN"
+        raise DeliveryError, "预支付凭证写入失败" unless order.save_checkout!(attributes) == true
         true
       end
     end
+    check_payable!(context(payment_no))
     validate_prepay!(id)
     { "prepay_id" => id, "prepay_expires_at" => expiry, "payment_params" => client.checkout_params(app.appid, id) }
   end
@@ -183,6 +196,17 @@ class Payments
     { "description" => description, "client_ip" => client_ip }
   end
 
+  def record_checkout_failure!(payment_no, attempt, rejected:)
+    with_payment(payment_no) do |order|
+      current = order.payment_context
+      next true unless current["prepay_attempt"] == attempt && current["prepay_outcome"] == "in_flight"
+      next true if current["closed"] || current["transaction_id"].present?
+
+      order.save_checkout!("prepay_outcome" => (rejected ? "rejected" : "unknown"),
+        "trade_state" => (rejected ? "NOTPAY" : "UNKNOWN"))
+    end
+  end
+
   def validate_prepay!(id)
     raise InvalidResult unless id.is_a?(String) && id.match?(/\A[A-Za-z0-9_-]{1,128}\z/)
   end
@@ -196,6 +220,8 @@ class Payments
   def reusable_prepay?(payment, deadline)
     return true if deadline && deadline > PREPAY_MARGIN.from_now
     return false if payment["prepay_attempted"] == false && payment["prepay_id"].blank?
+    return false if payment["prepay_outcome"] == "rejected"
+
     state = query(payment.fetch("payment_no"))[:state]
     if state == "NOTPAY"
       current = context(payment.fetch("payment_no"))

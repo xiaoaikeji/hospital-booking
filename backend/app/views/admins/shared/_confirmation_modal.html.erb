@@ -9,19 +9,20 @@
         <h2 class="h2 fs-1 mb-3 w-100" id="<%= modal_id %>-title"><%= title.delete_suffix("？").delete_suffix("?") %></h2>
         <div class="fw-medium fs-3 text-wrap mb-3 w-100"><%= context %></div>
         <p class="text-secondary fs-3 mb-0 w-100" id="<%= modal_id %>-description"><%= safe_join(description.scan(/[^，。！？；]+[，。！？；]?/).map { |clause| tag.span(clause, class: "d-inline-block") }) %></p>
+        <% if local_assigns[:summary] %><div class="w-100 mt-3"><%= summary %></div><% end %>
         <% if local_assigns[:form_body] %><div class="w-100 text-start mt-3"><%= form_body %></div><% end %>
       </div>
       <div class="modal-footer p-3 p-sm-4">
         <div class="w-100">
           <div class="row g-3">
-            <div class="col"><button type="button" class="btn btn-lg px-3 text-nowrap w-100" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: cancel_icon if local_assigns[:cancel_icon] %>取消</button></div>
+            <div class="col"><button type="button" class="btn btn-lg px-3 text-nowrap w-100" <%= tag.attributes(data: { bs_dismiss: "modal" }.merge(local_assigns.fetch(:cancel_data, {}))) %>><%= render "layouts/admins/icon", name: cancel_icon if local_assigns[:cancel_icon] %><%= local_assigns.fetch(:cancel_label, "取消") %></button></div>
             <div class="col">
               <% attributes = if local_assigns[:form_body]
                 { type: "submit", form: form_id }
               else
-                { type: "button", data: { bs_dismiss: "modal", admin_confirm_form: local_assigns[:form_id], admin_confirm_submitter: local_assigns[:submitter_id] } }
+                { type: "button", data: { bs_dismiss: "modal", admin_confirm_form: local_assigns[:form_id], admin_confirm_submitter: local_assigns[:submitter_id] }.merge(local_assigns.fetch(:confirm_data, {})) }
               end %>
-              <button class="btn btn-lg btn-<%= color %> px-3 text-nowrap w-100" <%= tag.attributes(attributes) %>><%= render "layouts/admins/icon", name: confirm_icon if local_assigns[:confirm_icon] %><%= confirm_label %></button>
+              <button class="<%= class_names("btn btn-lg btn-#{color} px-3 text-nowrap w-100", local_assigns[:confirm_class]) %>" <%= tag.attributes(attributes) %>><%= render "layouts/admins/icon", name: confirm_icon if local_assigns[:confirm_icon] %><%= confirm_label %></button>
             </div>
           </div>
           <% if !local_assigns[:form_id] && local_assigns.fetch(:preview_note, true) %><p class="text-secondary small text-center mt-3 mb-0">仅展示确认样式，不会变更数据。</p><% end %>

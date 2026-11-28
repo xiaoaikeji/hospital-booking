@@ -25,6 +25,10 @@ class OperationLogDetails
   DIRECTORY_ORDER = { "fields" => %w[sort_order], "sort_order" => INTEGER }.freeze
   SCHEDULE_EDIT = { "doctor_id" => ID, "schedule_mode" => %w[每周排班 指定日期调整], "schedule_date" => /\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z/,
     "reason" => [ ScheduleEditor::STALE, ScheduleEditor::FAILURE, ScheduleEditor::REVOKE_FAILURE ] }.freeze
+  APPOINTMENT_PAYMENT = { "order_no" => DECIMAL_ID, "payment_no" => DECIMAL_ID }.freeze
+  PAYMENT_CLOSE_OUTCOMES = { "CLOSED" => "微信已关单", "NOT_CREATED" => "本地关单", "ORDER_NOT_CREATED" => "微信确认无单" }.freeze
+  BOOKING_REFUND = { "order_no" => DECIMAL_ID, "refund_no" => DECIMAL_ID, "refund_record_id" => ID,
+    "amount_cents" => 0..ID.end, "kind" => %w[cancel admin_refund], "outcome" => %w[approved rejected] }.freeze
   PLUGIN = { "plugin_appid" => WECHAT_APPID }.freeze
   PLUGIN_VERSION = PLUGIN.merge("version" => VERSION).freeze
   MEDIA = { "kind" => %w[image voice video], "code" => INTEGER }.freeze
@@ -47,6 +51,12 @@ class OperationLogDetails
       AppointmentSettings::INVALID, AppointmentSettings::INVALID_CAPACITY, AppointmentSettings::INVALID_SLOT_CAPACITY,
       AppointmentSettings::INVALID_TIME, AppointmentSettings::INVALID_WINDOW, AppointmentSettings::OVERLAPPING_WINDOWS,
       AppointmentSettings::FAILURE, "请选择是否验证账号手机号和启用晚班" ] },
+    "appointment.payment_close_requested" => { "order_no" => DECIMAL_ID, "reason" => [ "工作人员申请取消" ] },
+    "appointment.payment_closed" => APPOINTMENT_PAYMENT.merge("channel_outcome" => PAYMENT_CLOSE_OUTCOMES.keys),
+    "appointment.payment_confirmed" => APPOINTMENT_PAYMENT.merge("paid_amount_cents" => 0..ID.end),
+    "appointment.hospital_refund" => BOOKING_REFUND.merge("automatic" => :boolean),
+    "appointment.refund_review" => BOOKING_REFUND.merge("decision" => %w[approve reject], "reason" => %w[visit_completed]),
+    "appointment.refund_sync" => BOOKING_REFUND,
     "appearance.update" => APPEARANCE, "personal_appearance.update" => APPEARANCE,
     "hospital.update" => { "fields" => HospitalProfile::FIELDS + %w[image], "reason" => [ HospitalProfile::FAILURE, HospitalProfile::INVALID_LOCATION ] },
     "department.create" => DIRECTORY_EDIT, "department.update" => DIRECTORY_EDIT,
@@ -117,7 +127,10 @@ class OperationLogDetails
     "status_value" => "设置状态", "sort_order" => "排序", "fee" => "挂号费（元）", "message_ids" => "补发条目数", "event" => "通知事件",
     "doctor_id" => "医生编号", "schedule_mode" => "排班方式", "schedule_date" => "调整日期",
     "schedule_month" => "导出月份", "name_filtered" => "按姓名筛选", "department_id" => "科室编号",
+    "order_no" => "预约单号", "payment_no" => "支付单号", "channel_outcome" => "关单结果", "paid_amount_cents" => "实付金额",
     "doctor_status" => "医生状态", "display_on_homepage" => "首页推荐", "row_count" => "导出班次数",
+    "refund_no" => "退款单号", "refund_record_id" => "退款记录编号", "amount_cents" => "退款金额",
+    "automatic" => "直接办理", "decision" => "审核决定",
     "sync_id" => "同步任务编号", "channel_id" => "渠道编号", "count" => "菜单项数量", "code" => "微信错误码",
     "result" => "核对结果", "kind" => "素材类型", "plugin_appid" => "插件 AppID", "version" => "插件版本",
     "mini_appid" => "小程序 AppID", "notify_users" => "通知用户", "show_profile" => "展示在公众号资料页",
@@ -142,7 +155,14 @@ class OperationLogDetails
     end
     rows = allowed.to_h do |key, value|
       value = DirectoryEntry::STATUSES.fetch(value) if key == "status_value" && value.is_a?(Integer)
-      [ LABELS.fetch(key), display_value(value) ]
+      value = PAYMENT_CLOSE_OUTCOMES.fetch(value) if key == "channel_outcome"
+      value = "#{Appointment.cents_in_yuan(value)} 元" if key.in?(%w[paid_amount_cents amount_cents])
+      if log.action.in?(%w[appointment.hospital_refund appointment.refund_review appointment.refund_sync])
+        value = { "cancel" => "退号", "admin_refund" => "退差价" }.fetch(value) if key == "kind"
+        value = Appointment::REFUND_ITEM_LABELS.fetch(value) if key == "outcome"
+        value = { "approve" => "同意", "reject" => "拒绝" }.fetch(value) if key == "decision"
+      end
+      [ (key == "kind" && log.category == "booking" ? "退款类型" : LABELS.fetch(key)), display_value(value) ]
     end
     Projection.new(rows, allowed != details)
   end

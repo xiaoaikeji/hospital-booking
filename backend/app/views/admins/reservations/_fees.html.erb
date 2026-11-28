@@ -4,10 +4,13 @@
 <% payment_color = { "paid" => "success", "unpaid" => "warning", "closed" => "secondary" }.fetch(payment_status) if wechat %>
 <% transaction = {} %>
 <% if wechat && payment_status == "paid" %>
-  <% cash = "#{Appointment.cents_in_yuan(reservation.refunded_amount_cents.to_i)} 元" %>
-  <% if reservation.succeeded_refunds.any? { |item| item["amount_cents"].positive? && item["payer_refund_cents"].nil? } %>
-    <% cash = reservation.refunded_amount_cents.to_i.positive? ? "已确认 #{cash}，其余待核对" : "待核对" %>
-  <% end %>
+  <% cash = if (total = reservation.refunded_amount_cents)
+    "#{Appointment.cents_in_yuan(total)} 元"
+  elsif (confirmed = reservation.confirmed_refunded_cash_cents)
+    "已确认 #{Appointment.cents_in_yuan(confirmed)} 元，其余待核对"
+  else
+    "待核对"
+  end %>
   <% summary = { "实付" => "#{reservation.paid_in_yuan} 元", "已退现金" => cash,
     "剩余可退" => "#{Appointment.cents_in_yuan(reservation.available_refund_cents)} 元" } %>
   <% transaction["挂号费"] = "#{reservation.fee_in_yuan} 元" %>
@@ -43,6 +46,16 @@
         </div>
       <% end %>
     </dl>
+    <% if @payment_cancellation %>
+      <div class="mt-3">
+        <%= render "admins/shared/field_rows", fields: {
+          "取消操作人" => @cancelling_admin&.display_name, "取消原因" => @payment_cancellation.fetch("reason")
+        }, full: ["取消原因"] %>
+        <% if reservation.status == "confirmed" && payment_status == "paid" %>
+          <p class="text-secondary mb-0 mt-2">微信已确认收款，请使用「医院退号」办理退款。</p>
+        <% end %>
+      </div>
+    <% end %>
     <% if transaction.any? %>
       <button type="button" class="btn btn-sm mt-3" data-bs-toggle="collapse" data-bs-target="#reservation-payment-details"
         aria-expanded="false" aria-controls="reservation-payment-details"><%= render "layouts/admins/icon", name: :chevron_down %>支付明细</button>

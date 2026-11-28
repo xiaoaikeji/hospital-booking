@@ -1,9 +1,9 @@
 <% cancel = item["kind"] == "cancel" %>
-<% no_charge = cancel && item["amount_cents"].zero? %>
+<% no_charge = cancel && item["amount_cents"] == 0 %>
 <% label = no_charge && item["status"] == "succeeded" ? "已退号" : Appointment::REFUND_ITEM_LABELS.fetch(item["status"]) %>
 <% cash = "#{Appointment.cents_in_yuan(item["payer_refund_cents"])} 元" unless item["payer_refund_cents"].nil? %>
-<% cash ||= "待核对" if item["amount_cents"].positive? && item["status"] == "succeeded" %>
-<% amount = "#{Appointment.cents_in_yuan(item["amount_cents"])} 元" %>
+<% cash ||= "待核对" if item["amount_cents"].to_i.positive? && item["status"] == "succeeded" %>
+<% amount = "#{Appointment.cents_in_yuan(item["amount_cents"])} 元" if item["amount_cents"] %>
 <% anchor = reservation_refund_anchor(item) %>
 
 <article class="list-group-item py-3" id="<%= anchor %>">
@@ -12,8 +12,10 @@
     <%= reservation_refund_badge(item["status"], label) %>
   </div>
   <% fields = { "退款单号" => (item["refund_no"] unless no_charge),
+    "发起人" => (item["requested_by_type"] == "Admin" ? @refund_admins[item["requested_by_id"]]&.display_name : "患者"),
+    "审核人" => @refund_admins[item["reviewed_by_admin_id"]]&.display_name,
     "申请时间" => admin_list_time(Time.iso8601(item.fetch("created_at"))),
-    "申请金额" => (amount unless no_charge),
+    "退款金额" => (amount unless no_charge),
     "原因" => item["reason"], "审核意见" => item["review_note"],
     "现金退款" => cash,
     "退款时间" => (admin_list_time(Time.iso8601(item["refunded_at"])) if item["refunded_at"])
@@ -21,24 +23,40 @@
   <%= render "admins/shared/field_rows", fields: fields, full: ["原因", "审核意见"] %>
 
   <% if editable && item["status"] == "requested" %>
+    <% available = reservation.refund_confirmation_balance(item) %>
+    <% waiting = cancel && reservation.refund_difference_pending? %>
+    <% confirm_amount = format("%.2f", (cancel ? available : item.fetch("amount_cents")).to_d / 100) %>
+    <% review_summary = capture do %>
+      <p class="fs-2 fw-bold mb-2">本次退款 <%= confirm_amount %> 元</p>
+      <% if item["reason"].present? %>
+        <p class="text-break mb-0"><%= item["reason"] %></p>
+      <% end %>
+    <% end %>
     <%= form_with scope: :refund, url: review_refund_admins_reservation_path(reservation.order_no, item["id"], @list_context),
-      method: :patch, id: "#{anchor}-review", class: "mt-3" do |form| %>
+      method: :patch, id: "#{anchor}-review", class: "mt-3", data: { refund_review: true } do |form| %>
+      <%= form.hidden_field :confirmed_available, value: available, id: nil %>
       <%= form.label :note, "审核意见（拒绝时必填）", for: "#{anchor}-note", class: "form-label" %>
       <%= form.text_area :note, id: "#{anchor}-note", class: "form-control", rows: 2, maxlength: 500 %>
       <div class="btn-list justify-content-end mt-3 pe-md-4">
-        <%= form.button type: "submit", name: "refund[decision]", value: "reject", class: "btn btn-outline-danger" do %><%= render "layouts/admins/icon", name: :close %>拒绝<% end %>
-        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= anchor %>-approval"><%= render "layouts/admins/icon", name: :check %>审核同意</button>
-        <button type="submit" name="refund[decision]" value="approve" id="<%= anchor %>-approve" hidden></button>
+        <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#<%= anchor %>-rejection"><%= render "layouts/admins/icon", name: :close %>拒绝</button>
+        <% unless waiting %>
+          <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#<%= anchor %>-approval"><%= render "layouts/admins/icon", name: :check %>审核同意</button>
+          <button type="submit" name="refund[decision]" value="approve" id="<%= anchor %>-approve" hidden></button>
+        <% end %>
+        <button type="submit" name="refund[decision]" value="reject" id="<%= anchor %>-reject" hidden></button>
       </div>
     <% end %>
-    <% description = if cancel
-      no_charge ? "同意后取消预约，退回号源。" : "同意后取消预约，并按原支付渠道发起退款。"
-    else
-      "同意后将按原支付渠道退差价，原预约保留。"
-    end %>
-    <%= render "admins/shared/confirmation_modal", modal_id: "#{anchor}-approval", form_id: "#{anchor}-review",
-      submitter_id: "#{anchor}-approve", color: "warning", title: (cancel ? "同意退号申请" : "同意退差价申请"),
-      context: "申请金额 #{amount}", description: description, cancel_icon: :close, confirm_icon: :check, confirm_label: "确认同意" %>
+    <% if waiting %>
+      <p class="text-secondary mt-2 mb-0">已有退差价尚未办结，收到微信结果后可审核同意。</p>
+    <% else %>
+      <%= render "admins/shared/confirmation_modal", modal_id: "#{anchor}-approval", form_id: "#{anchor}-review",
+        submitter_id: "#{anchor}-approve", color: "warning", title: (cancel ? "同意退号申请" : "同意退差价申请"),
+        context: reservation.order_no, description: (cancel ? "将取消预约" : "原预约保留"), summary: review_summary,
+        cancel_label: "返回修改", confirm_class: "text-dark", confirm_label: "确认退款 ¥#{confirm_amount}" %>
+    <% end %>
+    <%= render "admins/shared/confirmation_modal", modal_id: "#{anchor}-rejection", form_id: "#{anchor}-review",
+      submitter_id: "#{anchor}-reject", color: "warning", title: (cancel ? "拒绝退号申请" : "拒绝退差价申请"),
+      context: reservation.order_no, description: "原预约保留", cancel_label: "返回修改", confirm_class: "text-dark", confirm_label: "确认拒绝" %>
   <% elsif editable && item["attempted"] && (item["status"] == "processing" || (item["status"] == "succeeded" && item["payer_refund_cents"].nil?)) %>
     <div class="btn-list justify-content-end mt-3 pe-md-4">
       <%= button_to sync_refund_admins_reservation_path(reservation.order_no, item["id"], @list_context),

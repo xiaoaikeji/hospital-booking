@@ -1,45 +1,61 @@
-<% requires_review = AppointmentSettings.new.refund_requires_review? %>
 <% remaining = Appointment.cents_in_yuan(reservation.available_refund_cents) %>
-<% if can_return %>
-  <% return_form = capture do %>
-    <%= form_with scope: :refund, url: return_booking_admins_reservation_path(reservation.order_no, @list_context), id: "return-booking" do |form| %>
-      <%= form.hidden_field :idempotency_key, value: SecureRandom.uuid, id: nil %>
-      <%= form.label :reason, "退号原因", class: "form-label required", for: "return-reason" %>
-      <%= form.text_area :reason, class: "form-control", id: "return-reason", rows: 2, maxlength: 500, required: true %>
-    <% end %>
-  <% end %>
-  <% description = if reservation.return_failed?
-    requires_review ? "审核同意后按原单剩余金额重新发起退款。" : "确认后按原单剩余金额重新发起退款。"
-  else
-    sentence = requires_review ? "审核同意后取消预约。" : "确认后取消预约。"
-    sentence += "按原单剩余金额发起退款。" if reservation.payment_channel == "wechat_jsapi"
-    sentence
-  end %>
-  <%= render "admins/shared/confirmation_modal", modal_id: "confirm-return", form_id: "return-booking", form_body: return_form,
-    color: "warning", title: (reservation.return_failed? ? "重新申请退号退款" : "申请医院退号"), context: reservation.order_no,
-    description: description, cancel_icon: :close, confirm_icon: :check, confirm_label: "确认申请" %>
+<% actions = [] %>
+<% actions << ["return", "医院退号", return_booking_admins_reservation_path(reservation.order_no, @list_context)] if can_return %>
+<% actions << ["difference", "退差价", refund_difference_admins_reservation_path(reservation.order_no, @list_context)] if can_refund %>
+
+<% actions.each do |kind, title, url| %>
+  <% difference = kind == "difference" %>
+  <% waiting = !difference && reservation.refund_difference_pending? %>
+  <div class="modal modal-blur fade" id="refund-<%= kind %>" tabindex="-1" aria-labelledby="refund-<%= kind %>-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 class="modal-title" id="refund-<%= kind %>-title"><%= title %></h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+        </div>
+        <%= form_with scope: :refund, url: url, data: {
+          refund_draft: kind, refund_title: title,
+          refund_effect: (difference ? "原预约保留" : (reservation.return_failed? ? "原预约已取消" : "将取消预约"))
+        } do |form| %>
+          <%= form.hidden_field :idempotency_key, value: SecureRandom.uuid, id: nil %>
+          <%= form.hidden_field :confirmed_available, value: reservation.available_refund_cents, disabled: true, id: nil %>
+          <div class="modal-body">
+            <% if difference %>
+              <div class="mb-3">
+                <%= form.label :amount, "退差价金额", class: "form-label required", for: "difference-amount" %>
+                <div class="input-group">
+                  <%= form.number_field :amount, id: "difference-amount", class: "form-control", min: "0.01", step: "0.01",
+                    max: remaining, required: true, aria: { describedby: "refund-available" } %>
+                  <span class="input-group-text">元</span>
+                </div>
+                <p id="refund-available" class="form-hint mb-0">当前可退 <%= remaining %> 元</p>
+              </div>
+            <% else %>
+              <p>当前可退 <%= remaining %> 元</p>
+              <% if waiting %><p class="text-secondary">已有退差价尚未办结，收到微信结果后可确认退号。</p><% end %>
+            <% end %>
+            <%= form.label :reason, "#{difference ? '退差价' : '退号'}原因", class: "form-label required", for: "#{kind}-reason" %>
+            <%= form.text_area :reason, class: "form-control", id: "#{kind}-reason", rows: 2, maxlength: 500, required: true %>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn me-auto" data-bs-dismiss="modal">取消</button>
+            <%= tag.button "核对退款", type: "submit", class: "btn btn-primary", disabled: waiting %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
 <% end %>
 
-<% if can_refund %>
-  <% difference_form = capture do %>
-    <%= form_with scope: :refund, url: refund_difference_admins_reservation_path(reservation.order_no, @list_context),
-      id: "refund-difference" do |form| %>
-      <%= form.hidden_field :idempotency_key, value: SecureRandom.uuid, id: nil %>
-      <div class="mb-3">
-        <%= form.label :amount, "退差价金额", class: "form-label required" %>
-        <div class="input-group">
-          <%= form.number_field :amount, class: "form-control", min: "0.01", step: "0.01", max: remaining,
-            required: true, aria: { describedby: "refund-available" } %>
-          <span class="input-group-text">元</span>
-        </div>
-        <p id="refund-available" class="form-hint mb-0">当前可退 <%= remaining %> 元</p>
-      </div>
-      <%= form.label :reason, "退差价原因", class: "form-label required", for: "difference-reason" %>
-      <%= form.text_area :reason, class: "form-control", id: "difference-reason", rows: 2, maxlength: 500, required: true %>
-    <% end %>
-  <% end %>
-  <% description = requires_review ? "审核同意后按所填金额发起退款，原预约保留。" : "确认后按所填金额发起退款，原预约保留。" %>
-  <%= render "admins/shared/confirmation_modal", modal_id: "confirm-difference", form_id: "refund-difference", form_body: difference_form,
-    color: "warning", title: "申请退差价", context: reservation.order_no,
-    description: description, cancel_icon: :close, confirm_icon: :check, confirm_label: "确认申请" %>
+<% summary = capture do %>
+  <dl class="mb-0">
+    <dt class="visually-hidden">金额</dt>
+    <dd class="fs-2 fw-bold mb-2" data-refund-summary-amount></dd>
+    <dt class="text-secondary">原因</dt>
+    <dd class="text-break mb-0" data-refund-summary-reason></dd>
+  </dl>
 <% end %>
+<%= render "admins/shared/confirmation_modal", modal_id: "confirm-hospital-refund", color: "warning",
+  title: "确认退款", context: reservation.order_no, description: "", summary: summary,
+  cancel_label: "返回修改", cancel_data: { refund_back: true },
+  confirm_label: "确认退款", confirm_class: "text-dark", confirm_data: { bs_dismiss: nil, refund_submit: true }, preview_note: false %>

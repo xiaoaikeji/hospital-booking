@@ -22,6 +22,26 @@ module Admins
 
     def show
       @list_context = list_filters.merge(params.permit(:page).to_h.symbolize_keys)
+      items = @reservation.refund_items
+      admin_ids = items.filter_map { |item| item["requested_by_id"] if item["requested_by_type"] == "Admin" }
+      admin_ids.concat(items.filter_map { |item| item["reviewed_by_admin_id"] })
+      @refund_admins = Admin.where(id: admin_ids.uniq).index_by(&:id)
+      @payment_cancellation = @reservation.payment_data["staff_cancellation"]
+      @cancelling_admin = Admin.find_by(id: @payment_cancellation["admin_id"]) if @payment_cancellation
+    end
+
+    def cancel_pending_payment
+      input = params.expect(payment_cancellation: [ :reason ])
+      service = Appointments::Payment.new(@reservation, source: "admin", actor: current_admin, request: request)
+      service.request_cancel!(reason: input[:reason])
+      service.reconcile!
+
+      notice = case @reservation.payment_status
+      when "closed" then "待支付预约已取消"
+      when "paid" then "微信已确认收款，原预约已保留，请使用「医院退号」办理退款"
+      else "取消申请已受理，正在核实微信支付结果"
+      end
+      redirect_to reservation_path, notice: notice, status: :see_other
     end
 
     def complete
@@ -38,9 +58,10 @@ module Admins
     end
 
     def review_refund
-      input = params.expect(refund: %i[decision note])
+      input = params.expect(refund: %i[decision note confirmed_available])
       service = refund_service
-      service.review!(params[:refund_record_id], decision: input[:decision], note: input[:note])
+      service.review!(params[:refund_record_id], decision: input[:decision], note: input[:note],
+        confirmed_available: input[:confirmed_available])
       service.reconcile!(params[:refund_record_id]) if input[:decision] == "approve"
       redirect_to reservation_path, notice: "审核结果已保存", status: :see_other
     end
@@ -57,11 +78,12 @@ module Admins
     end
 
     def request_refund(kind)
-      input = params.expect(refund: %i[idempotency_key reason amount])
+      input = params.expect(refund: %i[idempotency_key reason amount confirmed_available])
       service = refund_service
-      id = service.request!(kind: kind, key: input[:idempotency_key], reason: input[:reason], amount: input[:amount])
+      id = service.request!(kind: kind, key: input[:idempotency_key], reason: input[:reason], amount: input[:amount],
+        confirmed_available: input[:confirmed_available])
       service.reconcile!(id)
-      redirect_to reservation_path, notice: "申请已保存", status: :see_other
+      redirect_to reservation_path, notice: "医院退款处理结果已更新", status: :see_other
     end
 
     def refund_service = Appointments::Refunds.new(@reservation, source: "admin", actor: current_admin, request: request)

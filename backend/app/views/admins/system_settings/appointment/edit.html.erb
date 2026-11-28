@@ -80,7 +80,7 @@
     <section class="border-top mt-3 pt-3" aria-labelledby="appointment-refund-title">
       <h3 class="h3 mb-3" id="appointment-refund-title">退款规则</h3>
       <%= render "rule_switch", form: f, field: AppointmentSettings::REFUND_REVIEW_FIELD, label: "退款需要审核",
-        help: "适用于患者退号、医院退号和后台退差价。开启后，审核同意才办理退号或发起退款。" %>
+        help: "开启后，患者在小程序申请退号需审核同意后办理。关闭后，符合条件的患者退号直接办理。医院退号和退差价均由经办人确认后直接办理。" %>
     </section>
   <% end %>
 <% end %>

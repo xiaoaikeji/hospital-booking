@@ -3,6 +3,7 @@ require "openssl"
 
 module Wechat
   class PaymentV2Client
+    PREPAY_REJECTIONS = %w[APPID_NOT_EXIST MCHID_NOT_EXIST APPID_MCHID_NOT_MATCH LACK_PARAMS PARAM_ERROR SIGNERROR XML_FORMAT_ERROR NOAUTH].freeze
     ORIGIN = "https://api.mch.weixin.qq.com"
     SIGN_TYPE = "HMAC-SHA256"
 
@@ -22,6 +23,10 @@ module Wechat
         fee_type: "CNY", trade_type: "JSAPI", **window)
       raise Payments::InvalidResult unless response["trade_type"] == "JSAPI"
       response["prepay_id"]
+    rescue Payments::ChannelError => error
+      raise unless PREPAY_REJECTIONS.include?(error.code)
+
+      raise Payments::PrepayRejected.new(error.code, error.message)
     end
 
     def checkout_params(appid, prepay_id)

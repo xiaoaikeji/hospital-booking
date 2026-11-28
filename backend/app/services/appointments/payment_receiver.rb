@@ -87,8 +87,10 @@ module Appointments
         when "CLOSED"
           close_unpaid!(state)
         else
-          if @appointment.pending_payment? && @appointment.payment_data["trade_state"] != state
-            @appointment.update!(payment_data: @appointment.payment_data.merge("trade_state" => state))
+          if @appointment.pending_payment?
+            data = @appointment.payment_data.merge("trade_state" => state)
+            data["prepay_outcome"] = "accepted" if data["prepay_outcome"].in?(%w[in_flight rejected])
+            @appointment.update!(payment_data: data) if data != @appointment.payment_data
           end
         end
         true
