@@ -127,6 +127,8 @@ module Appointments
         end
         return true if item["provider_state"] == "ABNORMAL" && state == "PROCESSING"
 
+        attention_states = %w[ABNORMAL CLOSED]
+        needs_attention = attention_states.include?(state) && !attention_states.include?(item["provider_state"])
         changes = {
           "provider_refund_no" => result.fetch(:refund_id), "provider_state" => state,
           "status" => { "SUCCESS" => "succeeded", "CLOSED" => "failed" }.fetch(state, "processing")
@@ -143,7 +145,7 @@ module Appointments
         @appointment.record_event!("refund_result", **@audit, details: refund_details(item).merge(
           channel_outcome: state, payer_refund_cents: item["payer_refund_cents"]
         ).compact)
-        GroupNotice.publish("refund_attention", @appointment, item) if item["status"] == "failed"
+        GroupNotice.publish("refund_attention", @appointment, item) if needs_attention
         true
       end
 

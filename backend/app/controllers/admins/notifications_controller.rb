@@ -3,7 +3,12 @@ module Admins
     before_action :require_super_admin!
 
     def index
-      if params[:view] == "interval_skips"
+      case params[:view]
+      when "hospital_skips"
+        scope = Log.where(source: "system", action: "notification.hospital_skipped", target_type: "Appointment")
+        @pagy, @hospital_skips = pagy(scope.order(id: :desc))
+        @order_numbers = Appointment.where(id: @hospital_skips.map(&:target_id)).pluck(:id, :order_no).to_h
+      when "interval_skips"
         scope = Log.where(source: "webhook", action: "notification.reply_interval_skipped", target_type: "App")
         @pagy, @interval_skips = pagy(scope.order(id: :desc))
         @accounts = App.wechat_official_accounts.where(id: @interval_skips.map(&:target_id)).index_by(&:id)

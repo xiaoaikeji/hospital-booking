@@ -513,6 +513,8 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     @version = "v2"
     config = WechatPaySettings.new
     assert config.save(payment_settings(@version).merge("revision" => config.revision), actor: nil)
+    start_hospital_notices
+    configure_notice("refund_attention", "{failure_reason}")
     automatic_review
     order = book!
     calls = stub_checkout(order)
@@ -537,7 +539,13 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       detail.slice("out_trade_no", "transaction_id", "total_fee", "cash_fee").merge("refund_count" => "1")
         .merge(detail.except("out_trade_no", "transaction_id", "total_fee", "cash_fee").transform_keys { |field| "#{field}_0" })
     end
+    detail["refund_status"] = "CHANGE"
     2.times { send_notification(order, "refund", detail) }
+    assert_equal ["退款异常，请到微信支付商户平台核对"], delivered_notices
+    assert_equal ["processing", 0], order.reload.attributes.values_at("refund_status", "refunded_amount_cents")
+    detail["refund_status"] = "SUCCESS"
+    2.times { send_notification(order, "refund", detail) }
+    assert_equal 1, Notification.count
     assert_equal [ "refunded", 1300, 1300 ], order.reload.attributes.values_at("refund_status", "paid_amount_cents", "refunded_amount_cents")
     assert_equal [ 2000, 1300 ], order.refund_items.sole.values_at("amount_cents", "payer_refund_cents")
   end
@@ -620,6 +628,48 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal ["#{unpaid.order_no} 未付款，预约已关单 0元", "#{paid.order_no} 20元"], delivered_notices
   end
 
+  test "expanded confirmation drops a blank final chunk for free and signed paid bookings" do
+    start_hospital_notices
+    prefix = "医🙂" + "文" * 673 + "ab"
+    assert_equal 2048, prefix.bytesize + 20
+    configure_notice("appointment_confirmed", "#{prefix}{order_no}\n")
+    @doctor.update!(fee: 0)
+    free = book!
+    assert_equal "待就诊", free.reload.status_label
+    assert_equal ["#{prefix}#{free.order_no}"], delivered_notices
+    automatic_review
+    request_return(free)
+    @doctor.update!(fee: 20)
+    paid = book!
+    2.times { settle_payment(paid) }
+    assert_equal "待就诊", paid.reload.status_label
+    assert_equal ["#{prefix}#{free.order_no}", "#{prefix}#{paid.order_no}"], delivered_notices
+    assert_equal 1, Notification.where(subject: paid).count
+  end
+
+  test "free confirmations retain mixed lines and record empty or invalid snapshots" do
+    start_hospital_notices
+    @doctor.update!(fee: 0)
+    automatic_review
+    configure_notice("appointment_confirmed", "预约成功 {order_no}，支付时间 {paid_at}\n支付时间 {paid_at}\n实付 {paid}")
+    free = book!
+    assert_equal ["预约成功 #{free.order_no}，支付时间 —\n实付 0元"], delivered_notices
+    request_return(free)
+    configure_notice("appointment_confirmed", "支付时间 {paid_at}")
+    empty = book!
+    assert_equal "模板无可发内容", Log.where(target_type: "Appointment", target_id: empty.id, action: "notification.hospital_skipped").sole.details["reason"]
+    request_return(empty)
+    row = Setting.find_by!(key: Appointments::GroupNotice.setting_key("appointment_confirmed"))
+    row.update!(settings: row.settings.merge("messages" => [{ "type" => "text", "content" => { "text" => "历史文案" } }]))
+    invalid = book!
+    assert_equal "待就诊", invalid.reload.status_label
+    get admins_notifications_path(view: "hospital_skips")
+    assert_response :ok
+    assert_select ".list-group-item", /通知生成或登记失败/
+    assert_select "a[href=?]", admins_reservation_path(invalid.order_no)
+    assert_select ".list-group-item", /模板无可发内容/
+  end
+
   test "only verified refund exceptions notify once per refund" do
     start_hospital_notices
     configure_notice("refund_attention", "{kind} {refund_no} {requested} {failure_reason}")
@@ -628,16 +678,17 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     settle_payment(order)
     requests = stub_v3_refunds(order)
     results = []
-    %w[SUCCESS CLOSED CLOSED].each do |state|
+    %w[SUCCESS CLOSED].each do |state|
       post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(order, reason: "调价", amount: 5) }
       request = requests.last
       assert_equal results, delivered_notices
-      if state == "CLOSED"
-        send_notification(order, "refund", v3_refund_result(order, request, "ABNORMAL", nil))
+      if state == "SUCCESS"
+        results << "退差价 #{request.fetch('out_refund_no')} 5元 退款异常，请到微信支付商户平台核对"
+        2.times { send_notification(order, "refund", v3_refund_result(order, request, "ABNORMAL", nil)) }
         assert_equal results, delivered_notices
       end
       2.times { send_notification(order, "refund", v3_refund_result(order, request, state, 500)) }
-      results << "退差价 #{request.fetch('out_refund_no')} 5元 微信已关闭本次退款" if state == "CLOSED"
+      results << "退差价 #{request.fetch('out_refund_no')} 5元 退款已关闭" if state == "CLOSED"
       assert_equal results, delivered_notices
       assert_equal "confirmed", order.reload.status
     end
@@ -654,6 +705,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       raise ActiveRecord::Rollback
     end
     assert_empty Notification.all
+    assert_empty Notifications::DeliveryWorker.jobs
     setting = Setting.find_by!(key: "wechat_notifications")
     setting.write_value("webhook_key", nil)
     setting.save!
@@ -666,12 +718,56 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     other = book!
     notice = Notification.sole
     configure_notice("appointment_confirmed", "{order_no}", enabled: false)
+    configure_notice("appointment_confirmed", "新预约 {order_no}")
     Notifications::Delivery.run(notice.id)
     assert_equal ["skipped", []], [notice.reload.delivery_outcome, notice.retryable_ids]
-    configure_notice("appointment_confirmed", "{order_no}")
     Notifications::Delivery.run(notice.id)
     assert_empty @group_messages
     assert_equal "confirmed", other.reload.status
+    request_return(other)
+    fresh = book!
+    Notifications::Delivery.run(Notification.where(subject: fresh).sole.id)
+    assert_equal ["新预约 #{fresh.order_no}"], @group_messages
+  end
+
+  test "disabling between parts preserves the receipt and skips only later parts of that event" do
+    start_hospital_notices
+    @doctor.update!(fee: 0)
+    configure_notice("appointment_confirmed", "中" * 674 + "{order_no}{order_no}")
+    configure_notice("appointment_returned", "原退号文案")
+    order = book!
+    automatic_review
+    request_return(order)
+    @after_group_request = lambda do
+      @after_group_request = nil
+      configure_notice("appointment_confirmed", "关闭", enabled: false)
+      configure_notice("appointment_confirmed", "新文案")
+      configure_notice("appointment_returned", "已编辑")
+    end
+    confirmed = Notification.find_by!(event: "appointment_confirmed")
+    Notifications::Delivery.run(confirmed.id)
+    assert_equal "部分已跳过", confirmed.reload.status_label
+    assert_equal 0, confirmed.results.first.dig("response", "errcode")
+    assert_equal "disabled", confirmed.results.last["stage"]
+    Notifications::Delivery.run(Notification.find_by!(event: "appointment_returned").id)
+    assert_equal [confirmed.messages.first.dig("content", "text"), "原退号文案"], @group_messages
+  end
+
+  test "missing event registration gives HTML guidance and rejects preview and save" do
+    start_hospital_notices
+    event = "appointment_confirmed"
+    definitions = Notifications::EventCatalog.definitions
+    definition = definitions.delete(event)
+    get edit_admins_hospital_notice_path(event: event)
+    assert_response :unprocessable_content
+    assert_select "[role=alert]", /重启 Web/
+    post preview_admins_hospital_notice_path(event: event), as: :json
+    assert_response :unprocessable_content
+    assert_equal "未登记的通知事件", response.parsed_body["error"]
+    patch admins_hospital_notice_path(event: event), as: :json
+    assert_response :unprocessable_content
+  ensure
+    definitions[event] = definition if definition
   end
 
   test "hospital templates reject unknown variables, legacy review categories and unauthorized writes" do
@@ -710,6 +806,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     Notifications::Delivery.run(notice.id)
     assert_equal ["虚＊ 0元", "虚＊ 0元"], @group_messages
     assert_equal "sent", notice.reload.status
+    get admins_notification_path(notice)
+    assert_response :ok
+    assert_select "details", /93000/
   end
 
   private
@@ -720,12 +819,18 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
 
   def start_hospital_notices
     sign_in Admin.create!(username: "fixture_notice_admin", role: "super_admin")
-    setting = Setting.create!(key: "wechat_notifications")
-    setting.write_value("webhook_key", "fixture-hospital-robot")
-    setting.save!
+    get edit_admins_system_settings_wecom_notifications_path
+    assert_response :ok
+    revision = css_select("input[name='notification_settings[revision]']").sole["value"]
+    patch admins_system_settings_wecom_notifications_path, params: {
+      notification_settings: { revision: revision, webhook_key: "fixture-hospital-robot" }
+    }
+    assert_response :redirect
+    Notifications::DeliveryWorker.clear
     @group_messages = []
     @stubs.post("/cgi-bin/webhook/send") do |env|
       @group_messages << JSON.parse(env.body).dig("text", "content")
+      @after_group_request&.call
       response_for(errcode: @group_code || 0, errmsg: "unsafe-provider-detail")
     end
   end
@@ -741,10 +846,8 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   end
 
   def delivered_notices
-    Notification.order(:id).each do |row|
-      Notifications::Delivery.run(row.id)
-      assert_equal "sent", row.reload.status
-    end
+    Notifications::DeliveryWorker.drain
+    Notification.order(:id).each { |row| assert_equal "sent", row.status }
     @group_messages.dup
   end
 

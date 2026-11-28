@@ -18,7 +18,7 @@ module Notifications
       end
     end
 
-    def self.render(messages, fields:, data:, max_text_bytes: 2048)
+    def self.render(messages, fields:, data:, max_text_bytes: 2048, keep_partial_lines: false)
       messages = messages.map(&:deep_stringify_keys)
       validate!(messages, fields: fields)
       values = data.stringify_keys
@@ -32,13 +32,16 @@ module Notifications
         end
         # 可选数据为空时省略该行，例如审核通过没有拒审原因。
         text = text.split("\n", -1).reject do |line|
-          names(line).any? { |key| fields.fetch(key).fetch("optional", false) && values[key].to_s.strip.empty? }
+          keys = names(line)
+          missing = keys.select { |key| fields.fetch(key).fetch("optional", false) && values[key].to_s.strip.empty? }
+          missing.any? && (!keep_partial_lines || missing == keys)
         end.join("\n")
         text = text.gsub(TOKEN) do
           value = values[Regexp.last_match(1)]
+          next "—" if keep_partial_lines && value.to_s.strip.empty?
           value.respond_to?(:strftime) ? value.strftime("%F %T") : value.to_s
         end.gsub(/\{\{([A-Za-z_]\w*)\}\}/, '{\1}')
-        next if text.strip.empty?
+        next if keep_partial_lines ? text.blank? : text.strip.empty?
         snapshot = message.deep_dup
         if max_text_bytes && text.bytesize > max_text_bytes
           snapshot["truncated"] = true

@@ -29,7 +29,7 @@ module Notifications
           parts << +"" if parts.last.bytesize + char.bytesize > max_bytes && !parts.last.empty?
           parts.last << char
         end
-        parts.reject(&:empty?)
+        parts.reject(&:blank?)
       end
 
       def self.text_messages(text)

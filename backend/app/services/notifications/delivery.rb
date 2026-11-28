@@ -24,6 +24,7 @@ module Notifications
       subject = @row.subject
       @row.update!(status: "sending", attempt_count: @row.attempt_count + 1, last_attempt_at: Time.current,
         job_id: @job_id, response_data: @row.response_data.except("finished_at"))
+      generation = @row.payload.fetch("target").fetch("generation", 0)
       @row.messages.each do |message|
         result = @row.result_for(message["id"])
         if result["status"] == "sending" && result["stage"] == "request_started"
@@ -31,7 +32,7 @@ module Notifications
             "error_message" => "发送进程中断，请到渠道核实该条消息"))
         end
         next unless result["status"] == "pending"
-        if subject.respond_to?(:notification_deliverable?) && !subject.notification_deliverable?(@row.event)
+        if subject.respond_to?(:notification_deliverable?) && !subject.notification_deliverable?(@row.event, generation: generation)
           save_result(message, result.merge("status" => "failed", "stage" => "disabled", "error_message" => "此事件通知已关闭"))
           next
         end

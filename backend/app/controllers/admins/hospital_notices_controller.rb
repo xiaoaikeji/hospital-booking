@@ -3,6 +3,10 @@ module Admins
     before_action :require_super_admin!
     before_action :load_event
     rescue_from Notifications::Error do |error|
+      if action_name == "edit" && request.format.html?
+        render :registration_error, status: :unprocessable_content
+        next
+      end
       render json: error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }, status: :unprocessable_content
     end
 
@@ -19,7 +23,7 @@ module Admins
 
     def preview
       examples = @variable_fields.transform_values { |field| field.fetch("example") }
-      rendered = Notifications::Variables.render(messages, fields: @variable_fields, data: examples, max_text_bytes: nil)
+      rendered = Appointments::GroupNotice.render(messages, fields: @variable_fields, data: examples)
       render json: { texts: Notifications::Channels::WecomGroup.split_messages(rendered).map { |m| m.dig("content", "text") } }
     end
 
@@ -30,7 +34,10 @@ module Admins
         Setting.connection.execute("SELECT pg_advisory_xact_lock(71020013)")
         row = Setting.find_or_initialize_by(key: @setting_key)
         raise Notifications::Error, "文案已变化，请刷新后保存" unless input[:revision] == revision(row.settings || {})
-        row.update!(settings: { messages: contents, enabled: input[:enabled] == true })
+        enabled = input[:enabled] == true
+        generation = row.settings.fetch("generation", 0)
+        generation += 1 if row.settings["enabled"] && !enabled
+        row.update!(settings: { messages: contents, enabled: enabled, generation: generation })
         Log.record!(category: "notification", action: "notification.wecom_content", actor: current_admin, target: row,
           request: request, details: { event: @kind, fields: %w[messages enabled] })
       end

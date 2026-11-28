@@ -40,7 +40,7 @@ module Appointments
         spec.merge!(HANDLED) if %w[appointment_returned refund_attention].include?(event)
         spec.merge!(CANCELLED) if %w[appointment_returned unpaid_cancelled refund_attention].include?(event)
         spec[:result] = ["办理结果", RESULTS[event]] if RESULTS.key?(event)
-        spec[:failure_reason] = ["失败原因", "微信已关闭本次退款"] if event == "refund_attention"
+        spec[:failure_reason] = ["失败原因", "退款已关闭"] if event == "refund_attention"
         if event == "unpaid_cancelled"
           spec.delete(:paid_at)
           spec.merge!(REFUND.slice(:initiator, :requested_at))
@@ -60,26 +60,49 @@ module Appointments
       key if key.is_a?(String) && key.match?(/\A[A-Za-z0-9-]{8,64}\z/)
     end
 
-    def self.deliverable?(event)
-      Setting.find_by(key: setting_key(event))&.settings&.fetch("enabled", false) && configured_key.present?
+    def self.deliverable?(event, generation: 0)
+      settings = Setting.find_by(key: setting_key(event))&.settings
+      return false unless settings && settings["enabled"]
+
+      settings.fetch("generation", 0) == generation && configured_key.present?
+    end
+
+    def self.render(messages, fields:, data:)
+      Notifications::Variables.render(messages, fields: fields, data: data, max_text_bytes: nil, keep_partial_lines: true)
     end
 
     # The business transition holds the appointment lock. Persist the snapshot in
     # that transaction; Notification enqueues only after the outer commit.
     def self.publish(event, order, item = nil)
-      template = Setting.find_by(key: setting_key(event))&.settings
-      return unless template && template["enabled"]
-
-      key = configured_key
-      return unless key
-
       Notification.transaction(requires_new: true) do
-        Notifications.dispatch(event: event, subject: order, messages: template.fetch("messages"),
-          target: Notifications::Channels::WecomGroup.target(key), data: new(event, order, item).values,
+        template = Setting.find_by(key: setting_key(event))&.settings
+        next unless template && template["enabled"]
+
+        key = configured_key
+        next unless key
+
+        messages = render(template.fetch("messages"), fields: Notifications::EventCatalog.fetch(event).fetch("fields"),
+          data: new(event, order, item).values)
+        if messages.empty?
+          record_skip(event, order, "模板无可发内容")
+          next
+        end
+        target = Notifications::Channels::WecomGroup.target(key).merge("generation" => template.fetch("generation", 0))
+        Notifications.dispatch(event: event, subject: order, messages: messages, target: target,
           idempotency_key: item&.fetch("refund_no") || order.order_no)
       end
-    rescue Notifications::Error, IntegrationSettings::ConfigurationError, ActiveRecord::Encryption::Errors::Base
-      Rails.logger.warn("医院通知配置不可用 event=#{event} appointment_id=#{order.id}")
+    rescue StandardError
+      # This optional side effect has its own savepoint. Never log rendered patient data.
+      record_skip(event, order, "通知生成或登记失败")
+    end
+
+    def self.record_skip(event, order, reason)
+      Log.transaction(requires_new: true) do
+        Log.record!(category: "notification", action: "notification.hospital_skipped", source: "system",
+          target: order, status: "skipped", details: { event: event, reason: reason })
+      end
+    rescue StandardError
+      Rails.logger.warn("医院通知已跳过：#{reason} event=#{event} appointment_id=#{order.id}")
     end
 
     def initialize(event, order, item)
@@ -117,14 +140,17 @@ module Appointments
       if @order.refunded_amount_cents.nil? && (known = @order.confirmed_refunded_cash_cents)
         total = "已确认#{money(known)}，其余待核对"
       end
+      cash = item.fetch("payer_refund_cents") do
+        0 unless item["status"] == "succeeded" && item["amount_cents"].to_i.positive?
+      end
       {
         refund_no: item["refund_no"], kind: item["kind"] == "cancel" ? "退号" : "退差价",
         initiator: item["requested_by_type"] == "Admin" ? "医院办理" : "患者申请",
         reason: item["reason"], requested_at: Time.zone.parse(item.fetch("created_at")),
         handled_at: Time.zone.parse(item.fetch("updated_at")), requested: money(item["amount_cents"]),
-        refunded: money(item.fetch("payer_refund_cents", 0)),
+        refunded: money(cash),
         total_refunded: total, available: money(@order.available_refund_cents),
-        failure_reason: "微信已关闭本次退款"
+        failure_reason: item["provider_state"] == "ABNORMAL" ? "退款异常，请到微信支付商户平台核对" : "退款已关闭"
       }
     end
   end

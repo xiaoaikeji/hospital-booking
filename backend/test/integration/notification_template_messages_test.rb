@@ -50,6 +50,7 @@ class NotificationTemplateMessagesTest < ActionDispatch::IntegrationTest
     @template_error = true
     get admins_template_messages_path(app_id: @a.id)
     assert_response :success
+    assert_equal %w[activity_reminder activity_start], css_select("[data-template-event]").map { |el| el["data-template-event"] }.sort
     assert_select "[data-template-event='activity_start'] [data-template-unbind]:not(.d-none)"
     assert_select "[data-template-event='activity_start'] [data-template-choice]", count: 0
     revision = css_select("#unbind-template-activity_start input[name='template_binding[revision]']").sole["value"]
