@@ -32,9 +32,14 @@
 <section class="card" aria-labelledby="reservation-amount-title">
   <div class="card-header flex-wrap gap-2">
     <h2 class="card-title" id="reservation-amount-title">费用信息</h2>
-    <div class="card-actions d-flex align-items-center gap-2">
+    <div class="card-actions d-flex flex-wrap align-items-center gap-2">
       <span class="text-secondary"><%= wechat ? "微信支付" : "免费挂号" %></span>
       <% if wechat %><span class="badge bg-<%= payment_color %>-lt"><%= payment_label %></span><% end %>
+      <% if can_cancel_payment %>
+        <button type="button" class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-cancel-pending-payment">
+          <%= render "layouts/admins/icon", name: :alert %>取消待支付预约
+        </button>
+      <% end %>
     </div>
   </div>
   <div class="card-body">

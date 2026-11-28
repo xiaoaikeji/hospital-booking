@@ -3,41 +3,18 @@
 <% empty = @reservations.empty? %>
 <% content_for :fill_content, "true" if empty %>
 <% filter_url = ->(changes) { admins_reservations_path(@filters.merge(changes).compact) } %>
-<% tab_filters = @filters.except(:tab, :status, :refund_status) %>
-<% filtered = @filters.except(:tab).any? %>
+<% filtered = @filters.any? %>
 
 <%= render "admins/shared/list_page_header", title: "预约列表", icon: :calendar %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
-  <div class="card-header p-0">
-    <%# Tabler tabs.html, card-header-tabs. Each tab has its own read-only list. %>
-    <nav class="nav nav-tabs card-header-tabs m-0 w-100" aria-label="预约视图">
-      <%= link_to "全部预约", admins_reservations_path(tab_filters), class: class_names("nav-link", active: !@review_queue), aria: { current: ("page" unless @review_queue) } %>
-      <%= link_to "退款待审核", admins_reservations_path(tab_filters.merge(tab: "refund_reviews")), class: class_names("nav-link", active: @review_queue), aria: { current: ("page" if @review_queue) } %>
-    </nav>
-  </div>
   <div class="list-group list-group-flush">
-    <% unless @review_queue %>
-      <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: Appointment::STATUS_LABELS,
-        selected: @filters[:status], filter_url: filter_url %>
-    <% end %>
-    <div class="list-group-item py-2">
-      <%= form_with url: admins_reservations_path, method: :get, class: "row g-2 align-items-center", html: { aria: { label: "科室与退款筛选" } } do |form| %>
-        <% @filters.except(:department_id, :refund_status).each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
-        <%= form.label :department_id, "科室", class: "col-12 col-md-2 col-xl-1 text-secondary" %>
-        <div class="col-12 col-sm-5 col-lg-3">
-          <%= form.select :department_id, @department_options, { include_blank: "全部科室", selected: @filters[:department_id] },
-            class: "form-select", data: { enhanced_select: "search", submit_on_change: true } %>
-        </div>
-        <% unless @review_queue %>
-          <%= form.label :refund_status, "退款状态", class: "col-12 col-md-2 col-xl-1 ms-lg-2 text-secondary" %>
-          <div class="col-12 col-sm-5 col-lg-3">
-            <%= form.select :refund_status, Appointment::REFUND_LABELS.except("none").invert.to_a, { include_blank: "全部退款状态", selected: @filters[:refund_status] },
-              class: "form-select", data: { enhanced_select: "single", submit_on_change: true } %>
-          </div>
-        <% end %>
-      <% end %>
-    </div>
+    <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: Appointment::STATUS_LABELS,
+      selected: @filters[:status], filter_url: filter_url %>
+    <%= render "admins/shared/list_filter_row", label: "科室", key: :department_id, options: @department_options,
+      selected: @filters[:department_id], filter_url: filter_url %>
+    <%= render "admins/shared/list_filter_row", label: "退款状态", key: :refund_status, options: Appointment::REFUND_LABELS.except("none").merge("requested" => "待审核"),
+      selected: @filters[:refund_status], filter_url: filter_url %>
   </div>
 </section>
 
@@ -59,17 +36,16 @@
       <div class="col-auto btn-list">
         <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
         <% if filtered %>
-          <%= link_to admins_reservations_path(tab: @filters[:tab]), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+          <%= link_to admins_reservations_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
         <% end %>
       </div>
     <% end %>
   </div>
 
   <% if empty %>
-    <% object = @review_queue ? "待审核申请" : "预约" %>
-    <%= render "admins/shared/list_empty", icon: :calendar, title: (filtered ? "没有找到匹配的#{object}" : "暂无#{object}") %>
+    <%= render "admins/shared/list_empty", icon: :calendar, title: (filtered ? "没有找到匹配的预约" : "暂无预约") %>
   <% else %>
-    <%= render(@review_queue ? "refund_queue" : "appointments_table", reservations: @reservations, list_context: @list_context) %>
+    <%= render "appointments_table", reservations: @reservations, list_context: @list_context %>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { filter_url.call(page: page) } %>
   <% end %>
 </section>

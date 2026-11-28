@@ -39,8 +39,12 @@
             <%= form.text_area :reason, class: "form-control", id: "#{kind}-reason", rows: 2, maxlength: 500, required: true %>
           </div>
           <div class="modal-footer">
-            <button type="button" class="btn me-auto" data-bs-dismiss="modal">取消</button>
-            <%= tag.button (free_return ? "核对退号" : "核对退款"), type: "submit", class: "btn btn-primary", disabled: waiting %>
+            <div class="btn-list justify-content-end">
+              <button type="button" class="btn" data-bs-dismiss="modal"><%= render "layouts/admins/icon", name: :close %>取消</button>
+              <%= tag.button type: "submit", class: "btn btn-primary", disabled: waiting do %>
+                <%= render "layouts/admins/icon", name: :check %><%= free_return ? "核对退号" : "核对退款" %>
+              <% end %>
+            </div>
           </div>
         <% end %>
       </div>

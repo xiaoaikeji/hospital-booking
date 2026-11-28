@@ -1,4 +1,5 @@
 <% reservation = @reservation %>
+<% can_cancel_payment = current_admin.maintain_booking_directory? && reservation.pending_payment? && !reservation.payment_cancel_requested_at? %>
 <% content_for :title, "#{reservation.order_no} · 预约详情 · Booking 管理后台" %>
 <% content_for :mobile_theme_menu, "true" %>
 <% content_for :head do %>
@@ -69,26 +70,21 @@
     </section>
   </div>
   <div class="col-12">
-    <%= render "fees", reservation: reservation %>
+    <%= render "fees", reservation: reservation, can_cancel_payment: can_cancel_payment %>
   </div>
-  <% if current_admin.maintain_booking_directory? && reservation.pending_payment? && !reservation.payment_cancel_requested_at? %>
-    <div class="col-12">
-      <%= form_with scope: :payment_cancellation, url: cancel_pending_payment_admins_reservation_path(reservation.order_no, @list_context),
-        id: "cancel-pending-payment", class: "card" do |form| %>
-        <div class="card-body">
-          <%= form.label :reason, "取消原因", class: "form-label" %>
-          <%= form.text_area :reason, class: "form-control", rows: 2, maxlength: Appointments::Payment::CANCEL_REASON_LIMIT, required: true %>
-        </div>
-        <div class="card-footer">
-          <div class="btn-list justify-content-end">
-            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#confirm-cancel-pending-payment">取消待支付预约</button>
-          </div>
-        </div>
-      <% end %>
-      <%= render "admins/shared/confirmation_modal", modal_id: "confirm-cancel-pending-payment", form_id: "cancel-pending-payment", color: "warning",
-        title: "取消待支付预约", context: reservation.order_no, description: "提交后停止续付。关单确认后释放号源，微信已收款时保留预约。",
-        confirm_label: "确定取消预约" %>
-    </div>
-  <% end %>
   <%= render "admins/reservations/refunds", reservation: reservation %>
 </div>
+
+<% if can_cancel_payment %>
+  <% cancellation_form = capture do %>
+    <%= form_with scope: :payment_cancellation, url: cancel_pending_payment_admins_reservation_path(reservation.order_no, @list_context),
+      id: "cancel-pending-payment" do |form| %>
+      <%= form.label :reason, "取消原因", class: "form-label required" %>
+      <%= form.text_area :reason, class: "form-control", rows: 2, maxlength: Appointments::Payment::CANCEL_REASON_LIMIT, required: true %>
+    <% end %>
+  <% end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "confirm-cancel-pending-payment",
+    form_id: "cancel-pending-payment", form_body: cancellation_form, color: "warning",
+    title: "取消待支付预约", context: reservation.order_no, description: "提交后停止续付。关单确认后释放号源，微信已收款时保留预约。",
+    cancel_icon: :close, confirm_icon: :check, confirm_label: "确定取消预约" %>
+<% end %>

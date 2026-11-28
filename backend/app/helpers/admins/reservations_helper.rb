@@ -17,8 +17,12 @@ module Admins::ReservationsHelper
     tag.span(label, class: "badge bg-#{REFUND_BADGE_COLORS.fetch(status)}-lt")
   end
 
-  def separate_refund_status?(record)
-    record.refund_status != "none" && !(record.status == "cancel_requested" && record.refund_status == "requested")
+  def reservation_refund_statuses(record)
+    statuses = [ record.refund_status ]
+    statuses << "requested" if record.refund_items.any? { |item| item["status"] == "requested" }
+    statuses.delete("none")
+    statuses.delete("requested") if record.status == "cancel_requested"
+    statuses.uniq
   end
 
   def reservation_refund_anchor(item)

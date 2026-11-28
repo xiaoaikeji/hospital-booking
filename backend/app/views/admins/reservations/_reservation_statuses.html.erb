@@ -1,4 +1,9 @@
+<% refund_statuses = reservation_refund_statuses(record) %>
 <%= reservation_badge(record) %>
-<% if separate_refund_status?(record) %>
-  <div class="mt-1"><%= reservation_refund_badge(record.refund_status, record.refund_label) %></div>
+<% if refund_statuses.any? %>
+  <div class="d-flex flex-wrap gap-1 mt-1">
+    <% refund_statuses.each do |status| %>
+      <%= reservation_refund_badge(status, Appointment::REFUND_LABELS.fetch(status)) %>
+    <% end %>
+  </div>
 <% end %>

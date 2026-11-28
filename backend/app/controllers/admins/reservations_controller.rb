@@ -12,8 +12,7 @@ module Admins
 
     def index
       @filters = list_filters
-      @review_queue = @filters[:tab] == "refund_reviews"
-      @department_options = Department.where(id: Appointment.current.select(:department_id)).order(:name, :id).pluck(:name, :id)
+      @department_options = Department.where(id: Appointment.current.select(:department_id)).order(:name, :id).pluck(:id, :name).to_h
       dates = @filters[:date_range] ? list_date_range(@filters[:date_range]) : legacy_period
       @date_range = @filters[:date_range] || (dates && [ dates.begin, dates.end ].uniq.join(" – "))
       time_filter = ReservationTimeFilter.new(filtered_appointments(dates))
@@ -93,14 +92,14 @@ module Admins
 
     def list_filters
       date_range = params[:date_range].presence if params[:date_range].is_a?(String)
-      tab = "refund_reviews" if params[:tab] == "refund_reviews"
+      refund_status = params[:refund_status].presence_in(Appointment::REFUND_LABELS.keys - [ "none" ])
+      refund_status ||= "requested" if params[:tab] == "refund_reviews"
       {
-        tab: tab,
         booking_time: (params[:booking_time] if ReservationTimeFilter.valid?(params[:booking_time])),
         period: (params[:period].presence_in(PERIODS.keys) unless date_range),
         date_range: date_range,
-        status: (params[:status].presence_in(Appointment::STATUS_LABELS.keys) unless tab),
-        refund_status: (params[:refund_status].presence_in(Appointment::REFUND_LABELS.keys - [ "none" ]) unless tab),
+        status: params[:status].presence_in(Appointment::STATUS_LABELS.keys),
+        refund_status: refund_status,
         department_id: (params[:department_id].to_i if params[:department_id].is_a?(String) && params[:department_id].match?(/\A[1-9]\d{0,17}\z/)),
         q: (params[:q].strip.first(40).presence if params[:q].is_a?(String))
       }.compact
@@ -118,7 +117,12 @@ module Admins
     def filtered_appointments(dates)
       records = Appointment.current.newest_first
       records = records.where(appointment_date: dates) if dates
-      records = records.where(@filters.slice(:status, :refund_status, :department_id))
+      records = records.where(@filters.slice(:status, :department_id))
+      if @filters[:refund_status] == "requested"
+        records = records.where("appointments.refund_data @> ?", { items: [ { status: "requested" } ] }.to_json)
+      elsif @filters[:refund_status]
+        records = records.where(refund_status: @filters[:refund_status])
+      end
       if (order_no = @filters[:q])
         records = if /\A[0-9]{1,20}\z/.match?(order_no)
           records.where("appointments.order_no LIKE ?", "%#{order_no}%")
@@ -126,16 +130,7 @@ module Admins
           records.none
         end
       end
-      @review_queue ? pending_refund_applications(records) : records
-    end
-
-    def pending_refund_applications(records)
-      records.where("appointments.refund_data @> ?", { items: [ { status: "requested" } ] }.to_json)
-        .joins("CROSS JOIN LATERAL jsonb_array_elements(appointments.refund_data->'items') AS review_request(item)")
-        .where("review_request.item->>'status' = 'requested'")
-        .select("appointments.*", "review_request.item AS pending_refund")
-        .reorder(Arel.sql("(review_request.item->>'created_at')::timestamptz ASC"), :id,
-          Arel.sql("(review_request.item->>'id')::integer ASC"))
+      records
     end
   end
 end
