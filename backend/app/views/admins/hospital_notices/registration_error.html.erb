@@ -1,5 +1,5 @@
-<% content_for :title, "医院业务通知 · Booking 管理后台" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "医院业务通知", icon: :bell } do %>
-  <%= link_to "发送记录", admins_notifications_path, class: "btn" %>
+<% content_for :title, "通知模板 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "通知模板", icon: :bell } do %>
+  <%= link_to "通知记录", admins_notifications_path, class: "btn" %>
 <% end %>
 <div class="alert alert-warning" role="alert">通知事件尚未登记。请联系维护人员重启 Web 和后台任务进程，再刷新此页。</div>

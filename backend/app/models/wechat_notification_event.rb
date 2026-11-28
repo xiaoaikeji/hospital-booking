@@ -14,14 +14,7 @@ class WechatNotificationEvent < ApplicationRecord
     { "sent" => "success", "failed" => "danger", "unknown" => "warning" }.fetch(status, "secondary")
   end
 
-  # Completed and queued notifications retain their original channel and delivery policy.
-  def notification_deliverable?(_event = nil, generation: 0)
-    row = Setting.find_by(key: Notifications::WecomSettings::GROUP)
-    return false unless Array(row&.settings&.fetch("kinds", [])).include?(kind)
-    config = Notifications::WecomSettings.new(row)
-    raise Notifications::Error, "企业微信群机器人 Key 无法解密" if config.key_unreadable?
-    config.key.present?
-  end
+  def notification_deliverable?(_event = nil, generation: 0) = false
 
   def notification_delivery_finished!(task)
     error_code = task.results.filter_map { |result| result.dig("response", "errcode") }.find(&:nonzero?)

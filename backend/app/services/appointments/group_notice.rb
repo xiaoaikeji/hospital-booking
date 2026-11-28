@@ -53,18 +53,13 @@ module Appointments
       end
     end
 
-    def self.setting_key(event) = "hospital_notice.#{event}"
-
     def self.configured_key
       key = Notifications::WecomSettings.new.key
       key if key.is_a?(String) && key.match?(/\A[A-Za-z0-9-]{8,64}\z/)
     end
 
     def self.deliverable?(event, generation: 0)
-      settings = Setting.find_by(key: setting_key(event))&.settings
-      return false unless settings && settings["enabled"]
-
-      settings.fetch("generation", 0) == generation && configured_key.present?
+      HospitalNoticeTemplate.exists?(event: event, enabled: true, generation: generation) && configured_key.present?
     end
 
     def self.render(messages, fields:, data:)
@@ -75,19 +70,19 @@ module Appointments
     # that transaction; Notification enqueues only after the outer commit.
     def self.publish(event, order, item = nil)
       Notification.transaction(requires_new: true) do
-        template = Setting.find_by(key: setting_key(event))&.settings
-        next unless template && template["enabled"]
+        template = HospitalNoticeTemplate.find_by(event: event, enabled: true)
+        next unless template
 
         key = configured_key
         next unless key
 
-        messages = render(template.fetch("messages"), fields: Notifications::EventCatalog.fetch(event).fetch("fields"),
+        messages = render(template.messages, fields: Notifications::EventCatalog.fetch(event).fetch("fields"),
           data: new(event, order, item).values)
         if messages.empty?
           record_skip(event, order, "模板无可发内容")
           next
         end
-        target = Notifications::Channels::WecomGroup.target(key).merge("generation" => template.fetch("generation", 0))
+        target = Notifications::Channels::WecomGroup.target(key).merge("generation" => template.generation, "template_name" => template.name)
         Notifications.dispatch(event: event, subject: order, messages: messages, target: target,
           idempotency_key: item&.fetch("refund_no") || order.order_no)
       end

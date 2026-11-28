@@ -61,5 +61,10 @@ class Notification < ApplicationRecord
     return "应答已生成" if status == "sending" && passive_prepared?
     STATES.fetch(status)
   end
-  def retryable_ids = results.select { |r| r["status"] == "failed" && r["stage"] != "disabled" }.map { |r| r["message_id"] }
+
+  def retryable_ids
+    return [] if subject_type == "WechatNotificationEvent"
+
+    results.select { |r| r["status"] == "failed" && r["stage"] != "disabled" }.map { |r| r["message_id"] }
+  end
 end

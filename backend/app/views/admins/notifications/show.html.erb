@@ -4,13 +4,14 @@
 <% end %>
 <div class="card mb-3"><div class="card-body">
   <%= render "admins/shared/field_rows", fields: {
+    "模板名称" => @notification.payload.dig("target", "template_name"),
     "事件" => notification_event_label(@notification.event),
     "状态" => notification_status_badge(@notification.delivery_outcome, @notification.status_label),
     "执行次数" => @notification.attempt_count.to_s,
     "事件标识" => @notification.event,
     "渠道标识" => @notification.payload.dig("target", "channel_key"),
     "目标" => @notification.payload.dig("target", "label") || @notification.payload.dig("target", "channel_key")
-  }, full: ["目标"] %>
+  }.compact, full: ["目标"] %>
 </div></div>
 <% if @notification.uncertain? %><div class="alert alert-warning">有消息待核实。请求已发出但没有可靠回执，请先到渠道核对；系统不会自动补发。</div><% end %>
 <% @notification.messages.each_with_index do |message, i| %>

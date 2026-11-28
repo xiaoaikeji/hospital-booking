@@ -80,7 +80,7 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "升级保留旧通知的发送策略和发送结果" do
+  test "旧审核通知即使原先启用也跳过且不可补发" do
     settings = Setting.create!(key: "wechat_notifications")
     settings.write_value("webhook_key", "local-test-recovery-group")
     settings.write_value("kinds", ["passed"])
@@ -89,13 +89,17 @@ class NotificationRecoveryTest < ActionDispatch::IntegrationTest
       event = WechatNotificationEvent.create!(app: @account, kind: "passed", event_key: "historical", message: "旧通知", status: "pending")
       task = Notifications.dispatch(event: "passed", subject: event, target: @target, idempotency_key: "historical",
         messages: [{id: "first", type: "text", content: {text: "既有发送快照"}}])
-      settings.update!(settings: settings.settings.merge("kinds" => []))
+
       Notifications::DeliveryWorker.new.perform(task.id)
       assert_empty @calls
       assert_equal "skipped", event.reload.status
       assert_predicate task.reload, :disabled?
       get admins_notification_path(task)
       assert_response :success
+      task.update!(status: "failed", response_data: { messages: [{ message_id: "first", status: "failed", stage: "channel_rejected" }] })
+      assert_empty task.retryable_ids
+      post retry_failed_admins_notification_path(task), params: { message_ids: ["first"] }
+      assert_equal "failed", task.reload.status
       get admins_wechat_notifications_path
       assert_response :success
       assert_includes response.body, "审核通过"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_28_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_28_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -225,6 +225,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_28_090000) do
     t.datetime "updated_at", null: false
     t.check_constraint "fee >= 0::numeric", name: "doctors_fee_nonnegative"
     t.check_constraint "status = ANY (ARRAY[0, 1])", name: "doctors_status_allowed"
+  end
+
+  create_table "hospital_notice_templates", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: false, null: false
+    t.string "event", null: false
+    t.integer "generation", default: 0, null: false
+    t.jsonb "messages", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index ["event"], name: "index_hospital_notice_templates_on_event", unique: true, where: "enabled"
   end
 
   create_table "links", force: :cascade do |t|

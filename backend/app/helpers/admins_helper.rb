@@ -35,10 +35,8 @@ module AdminsHelper
         [ "通用海报", admins_posters_path, "admins/posters" ]
       ] ]
       groups << [ "通知管理", :bell, [
-        [ "医院业务通知", edit_admins_hospital_notice_path, "admins/hospital_notices" ],
-        [ "回复内容", admins_reply_contents_path, %w[admins/reply_contents admins/reply_rules] ],
-        [ "微信模板消息", admins_template_messages_path, "admins/template_messages" ],
-        [ "发送记录", admins_notifications_path, %w[admins/notifications admins/wechat_notifications] ]
+        [ "通知列表", admins_hospital_notices_path, "admins/hospital_notices" ],
+        [ "通知记录", admins_notifications_path, %w[admins/notifications admins/wechat_notifications] ]
       ] ]
       admin_pages << [ "管理员", admins_administrators_path, "admins/administrators" ]
       admin_pages << [ "后台任务", admins_background_jobs_path, "admins/background_jobs" ]
@@ -78,7 +76,7 @@ module AdminsHelper
   end
 
   def log_subject_label(type, id)
-    type = { "Department" => "科室", "Doctor" => "医生" }.fetch(type, type)
+    type = { "Department" => "科室", "Doctor" => "医生", "HospitalNoticeTemplate" => "通知模板", "Notification" => "通知记录" }.fetch(type, type)
     [ type.presence, ("##{id}" if id) ].compact.join(" ").presence || "—"
   end
 

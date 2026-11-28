@@ -126,7 +126,7 @@ class WechatDirectCallbacksTest < ActionDispatch::IntegrationTest
     legacy.each do |method, paths|
       paths.each { |path| assert_raises(ActionController::RoutingError) { routes.recognize_path(path, method: method) } }
     end
-    [admins_background_jobs_path, admins_notifications_path, edit_admins_hospital_notice_path, admins_page_links_path].each do |path|
+    [admins_background_jobs_path, admins_notifications_path, admins_hospital_notices_path, admins_page_links_path].each do |path|
       assert routes.recognize_path(path, method: :get).fetch(:controller).start_with?("admins/")
     end
     assert_equal %w[notification_delivery mini_program_sessions_cleanup user_ip_location appointment_payment_reconciliation], YAML.safe_load_file(Rails.root.join("config/schedule.yml")).keys

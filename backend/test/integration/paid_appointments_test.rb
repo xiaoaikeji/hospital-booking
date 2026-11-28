@@ -647,6 +647,27 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal 1, Notification.where(subject: paid).count
   end
 
+  test "switching templates between payment callbacks preserves the queued snapshot and event identity" do
+    start_hospital_notices
+    configure_notice("appointment_confirmed", "简版 {order_no}")
+    order = book!
+    settle_payment(order)
+    original = Notification.sole
+    template = HospitalNoticeTemplate.find_by!(event: "appointment_confirmed", enabled: true)
+    patch admins_hospital_notice_path(template), as: :json, params: {
+      notification_content: { name: "改名后的简版", revision: template.revision, messages: [
+        { type: "text", content: { text: "修改后的正文" } }
+      ] }
+    }
+    assert_response :ok
+    assert_equal "改名后的简版", template.reload.name
+    configure_notice("appointment_confirmed", "详版 {order_no} {paid}")
+    settle_payment(order)
+    assert_equal original.id, Notification.sole.id
+    assert_equal "简版 {order_no}", original.payload.dig("target", "template_name")
+    assert_equal ["简版 #{order.order_no}"], delivered_notices
+  end
+
   test "free confirmations retain mixed lines and record empty or invalid snapshots" do
     start_hospital_notices
     @doctor.update!(fee: 0)
@@ -659,8 +680,8 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     empty = book!
     assert_equal "模板无可发内容", Log.where(target_type: "Appointment", target_id: empty.id, action: "notification.hospital_skipped").sole.details["reason"]
     request_return(empty)
-    row = Setting.find_by!(key: Appointments::GroupNotice.setting_key("appointment_confirmed"))
-    row.update!(settings: row.settings.merge("messages" => [{ "type" => "text", "content" => { "text" => "历史文案" } }]))
+    row = HospitalNoticeTemplate.find_by!(event: "appointment_confirmed", enabled: true)
+    row.update!(messages: [{ "type" => "text", "content" => { "text" => "历史文案" } }])
     invalid = book!
     assert_equal "待就诊", invalid.reload.status_label
     get admins_notifications_path(view: "hospital_skips")
@@ -758,13 +779,13 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     event = "appointment_confirmed"
     definitions = Notifications::EventCatalog.definitions
     definition = definitions.delete(event)
-    get edit_admins_hospital_notice_path(event: event)
+    get new_admins_hospital_notice_path(event: event)
     assert_response :unprocessable_content
     assert_select "[role=alert]", /重启 Web/
-    post preview_admins_hospital_notice_path(event: event), as: :json
+    post preview_admins_hospital_notices_path(event: event), as: :json
     assert_response :unprocessable_content
     assert_equal "未登记的通知事件", response.parsed_body["error"]
-    patch admins_hospital_notice_path(event: event), as: :json
+    post admins_hospital_notices_path(event: event), as: :json
     assert_response :unprocessable_content
   ensure
     definitions[event] = definition if definition
@@ -773,19 +794,19 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   test "hospital templates reject unknown variables, legacy review categories and unauthorized writes" do
     start_hospital_notices
     input = { notification_content: { messages: [{ type: "text", content: { text: "{openid}" } }] } }
-    patch admins_hospital_notice_path, params: input, as: :json
+    post admins_hospital_notices_path, params: input, as: :json
     assert_response :unprocessable_content
     assert_includes response.parsed_body.fetch("error"), "不可用的变量"
-    get edit_admins_hospital_notice_path(event: "passed")
+    get new_admins_hospital_notice_path(event: "passed")
     assert_response :not_found
     sign_in @operator
-    get edit_admins_hospital_notice_path
+    get new_admins_hospital_notice_path
     assert_response :forbidden
-    post preview_admins_hospital_notice_path, params: input, as: :json
+    post preview_admins_hospital_notices_path, params: input, as: :json
     assert_response :forbidden
-    patch admins_hospital_notice_path, params: input, as: :json
+    post admins_hospital_notices_path, params: input, as: :json
     assert_response :forbidden
-    assert_nil Setting.find_by(key: Appointments::GroupNotice.setting_key("appointment_confirmed"))
+    assert_empty HospitalNoticeTemplate.all
   end
 
   test "a failed group delivery preserves payment and retries only the saved message" do
@@ -805,6 +826,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     post retry_failed_admins_notification_path(notice), params: {message_ids: notice.retryable_ids}
     Notifications::Delivery.run(notice.id)
     assert_equal ["虚＊ 0元", "虚＊ 0元"], @group_messages
+    assert Log.operations_visible_to(Admin.find_by!(username: "fixture_notice_admin")).exists?(action: "notification.retry", target_type: "Notification", target_id: notice.id)
     assert_equal "sent", notice.reload.status
     get admins_notification_path(notice)
     assert_response :ok
@@ -836,13 +858,18 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   end
 
   def configure_notice(event, text, enabled: true)
-    get edit_admins_hospital_notice_path(event: event)
-    assert_response :ok
-    revision = JSON.parse(css_select("[data-reply-editor]").sole["data-input"]).fetch("revision")
-    patch admins_hospital_notice_path(event: event), as: :json, params: {
-      notification_content: { enabled: enabled, revision: revision, messages: [{ type: "text", content: { text: text } }] }
-    }
-    assert_response :ok
+    if enabled
+      post admins_hospital_notices_path(event: event), as: :json, params: {
+        notification_content: { name: text.first(20), messages: [{ type: "text", content: { text: text } }] }
+      }
+      assert_response :ok
+      template = HospitalNoticeTemplate.last
+      assert_not template.enabled?
+      patch enable_admins_hospital_notice_path(template)
+    else
+      patch disable_admins_hospital_notice_path(HospitalNoticeTemplate.find_by!(event: event, enabled: true))
+    end
+    assert_redirected_to admins_hospital_notices_path
   end
 
   def delivered_notices

@@ -2,7 +2,7 @@
 <%= render "admins/system_settings/navigation", title: "企微通知设置" %>
 <% can_clear = @settings.stored_key?; revision = @settings.revision; webhook = @settings.webhook_field %>
 <% history_link = capture do %>
-  <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>发送记录<% end %>
+  <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>通知记录<% end %>
 <% end %>
 <%= form_with scope: :notification_settings, url: admins_system_settings_wecom_notifications_path, method: :patch, class: "card", data: { admin_form: true } do |f| %>
   <%= f.hidden_field :revision, value: revision %>

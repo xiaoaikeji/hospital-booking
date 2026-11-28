@@ -1,7 +1,7 @@
-<% content_for :title, "发送记录 · Booking 管理后台" %>
+<% content_for :title, "通知记录 · Booking 管理后台" %>
 <% empty = (@hospital_skips || @interval_skips || @notifications).empty? %>
 <% content_for :fill_content, "true" if empty %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "发送记录", icon: :bell } do %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "通知记录", icon: :bell } do %>
   <% if WechatNotificationEvent.exists? %><%= link_to admins_wechat_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>微信历史记录<% end %><% end %>
 <% end %>
 <div class="card mb-3"><div class="list-group list-group-flush">
@@ -14,9 +14,9 @@
 <% elsif @interval_skips %>
   <%= render "interval_skips", empty: empty %>
 <% else %>
-<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="发送记录">
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="通知记录">
   <% if empty %>
-    <%= render "admins/shared/list_empty", icon: :bell, title: "暂无发送记录", description: "触发通知后，在这里查看每条消息的实际内容和处理结果。" %>
+    <%= render "admins/shared/list_empty", icon: :bell, title: "暂无通知记录", description: "触发通知后，在这里查看每条消息的实际内容和处理结果。" %>
   <% else %>
     <table class="table table-fixed table-vcenter card-table table-hover admin-list-table notification-delivery-table mb-0">
       <thead><tr>

@@ -1,0 +1,34 @@
+<% content_for :title, "通知列表 · Booking 管理后台" %>
+<% content_for :fill_content, "true" if @templates.empty? %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "通知列表", icon: :bell } do %>
+  <%= link_to new_admins_hospital_notice_path(event: @kind), class: "btn btn-primary" do %><%= render "layouts/admins/icon", name: :plus %>新增模板<% end %>
+<% end %>
+<div class="card mb-3"><div class="list-group list-group-flush">
+  <%= render "admins/shared/list_filter_row", label: "触发事件", key: :event, options: Appointments::GroupNotice::EVENTS,
+        selected: @kind, filter_url: ->(filters) { admins_hospital_notices_path(filters.compact) } %>
+</div></div>
+<section class="<%= class_names("card", "flex-fill" => @templates.empty?) %>">
+  <% if @templates.empty? %>
+    <%= render "admins/shared/list_empty", icon: :bell, title: "暂无通知模板", description: "点击新增模板，为业务事件编写通知。" %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table admin-list-table mb-0">
+      <thead><tr><th class="list-column-id">ID</th><th>模板名称</th><th class="d-none d-lg-table-cell">类型</th><th class="d-none d-md-table-cell">触发事件</th><th>状态</th><th class="d-none d-xl-table-cell">更新时间</th><th class="col-4 col-lg-3">操作</th></tr></thead>
+      <tbody><% @templates.each do |row| %>
+        <tr><td>#<%= row.id %></td><td><%= render "admins/shared/list_text", text: row.name %></td>
+          <td class="d-none d-lg-table-cell">医院业务</td><td class="d-none d-md-table-cell"><%= Appointments::GroupNotice::EVENTS.fetch(row.event) %></td>
+          <td><span class="badge bg-<%= row.enabled? ? "success" : "secondary" %>-lt"><%= row.enabled? ? "使用中" : "未启用" %></span></td>
+          <td class="d-none d-xl-table-cell"><%= admin_list_time(row.updated_at) %></td>
+          <td><div class="btn-list flex-wrap">
+            <%= link_to "编辑", edit_admins_hospital_notice_path(row), class: "btn btn-sm btn-outline-primary" %>
+            <%= link_to "复制", new_admins_hospital_notice_path(copy_id: row.id), class: "btn btn-sm" %>
+            <% if row.enabled? %>
+              <%= button_to "停用", disable_admins_hospital_notice_path(row), method: :patch, class: "btn btn-sm btn-warning" %>
+            <% else %>
+              <%= button_to "启用", enable_admins_hospital_notice_path(row), method: :patch, class: "btn btn-sm btn-success" %>
+            <% end %>
+          </div></td></tr>
+      <% end %></tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_hospital_notices_path(event: @kind, page: page) } %>
+  <% end %>
+</section>

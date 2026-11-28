@@ -121,8 +121,6 @@ document.addEventListener("DOMContentLoaded", () => {
       box.querySelectorAll("[data-content]").forEach(control => { m.content[control.dataset.content] = control.value; });
     });
   }
-  const enabled = root.querySelector("[data-notice-enabled]");
-  enabled?.addEventListener("change", () => { dirty = true; });
   let previewTimer, previewVersion = 0;
   function drawPreview() {
     read(); preview.replaceChildren();
@@ -317,7 +315,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const sendInterval = !interval?.value ? null : interval.valueAsNumber;
     window.adminForms.setBusy(root, true);
     try {
-      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, enabled: enabled?.checked, scope: scope?.value || input.scope, send_interval: sendInterval, name: reply.name, messages: reply.messages } });
+      const result = await request(root.dataset.save, input.id ? "PATCH" : "POST", { [root.dataset.payloadKey || "reply_content"]: { ...input, scope: scope?.value || input.scope, send_interval: sendInterval, name: reply.name, messages: reply.messages } });
       dirty = false;
       if (root.dataset.inline === "true" && window.opener) { window.opener.postMessage({ type: "booking.reply.saved", ...result, appId: new URL(location.href).pathname.split("/")[3] }, location.origin); window.close(); }
       else location.assign(root.dataset.back);
