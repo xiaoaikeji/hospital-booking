@@ -33,11 +33,17 @@
         <li class="nav-item">
           <a class="nav-link" href="<%= admins_root_path(anchor: "reports") %>"><span class="nav-link-icon"><%= render "layouts/admins/icon", name: :chart %></span><span class="nav-link-title">数据概况</span></a>
         </li>
-        <% groups = [
+        <% finance_pages = []
+        if current_admin.view_financial_records?
+          finance_pages << ["收款记录", admins_payment_records_path, ("admins/financial_records" if request.path == admins_payment_records_path)]
+          finance_pages << ["退款记录", admins_refund_records_path, ("admins/financial_records" if request.path == admins_refund_records_path)]
+        end
+        finance_pages << ["经营概况", admins_root_path(anchor: "reports")]
+        groups = [
           ["预约管理", :calendar, [["预约列表", admins_reservations_path, "admins/reservations"], ["今日排期", admins_root_path(anchor: "schedule")]]],
           ["客户管理", :users, [["客户列表", admins_customers_path, "admins/customers"], ["服务团队", admins_root_path(anchor: "staff")]]],
           ["服务管理", :package, [["服务项目", admins_root_path(anchor: "services")], ["预约规则", admins_root_path(anchor: "settings")]]],
-          ["财务管理", :wallet, [["收款记录", admins_root_path(anchor: "payments")], ["经营概况", admins_root_path(anchor: "reports")]]]
+          ["财务管理", :wallet, finance_pages]
         ]
         settings_pages = system_settings_pages
         groups << ["系统设置", :settings, settings_pages] if settings_pages.any? %>

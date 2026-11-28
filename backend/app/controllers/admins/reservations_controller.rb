@@ -7,6 +7,7 @@ module Admins
     before_action :load_reservation, except: :index
 
     rescue_from Appointment::InvalidOperation do |error|
+      record_rejected_operation
       redirect_to reservation_path, alert: error.message, status: :see_other
     end
 
@@ -23,7 +24,10 @@ module Admins
 
     def show
       @list_context = list_filters.merge(params.permit(:page).to_h.symbolize_keys)
+      @events = Log.where(target_type: "Appointment", target_id: @reservation.id, category: "booking",
+        status: %w[started success], action: Admins::RecordHistoryHelper::APPOINTMENT_EVENTS.keys).order(:created_at, :id)
       items = @reservation.refund_items
+      @refund_by_id = items.index_by { |item| item["id"] }.except(nil)
       admin_ids = items.filter_map { |item| item["requested_by_id"] if item["requested_by_type"] == "Admin" }
       admin_ids.concat(items.filter_map { |item| item["reviewed_by_admin_id"] })
       @refund_admins = Admin.where(id: admin_ids.uniq).index_by(&:id)
@@ -73,6 +77,23 @@ module Admins
     end
 
     private
+
+    def record_rejected_operation
+      event = { "review_refund" => "refund_review", "return_booking" => "hospital_refund",
+        "refund_difference" => "hospital_refund", "complete" => "complete",
+        "cancel_pending_payment" => "payment_close_requested" }[action_name]
+      return unless event
+
+      details = case action_name
+      when "refund_difference" then { kind: "admin_refund" }
+      when "return_booking" then { kind: "cancel" }
+      when "review_refund"
+        item = @reservation.refund_items.find { |row| row["id"].to_s == params[:refund_record_id] }
+        item ? { refund_record_id: item["id"], refund_no: item["refund_no"], kind: item["kind"] } : {}
+      else {}
+      end
+      @reservation.record_event!(event, source: "admin", actor: current_admin, request: request, status: "failed", details: details)
+    end
 
     def load_reservation
       @reservation = Appointment.current.find_by!(order_no: params[:order_no])

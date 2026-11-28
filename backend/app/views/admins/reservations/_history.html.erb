@@ -1,0 +1,14 @@
+<section class="card mt-3" aria-label="预约动态">
+  <div class="card-header"><h2 class="card-title">预约动态</h2></div>
+  <div class="list-group list-group-flush">
+    <% if @events.empty? %><div class="list-group-item text-secondary">暂无预约动态</div><% end %>
+    <% @events.each do |log| %>
+      <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
+        <time class="text-secondary"><%= admin_list_time(log.created_at) %></time>
+        <span><%= appointment_event_actor(log) %></span><strong><%= appointment_event_summary(log) %></strong>
+        <% item = log.details.is_a?(Hash) && @refund_by_id[log.details["refund_record_id"]] %>
+        <% if item %><%= link_to "退款单 #{item["refund_no"].presence || item["id"]}", "#refund-#{item["id"]}" %><% end %>
+      </div>
+    <% end %>
+  </div>
+</section>

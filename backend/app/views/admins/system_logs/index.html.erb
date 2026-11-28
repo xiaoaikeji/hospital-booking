@@ -1,0 +1,18 @@
+<% content_for :title, "系统记录 · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: "系统记录", icon: :history } do %><% end %>
+<section class="card">
+  <% url = ->(changes) { admins_system_logs_path(@filters.merge(changes).compact) } %>
+  <%= render "admins/shared/list_filter_row", label: "来源", key: :source, options: Admins::RecordHistoryHelper::SYSTEM_SOURCES.slice("system", "user", "console"), selected: @filters[:source], filter_url: url %>
+  <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::OperationLogsController::STATUSES.transform_values(&:first), selected: @filters[:status], filter_url: url %>
+  <div class="card-header"><%= form_with url: admins_system_logs_path, method: :get, class: "d-flex gap-2" do |form| %>
+    <% @filters.slice(:source, :status).each do |key, value| %><%= form.hidden_field key, value: value %><% end %>
+    <%= render "admins/shared/date_field", id: "system-range", name: :date_range, value: @filters[:date_range], prefix: "记录", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+    <%= form.submit "查询", class: "btn" %><%= link_to "重置筛选", admins_system_logs_path, class: "btn" if @filters.any? %>
+  <% end %></div>
+  <% if @logs.empty? %><%= render "admins/shared/list_empty", icon: :history, title: "暂无系统记录", description: "当前条件下没有记录。" %>
+  <% else %><div class="table-responsive"><table class="table table-vcenter card-table">
+    <thead><tr><th>时间</th><th>来源</th><th>摘要</th><th>结果</th></tr></thead>
+    <tbody><% @logs.each do |log| %><tr><td><%= admin_list_time(log.created_at) %></td><td><%= Admins::RecordHistoryHelper::SYSTEM_SOURCES[log.source] %></td><td><%= system_record_summary(log) %></td><td><%= render "admins/operation_logs/status", status: log.status %></td></tr><% end %></tbody>
+  </table></div>
+  <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { url.call(page: page) } %><% end %>
+</section>

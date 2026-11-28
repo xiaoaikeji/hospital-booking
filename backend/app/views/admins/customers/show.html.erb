@@ -76,3 +76,21 @@
     </div>
   <% end %>
 </section>
+
+<section class="card mt-3"><div class="card-header"><h2 class="card-title">客户动态</h2></div>
+  <div class="list-group list-group-flush">
+    <% if @history.empty? %><div class="list-group-item text-secondary">暂无客户动态</div><% end %>
+    <% @history.each do |log| %>
+      <div class="list-group-item"><%= admin_list_time(log.created_at) %> ·
+        <% if log.action == "mini_program.entry" %>
+          <% identity = @identities.detect { |row| row.id == log.target_id } %>
+          进入<%= identity.app_name %> · <%= safe_entry_scene(log, identity) %>
+        <% else %>
+          <%= Admins::RecordHistoryHelper::PATIENT_EVENTS.fetch(log.action) %> #<%= log.target_id %>
+        <% end %>
+        <%= render "admins/operation_logs/status", status: log.status %>
+      </div>
+    <% end %>
+  </div>
+  <%= render "admins/shared/pagination", pagy: @history_pagy, url: ->(page) { admins_customer_path(@customer, @list_context.merge(history_page: page)) } %>
+</section>

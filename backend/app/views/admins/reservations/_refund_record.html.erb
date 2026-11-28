@@ -14,7 +14,7 @@
   <% fields = { "退款单号" => (item["refund_no"] unless no_charge),
     "发起人" => (item["requested_by_type"] == "Admin" ? @refund_admins[item["requested_by_id"]]&.display_name : "患者"),
     "审核人" => @refund_admins[item["reviewed_by_admin_id"]]&.display_name,
-    "申请时间" => admin_list_time(Time.iso8601(item.fetch("created_at"))),
+    "申请时间" => (admin_list_time(Time.iso8601(item["created_at"])) if item["created_at"].present?),
     "退款金额" => (amount unless no_charge),
     "原因" => item["reason"], "审核意见" => item["review_note"],
     "现金退款" => cash,

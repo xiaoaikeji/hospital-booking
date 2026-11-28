@@ -24,6 +24,11 @@ module Admins
       @identities = identities.where(user_id: @customer.id)
         .select(:id, :status, :last_sign_in_at)
       @identities = @identities.select(:openid, :unionid) if current_admin.super_admin?
+      owner = Log.where(source: "user", actor_type: "User", actor_id: @customer.id)
+      visits = owner.where(category: "mini_program", action: "mini_program.entry", target_type: "UserApp", target_id: @identities.map(&:id))
+      patients = owner.where(category: "booking", action: Admins::RecordHistoryHelper::PATIENT_EVENTS.keys, target_type: "Patient")
+        .where.not(target_id: Patient.where.not(user_id: @customer.id).select(:id))
+      @history_pagy, @history = pagy(visits.or(patients).order(created_at: :desc, id: :desc), page_key: "history_page")
       @list_context = params.permit(:q, :status, :app_id, :page)
     end
 

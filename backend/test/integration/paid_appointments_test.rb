@@ -126,7 +126,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "虚构医生停诊"
     assert_includes response.body, admin.username
     assert_equal [ "cancelled", "closed" ], order.reload.attributes.values_at("status", "payment_status")
-    audit = Log.operations_visible_to(admin).merge(order_logs(order, "payment_close_requested")).sole
+    requests = Log.operations_visible_to(admin).merge(order_logs(order, "payment_close_requested"))
+    assert_equal 1, requests.where(status: "failed").count
+    audit = requests.where(status: "started").sole
     assert_equal [ "Admin", admin.id ], audit.attributes.values_at("actor_type", "actor_id")
     get admins_operation_log_path(audit)
     assert_includes response.body, order.order_no
@@ -504,9 +506,48 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       assert_equal remaining_cents, requests.last.dig("amount", "refund")
       2.times { send_v3_refund(order, requests.last, remaining_cents) }
       assert_equal [ "cancelled", "paid", "refunded", 2000, 1 ], [ order.reload.status, order.payment_status, order.refund_status, order.refunded_amount_cents, remaining(order) ]
+      get admins_payment_records_path(q: order.order_no)
+      assert_select "tbody tr", count: 1
+      assert_select "tbody tr td", text: "20 元", count: 2
+      get admins_refund_records_path(q: order.order_no, status: "succeeded")
+      assert_select "tbody tr", count: requests.size
+      order.refund_items.each do |item|
+        assert_select "tbody a[href$=?]", "#refund-#{item.fetch("id")}"
+        assert_select "tbody td", text: item.fetch("refund_no")
+      end
       assert_equal 2 + extra_refunds.size, order.refund_items.size
       assert_equal 2 + 2 * extra_refunds.size, order_logs(order, "refund_result").where("details ->> 'channel_outcome' = 'SUCCESS'").count
     end
+  end
+
+  test "refund pagination and permissions apply to detail rows" do
+    order = book!
+    settle_payment(order)
+    items = 22.times.map do |index|
+      { id: index + 1, refund_no: Appointment.generate_order_no, kind: "admin_refund", status: "rejected", amount_cents: 10,
+        created_at: (Time.current + index.seconds).iso8601 }
+    end
+    items.first.delete(:created_at)
+    order.update!(refund_data: { items: items })
+    sign_in @operator
+    get admins_refund_records_path(status: "rejected", page: 2)
+    assert_select "tbody tr", count: 2
+    assert_select "a[href$=?]", "#refund-2"
+    get admins_refund_records_path(q: items.third.fetch(:refund_no))
+    assert_select "tbody tr", count: 1
+    assert_select "tbody td", text: "待核对"
+    get admins_reservation_path(order.order_no)
+    assert_response :success
+    get admins_system_logs_path
+    assert_response :forbidden
+    sign_in Admin.create!(username: "fixture_ledger_support", role: "customer_service")
+    [admins_payment_records_path, admins_refund_records_path, admins_system_logs_path, admins_notification_path(1)].each do |path|
+      get path
+      assert_response :forbidden
+    end
+    get admins_reservation_path(order.order_no)
+    assert_response :success
+    assert_select "a[href=?]", admins_payment_records_path, count: 0
   end
 
   test "automatic full return of a V2 coupon order uses gross amount and records actual cash" do
@@ -831,6 +872,19 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     get admins_notification_path(notice)
     assert_response :ok
     assert_select "details", /93000/
+    audit = Log.find_by!(action: "notification.retry", target_type: "Notification", target_id: notice.id)
+    get admins_operation_log_path(audit)
+    assert_select "a[href=?]", admins_notification_path(notice), text: /查看/
+    reset!
+    sign_in @operator
+    get admins_reservation_path(order.order_no)
+    assert_response :success
+    get admins_operation_log_path(audit)
+    assert_response :not_found
+    get admins_notification_path(notice)
+    assert_response :forbidden
+    post retry_failed_admins_notification_path(notice), params: { message_ids: ["msg_1"] }
+    assert_response :forbidden
   end
 
   private

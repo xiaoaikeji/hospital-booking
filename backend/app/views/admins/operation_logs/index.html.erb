@@ -53,7 +53,7 @@
           <% actor = (@actors[log.actor_id] if log.actor_type == "Admin") %>
           <tr>
             <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{log.id}" %></td>
-            <td class="px-2"><%= render "admins/shared/list_text", text: log_action_name(log.action) %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: operation_log_title(log) %></td>
             <td class="d-none d-sm-table-cell"><%= render "admins/shared/list_text", text: actor&.display_name || log_subject_label(log.actor_type, log.actor_id) %></td>
             <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: log_subject_label(log.target_type, log.target_id) %></td>
             <td class="px-2"><%= render "status", status: log.status %></td>

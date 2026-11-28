@@ -39,6 +39,7 @@ module AdminsHelper
         [ "通知记录", admins_notifications_path, %w[admins/notifications admins/wechat_notifications] ]
       ] ]
       admin_pages << [ "管理员", admins_administrators_path, "admins/administrators" ]
+      admin_pages << [ "系统记录", admins_system_logs_path, "admins/system_logs" ]
       admin_pages << [ "后台任务", admins_background_jobs_path, "admins/background_jobs" ]
     end
     admin_pages << [ "操作日志", admins_operation_logs_path, "admins/operation_logs" ]
@@ -76,7 +77,9 @@ module AdminsHelper
   end
 
   def log_subject_label(type, id)
-    type = { "Department" => "科室", "Doctor" => "医生", "HospitalNoticeTemplate" => "通知模板", "Notification" => "通知记录" }.fetch(type, type)
+    type = { "Department" => "科室", "Doctor" => "医生", "HospitalNoticeTemplate" => "通知模板", "Notification" => "通知记录",
+      "Appointment" => "预约", "Admin" => "管理员", "User" => "患者账号", "App" => "应用", "Schedule" => "排班",
+      "Poster" => "海报", "Link" => "页面配置", "Setting" => "配置" }.fetch(type, nil)
     [ type.presence, ("##{id}" if id) ].compact.join(" ").presence || "—"
   end
 
@@ -88,6 +91,17 @@ module AdminsHelper
   def directory_status_badge(entry)
     color = entry.enabled? ? "success" : "secondary"
     tag.span(DirectoryEntry::STATUSES.fetch(entry.status), class: "badge bg-#{color}-lt")
+  end
+
+  def interval_skip_reasons(log)
+    replies = log.details["replies"] if log.details.is_a?(Hash)
+    return ["已跳过回复"] unless replies.is_a?(Array) && replies.any?
+    replies.map do |reply|
+      reason = reply["reason"] if reply.is_a?(Hash)
+      next reason if reason == "本次互动已匹配同一回复组"
+      minutes = reason.to_s[/\A同一粉丝在 ([1-9]\d{0,4}) 分钟发送间隔内已触发此回复\z/, 1]
+      minutes && minutes.to_i <= Notifications::SendInterval::MAX_MINUTES ? "同一粉丝在 #{minutes} 分钟发送间隔内已触发此回复" : "已跳过回复"
+    end
   end
 
   def notification_event_label(event)

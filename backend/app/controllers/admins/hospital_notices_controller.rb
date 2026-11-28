@@ -8,6 +8,7 @@ module Admins
         render :registration_error, status: :unprocessable_content
         next
       end
+      audit(action_name, status: "failed") if action_name.in?(%w[create update enable disable])
       render json: error.is_a?(Notifications::FieldError) ? error.feedback : { error: error.message }, status: :unprocessable_content
     end
 
@@ -81,9 +82,9 @@ module Admins
       render json: { saved: true }
     end
 
-    def audit(action)
+    def audit(action, status: "success")
       Log.record!(category: "notification", action: "notification.hospital_#{action}", actor: current_admin,
-        target: @template, request: request)
+        target: @template, request: request, status: status)
     end
 
     def load_template

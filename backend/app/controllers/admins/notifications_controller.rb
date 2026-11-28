@@ -7,7 +7,7 @@ module Admins
       when "hospital_skips"
         scope = Log.where(source: "system", action: "notification.hospital_skipped", target_type: "Appointment")
         @pagy, @hospital_skips = pagy(scope.order(id: :desc))
-        @order_numbers = Appointment.where(id: @hospital_skips.map(&:target_id)).pluck(:id, :order_no).to_h
+        @order_numbers = Appointment.current.where(id: @hospital_skips.map(&:target_id)).pluck(:id, :order_no).to_h
       when "interval_skips"
         scope = Log.where(source: "webhook", action: "notification.reply_interval_skipped", target_type: "App")
         @pagy, @interval_skips = pagy(scope.order(id: :desc))

@@ -16,6 +16,16 @@ module Admins::CustomersHelper
     end
   end
 
+  def safe_entry_scene(log, identity)
+    data = log.details.is_a?(Hash) ? log.details : {}
+    code = data["launch_scene"]
+    return "渠道入口" if data["channel_scene"].present? && code.nil?
+    return "场景未记录" unless code.is_a?(Integer) && (1000..9999).cover?(code)
+
+    label = WECHAT_ENTRY_SCENES[code] if identity.provider == "wechat"
+    label ? "#{label}（#{code}）" : "场景 #{code}"
+  end
+
   def customer_entry_scene(identity, with_code: false)
     code = identity.first_entry["launch_scene"]
     return if code.blank?

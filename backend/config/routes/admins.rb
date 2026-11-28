@@ -85,6 +85,9 @@ namespace :admins do
   end
   # 兼容旧存储页的书签和已打开的表单。
   resource :system_settings, only: %i[edit update], controller: "system_settings/storage"
+  get "payment_records", to: "financial_records#index", defaults: { kind: "payments" }
+  get "refund_records", to: "financial_records#index", defaults: { kind: "refunds" }
+  resources :system_logs, only: :index
   resources :operation_logs, only: %i[index show]
   resources :reservations, only: %i[index show], param: :order_no, constraints: { order_no: /[0-9]{20}/ } do
     member do

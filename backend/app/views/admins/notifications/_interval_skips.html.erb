@@ -11,7 +11,7 @@
         <th scope="col" class="d-none d-lg-table-cell list-column-time">时间</th>
       </tr></thead>
       <tbody><% @interval_skips.each do |entry| %>
-        <% account = @accounts[entry.target_id]; event = notification_event_label(entry.details["event"]) %>
+        <% account = @accounts[entry.target_id]; event = notification_event_label(entry.details.is_a?(Hash) ? entry.details["event"] : nil) %>
         <tr>
           <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{entry.id}" %></td>
           <td>
@@ -20,8 +20,8 @@
             <div class="d-lg-none small text-secondary"><%= admin_list_time(entry.created_at) %></div>
           </td>
           <td class="d-none d-md-table-cell"><%= render "admins/shared/list_text", text: event %></td>
-          <td class="text-break"><% entry.details.fetch("replies").each do |reply| %>
-            <div class="fw-medium"><%= reply["reply_name"] %></div><div class="small text-secondary"><%= reply["reason"] %></div>
+          <td class="text-break"><% interval_skip_reasons(entry).each do |reason| %>
+            <div><%= reason %></div>
           <% end %></td>
           <td class="d-none d-lg-table-cell text-nowrap"><%= admin_list_time(entry.created_at) %></td>
         </tr>

@@ -10,7 +10,7 @@
   <% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
     <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-completed-visit"><%= render "layouts/admins/icon", name: :check %>登记已就诊</button>
   <% end %>
-  <%= link_to admins_reservations_path(@list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
+  <%= link_to reservation_list_return_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 
 <% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
@@ -74,6 +74,8 @@
   </div>
   <%= render "admins/reservations/refunds", reservation: reservation %>
 </div>
+
+<%= render "history" %>
 
 <% if can_cancel_payment %>
   <% cancellation_form = capture do %>

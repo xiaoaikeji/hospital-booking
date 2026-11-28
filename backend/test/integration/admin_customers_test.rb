@@ -110,6 +110,25 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "customer history checks actor and binding ownership and hides historic free text" do
+    private_detail = "private-historic-fixture"
+    Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: @customer,
+      target: @a_identity, details: { launch_scene: 1047, channel_scene: private_detail })
+    Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: @customer,
+      target: @follower.user_apps.first, details: { launch_scene: 1005 })
+    patient = @customer.patients.create!(name: "虚构家属", gender: 0, age: 30)
+    patient.record_change!("remove")
+    patient.destroy!
+    get admins_customer_path(@customer)
+    assert_response :ok
+    assert_select ".list-group-item", /移除常用就诊人 ##{patient.id}/
+    assert_select ".list-group-item", /进入门诊小程序.*扫描小程序码/m
+    assert_not_includes response.body, private_detail
+    assert_not_includes response.body, "微信首页搜索"
+    get admins_customer_path(@follower)
+    assert_not_includes response.body, "移除常用就诊人"
+  end
+
   test "details show the shared empty state when the customer has no frequent patients" do
     get admins_customer_path(@follower)
     assert_response :success

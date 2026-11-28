@@ -50,7 +50,7 @@
           ["客户", admins_customers_path, :users, controller_path == "admins/customers"],
           (["应用", admins_apps_path, :device_mobile, controller_path == "admins/apps"] if current_admin.super_admin?),
           ["服务", admins_root_path(anchor: "services"), :package, false],
-          ["收款", admins_root_path(anchor: "payments"), :wallet, false],
+          (["收款", admins_payment_records_path, :wallet, current_page?(admins_payment_records_path)] if current_admin.view_financial_records?),
           ["报表", admins_root_path(anchor: "reports"), :chart, false],
           (["系统设置", settings_path, :settings, controller_path.start_with?("admins/system_settings/")] if settings_path),
           ["组件", admins_components_path, :package, controller_path == "admins/components"]

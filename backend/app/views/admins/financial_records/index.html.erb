@@ -1,0 +1,39 @@
+<% title = @refunds ? "退款记录" : "收款记录" %>
+<% list_path = ->(filters = {}) { @refunds ? admins_refund_records_path(filters) : admins_payment_records_path(filters) } %>
+<% list = list_path.call %>
+<% content_for :title, "#{title} · Booking 管理后台" %>
+<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :wallet } do %><% end %>
+<section class="card" aria-label="<%= title %>">
+  <% if @refunds %>
+    <%= render "admins/shared/list_filter_row", label: "状态", key: :status, options: Appointment::REFUND_ITEM_LABELS, selected: @filters[:status],
+      filter_url: ->(changes) { admins_refund_records_path(@filters.merge(changes).compact) } %>
+  <% end %>
+  <div class="card-header">
+    <%= form_with url: list, method: :get, class: "row g-2" do |form| %>
+      <%= form.hidden_field :status, value: @filters[:status] if @filters[:status] %>
+      <div class="col-auto"><%= render "admins/shared/date_field", id: "record-range", name: :date_range, value: @filters[:date_range], prefix: (@refunds ? "发起日期" : "付款日期"), selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %></div>
+      <div class="col-auto"><%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: (@refunds ? "预约号、退款单号" : "预约号、支付单号、微信交易号"), aria: { label: "单号" } %></div>
+      <div class="col-auto"><%= form.submit "查询", class: "btn" %> <%= link_to "重置筛选", list, class: "btn" if @filters.any? %></div>
+    <% end %>
+  </div>
+  <% if @records.empty? %>
+    <%= render "admins/shared/list_empty", icon: :wallet, title: "暂无#{title}", description: "当前条件下没有记录。" %>
+  <% else %>
+    <div class="table-responsive"><table class="table table-vcenter card-table text-nowrap">
+      <thead><tr><% ((@refunds ? %w[发起时间 预约号 退款单号 类型 申请金额 实退现金 状态] : %w[付款时间 预约号 支付单号 微信交易号 应付金额 实付现金]) + ["操作"]).each do |label| %><th><%= label %></th><% end %></tr></thead>
+      <tbody><% @records.each do |row| %>
+        <% item = row[:item] if @refunds %>
+        <tr><td><%= admin_list_time(row[:recorded_at]&.in_time_zone) %></td><td><%= row.order_no %></td>
+        <% if @refunds %>
+          <td><%= item["refund_no"].presence || "—" %></td><td><%= { "cancel" => "退号", "admin_refund" => "退差价" }.fetch(item["kind"], "—") %></td>
+          <td><%= financial_amount(item["amount_cents"]) %></td><td><%= financial_amount(item["status"] == "succeeded" ? item["payer_refund_cents"] : nil) %></td>
+          <td><%= reservation_refund_badge(item["status"], Appointment::REFUND_ITEM_LABELS.fetch(item["status"], "待核对")) %></td>
+        <% else %>
+          <td><%= row.payment_no %></td><td><%= row.transaction_no %></td><td><%= financial_amount(row.payable_amount_cents) %></td><td><%= financial_amount(row.paid_amount_cents) %></td>
+        <% end %>
+        <td><%= link_to "查看", admins_reservation_path(row.order_no, ledger: (@refunds ? "refunds" : "payments"), filters: @filters.merge(page: @pagy.page), anchor: ("refund-#{item["id"]}" if @refunds && item["id"])), class: "btn btn-sm btn-info" %></td></tr>
+      <% end %></tbody>
+    </table></div>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { list_path.call(@filters.merge(page: page)) } %>
+  <% end %>
+</section>

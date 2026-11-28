@@ -34,3 +34,12 @@
     <div class="alert alert-warning" role="alert"><%= @tab_error %></div>
   <% else %><%= render "plugins" %><% end %>
 <% end %>
+
+<% if @sync_history.present? %>
+  <section class="card mt-3"><div class="card-header"><h2 class="card-title">粉丝同步记录</h2></div>
+    <div class="list-group list-group-flush"><% @sync_history.each do |log| %>
+      <div class="list-group-item"><%= admin_list_time(log.created_at) %> · 同步公众号粉丝 <%= render "admins/operation_logs/status", status: log.status %></div>
+    <% end %></div>
+    <%= render "admins/shared/pagination", pagy: @sync_pagy, url: ->(page) { admins_app_path(@app, application_context_params.merge(history_page: page)) } %>
+  </section>
+<% end %>

@@ -4,18 +4,14 @@
 <% end %>
 <section class="card"><div class="card-body">
   <%= render "admins/shared/field_rows", columns: 3, fields: {
-        "操作类型" => log_action_name(@log.action), "操作人" => (@actor&.display_name || log_subject_label(@log.actor_type, @log.actor_id)),
+        "操作类型" => operation_log_title(@log), "操作人" => (@actor&.display_name || log_subject_label(@log.actor_type, @log.actor_id)),
         "对象" => log_subject_label(@log.target_type, @log.target_id), "结果" => render("status", status: @log.status),
-        "来源" => @log.source, "IP" => @log.ip_address, "请求编号" => @log.request_id, "操作时间" => admin_list_time(@log.created_at)
+        "来源" => "后台管理", "IP" => @log.ip_address, "请求编号" => (@log.request_id if @log.request_id.to_s.match?(/\A[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\z/i)), "操作时间" => admin_list_time(@log.created_at)
       } %>
+  <% if (path = record_target_path(@log)) %><%= link_to (@log.target_type == "Appointment" && path.include?("#refund-") ? "查看退款记录" : "查看业务记录"), path, class: "btn btn-sm btn-info mt-3" %><% end %>
   <% if @details.rows.any? || @details.omitted %>
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 mb-3">
       <h2 class="h3 mb-0">操作详情</h2>
-      <% if (order_no = @details.rows["预约单号"]) && (refund_id = @details.rows["退款记录编号"]) %>
-        <%= link_to admins_reservation_path(order_no, anchor: "refund-#{refund_id}"), class: "btn btn-sm btn-info text-nowrap" do %>
-          <%= render "layouts/admins/icon", name: :eye %>查看退款记录
-        <% end %>
-      <% end %>
     </div>
     <%= render "admins/shared/field_rows", fields: @details.rows, columns: 3 if @details.rows.any? %>
     <% if @details.omitted %>

@@ -5,7 +5,7 @@
     <div class="list-group list-group-flush">
       <% @hospital_skips.each do |entry| %>
         <div class="list-group-item">
-          <div class="fw-medium"><%= notification_event_label(entry.details["event"]) %> · <%= entry.details["reason"] %></div>
+          <div class="fw-medium"><%= notification_event_label(entry.details.is_a?(Hash) ? entry.details["event"] : nil) %> · <%= (entry.details.is_a?(Hash) && entry.details["reason"].presence_in(["模板无可发内容", "通知生成或登记失败"])) || "登记已跳过" %></div>
           <% if (number = @order_numbers[entry.target_id]) %><%= link_to number, admins_reservation_path(number) %><% end %>
           <span class="text-secondary"><%= admin_list_time(entry.created_at) %></span>
         </div>

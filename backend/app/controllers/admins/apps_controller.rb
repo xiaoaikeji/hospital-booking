@@ -20,6 +20,10 @@ module Admins
 
     def show
       @tab = params[:tab] == "plugins" && @app.code_capable? ? "plugins" : "overview"
+      if @app.app_type == "official_account"
+        history = Log.where(source: "job", category: "wechat", action: "wechat.fan_sync", target_type: "App", target_id: @app.id)
+        @sync_pagy, @sync_history = pagy(history.order(id: :desc), page_key: "history_page")
+      end
       if @tab == "plugins"
         @plugins = Wechat::AppPlugins.new(@app).list
       else

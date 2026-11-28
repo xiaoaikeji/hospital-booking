@@ -51,6 +51,8 @@ class OperationLogDetails
       AppointmentSettings::INVALID, AppointmentSettings::INVALID_CAPACITY, AppointmentSettings::INVALID_SLOT_CAPACITY,
       AppointmentSettings::INVALID_TIME, AppointmentSettings::INVALID_WINDOW, AppointmentSettings::OVERLAPPING_WINDOWS,
       AppointmentSettings::FAILURE, "请选择是否验证账号手机号和启用晚班" ] },
+    "appointment.complete" => { "order_no" => DECIMAL_ID },
+    "appointment.refund_request" => BOOKING_REFUND,
     "appointment.payment_close_requested" => { "order_no" => DECIMAL_ID, "reason" => [ "工作人员申请取消" ] },
     "appointment.payment_closed" => APPOINTMENT_PAYMENT.merge("channel_outcome" => PAYMENT_CLOSE_OUTCOMES.keys),
     "appointment.payment_confirmed" => APPOINTMENT_PAYMENT.merge("paid_amount_cents" => 0..ID.end),
@@ -157,7 +159,7 @@ class OperationLogDetails
       value = DirectoryEntry::STATUSES.fetch(value) if key == "status_value" && value.is_a?(Integer)
       value = PAYMENT_CLOSE_OUTCOMES.fetch(value) if key == "channel_outcome"
       value = "#{Appointment.cents_in_yuan(value)} 元" if key.in?(%w[paid_amount_cents amount_cents])
-      if log.action.in?(%w[appointment.hospital_refund appointment.refund_review appointment.refund_sync])
+      if log.action.in?(%w[appointment.hospital_refund appointment.refund_request appointment.refund_review appointment.refund_sync])
         value = { "cancel" => "退号", "admin_refund" => "退差价" }.fetch(value) if key == "kind"
         value = Appointment::REFUND_ITEM_LABELS.fetch(value) if key == "outcome"
         value = { "approve" => "同意", "reject" => "拒绝" }.fetch(value) if key == "decision"
