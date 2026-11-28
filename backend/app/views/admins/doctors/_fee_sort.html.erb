@@ -1,8 +1,9 @@
 <% sort = @filters[:sort] %>
 <% next_sort = sort == "fee_asc" ? "fee_desc" : "fee_asc" %>
 <% padding = local_assigns[:compact] ? "px-2 py-2" : "p-0" %>
+<% direction = { "fee_asc" => "asc", "fee_desc" => "desc" }[sort] %>
 <%= button_tag type: "submit", form: "doctor-fee-sort", name: "sort", value: next_sort,
-  class: "bg-transparent border-0 text-reset fw-medium cursor-pointer text-nowrap #{padding}",
+  class: class_names("table-sort d-inline-flex align-items-center justify-content-between text-nowrap", padding, direction),
   aria: { label: "挂号费#{next_sort == 'fee_asc' ? '升序' : '降序'}" } do %>
-  挂号费 <span aria-hidden="true"><%= { "fee_asc" => "↑", "fee_desc" => "↓" }.fetch(sort, "↕") %></span>
+  挂号费
 <% end %>

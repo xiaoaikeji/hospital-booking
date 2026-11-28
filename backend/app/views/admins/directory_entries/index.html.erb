@@ -85,13 +85,22 @@
                 <% end %>
                 <% if editable %>
                   <%= link_to edit_polymorphic_path([:admins, entry]), class: "btn btn-sm btn-outline-primary text-nowrap" do %><%= render "layouts/admins/icon", name: :edit %>编辑<% end %>
-                  <% if entry.enabled? %>
+                  <% if doctor %>
+                    <div class="dropdown">
+                      <button type="button" class="btn btn-sm dropdown-toggle text-nowrap" data-bs-toggle="dropdown" aria-expanded="false">更多</button>
+                      <div class="dropdown-menu dropdown-menu-end">
+                        <% if entry.enabled? %>
+                          <button type="button" class="dropdown-item text-warning" data-bs-toggle="modal" data-bs-target="#<%= dom_id(entry, :disable) %>-confirmation"><%= render "layouts/admins/icon", name: :alert, icon_class: "dropdown-item-icon" %>停用</button>
+                        <% else %>
+                          <%= button_to polymorphic_path([:status, :admins, entry]), method: :patch, params: { status: 1 }, class: "dropdown-item" do %><%= render "layouts/admins/icon", name: :check, icon_class: "dropdown-item-icon" %>启用<% end %>
+                        <% end %>
+                        <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#<%= dom_id(entry, :remove) %>-confirmation"><%= render "layouts/admins/icon", name: :trash, icon_class: "dropdown-item-icon" %>移除</button>
+                      </div>
+                    </div>
+                  <% elsif entry.enabled? %>
                     <button type="button" class="btn btn-sm btn-outline-warning text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(entry, :disable) %>-confirmation"><%= render "layouts/admins/icon", name: :alert %>停用</button>
                   <% else %>
                     <%= button_to polymorphic_path([:status, :admins, entry]), method: :patch, params: { status: 1 }, class: "btn btn-sm btn-outline-success text-nowrap" do %><%= render "layouts/admins/icon", name: :check %>启用<% end %>
-                  <% end %>
-                  <% if doctor %>
-                    <button type="button" class="btn btn-sm btn-outline-danger text-nowrap" data-bs-toggle="modal" data-bs-target="#<%= dom_id(entry, :remove) %>-confirmation"><%= render "layouts/admins/icon", name: :trash %>移除</button>
                   <% end %>
                 <% end %>
               </div>

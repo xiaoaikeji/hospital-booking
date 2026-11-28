@@ -1,18 +1,23 @@
 <% reservation = @reservation %>
 <% content_for :title, "#{reservation.order_no} · 预约详情 · Booking 管理后台" %>
+<% content_for :mobile_theme_menu, "true" %>
 
 <%= render layout: "admins/shared/list_page_header", locals: { title: "预约详情", icon: :calendar } do %>
   <% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
-    <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-completed-visit">登记已就诊</button>
+    <button type="button" class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#confirm-completed-visit"><%= render "layouts/admins/icon", name: :check %>登记已就诊</button>
   <% end %>
-  <%= link_to "返回列表", admins_reservations_path(@list_context), class: "btn text-nowrap" %>
+  <%= link_to admins_reservations_path(@list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
 
 <% if current_admin.maintain_booking_directory? && reservation.can_complete? %>
   <%= form_with url: complete_admins_reservation_path(reservation.order_no, @list_context), method: :patch, id: "complete-visit", hidden: true do %><% end %>
+  <% description = "请确认患者已经就诊。登记后，预约将办结并关闭退号入口。" %>
+  <% if reservation.refund_items.any? { |item| item["kind"] == "cancel" && item["status"] == "requested" } %>
+    <% description += "当前待审核的退号申请将被拒绝。" %>
+  <% end %>
   <%= render "admins/shared/confirmation_modal", modal_id: "confirm-completed-visit", form_id: "complete-visit", color: "warning",
-    title: "登记已就诊", context: reservation.order_no, description: "请确认患者已经就诊。登记后，预约将办结并关闭退号入口。",
-    confirm_label: "确定登记" %>
+    title: "登记已就诊", context: reservation.order_no, description: description,
+    cancel_icon: :close, confirm_icon: :check, confirm_label: "确定登记" %>
 <% end %>
 
 <section class="card mb-3" aria-label="预约概要">
@@ -22,8 +27,7 @@
       <div class="col">
         <div class="d-flex flex-wrap align-items-center gap-2">
           <h2 class="h2 mb-0 text-break"><%= reservation.order_no %></h2>
-          <span class="badge bg-blue-lt"><%= reservation.status_label %></span>
-          <% if reservation.refund_status != "none" %><span class="badge bg-secondary-lt"><%= reservation.refund_label %></span><% end %>
+          <%= reservation_badge(reservation) %>
         </div>
         <div class="text-secondary mt-1">创建于 <%= admin_list_time(reservation.created_at) %></div>
         <% if reservation.completed_at %>
@@ -62,29 +66,7 @@
     </section>
   </div>
   <div class="col-12">
-    <section class="card" aria-labelledby="reservation-amount-title">
-      <div class="card-header"><h2 class="card-title" id="reservation-amount-title">费用信息</h2></div>
-      <div class="card-body">
-        <% paid_channel = reservation.payment_channel == "wechat_jsapi" %>
-        <% fee_fields = {
-          "挂号费" => "#{reservation.fee_in_yuan} 元", "实付" => "#{reservation.paid_in_yuan} 元",
-          "支付渠道" => (paid_channel ? "微信支付" : "免费挂号")
-        } %>
-        <% if paid_channel %>
-          <% cash = "#{Appointment.cents_in_yuan(reservation.refunded_amount_cents.to_i)} 元" %>
-          <% if reservation.succeeded_refunds.any? { |item| item["amount_cents"].positive? && item["payer_refund_cents"].nil? } %>
-            <% cash = reservation.refunded_amount_cents.to_i.positive? ? "已确认 #{cash}，其余待核对" : "待核对" %>
-          <% end %>
-          <% fee_fields.merge!(
-            "支付状态" => (reservation.payment_closing? ? "关单核实中" : Appointment::PAYMENT_LABELS.fetch(reservation.payment_status)),
-            "付款截止" => admin_list_time(reservation.payment_expires_at), "支付单号" => reservation.payment_no,
-            "付款时间" => admin_list_time(reservation.paid_at), "微信交易号" => reservation.transaction_no,
-            "已退现金" => cash
-          ) %>
-        <% end %>
-        <%= render "admins/shared/field_rows", fields: fee_fields, columns: 3 %>
-      </div>
-    </section>
+    <%= render "fees", reservation: reservation %>
   </div>
   <%= render "admins/reservations/refunds", reservation: reservation %>
 </div>

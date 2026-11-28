@@ -1,0 +1,7 @@
+<div class="d-flex align-items-center gap-1">
+  <label class="form-check form-switch mb-0">
+    <%= form.check_box field, checked: @settings.enabled?(field), class: "form-check-input", aria: { controls: local_assigns[:controls] } %>
+    <span class="form-check-label"><%= label %></span>
+  </label>
+  <%= render "admins/shared/field_help", label: "查看#{label}说明", text: help %>
+</div>

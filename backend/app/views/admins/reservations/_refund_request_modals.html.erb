@@ -1,0 +1,45 @@
+<% requires_review = AppointmentSettings.new.refund_requires_review? %>
+<% remaining = Appointment.cents_in_yuan(reservation.available_refund_cents) %>
+<% if can_return %>
+  <% return_form = capture do %>
+    <%= form_with scope: :refund, url: return_booking_admins_reservation_path(reservation.order_no, @list_context), id: "return-booking" do |form| %>
+      <%= form.hidden_field :idempotency_key, value: SecureRandom.uuid, id: nil %>
+      <%= form.label :reason, "退号原因", class: "form-label required", for: "return-reason" %>
+      <%= form.text_area :reason, class: "form-control", id: "return-reason", rows: 2, maxlength: 500, required: true %>
+    <% end %>
+  <% end %>
+  <% description = if reservation.return_failed?
+    requires_review ? "审核同意后按原单剩余金额重新发起退款。" : "确认后按原单剩余金额重新发起退款。"
+  else
+    sentence = requires_review ? "审核同意后取消预约。" : "确认后取消预约。"
+    sentence += "按原单剩余金额发起退款。" if reservation.payment_channel == "wechat_jsapi"
+    sentence
+  end %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "confirm-return", form_id: "return-booking", form_body: return_form,
+    color: "warning", title: (reservation.return_failed? ? "重新申请退号退款" : "申请医院退号"), context: reservation.order_no,
+    description: description, cancel_icon: :close, confirm_icon: :check, confirm_label: "确认申请" %>
+<% end %>
+
+<% if can_refund %>
+  <% difference_form = capture do %>
+    <%= form_with scope: :refund, url: refund_difference_admins_reservation_path(reservation.order_no, @list_context),
+      id: "refund-difference" do |form| %>
+      <%= form.hidden_field :idempotency_key, value: SecureRandom.uuid, id: nil %>
+      <div class="mb-3">
+        <%= form.label :amount, "退差价金额", class: "form-label required" %>
+        <div class="input-group">
+          <%= form.number_field :amount, class: "form-control", min: "0.01", step: "0.01", max: remaining,
+            required: true, aria: { describedby: "refund-available" } %>
+          <span class="input-group-text">元</span>
+        </div>
+        <p id="refund-available" class="form-hint mb-0">当前可退 <%= remaining %> 元</p>
+      </div>
+      <%= form.label :reason, "退差价原因", class: "form-label required", for: "difference-reason" %>
+      <%= form.text_area :reason, class: "form-control", id: "difference-reason", rows: 2, maxlength: 500, required: true %>
+    <% end %>
+  <% end %>
+  <% description = requires_review ? "审核同意后按所填金额发起退款，原预约保留。" : "确认后按所填金额发起退款，原预约保留。" %>
+  <%= render "admins/shared/confirmation_modal", modal_id: "confirm-difference", form_id: "refund-difference", form_body: difference_form,
+    color: "warning", title: "申请退差价", context: reservation.order_no,
+    description: description, cancel_icon: :close, confirm_icon: :check, confirm_label: "确认申请" %>
+<% end %>

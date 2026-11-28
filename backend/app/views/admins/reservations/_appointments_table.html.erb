@@ -1,0 +1,35 @@
+<table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+  <thead><tr>
+    <th scope="col" class="list-column-id px-2">ID</th>
+    <th scope="col" class="px-2">预约号</th>
+    <th scope="col" class="d-none d-md-table-cell px-2">就诊人</th>
+    <th scope="col" class="d-none d-lg-table-cell px-2">医生 / 科室</th>
+    <th scope="col" class="d-none d-md-table-cell px-2">状态</th>
+    <th scope="col" class="d-none d-sm-table-cell px-2">预约时段</th>
+    <th scope="col" class="list-column-action px-2">操作</th>
+  </tr></thead>
+  <tbody>
+    <% reservations.each do |record| %>
+      <% detail = admins_reservation_path(record.order_no, list_context) %>
+      <% statuses = render "reservation_statuses", record: record %>
+      <tr>
+        <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{record.id}" %></td>
+        <td class="px-2">
+          <%= render "admins/shared/list_text", text: record.order_no, url: detail %>
+          <div class="d-md-none mt-1"><%= statuses %></div>
+        </td>
+        <td class="d-none d-md-table-cell px-2"><%= render "admins/shared/list_text", text: record.patient_name %></td>
+        <td class="d-none d-lg-table-cell px-2">
+          <%= render "admins/shared/list_text", text: record.doctor_name %>
+          <div class="small text-secondary"><%= render "admins/shared/list_text", text: record.department_name %></div>
+        </td>
+        <td class="d-none d-md-table-cell px-2"><%= statuses %></td>
+        <td class="d-none d-sm-table-cell px-2">
+          <div class="text-nowrap"><%= record.appointment_date.iso8601 %></div>
+          <div class="small text-secondary"><%= render "admins/shared/list_text", text: record.slot_label %></div>
+        </td>
+        <td class="px-2"><%= link_to detail, class: "btn btn-sm btn-info text-nowrap", aria: { label: "查看预约 #{record.order_no}" } do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

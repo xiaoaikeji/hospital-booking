@@ -1,11 +1,16 @@
 const slotSwitch = document.getElementById("appointment_booking_by_time_slot");
-const slotCapacity = document.getElementById(slotSwitch.getAttribute("aria-controls"));
-const slotInput = slotCapacity.querySelector("input");
+const defaultCapacity = document.getElementById("appointment-default-capacity");
+const slotCapacity = document.getElementById("appointment-slot-capacity");
 
-function updateSlotCapacity() {
-  slotCapacity.classList.toggle("d-none", !slotSwitch.checked);
-  slotInput.disabled = !slotSwitch.checked;
+function setCapacityActive(group, active) {
+  group.classList.toggle("d-none", !active);
+  group.querySelector("input").disabled = !active;
 }
 
-slotSwitch.addEventListener("change", updateSlotCapacity);
-window.addEventListener("pageshow", updateSlotCapacity);
+function updateCapacityFields() {
+  setCapacityActive(defaultCapacity, !slotSwitch.checked);
+  setCapacityActive(slotCapacity, slotSwitch.checked);
+}
+
+slotSwitch.addEventListener("change", updateCapacityFields);
+window.addEventListener("pageshow", updateCapacityFields);

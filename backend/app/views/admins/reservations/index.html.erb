@@ -1,68 +1,76 @@
 <% content_for :title, "预约列表 · Booking 管理后台" %>
+<%= render "admins/shared/enhanced_select_assets" %>
 <% empty = @reservations.empty? %>
 <% content_for :fill_content, "true" if empty %>
 <% filter_url = ->(changes) { admins_reservations_path(@filters.merge(changes).compact) } %>
+<% tab_filters = @filters.except(:tab, :status, :refund_status) %>
+<% filtered = @filters.except(:tab).any? %>
 
 <%= render "admins/shared/list_page_header", title: "预约列表", icon: :calendar %>
 
 <section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
+  <div class="card-header p-0">
+    <%# Tabler tabs.html, card-header-tabs. Each tab has its own read-only list. %>
+    <nav class="nav nav-tabs card-header-tabs m-0 w-100" aria-label="预约视图">
+      <%= link_to "全部预约", admins_reservations_path(tab_filters), class: class_names("nav-link", active: !@review_queue), aria: { current: ("page" unless @review_queue) } %>
+      <%= link_to "退款待审核", admins_reservations_path(tab_filters.merge(tab: "refund_reviews")), class: class_names("nav-link", active: @review_queue), aria: { current: ("page" if @review_queue) } %>
+    </nav>
+  </div>
   <div class="list-group list-group-flush">
-    <%= render "admins/shared/list_filter_row", label: "预约日期", key: :period, options: Admins::ReservationsController::PERIODS,
-      selected: @filters[:period], filter_url: filter_url %>
+    <% unless @review_queue %>
+      <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: Appointment::STATUS_LABELS,
+        selected: @filters[:status], filter_url: filter_url %>
+    <% end %>
+    <div class="list-group-item py-2">
+      <%= form_with url: admins_reservations_path, method: :get, class: "row g-2 align-items-center", html: { aria: { label: "科室与退款筛选" } } do |form| %>
+        <% @filters.except(:department_id, :refund_status).each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+        <%= form.label :department_id, "科室", class: "col-12 col-md-2 col-xl-1 text-secondary" %>
+        <div class="col-12 col-sm-5 col-lg-3">
+          <%= form.select :department_id, @department_options, { include_blank: "全部科室", selected: @filters[:department_id] },
+            class: "form-select", data: { enhanced_select: "search", submit_on_change: true } %>
+        </div>
+        <% unless @review_queue %>
+          <%= form.label :refund_status, "退款状态", class: "col-12 col-md-2 col-xl-1 ms-lg-2 text-secondary" %>
+          <div class="col-12 col-sm-5 col-lg-3">
+            <%= form.select :refund_status, Appointment::REFUND_LABELS.except("none").invert.to_a, { include_blank: "全部退款状态", selected: @filters[:refund_status] },
+              class: "form-select", data: { enhanced_select: "single", submit_on_change: true } %>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
   </div>
 </section>
 
 <section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="预约记录">
   <div class="card-header flex-shrink-0">
-    <%= form_with url: admins_reservations_path, method: :get, class: "d-flex flex-wrap align-items-center gap-2 w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
-      <%= hidden_field_tag :period, @filters[:period] if @filters.key?(:period) %>
-      <div class="col-12 col-sm-5 col-lg-3">
+    <%= form_with url: admins_reservations_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索预约" } } do |form| %>
+      <% @filters.except(:q, :period, :date_range).each do |key, value| %><%= hidden_field_tag key, value, id: nil %><% end %>
+      <div class="col-12 col-sm-6 col-lg-3">
         <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: "预约号", aria: { label: "预约号" } %>
       </div>
-      <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
-      <% if @filters.any? %>
-        <%= link_to admins_reservations_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
-      <% end %>
+      <div class="col-12 col-sm-6 col-lg-4">
+        <%= render "admins/shared/date_field", id: "reservation-date-range", name: :date_range, value: @date_range,
+          prefix: "预约日期", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-2">
+        <%# Fixed options are only a preview of the time-slot control. %>
+        <%= select_tag "reservation_slot_preview", options_for_select([["时段（预览）", ""], "09:00–09:30", "09:30–10:00", "10:00–10:30", "10:30–11:00"]),
+          name: nil, class: "form-select", data: { enhanced_select: "single" }, aria: { label: "预约时段样式预览" } %>
+      </div>
+      <div class="col-auto btn-list">
+        <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+        <% if filtered %>
+          <%= link_to admins_reservations_path(tab: @filters[:tab]), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+      </div>
     <% end %>
   </div>
 
   <% if empty %>
-    <%= render "admins/shared/list_empty", icon: :calendar, title: (@filters.any? ? "没有找到匹配的预约" : "暂无预约记录") %>
+    <% object = @review_queue ? "待审核申请" : "预约" %>
+    <%= render "admins/shared/list_empty", icon: :calendar, title: (filtered ? "没有找到匹配的#{object}" : "暂无#{object}") %>
   <% else %>
-    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
-      <thead><tr>
-        <th scope="col" class="list-column-id px-2">ID</th>
-        <th scope="col" class="px-2">预约号</th>
-        <th scope="col" class="d-none d-md-table-cell px-2">就诊人</th>
-        <th scope="col" class="d-none d-lg-table-cell px-2">医生 / 科室</th>
-        <th scope="col" class="d-none d-md-table-cell list-column-status px-2">状态</th>
-        <th scope="col" class="d-none d-sm-table-cell px-2">预约时段</th>
-        <th scope="col" class="list-column-action px-2">操作</th>
-      </tr></thead>
-      <tbody>
-        <% @reservations.each do |record| %>
-          <% detail = admins_reservation_path(record.order_no, @list_context) %>
-          <tr>
-            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{record.id}" %></td>
-            <td class="px-2 text-break"><%= link_to record.order_no, detail %></td>
-            <td class="d-none d-md-table-cell px-2"><%= render "admins/shared/list_text", text: record.patient_name %></td>
-            <td class="d-none d-lg-table-cell px-2">
-              <%= render "admins/shared/list_text", text: record.doctor_name %>
-              <%= render "admins/shared/list_text", text: record.department_name, class_name: "small text-secondary" %>
-            </td>
-            <td class="d-none d-md-table-cell px-2">
-              <span class="badge bg-blue-lt"><%= record.status_label %></span>
-              <% if record.refund_status != "none" %><div class="small text-secondary"><%= record.refund_label %></div><% end %>
-            </td>
-            <td class="d-none d-sm-table-cell px-2">
-              <div><%= record.appointment_date.iso8601 %></div>
-              <%= render "admins/shared/list_text", text: record.slot_label, class_name: "small text-secondary" %>
-            </td>
-            <td class="px-2"><%= link_to detail, class: "btn btn-sm btn-info text-nowrap", aria: { label: "查看预约 #{record.order_no}" } do %><%= render "layouts/admins/icon", name: :eye %>查看<% end %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
+    <%= render(@review_queue ? "refund_queue" : "appointments_table", reservations: @reservations, list_context: @list_context) %>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { filter_url.call(page: page) } %>
   <% end %>
 </section>

@@ -1,0 +1,4 @@
+<%= reservation_badge(record) %>
+<% if separate_refund_status?(record) %>
+  <div class="mt-1"><%= reservation_refund_badge(record.refund_status, record.refund_label) %></div>
+<% end %>

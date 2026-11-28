@@ -1,0 +1,54 @@
+<% wechat = reservation.payment_channel == "wechat_jsapi" %>
+<% payment_status = reservation.payment_status %>
+<% payment_label = reservation.payment_closing? ? "关单核实中" : Appointment::PAYMENT_LABELS.fetch(payment_status) if wechat %>
+<% payment_color = { "paid" => "success", "unpaid" => "warning", "closed" => "secondary" }.fetch(payment_status) if wechat %>
+<% transaction = {} %>
+<% if wechat && payment_status == "paid" %>
+  <% cash = "#{Appointment.cents_in_yuan(reservation.refunded_amount_cents.to_i)} 元" %>
+  <% if reservation.succeeded_refunds.any? { |item| item["amount_cents"].positive? && item["payer_refund_cents"].nil? } %>
+    <% cash = reservation.refunded_amount_cents.to_i.positive? ? "已确认 #{cash}，其余待核对" : "待核对" %>
+  <% end %>
+  <% summary = { "实付" => "#{reservation.paid_in_yuan} 元", "已退现金" => cash,
+    "剩余可退" => "#{Appointment.cents_in_yuan(reservation.available_refund_cents)} 元" } %>
+  <% transaction["挂号费"] = "#{reservation.fee_in_yuan} 元" %>
+<% else %>
+  <% summary = if reservation.pending_payment?
+    { "应付" => "#{Appointment.cents_in_yuan(reservation.payable_amount_cents)} 元" }
+  else
+    { "挂号费" => "#{reservation.fee_in_yuan} 元" }
+  end %>
+  <% summary["实付"] = "#{reservation.paid_in_yuan} 元" if wechat && payment_status == "closed" %>
+  <% summary["付款截止"] = admin_list_time(reservation.payment_expires_at) if reservation.pending_payment? && reservation.payment_expires_at %>
+<% end %>
+<% if wechat %>
+  <% transaction["付款时间"] = admin_list_time(reservation.paid_at) if reservation.paid_at %>
+  <% transaction["支付单号"] = reservation.payment_no if reservation.payment_no.present? %>
+  <% transaction["微信交易号"] = reservation.transaction_no if reservation.transaction_no.present? %>
+<% end %>
+
+<section class="card" aria-labelledby="reservation-amount-title">
+  <div class="card-header flex-wrap gap-2">
+    <h2 class="card-title" id="reservation-amount-title">费用信息</h2>
+    <div class="card-actions d-flex align-items-center gap-2">
+      <span class="text-secondary"><%= wechat ? "微信支付" : "免费挂号" %></span>
+      <% if wechat %><span class="badge bg-<%= payment_color %>-lt"><%= payment_label %></span><% end %>
+    </div>
+  </div>
+  <div class="card-body">
+    <dl class="datagrid mb-0">
+      <% summary.each do |label, value| %>
+        <div class="datagrid-item">
+          <dt class="datagrid-title"><%= label %></dt>
+          <dd class="datagrid-content fw-medium mb-0"><%= value %></dd>
+        </div>
+      <% end %>
+    </dl>
+    <% if transaction.any? %>
+      <button type="button" class="btn btn-sm mt-3" data-bs-toggle="collapse" data-bs-target="#reservation-payment-details"
+        aria-expanded="false" aria-controls="reservation-payment-details"><%= render "layouts/admins/icon", name: :chevron_down %>支付明细</button>
+      <div class="collapse" id="reservation-payment-details">
+        <div class="pt-3"><%= render "admins/shared/field_rows", fields: transaction, columns: 3 %></div>
+      </div>
+    <% end %>
+  </div>
+</section>

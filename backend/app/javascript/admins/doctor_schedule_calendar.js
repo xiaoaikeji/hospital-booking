@@ -30,8 +30,7 @@ function updateShiftStatus(status, shift, now) {
   const closed = now >= shift.cutoff_at;
   const available = shift.slots?.find((slot) => now < slot.cutoff_at)?.shift_available ?? shift.remaining;
   if (closed) status.textContent = "已截止";
-  else if (shift.slots) status.textContent = `当前可约 ${available} 号`;
-  else status.textContent = available === 0 ? "已满" : `剩 ${available} 号`;
+  else status.textContent = available === 0 ? "已满" : `可约 ${available} 号`;
   status.classList.toggle("text-secondary", closed);
   status.classList.toggle("text-danger", !closed && available === 0);
 }
@@ -72,8 +71,8 @@ const calendar = new FullCalendar.Calendar(calendarElement, {
         status.dataset.shiftStatus = shift.time_slot;
         updateShiftStatus(status, shift, hospitalNow());
         row.append(
-          label(" · ", "d-none d-md-inline"), label(`共 ${shift.total} 号`, "d-block d-md-inline"),
-          label(" · ", "d-none d-md-inline"), status
+          label(" · ", "d-none d-md-inline"), status,
+          label(` 共 ${shift.total} 号`, "d-none d-md-block small text-secondary")
         );
       }
       entries.push(row);

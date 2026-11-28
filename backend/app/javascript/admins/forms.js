@@ -32,8 +32,10 @@ document.addEventListener("click", (event) => {
   const button = event.target.closest("[data-admin-confirm-form]");
   if (!button) return;
   const form = document.getElementById(button.dataset.adminConfirmForm);
+  if (!form) return;
   form.dataset.confirmed = "true";
-  form.requestSubmit();
+  const submitter = document.getElementById(button.dataset.adminConfirmSubmitter || "");
+  form.requestSubmit(submitter || undefined);
 });
 
 // Restore controls when a completed form is brought back from the browser's page cache.
