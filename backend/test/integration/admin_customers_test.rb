@@ -118,16 +118,19 @@ class AdminCustomersTest < ActionDispatch::IntegrationTest
     Log.record!(source: "user", category: "mini_program", action: "mini_program.entry", actor: @customer,
       target: @follower.user_apps.first, details: { launch_scene: 1005 })
     patient = @customer.patients.create!(name: "虚构家属", gender: 0, age: 30)
-    patient.record_change!("remove")
+    patient.record_change!("create")
+    patient.update!(age: 31)
+    patient.record_change!("update", details: { fields: ["age"] })
     patient.destroy!
+    patient.record_change!("remove")
     get admins_customer_path(@customer)
     assert_response :ok
-    assert_select ".list-group-item", /移除常用就诊人 ##{patient.id}/
+    %w[新增 修改 移除].each { |action| assert_select ".list-group-item", /#{action}常用就诊人 ##{patient.id}\b/ }
     assert_select ".list-group-item", /进入#{@a.appid}.*扫描小程序码/m
     assert_not_includes response.body, private_detail
     assert_not_includes response.body, "微信首页搜索"
     get admins_customer_path(@follower)
-    assert_not_includes response.body, "移除常用就诊人"
+    assert_select ".list-group-item", text: /常用就诊人 ##{patient.id}\b/, count: 0
   end
 
   test "details show the shared empty state when the customer has no frequent patients" do

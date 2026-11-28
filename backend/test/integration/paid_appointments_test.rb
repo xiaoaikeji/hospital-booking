@@ -688,6 +688,10 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     get css_select("a").find { |a| a.text.include?("返回列表") }["href"]
     assert_equal admins_refund_records_path(filters), request.fullpath
     assert_select "tbody tr", count: 0
+    get admins_refund_records_path(filters.merge(page: "2"))
+    assert_redirected_to admins_refund_records_path(filters)
+    follow_redirect!
+    assert_select ".empty-title", text: "暂无退款记录"
   end
 
   test "refund pagination and permissions apply to detail rows" do
@@ -703,6 +707,12 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     get admins_refund_records_path(status: "rejected", page: 2)
     assert_select "tbody tr", count: 2
     assert_select "a[href$=?]", "#refund-2"
+    filters = { status: "rejected", q: order.order_no, date_range: Date.current.iso8601 }
+    get admins_refund_records_path(filters.merge(page: 3))
+    assert_redirected_to admins_refund_records_path(filters.merge(page: 2))
+    follow_redirect!
+    assert_select "tbody tr", count: 1
+    assert_select "tbody a[href$=?]", "#refund-2"
     get admins_refund_records_path(q: items.third.fetch(:refund_no))
     assert_select "tbody tr", count: 1
     assert_select "tbody tr", text: /#{items.third.fetch(:refund_no)}/ do

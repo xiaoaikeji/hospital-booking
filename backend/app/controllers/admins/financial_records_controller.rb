@@ -42,6 +42,10 @@ module Admins
       records = records.order(Arel.sql("recorded_at DESC NULLS LAST"), id: :desc)
       records = records.order(Arel.sql("ordinal DESC")) if @refunds
       @pagy, @records = pagy(:offset, records, limit: 20)
+      if @pagy.page > @pagy.last
+        filters = @filters.merge(page: @pagy.last)
+        redirect_to(@refunds ? admins_refund_records_path(filters) : admins_payment_records_path(filters))
+      end
     end
 
     private
