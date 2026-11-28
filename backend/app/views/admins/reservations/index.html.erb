@@ -9,10 +9,10 @@
 
 <section class="card mb-3 flex-shrink-0" aria-label="预约筛选条件">
   <div class="list-group list-group-flush">
-    <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: Appointment::STATUS_LABELS,
-      selected: @filters[:status], filter_url: filter_url %>
     <%= render "admins/shared/list_filter_row", label: "科室", key: :department_id, options: @department_options,
       selected: @filters[:department_id], filter_url: filter_url %>
+    <%= render "admins/shared/list_filter_row", label: "预约状态", key: :status, options: Appointment::STATUS_LABELS,
+      selected: @filters[:status], filter_url: filter_url %>
     <%= render "admins/shared/list_filter_row", label: "退款状态", key: :refund_status, options: Appointment::REFUND_LABELS.except("none").merge("requested" => "待审核"),
       selected: @filters[:refund_status], filter_url: filter_url %>
   </div>
