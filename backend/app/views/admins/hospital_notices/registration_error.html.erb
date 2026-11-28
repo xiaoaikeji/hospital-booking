@@ -1,5 +1,8 @@
 <% content_for :title, "通知模板 · Booking 管理后台" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: "通知模板", icon: :bell } do %>
-  <%= link_to "通知记录", admins_notifications_path, class: "btn" %>
+  <%= link_to admins_notifications_path, class: "btn" do %><%= render "layouts/admins/icon", name: :history %>通知记录<% end %>
 <% end %>
-<div class="alert alert-warning" role="alert">通知事件尚未登记。请联系维护人员重启 Web 和后台任务进程，再刷新此页。</div>
+<section class="card" aria-label="通知模板状态">
+  <%= render "admins/shared/list_empty", icon: :alert, role: "alert", title: "通知事件尚未登记",
+    description: "请联系维护人员重启 Web 和后台任务进程，再刷新此页。" %>
+</section>

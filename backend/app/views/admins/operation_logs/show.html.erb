@@ -2,24 +2,31 @@
 <%= render layout: "admins/shared/list_page_header", locals: { title: "日志 ##{@log.id}", icon: :chart } do %>
   <%= link_to admins_operation_logs_path(@list_context), class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
 <% end %>
+<% target_action = capture do %>
+  <% if @log.action == "personal_appearance.update" && @log.target_type == "Admin" && @log.target_id == current_admin.id %>
+    <button type="button" class="btn btn-sm btn-info text-nowrap" data-bs-toggle="offcanvas" data-bs-target="#theme-settings">
+      <%= render "layouts/admins/icon", name: :brush %>查看个人外观
+    </button>
+  <% else %>
+    <%= record_target_link(@log) %>
+  <% end %>
+<% end %>
 <section class="card"><div class="card-body">
   <%= render "admins/shared/field_rows", columns: 3, fields: {
         "操作类型" => operation_log_title(@log), "操作人" => (@actor&.display_name || log_subject_label(@log.actor_type, @log.actor_id)),
         "对象" => log_subject_label(@log.target_type, @log.target_id), "结果" => render("status", status: @log.status),
         "来源" => "后台管理", "IP" => @log.ip_address, "请求编号" => (@log.request_id if @log.request_id.to_s.match?(/\A[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}\z/i)), "操作时间" => admin_list_time(@log.created_at)
       } %>
-  <% if @log.action == "personal_appearance.update" && @log.target_type == "Admin" && @log.target_id == current_admin.id %>
-    <button type="button" class="btn btn-sm btn-info mt-3" data-bs-toggle="offcanvas" data-bs-target="#theme-settings">查看个人外观</button>
-  <% else %>
-    <%= record_target_link(@log) %>
-  <% end %>
   <% if @details.rows.any? || @details.omitted %>
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-4 mb-3">
       <h2 class="h3 mb-0">操作详情</h2>
+      <%= target_action %>
     </div>
     <%= render "admins/shared/field_rows", fields: @details.rows, columns: 3 if @details.rows.any? %>
     <% if @details.omitted %>
       <p class="text-secondary mb-0 <%= "mt-2" if @details.rows.any? %>"><%= @details.rows.any? ? "其余详情已隐藏" : "历史详情已隐藏" %></p>
     <% end %>
+  <% elsif target_action.present? %>
+    <div class="btn-list justify-content-end mt-3"><%= target_action %></div>
   <% end %>
 </div></section>

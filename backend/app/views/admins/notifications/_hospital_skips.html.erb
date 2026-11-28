@@ -2,15 +2,36 @@
   <% if empty %>
     <%= render "admins/shared/list_empty", icon: :bell, title: "暂无登记跳过记录", description: "医院通知文案为空或登记失败时，可在这里核对原因。" %>
   <% else %>
-    <div class="list-group list-group-flush">
-      <% @hospital_skips.each do |entry| %>
-        <div class="list-group-item">
-          <div class="fw-medium"><%= notification_event_label(entry.details.is_a?(Hash) ? entry.details["event"] : nil) %> · <%= (entry.details.is_a?(Hash) && entry.details["reason"].presence_in(["模板无可发内容", "通知生成或登记失败"])) || "登记已跳过" %></div>
-          <% if (number = @order_numbers[entry.target_id]) %><%= link_to number, admins_reservation_path(number) %><% end %>
-          <span class="text-secondary"><%= admin_list_time(entry.created_at) %></span>
-        </div>
-      <% end %>
-    </div>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="list-column-id px-2">ID</th>
+          <th scope="col" class="px-2">触发事件</th>
+          <th scope="col" class="d-none d-md-table-cell px-2">预约号</th>
+          <th scope="col" class="px-2">跳过原因</th>
+          <th scope="col" class="d-none d-lg-table-cell list-column-time px-2">记录时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @hospital_skips.each do |entry| %>
+          <% details = entry.details.is_a?(Hash) ? entry.details : {} %>
+          <% reason = details["reason"].presence_in(["模板无可发内容", "通知生成或登记失败"]) || "登记已跳过" %>
+          <% number = @order_numbers[entry.target_id] %>
+          <% order = render "admins/shared/list_text", text: number || "—", url: (admins_reservation_path(number) if number) %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{entry.id}" %></td>
+            <td class="px-2">
+              <%= render "admins/shared/list_text", text: notification_event_label(details["event"]) %>
+              <% if number %><div class="d-md-none small"><%= order %></div><% end %>
+              <div class="d-lg-none small text-secondary"><%= render "admins/shared/list_text", text: admin_list_time(entry.created_at) %></div>
+            </td>
+            <td class="d-none d-md-table-cell px-2"><%= order %></td>
+            <td class="px-2"><%= render "admins/shared/list_text", text: reason, multiline: true %></td>
+            <td class="d-none d-lg-table-cell text-nowrap px-2"><%= admin_list_time(entry.created_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { admins_notifications_path(view: "hospital_skips", page: page) } %>
   <% end %>
 </section>

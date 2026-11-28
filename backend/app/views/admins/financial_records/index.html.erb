@@ -1,41 +1,96 @@
 <% title = @refunds ? "退款记录" : "收款记录" %>
 <% list_path = ->(filters = {}) { @refunds ? admins_refund_records_path(filters) : admins_payment_records_path(filters) } %>
-<% list = list_path.call %>
+<% date_label = @refunds ? "发起日期" : "付款日期" %>
+<% search_placeholder = @refunds ? "预约号 / 支付单号 / 退款单号" : "预约号 / 支付单号 / 微信交易号" %>
+<% empty = @records.empty? %>
 <% content_for :title, "#{title} · Booking 管理后台" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :wallet } do %><% end %>
-<section class="card" aria-label="<%= title %>">
-  <% if @refunds %>
+<% content_for :fill_content, "true" if empty %>
+<%= render "admins/shared/list_page_header", title: title, icon: :wallet %>
+
+<% if @refunds %>
+  <section class="card mb-3 flex-shrink-0" aria-label="退款筛选">
     <div class="list-group list-group-flush">
-      <%= render "admins/shared/list_filter_row", label: "状态", key: :status, options: Appointment::REFUND_ITEM_LABELS, selected: @filters[:status],
-        filter_url: ->(changes) { admins_refund_records_path(@filters.merge(changes).compact) } %>
+      <%= render "admins/shared/list_filter_row", label: "状态", key: :status, options: Appointment::REFUND_ITEM_LABELS,
+        selected: @filters[:status], filter_url: ->(changes) { list_path.call(@filters.merge(changes).compact) } %>
     </div>
-  <% end %>
-  <div class="card-header">
-    <%= form_with url: list, method: :get, class: "row g-2" do |form| %>
+  </section>
+<% end %>
+
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="<%= title %>">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: list_path.call, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索#{title}" } } do |form| %>
       <%= form.hidden_field :status, value: @filters[:status] if @filters[:status] %>
-      <div class="col-auto"><%= render "admins/shared/date_field", id: "record-range", name: :date_range, value: @filters[:date_range], prefix: (@refunds ? "发起日期" : "付款日期"), selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %></div>
-      <div class="col-auto"><%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: (@refunds ? "预约号、支付单号、退款单号" : "预约号、支付单号、微信交易号"), aria: { label: "单号" } %></div>
-      <div class="col-auto"><%= form.submit "查询", class: "btn" %> <%= link_to "重置筛选", list, class: "btn" if @filters.any? %></div>
+      <div class="col-12 col-sm-6 col-lg-4">
+        <%= form.search_field :q, value: @filters[:q], class: "form-control", placeholder: search_placeholder, aria: { label: "单号" } %>
+      </div>
+      <div class="col-12 col-sm-6 col-lg-4">
+        <%= render "admins/shared/date_field", id: "record-range", name: :date_range, value: @filters[:date_range], prefix: date_label,
+          selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+      </div>
+      <div class="col-auto btn-list">
+        <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+        <% if @filters.any? %>
+          <%= link_to list_path.call, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+      </div>
     <% end %>
   </div>
-  <% if @records.empty? %>
-    <%= render "admins/shared/list_empty", icon: :wallet, title: "暂无#{title}", description: "当前条件下没有记录。" %>
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :wallet, title: "暂无#{title}", description: ("可调整筛选条件后重新搜索。" if @filters.any?) %>
   <% else %>
-    <div class="table-responsive"><table class="table table-vcenter card-table text-nowrap">
-      <thead><tr><% ((@refunds ? %w[发起时间 预约号 退款单号 类型 申请金额 实退现金 状态] : %w[付款时间 预约号 支付单号 微信交易号 应付金额 实付现金]) + ["操作"]).each do |label| %><th><%= label %></th><% end %></tr></thead>
-      <tbody><% @records.each do |row| %>
-        <% item = row[:item] if @refunds %>
-        <tr><td><%= admin_list_time(row[:recorded_at]&.in_time_zone) %></td><td><%= row.order_no %></td>
-        <% if @refunds %>
-          <td><%= item["refund_no"].presence || "—" %></td><td><%= { "cancel" => "退号", "admin_refund" => "退差价" }.fetch(item["kind"], "—") %></td>
-          <td><%= item["amount_cents"].nil? ? "待确定" : financial_amount(item["amount_cents"]) %></td><td><%= refund_cash_label(item) %></td>
-          <td><%= reservation_refund_badge(item["status"], Appointment::REFUND_ITEM_LABELS.fetch(item["status"], "待核对")) %></td>
-        <% else %>
-          <td><%= row.payment_no %></td><td><%= row.transaction_no %></td><td><%= financial_amount(row.payable_amount_cents) %></td><td><%= financial_amount(row.paid_amount_cents) %></td>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="list-column-id px-2">ID</th>
+          <th scope="col" class="col-lg-2 px-2">预约号</th>
+          <th scope="col" class="d-none d-lg-table-cell col-lg-2 px-2"><%= @refunds ? "退款单号" : "支付单号" %></th>
+          <th scope="col" class="d-none d-xl-table-cell px-2"><%= @refunds ? "类型" : "微信交易号" %></th>
+          <th scope="col" class="d-none d-md-table-cell text-end px-2"><%= @refunds ? "申请金额" : "应付金额" %></th>
+          <th scope="col" class="text-end px-2"><%= @refunds ? "实退现金" : "实付现金" %></th>
+          <% if @refunds %><th scope="col" class="d-none d-xl-table-cell px-2">状态</th><% end %>
+          <th scope="col" class="d-none d-lg-table-cell list-column-time px-2"><%= @refunds ? "发起时间" : "付款时间" %></th>
+          <th scope="col" class="list-column-action px-2">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @records.each do |row| %>
+          <% item = row[:item] if @refunds %>
+          <% time = admin_list_time(row[:recorded_at]&.in_time_zone) %>
+          <% path = admins_reservation_path(row.order_no, ledger: (@refunds ? "refunds" : "payments"),
+               filters: @filters.merge(page: @pagy.page), anchor: ("refund-#{item["id"]}" if @refunds && item["id"])) %>
+          <% if @refunds %>
+            <% kind = { "cancel" => "退号", "admin_refund" => "退差价" }.fetch(item["kind"], "—") %>
+            <% badge = reservation_refund_badge(item["status"], Appointment::REFUND_ITEM_LABELS.fetch(item["status"], "待核对")) %>
+          <% end %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{@refunds ? item["id"] : row.id}" %></td>
+            <td class="px-2">
+              <%= render "admins/shared/list_text", text: row.order_no, url: path %>
+              <% if @refunds %><div class="d-xl-none d-flex flex-wrap gap-1 align-items-center mt-1"><span class="small text-secondary"><%= kind %></span><%= badge %></div><% end %>
+              <div class="d-lg-none small text-secondary"><%= render "admins/shared/list_text", text: time || "—" %></div>
+            </td>
+            <% if @refunds %>
+              <td class="d-none d-lg-table-cell px-2"><%= render "admins/shared/list_text", text: item["refund_no"].presence || "—" %></td>
+              <td class="d-none d-xl-table-cell px-2"><%= kind %></td>
+              <td class="d-none d-md-table-cell text-end text-nowrap px-2"><%= item["amount_cents"].nil? ? "待确定" : financial_amount(item["amount_cents"]) %></td>
+              <td class="text-end text-nowrap px-2"><%= refund_cash_label(item) %></td>
+              <td class="d-none d-xl-table-cell px-2"><%= badge %></td>
+            <% else %>
+              <td class="d-none d-lg-table-cell px-2"><%= render "admins/shared/list_text", text: row.payment_no.presence || "—" %></td>
+              <td class="d-none d-xl-table-cell px-2"><%= render "admins/shared/list_text", text: row.transaction_no.presence || "—" %></td>
+              <td class="d-none d-md-table-cell text-end text-nowrap px-2"><%= financial_amount(row.payable_amount_cents) %></td>
+              <td class="text-end text-nowrap px-2"><%= financial_amount(row.paid_amount_cents) %></td>
+            <% end %>
+            <td class="d-none d-lg-table-cell text-nowrap px-2"><%= time || "—" %></td>
+            <td class="px-2">
+              <%= link_to path, class: "btn btn-sm btn-info text-nowrap", aria: { label: "查看预约 #{row.order_no}" } do %>
+                <%= render "layouts/admins/icon", name: :eye %>查看
+              <% end %>
+            </td>
+          </tr>
         <% end %>
-        <td><%= link_to "查看", admins_reservation_path(row.order_no, ledger: (@refunds ? "refunds" : "payments"), filters: @filters.merge(page: @pagy.page), anchor: ("refund-#{item["id"]}" if @refunds && item["id"])), class: "btn btn-sm btn-info" %></td></tr>
-      <% end %></tbody>
-    </table></div>
+      </tbody>
+    </table>
     <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { list_path.call(@filters.merge(page: page)) } %>
   <% end %>
 </section>

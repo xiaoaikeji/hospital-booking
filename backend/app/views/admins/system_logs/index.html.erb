@@ -1,20 +1,63 @@
 <% content_for :title, "系统记录 · Booking 管理后台" %>
-<%= render layout: "admins/shared/list_page_header", locals: { title: "系统记录", icon: :history } do %><% end %>
-<section class="card">
-  <% url = ->(changes) { admins_system_logs_path(@filters.merge(changes).compact) } %>
+<% empty = @logs.empty? %>
+<% content_for :fill_content, "true" if empty %>
+<% url = ->(changes) { admins_system_logs_path(@filters.merge(changes).compact) } %>
+<%= render "admins/shared/list_page_header", title: "系统记录", icon: :history %>
+
+<section class="card mb-3 flex-shrink-0" aria-label="系统记录筛选">
   <div class="list-group list-group-flush">
     <%= render "admins/shared/list_filter_row", label: "来源", key: :source, options: Admins::SystemLogsController::SOURCES, selected: @filters[:source], filter_url: url %>
     <%= render "admins/shared/list_filter_row", label: "结果", key: :status, options: Admins::SystemLogsController::STATUSES, selected: @filters[:status], filter_url: url %>
   </div>
-  <div class="card-header"><%= form_with url: admins_system_logs_path, method: :get, class: "d-flex flex-wrap gap-2" do |form| %>
-    <% @filters.slice(:source, :status).each do |key, value| %><%= form.hidden_field key, value: value %><% end %>
-    <%= render "admins/shared/date_field", id: "system-range", name: :date_range, value: @filters[:date_range], prefix: "记录", selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
-    <%= form.submit "查询", class: "btn" %><%= link_to "重置筛选", admins_system_logs_path, class: "btn" if @filters.any? %>
-  <% end %></div>
-  <% if @logs.empty? %><%= render "admins/shared/list_empty", icon: :history, title: "暂无系统记录", description: "当前条件下没有记录。" %>
-  <% else %><div class="table-responsive"><table class="table table-vcenter card-table">
-    <thead><tr><th>时间</th><th>来源</th><th>摘要</th><th>结果</th></tr></thead>
-    <tbody><% @logs.each do |log| %><tr><td><%= admin_list_time(log.created_at) %></td><td><%= Admins::RecordHistoryHelper::SYSTEM_SOURCES[log.source] %></td><td><%= system_record_summary(log) %></td><td><%= render "admins/operation_logs/status", status: log.status %></td></tr><% end %></tbody>
-  </table></div>
-  <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { url.call(page: page) } %><% end %>
+</section>
+
+<section class="<%= class_names("card", "flex-fill" => empty) %>" aria-label="系统记录">
+  <div class="card-header flex-shrink-0">
+    <%= form_with url: admins_system_logs_path, method: :get, class: "row g-2 align-items-center w-100", html: { role: "search", aria: { label: "搜索系统记录" } } do |form| %>
+      <% @filters.slice(:source, :status).each do |key, value| %><%= form.hidden_field key, value: value %><% end %>
+      <div class="col-12 col-sm-6 col-lg-4">
+        <%= render "admins/shared/date_field", id: "system-range", name: :date_range, value: @filters[:date_range], prefix: "记录日期",
+          selection_mode: "multiple-ranged", placeholder: "起止日期", clearable: false %>
+      </div>
+      <div class="col-auto btn-list">
+        <%= form.button type: "submit", class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :search %>搜索<% end %>
+        <% if @filters.any? %>
+          <%= link_to admins_system_logs_path, class: "btn text-nowrap" do %><%= render "layouts/admins/icon", name: :rotate %>重置筛选<% end %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+  <% if empty %>
+    <%= render "admins/shared/list_empty", icon: :history, title: "暂无系统记录", description: ("可调整筛选条件后重新搜索。" if @filters.any?) %>
+  <% else %>
+    <table class="table table-fixed table-vcenter card-table table-hover admin-list-table mb-0">
+      <thead>
+        <tr>
+          <th scope="col" class="list-column-id px-2">ID</th>
+          <th scope="col" class="d-none d-sm-table-cell col-sm-2 px-2">来源</th>
+          <th scope="col" class="px-2">摘要</th>
+          <th scope="col" class="list-column-status px-2">结果</th>
+          <th scope="col" class="d-none d-md-table-cell list-column-time px-2">记录时间</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @logs.each do |log| %>
+          <% source = Admins::RecordHistoryHelper::SYSTEM_SOURCES.fetch(log.source) %>
+          <tr>
+            <td class="text-secondary px-2"><%= render "admins/shared/list_text", text: "##{log.id}" %></td>
+            <td class="d-none d-sm-table-cell px-2"><%= render "admins/shared/list_text", text: source %></td>
+            <td class="px-2">
+              <%= render "admins/shared/list_text", text: system_record_summary(log), multiline: true %>
+              <div class="d-md-none small text-secondary">
+                <span class="d-sm-none"><%= source %> · </span><%= admin_list_time(log.created_at) %>
+              </div>
+            </td>
+            <td class="px-2"><%= render "admins/operation_logs/status", status: log.status %></td>
+            <td class="d-none d-md-table-cell text-nowrap px-2"><%= admin_list_time(log.created_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <%= render "admins/shared/pagination", pagy: @pagy, url: ->(page) { url.call(page: page) } %>
+  <% end %>
 </section>

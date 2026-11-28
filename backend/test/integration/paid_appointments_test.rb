@@ -654,10 +654,10 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     order.update!(refund_data: { items: [nil, "invalid", {}, *items] })
     get admins_refund_records_path(date_range: "2026-11-27")
     assert_select "tbody tr", count: 3
-    assert_select "tbody td:first-child", text: "2026-11-27 00:15", count: 3
+    assert_select "tbody td:nth-last-child(2)", text: "2026-11-27 00:15", count: 3
     get admins_refund_records_path
     assert_select "tbody tr", count: 5
-    assert_select "tbody td:first-child", text: "—", count: 2
+    assert_select "tbody td:nth-last-child(2)", text: "—", count: 2
     get admins_reservation_path(order.order_no)
     assert_select "article", count: 5
     assert_select "#refund-1 dd", text: "2026-11-27 00:15", count: 2
@@ -676,7 +676,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_select "tbody tr", count: 1
     assert_select "tbody td:nth-child(5)", text: "待确定"
     assert_select "tbody td:nth-child(6)", text: "退款审核中"
-    get css_select("tbody a").sole["href"]
+    get css_select("tbody td:last-child a").sole["href"]
     assert_select "a[href=?]", admins_refund_records_path(filters), text: /返回列表/
     context = { ledger: "refunds", filters: filters }
     assert_difference -> { order_logs(order, "refund_sync").where(status: "failed").count } do
@@ -909,9 +909,9 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal "待就诊", invalid.reload.status_label
     get admins_notifications_path(view: "hospital_skips")
     assert_response :ok
-    assert_select ".list-group-item", /通知生成或登记失败/
+    assert_select "tbody td", text: "通知生成或登记失败"
     assert_select "a[href=?]", admins_reservation_path(invalid.order_no)
-    assert_select ".list-group-item", /模板无可发内容/
+    assert_select "tbody td", text: "模板无可发内容"
   end
 
   test "only verified refund exceptions notify once per refund" do

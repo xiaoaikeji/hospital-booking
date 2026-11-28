@@ -3,11 +3,21 @@
   <div class="list-group list-group-flush">
     <% if @events.empty? %><div class="list-group-item text-secondary">暂无预约动态</div><% end %>
     <% @events.each do |log| %>
-      <div class="list-group-item d-flex flex-wrap align-items-center gap-2">
-        <time class="text-secondary"><%= admin_list_time(log.created_at) %></time>
-        <span><%= appointment_event_actor(log) %></span><strong><%= appointment_event_summary(log) %></strong>
-        <% item = log.details.is_a?(Hash) && @refund_by_id[log.details["refund_record_id"]] %>
-        <% if item %><%= link_to (item["kind"] == "cancel" && item["amount_cents"] == 0 ? "退号记录" : "退款单 #{item["refund_no"].presence || item["id"]}"), "#refund-#{item["id"]}" %><% end %>
+      <div class="list-group-item">
+        <div class="row g-2 align-items-center">
+          <div class="col overflow-hidden">
+            <div class="fw-medium text-break"><%= appointment_event_summary(log) %></div>
+            <div class="small text-secondary d-flex flex-wrap align-items-center gap-2">
+              <span><%= appointment_event_actor(log) %></span>
+              <% item = log.details.is_a?(Hash) && @refund_by_id[log.details["refund_record_id"]] %>
+              <% if item %>
+                <%= link_to (item["kind"] == "cancel" && item["amount_cents"] == 0 ? "退号记录" : "退款单 #{item["refund_no"].presence || item["id"]}"),
+                  "#refund-#{item["id"]}", class: "text-break" %>
+              <% end %>
+            </div>
+          </div>
+          <time class="col-12 col-sm-auto small text-secondary text-nowrap" datetime="<%= log.created_at.iso8601 %>"><%= admin_list_time(log.created_at) %></time>
+        </div>
       </div>
     <% end %>
   </div>

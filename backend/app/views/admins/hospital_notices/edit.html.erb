@@ -1,16 +1,10 @@
 <% title = @template.persisted? ? "编辑模板" : (@source ? "复制模板" : "新增模板") %>
+<% choose_event = @template.new_record? && !@source %>
 <% content_for :title, "#{title} · Booking 管理后台" %>
 <% content_for :head do %><%= javascript_include_tag "admins/reply_composer", defer: true %><% end %>
 <%= render "admins/shared/enhanced_select_assets" %>
 <%= render layout: "admins/shared/list_page_header", locals: { title: title, icon: :bell } do %>
   <%= link_to admins_hospital_notices_path, class: "btn" do %><%= render "layouts/admins/icon", name: :arrow_left %>返回列表<% end %>
-<% end %>
-<% if @template.new_record? && !@source %>
-<%= form_with url: new_admins_hospital_notice_path, method: :get, class: "card card-body mb-3" do %>
-  <div class="row align-items-end g-2"><div class="col-12 col-lg-5"><label class="form-label" for="notification-event">触发事件</label>
-    <%= select_tag :event, options_for_select(Appointments::GroupNotice::EVENTS.map { |value, label| [label, value] }, @kind), class: "form-select", id: "notification-event", data: { enhanced_select: "single", submit_on_change: true } %>
-  </div></div>
-<% end %>
 <% end %>
 <div data-reply-editor data-reply="<%= @reply.to_json %>" data-input="<%= @input.to_json %>" data-payload-key="notification_content"
      data-variables="<%= @variable_fields.to_json %>" data-examples="<%= @variable_examples.to_json %>"
@@ -19,18 +13,31 @@
   <div class="row g-3 align-items-start">
     <div class="col-12 col-lg-8"><section class="card">
       <div class="card-header"><h2 class="card-title d-flex flex-wrap align-items-center gap-2">
-        医院业务 · <%= Appointments::GroupNotice::EVENTS.fetch(@kind) %>
+        <%= choose_event ? "模板内容" : "医院业务 · #{Appointments::GroupNotice::EVENTS.fetch(@kind)}" %>
         <%= render "admins/shared/field_help", label: "查看通知文案生效说明", text: "按顺序发送文字。启用后才会发送。保存的设置用于新产生的通知。" %>
       </h2></div><div class="card-body">
-        <label class="form-label required" for="reply-name">模板名称</label>
-        <%= text_field_tag :name, @reply["name"], id: "reply-name", required: true, maxlength: 80,
-              class: "form-control mb-3", data: { reply_field: "name", required_message: "请填写模板名称" } %>
+        <div class="row g-3 mb-3">
+          <% if choose_event %>
+            <%= form_with url: new_admins_hospital_notice_path, method: :get, class: "col-12 col-md-5" do %>
+              <%= label_tag "notification-event", "触发事件", class: "form-label" %>
+              <%= select_tag :event, options_for_select(Appointments::GroupNotice::EVENTS.invert, @kind),
+                class: "form-select", id: "notification-event", data: { enhanced_select: "single", submit_on_change: true } %>
+            <% end %>
+          <% end %>
+          <div class="<%= choose_event ? "col-12 col-md-7" : "col-12" %>">
+            <label class="form-label required" for="reply-name">模板名称</label>
+            <%= text_field_tag :name, @reply["name"], id: "reply-name", required: true, maxlength: 80,
+              class: "form-control", data: { reply_field: "name", required_message: "请填写模板名称" } %>
+          </div>
+        </div>
         <%= render "admins/shared/notification_message_items" %>
         <div class="btn-list justify-content-end">
           <button type="button" class="btn" data-reply-add="text"><%= render "layouts/admins/icon", name: :plus %>新增文字</button>
         </div>
-      </div><div class="card-footer btn-list justify-content-end">
-        <%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %>
+      </div><div class="card-footer">
+        <div class="btn-list justify-content-end">
+          <%= render "admins/shared/submit_button", label: "保存", icon: :save, type: "button", data: { reply_save: true } %>
+        </div>
       </div>
     </section></div>
     <div class="col-12 col-lg-4"><section class="card"><div class="card-header"><h2 class="card-title">示例预览</h2></div><div class="card-body bg-body-tertiary" data-reply-preview aria-live="polite"></div></section></div>

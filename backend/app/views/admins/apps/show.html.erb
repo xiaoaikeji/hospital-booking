@@ -36,10 +36,19 @@
 <% end %>
 
 <% if @sync_history.present? %>
-  <section class="card mt-3"><div class="card-header"><h2 class="card-title">粉丝同步记录</h2></div>
-    <div class="list-group list-group-flush"><% @sync_history.each do |log| %>
-      <div class="list-group-item"><%= admin_list_time(log.created_at) %> · 同步公众号粉丝 <%= render "admins/operation_logs/status", status: log.status %></div>
-    <% end %></div>
-    <%= render "admins/shared/pagination", pagy: @sync_pagy, url: ->(page) { admins_app_path(@app, application_context_params.merge(history_page: page)) } %>
+  <section id="fan-sync-history" class="card mt-3" aria-labelledby="fan-sync-history-title">
+    <div class="card-header"><h2 class="card-title" id="fan-sync-history-title">粉丝同步记录</h2></div>
+    <div class="list-group list-group-flush">
+      <% @sync_history.each do |log| %>
+        <div class="list-group-item">
+          <div class="row g-2 align-items-center">
+            <div class="col fw-medium">同步公众号粉丝</div>
+            <div class="col-auto"><%= render "admins/operation_logs/status", status: log.status %></div>
+            <time class="col-12 col-sm-auto small text-secondary text-nowrap" datetime="<%= log.created_at.iso8601 %>"><%= admin_list_time(log.created_at) %></time>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <%= render "admins/shared/pagination", pagy: @sync_pagy, url: ->(page) { admins_app_path(@app, application_context_params.merge(history_page: page, anchor: "fan-sync-history")) } %>
   </section>
 <% end %>

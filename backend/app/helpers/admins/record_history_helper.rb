@@ -70,7 +70,11 @@ module Admins::RecordHistoryHelper
     else
       path = record_target_path(log)
     end
-    link_to label, path, class: "btn btn-sm btn-info mt-3" if path
+    return unless path
+
+    link_to path, class: "btn btn-sm btn-info text-nowrap" do
+      safe_join([render("layouts/admins/icon", name: :eye), label])
+    end
   end
 
   def record_target_path(log)

@@ -81,14 +81,20 @@
   <div class="list-group list-group-flush">
     <% if @history.empty? %><div class="list-group-item text-secondary">暂无客户动态</div><% end %>
     <% @history.each do |log| %>
-      <div class="list-group-item"><%= admin_list_time(log.created_at) %> ·
-        <% if log.action == "mini_program.entry" %>
-          <% identity = @identities.detect { |row| row.id == log.target_id } %>
-          进入<%= identity.app_name.presence || identity.appid %> · <%= safe_entry_scene(log, identity) %>
-        <% else %>
-          <%= Admins::RecordHistoryHelper::PATIENT_EVENTS.fetch(log.action) %> #<%= log.target_id %>
-        <% end %>
-        <%= render "admins/operation_logs/status", status: log.status %>
+      <div class="list-group-item">
+        <div class="row g-2 align-items-center">
+          <div class="col">
+            <% if log.action == "mini_program.entry" %>
+              <% identity = @identities.detect { |row| row.id == log.target_id } %>
+              <div class="fw-medium text-break">进入<%= identity.app_name.presence || identity.appid %></div>
+              <div class="small text-secondary"><%= safe_entry_scene(log, identity) %></div>
+            <% else %>
+              <div class="fw-medium"><%= Admins::RecordHistoryHelper::PATIENT_EVENTS.fetch(log.action) %> #<%= log.target_id %></div>
+            <% end %>
+          </div>
+          <div class="col-auto"><%= render "admins/operation_logs/status", status: log.status %></div>
+          <time class="col-12 col-sm-auto small text-secondary text-nowrap" datetime="<%= log.created_at.iso8601 %>"><%= admin_list_time(log.created_at) %></time>
+        </div>
       </div>
     <% end %>
   </div>

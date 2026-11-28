@@ -74,7 +74,7 @@ class OperationLogsTest < ActionDispatch::IntegrationTest
       Log.record!(source: "user", category: "booking", action: "appointment.create", status: "failed", details: { reason: reason })
     end
     get admins_system_logs_path(source: "scheduler", status: "started")
-    %w[微信支付暂不可用 预约写入失败 预约创建失败].each { |label| assert_select "tbody td", text: label }
+    %w[微信支付暂不可用 预约写入失败 预约创建失败].each { |label| assert_select "tbody td [data-list-text]", text: label }
     assert_select "nav[aria-label=结果] a", text: "已开始", count: 0
     assert_select "input[value=scheduler]", count: 0
     assert_not_includes response.body, "private-fixture-text"
