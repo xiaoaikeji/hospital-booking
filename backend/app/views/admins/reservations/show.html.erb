@@ -71,20 +71,49 @@
           "支付渠道" => (paid_channel ? "微信支付" : "免费挂号")
         } %>
         <% if paid_channel %>
-          <% cash = "#{Appointment.cents_in_yuan(reservation.refunded_amount_cents.to_i)} 元" %>
-          <% if reservation.succeeded_refunds.any? { |item| item["amount_cents"].positive? && item["payer_refund_cents"].nil? } %>
-            <% cash = reservation.refunded_amount_cents.to_i.positive? ? "已确认 #{cash}，其余待核对" : "待核对" %>
+          <% if (total_cash = reservation.refunded_amount_cents) %>
+            <% cash = "#{Appointment.cents_in_yuan(total_cash)} 元" %>
+          <% elsif (confirmed_cash = reservation.confirmed_refunded_cash_cents) %>
+            <% cash = "已确认 #{Appointment.cents_in_yuan(confirmed_cash)} 元，其余待核对" %>
+          <% else %>
+            <% cash = "待核对" %>
+          <% end %>
+          <% payment_label = reservation.payment_closing? ? "关单核实中" : Appointment::PAYMENT_LABELS.fetch(reservation.payment_status) %>
+          <% if @payment_cancellation && reservation.status == "confirmed" && reservation.payment_status == "paid" %>
+            <% payment_label = "已支付 · 请使用「医院退号」办理退款" %>
           <% end %>
           <% fee_fields.merge!(
-            "支付状态" => (reservation.payment_closing? ? "关单核实中" : Appointment::PAYMENT_LABELS.fetch(reservation.payment_status)),
+            "支付状态" => payment_label,
             "付款截止" => admin_list_time(reservation.payment_expires_at), "支付单号" => reservation.payment_no,
             "付款时间" => admin_list_time(reservation.paid_at), "微信交易号" => reservation.transaction_no,
             "已退现金" => cash
           ) %>
         <% end %>
-        <%= render "admins/shared/field_rows", fields: fee_fields, columns: 3 %>
+        <% if @payment_cancellation %>
+          <% fee_fields.merge!("取消操作人" => @cancelling_admin&.display_name, "取消原因" => @payment_cancellation.fetch("reason")) %>
+        <% end %>
+        <%= render "admins/shared/field_rows", fields: fee_fields, columns: 3, full: ["取消原因"] %>
       </div>
     </section>
   </div>
+  <% if current_admin.maintain_booking_directory? && reservation.pending_payment? && !reservation.payment_cancel_requested_at? %>
+    <div class="col-12">
+      <%= form_with scope: :payment_cancellation, url: cancel_pending_payment_admins_reservation_path(reservation.order_no, @list_context),
+        id: "cancel-pending-payment", class: "card" do |form| %>
+        <div class="card-body">
+          <%= form.label :reason, "取消原因", class: "form-label" %>
+          <%= form.text_area :reason, class: "form-control", rows: 2, maxlength: Appointments::Payment::CANCEL_REASON_LIMIT, required: true %>
+        </div>
+        <div class="card-footer">
+          <div class="btn-list justify-content-end">
+            <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#confirm-cancel-pending-payment">取消待支付预约</button>
+          </div>
+        </div>
+      <% end %>
+      <%= render "admins/shared/confirmation_modal", modal_id: "confirm-cancel-pending-payment", form_id: "cancel-pending-payment", color: "warning",
+        title: "取消待支付预约", context: reservation.order_no, description: "提交后停止续付。关单确认后释放号源，微信已收款时保留预约。",
+        confirm_label: "确定取消预约" %>
+    </div>
+  <% end %>
   <%= render "admins/reservations/refunds", reservation: reservation %>
 </div>

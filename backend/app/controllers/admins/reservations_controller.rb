@@ -18,6 +18,22 @@ module Admins
 
     def show
       @list_context = list_filters.merge(params.permit(:page).to_h.symbolize_keys)
+      @payment_cancellation = @reservation.payment_data["staff_cancellation"]
+      @cancelling_admin = Admin.find_by(id: @payment_cancellation["admin_id"]) if @payment_cancellation
+    end
+
+    def cancel_pending_payment
+      input = params.expect(payment_cancellation: [ :reason ])
+      service = Appointments::Payment.new(@reservation, source: "admin", actor: current_admin, request: request)
+      service.request_cancel!(reason: input[:reason])
+      service.reconcile!
+
+      notice = case @reservation.payment_status
+      when "closed" then "待支付预约已取消"
+      when "paid" then "微信已确认收款，原预约已保留，请使用「医院退号」办理退款"
+      else "取消申请已受理，正在核实微信支付结果"
+      end
+      redirect_to reservation_path, notice: notice, status: :see_other
     end
 
     def complete

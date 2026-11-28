@@ -41,6 +41,11 @@ class Appointment < ApplicationRecord
   def refund_items = refund_data.fetch("items", [])
   def active_refunds = refund_items.select { |item| ACTIVE_REFUND_STATES.include?(item.fetch("status")) }
   def succeeded_refunds = refund_items.select { |item| item.fetch("status") == "succeeded" }
+  def confirmed_refunded_cash_cents
+    amounts = refund_cash_amounts(succeeded_refunds).compact
+    amounts.sum if amounts.any?
+  end
+
   def remaining_gross_cents = payable_amount_cents - succeeded_refunds.sum { |item| item.fetch("amount_cents") }
   def available_refund_cents = remaining_gross_cents - active_refunds.sum { |item| item["amount_cents"].to_i }
   def patient_can_return? = status == "confirmed" && payment_status == "paid" && appointment_date >= Date.current
@@ -54,7 +59,8 @@ class Appointment < ApplicationRecord
     succeeded = items.select { |item| item["status"] == "succeeded" }
     gross = succeeded.sum { |item| item.fetch("amount_cents") }
     reserved = items.sum { |item| ACTIVE_REFUND_STATES.include?(item["status"]) ? item["amount_cents"].to_i : 0 }
-    cash = succeeded.sum { |item| item["payer_refund_cents"].to_i }
+    cash_amounts = refund_cash_amounts(succeeded)
+    cash = cash_amounts.compact.sum
     raise Payments::InvalidResult if gross + reserved > payable_amount_cents || cash > paid_amount_cents
 
     settled = if payable_amount_cents.positive? && gross == payable_amount_cents
@@ -65,7 +71,7 @@ class Appointment < ApplicationRecord
       items.last&.fetch("status").presence_in(%w[rejected failed]) || "none"
     end
     update!(refund_data: { "version" => 1, "items" => items }, refund_status: active || settled,
-      refunded_amount_cents: cash, **attributes)
+      refunded_amount_cents: (cash unless cash_amounts.include?(nil)), **attributes)
   end
 
   def record_event!(action, source:, actor: nil, request: nil, details: {}, status: "success")
@@ -79,5 +85,11 @@ class Appointment < ApplicationRecord
 
   def self.cents_in_yuan(cents)
     (cents.to_d / 100).to_s("F").sub(/\.?0+\z/, "")
+  end
+
+  private
+
+  def refund_cash_amounts(succeeded)
+    succeeded.select { |item| item.fetch("amount_cents").positive? }.map { |item| item["payer_refund_cents"] }
   end
 end

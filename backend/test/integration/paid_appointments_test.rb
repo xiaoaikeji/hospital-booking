@@ -68,7 +68,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     assert_equal "slot_closed", response.parsed_body.fetch("code")
   end
 
-  test "a signed payment delivered while closing wins without releasing the seat" do
+  test "a signed payment delivered while staff is closing keeps the booking and offers a hospital return" do
     order = book!
     stub_checkout(order)
     post_checkout(order)
@@ -79,8 +79,12 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       send_notification(order, "payment", payment_result(order), open_session)
       { "code" => "ORDER_PAID" }
     end
-    post "#{patient_path(order)}/cancel", headers: @headers, as: :json
-    assert_response :ok
+    sign_in @operator
+    cancel_as_staff(order)
+    follow_redirect!
+    assert_includes response.body, "微信已确认收款"
+    assert_select "button", text: "申请退号", count: 1
+    assert_select "button", text: "取消待支付预约", count: 0
     assert_equal [ "confirmed", "paid", 2000, 0 ], [ order.reload.status, order.payment_status, order.paid_amount_cents, remaining(order) ]
     send_notification(order, "payment", payment_result(order))
     assert_equal 1, order_logs(order, "payment_confirmed").count
@@ -92,6 +96,122 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     Appointments::ReconcileWorker.new.perform(order.id)
     assert_equal [ "cancelled", "closed", 1 ], [ order.reload.status, order.payment_status, remaining(order) ]
     @stubs.verify_stubbed_calls
+  end
+
+  test "staff close an untouched suspended booking while customer service can only read it" do
+    order = book!
+    suspend_schedule(order)
+    sign_in Admin.create!(username: "fixture_support", role: "customer_service")
+    get admins_reservation_path(order.order_no)
+    assert_select "button", text: "取消待支付预约", count: 0
+    cancel_as_staff(order, expected: :forbidden)
+    assert order.reload.pending_payment?
+
+    admin = Admin.create!(username: "fixture_super_admin", role: "super_admin")
+    sign_in admin
+    get admins_reservation_path(order.order_no)
+    assert_select "button", text: "取消待支付预约", count: 1
+    cancel_as_staff(order, reason: " ")
+    follow_redirect!
+    assert_includes response.body, "请填写取消原因"
+    assert_nil order.reload.payment_cancel_requested_at
+
+    2.times { cancel_as_staff(order) }
+    follow_redirect!
+    assert_includes response.body, "待支付预约已取消"
+    assert_includes response.body, "虚构医生停诊"
+    assert_includes response.body, admin.username
+    assert_equal [ "cancelled", "closed" ], order.reload.attributes.values_at("status", "payment_status")
+    audit = Log.operations_visible_to(admin).merge(order_logs(order, "payment_close_requested")).sole
+    assert_equal [ "Admin", admin.id ], audit.attributes.values_at("actor_type", "actor_id")
+    get admins_operation_log_path(audit)
+    assert_includes response.body, order.order_no
+    refute_includes response.body, "虚构医生停诊"
+    closed = order_logs(order, "payment_closed").sole
+    assert_equal "NOT_CREATED", closed.details.fetch("channel_outcome")
+    get admins_operation_log_path(closed)
+    assert_includes response.body, "本地关单"
+    refute Appointment.occupying.exists?(order.id)
+    assert_empty ScheduleCalendar.new([ @doctor.id ], order.appointment_date..order.appointment_date).day_availability(@doctor.id, order.appointment_date)[:shifts]
+    post "#{patient_path(order)}/payment", headers: @headers, as: :json
+    assert_response :unprocessable_content
+  end
+
+  test "staff cancellation blocks checkout immediately and holds the seat until WeChat closes the order" do
+    order = book!
+    stub_checkout(order)
+    post_checkout(order)
+    state = "NOTPAY"
+    stub_query(order) { payment_result(order, state) }
+    stub_wechat("v3", :post, "#{trade_path(order)}/close", status: 204) do
+      patient = open_session
+      patient.post "#{patient_path(order)}/payment", headers: @headers, as: :json
+      assert_equal 422, patient.response.status
+      state = "USERPAYING"
+      {}
+    end
+    sign_in @operator
+    cancel_as_staff(order)
+    follow_redirect!
+    assert_includes response.body, "关单核实中"
+    assert_equal [ "pending_payment", 0 ], [ order.reload.status, remaining(order) ]
+
+    state = "CLOSED"
+    2.times { Appointments::ReconcileWorker.new.perform(order.id) }
+    assert_equal [ "cancelled", "closed", 1 ], [ order.reload.status, order.payment_status, remaining(order) ]
+    assert_equal({ "admin_id" => @operator.id, "reason" => "虚构医生停诊" }, order.payment_data.fetch("staff_cancellation"))
+    assert_equal "CLOSED", order_logs(order, "payment_closed").sole.details.fetch("channel_outcome")
+  end
+
+  test "a signed lookup miss for a started prepay does not release the seat" do
+    order = book!
+    # The attempt marker is committed before the network request returns a prepay ID.
+    order.update!(payment_data: order.payment_data.merge("prepay_attempted" => true))
+    stub_wechat("v3", :get, "#{trade_path(order)}?mchid=#{@merchant_id}", status: 404) { { "code" => "ORDER_NOT_EXIST" } }
+    sign_in @operator
+    cancel_as_staff(order)
+    assert_equal [ "pending_payment", "UNKNOWN", 0 ], [ order.reload.status, order.payment_data.fetch("trade_state"), remaining(order) ]
+    assert_empty order_logs(order, "payment_closed")
+    @stubs.verify_stubbed_calls
+  end
+
+  test "six closed pending bookings stop counting against the account on the same visit date" do
+    orders = fill_daily_quota
+    post_booking(booking_draft.merge(patient_name: "虚构额外家属"))
+    assert_equal "daily_limit", response.parsed_body.fetch("code")
+    orders.each do |order|
+      post "#{patient_path(order)}/cancel", headers: @headers, as: :json
+      assert_response :ok
+      assert_equal "cancelled", response.parsed_body.fetch("status")
+    end
+    assert_empty @user.appointments.occupying
+    assert_equal "pending_payment", book!.status
+  end
+
+  test "the account limit counts completed visits, pending returns and price refunds until a booking is cancelled" do
+    returning, visiting = fill_daily_quota
+    [ returning, visiting ].each { |order| settle_payment(order) }
+    request_return(returning)
+    assert_equal "cancel_requested", returning.reload.status
+
+    sign_in @operator
+    requests = stub_v3_refunds(visiting)
+    post refund_difference_admins_reservation_path(visiting.order_no), params: { refund: refund_form(reason: "虚构费用调整", amount: "5") }
+    review(visiting, 1, "approve")
+    send_v3_refund(visiting, requests.sole, 500)
+    assert_equal [ "confirmed", "partial" ], visiting.reload.attributes.values_at("status", "refund_status")
+    post_booking(booking_draft)
+    assert_equal "daily_limit", response.parsed_body.fetch("code")
+
+    patch complete_admins_reservation_path(visiting.order_no)
+    assert_equal "completed", visiting.reload.status
+    post_booking(booking_draft)
+    assert_equal "daily_limit", response.parsed_body.fetch("code")
+
+    stub_v3_refunds(returning)
+    review(returning, 1, "approve")
+    assert_equal "cancelled", returning.reload.status
+    assert_equal "pending_payment", book!.status
   end
 
   test "refusal retains the seat and a second request after the visit time can be approved the next day" do
@@ -142,9 +262,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     order = book!
     settle_payment(order)
     sign_in @operator
-    edit_schedule = ScheduleEditor.new(doctor: @doctor, actor: @operator, request: nil)
-    assert edit_schedule.save_date(order.appointment_date, { time_slot: "", capacity: "" }, revision: edit_schedule.date_revision(order.appointment_date))
-    assert_equal({ "AM" => 1 }, edit_schedule.affected_bookings)
+    suspend_schedule(order)
     assert_equal [ "confirmed", [] ], [ order.reload.status, order.refund_items ]
 
     travel_to @started_at + 1.day
@@ -188,7 +306,23 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       assert_equal [ "confirmed", "partial", 500 ], order.reload.attributes.values_at("status", "refund_status", "refunded_amount_cents")
       extra_refunds.each do |difference|
         post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(reason: "虚构再次调价", amount: difference / 100) }
-        send_v3_refund(order, requests.last, difference)
+        second = requests.last
+        send_v3_refund(order, second, nil)
+        assert_nil order.reload.refunded_amount_cents
+        assert_equal [ "succeeded", nil ], order.refund_items.last.values_at("status", "payer_refund_cents")
+        assert_equal 1200, order.available_refund_cents
+        get admins_reservation_path(order.order_no)
+        assert_includes response.body, "已确认 5 元，其余待核对"
+        post refund_difference_admins_reservation_path(order.order_no), params: { refund: refund_form(reason: "虚构额度核对", amount: "12.01") }
+        assert_equal 2, requests.size
+
+        stub_wechat("v3", :get, "/v3/refund/domestic/refunds/#{second.fetch('out_refund_no')}") do
+          v3_refund_result(order, second, "SUCCESS", difference)
+        end
+        post sync_refund_admins_reservation_path(order.order_no, order.refund_items.last.fetch("id"))
+        assert_response :see_other
+        2.times { send_v3_refund(order, second, difference) }
+        assert_equal 800, order.reload.refunded_amount_cents
       end
       request_return(order)
       remaining_cents = 1500 - extra_refunds.sum
@@ -196,7 +330,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
       2.times { send_v3_refund(order, requests.last, remaining_cents) }
       assert_equal [ "cancelled", "paid", "refunded", 2000, 1 ], [ order.reload.status, order.payment_status, order.refund_status, order.refunded_amount_cents, remaining(order) ]
       assert_equal 2 + extra_refunds.size, order.refund_items.size
-      assert_equal 2 + extra_refunds.size, order_logs(order, "refund_result").where("details ->> 'channel_outcome' = 'SUCCESS'").count
+      assert_equal 2 + 2 * extra_refunds.size, order_logs(order, "refund_result").where("details ->> 'channel_outcome' = 'SUCCESS'").count
     end
   end
 
@@ -241,6 +375,20 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     request_return(order)
     assert_equal [ "cancelled", "none", 1 ], [ order.reload.status, order.refund_status, remaining(order) ]
     assert_equal [ "succeeded", 0 ], order.refund_items.sole.values_at("status", "amount_cents")
+    assert_equal 0, order.refunded_amount_cents
+  end
+
+  test "a successful WeChat refund reports an explicit zero cash amount" do
+    automatic_review
+    order = book!
+    settle_payment(order, cash: 0)
+    requests = stub_v3_refunds(order)
+    request_return(order)
+    2.times { send_v3_refund(order, requests.sole, 0) }
+    assert_equal [ "refunded", 0 ], order.reload.attributes.values_at("refund_status", "refunded_amount_cents")
+    assert_equal 0, order.refund_items.sole.fetch("payer_refund_cents")
+    get patient_path(order), headers: @headers, as: :json
+    assert_equal "0", response.parsed_body.fetch("refunds").sole.fetch("cash")
   end
 
   private
@@ -263,6 +411,23 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     post_booking(draft)
     assert_response :created
     Appointment.find_by!(order_no: response.parsed_body.fetch("order_no"))
+  end
+
+  def fill_daily_quota
+    @settings.update!(settings: @settings.settings.merge("max_bookings_per_slot" => 8))
+    @doctor.schedules.sole.update!(capacity: 8)
+    Array.new(6) { |index| book!(booking_draft.merge(patient_name: "虚构家属#{index}")) }
+  end
+
+  def suspend_schedule(order)
+    editor = ScheduleEditor.new(doctor: @doctor, actor: @operator, request: nil)
+    assert editor.save_date(order.appointment_date, { time_slot: "", capacity: "" }, revision: editor.date_revision(order.appointment_date))
+    assert_equal({ "AM" => 1 }, editor.affected_bookings)
+  end
+
+  def cancel_as_staff(order, reason: "虚构医生停诊", expected: :see_other)
+    post cancel_pending_payment_admins_reservation_path(order.order_no), params: { payment_cancellation: { reason: reason } }
+    assert_response expected
   end
 
   def patient_path(order) = api_mini_program_appointment_path(@mini_program.appid, order.order_no)
@@ -312,7 +477,7 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
     fields.merge!("mchid" => @merchant_id, "appid" => @mini_program.appid)
     return fields unless state == "SUCCESS"
 
-    fields.merge("transaction_id" => "420000000000001", "trade_type" => "JSAPI", "payer" => { "openid" => @identity.openid },
+    fields.merge("transaction_id" => "420#{order.payment_no}", "trade_type" => "JSAPI", "payer" => { "openid" => @identity.openid },
       "amount" => { "total" => order.payable_amount_cents, "payer_total" => cash, "currency" => "CNY", "payer_currency" => "CNY" },
       "success_time" => Time.current.iso8601)
   end
@@ -359,11 +524,11 @@ class PaidAppointmentsTest < ActionDispatch::IntegrationTest
   end
 
   def v3_refund_result(order, request, state, cash)
-    amount = request.fetch("amount")
+    amount = request.fetch("amount").merge("payer_refund" => cash, "payer_total" => order.paid_amount_cents).compact
     number = request.fetch("out_refund_no")
     { "out_trade_no" => order.payment_no, "out_refund_no" => number, "transaction_id" => order.reload.transaction_no,
       "refund_id" => "500#{number}", "mchid" => @merchant_id, "refund_status" => state, "status" => state,
-      "amount" => amount.merge("payer_refund" => cash, "payer_total" => order.paid_amount_cents), "success_time" => Time.current.iso8601 }
+      "amount" => amount, "success_time" => Time.current.iso8601 }
   end
 
   def send_v3_refund(order, request, cash)

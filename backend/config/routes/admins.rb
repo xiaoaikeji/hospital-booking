@@ -84,6 +84,7 @@ namespace :admins do
   resources :reservations, only: %i[index show], param: :order_no, constraints: { order_no: /[0-9]{20}/ } do
     member do
       patch :complete
+      post :cancel_pending_payment
       post :return_booking
       post :refund_difference
       patch "refunds/:refund_record_id", action: :review_refund, as: :review_refund

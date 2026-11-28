@@ -54,7 +54,7 @@ module Appointments
       reject!(:selection_changed) unless doctor
       department = doctor.departments.find_by(id: parse_id(@input["department_id"]))
       reject!(:department_unavailable) unless department&.visible_in_booking?
-      reject!(:daily_limit) if @user.appointments.where(appointment_date: @date).count >= DAILY_LIMIT
+      reject!(:daily_limit) if @user.appointments.current.occupying.where(appointment_date: @date).count >= DAILY_LIMIT
 
       profile = patient || Patient.new(user: @user, name: @input["patient_name"], gender: @input["patient_gender"], age: @input["patient_age"])
       reject!(:invalid_patient) unless profile.valid?
